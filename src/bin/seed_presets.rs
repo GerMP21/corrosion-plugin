@@ -1015,7 +1015,7 @@ fn presets() -> Vec<Preset> {
 // `output` was also trimmed in 5 % steps until limiter hits were no more than
 // before. Values come from `cargo test --release --no-default-features --lib
 // c5_revoice_table -- --ignored --nocapture`; the per-preset numbers are in
-// `openspec/changes/fix-post-chain-body-routing/baseline.md`.
+// `openspec/changes/archive/2026-10-05-fix-post-chain-body-routing/baseline.md`.
 // (name, body, output)
 const C5_REVOICE: [(&str, f32, f32); 50] = [
     ("Beam Drag", 0.48, 1.000), // rms 0.52363 (baseline 0.52362), peak 0.9121, hits 0 (baseline 0)

@@ -6,7 +6,7 @@ exciters, post-processing, presets, GUI, offline/render bins, randomizer), plus 
 factory preset bank, test suite expectations, and build configuration.
 **Method:** line-by-line read of the audio path; targeted reads of the GUI and offline
 paths; numeric simulation used to verify the ladder-filter stability finding.
-**Status (2026-10-05):** C1–C6 are FIXED (OpenSpec changes under `openspec/changes/`), including the follow-ups from their verification pass.
+**Status (2026-10-05):** C1–C6 are FIXED (OpenSpec changes archived under `openspec/changes/archive/`, specs in `openspec/specs/`), including the follow-ups from their verification pass.
 **Note:** `docs/CODE-REVIEW.md` (2026-05-27) is now partially stale — its Finding 1
 (clipper oversampling no-op) and the factory-reverb delay compounding have since been
 fixed (regression tests exist for both). This document supersedes it.
@@ -41,7 +41,7 @@ this topology.
 ## CRITICAL
 
 ### ~~C1. Ladder filter is unstable for cutoff ≥ fs/4 — including the default 20 kHz — and latches to a DC rail~~ — FIXED
-> **Status: FIXED** (2026-10-05, branch `claude/eloquent-dirac-fc0sqm`) — OpenSpec change [`fix-ladder-filter-prewarp`](openspec/changes/fix-ladder-filter-prewarp/proposal.md). Prewarp is now `tan(π·fc/fs)` with `fc ≤ 0.49·fs`. The stages are also rebuilt as unity-gain TPT one-poles, because the old stage's 0.5 DC gain (−24 dB over four stages) left a default note at ≈ −42 dBFS once the rail was gone. Regression tests: `wdf_filter::tests::*`, `tests/post_chain_default_dc.rs`. Commit `d33bb26`.
+> **Status: FIXED** (2026-10-05, branch `claude/eloquent-dirac-fc0sqm`) — OpenSpec change [`fix-ladder-filter-prewarp`](openspec/changes/archive/2026-10-05-fix-ladder-filter-prewarp/proposal.md). Prewarp is now `tan(π·fc/fs)` with `fc ≤ 0.49·fs`. The stages are also rebuilt as unity-gain TPT one-poles, because the old stage's 0.5 DC gain (−24 dB over four stages) left a default note at ≈ −42 dBFS once the rail was gone. Regression tests: `wdf_filter::tests::*`, `tests/post_chain_default_dc.rs`. Commit `d33bb26`.
 > Follow-up after verification: with unity-gain stages, the one-sample-delayed resonance feedback made the filter ring forever from resonance ≈ 0.3 at the 20 kHz default. The feedback is now zero-delay with `k = 4·res/0.9`, so tails decay below 90 % resonance and the filter self-oscillates from 90 % up, at any cutoff and sample rate.
 > Correction found while scoping: below `fs/4` the bug puts the effective cutoff about an octave *above* the displayed value, not half of it.
 
@@ -90,7 +90,7 @@ renders bypass the post chain entirely (see H14).
 `fc = 20 kHz` and at `fc` swept through `fs/4`.
 
 ### ~~C2. MSEG: infinite recursion (audio-thread stack overflow) when `loop_start_stage = 4`~~ — FIXED
-> **Status: FIXED** (2026-10-05, branch `claude/eloquent-dirac-fc0sqm`) — OpenSpec change [`fix-mseg-loop-recursion`](openspec/changes/fix-mseg-loop-recursion/proposal.md). `process_sample()` now resolves stage changes in a capped loop (no recursion), `loop_end_stage` is honored, and loop start ≥ end holds sustain. Output for loop Off and the default/Drone 3 → 4 loop was bit-identical to before (commit `3540048`), until C4 changed the velocity gain and the release start level. Two findings while fixing: optimized builds *hang* the audio thread here rather than overflowing the stack, and `t_decay = 0` with any loop hit the same recursion (API-only; the host's decay minimum is 10 ms). PingPong is still partial. Regression tests: `envelopes::tests::*`, `tests/mseg_loop_safety.rs`.
+> **Status: FIXED** (2026-10-05, branch `claude/eloquent-dirac-fc0sqm`) — OpenSpec change [`fix-mseg-loop-recursion`](openspec/changes/archive/2026-10-05-fix-mseg-loop-recursion/proposal.md). `process_sample()` now resolves stage changes in a capped loop (no recursion), `loop_end_stage` is honored, and loop start ≥ end holds sustain. Output for loop Off and the default/Drone 3 → 4 loop was bit-identical to before (commit `3540048`), until C4 changed the velocity gain and the release start level. Two findings while fixing: optimized builds *hang* the audio thread here rather than overflowing the stack, and `t_decay = 0` with any loop hit the same recursion (API-only; the host's decay minimum is 10 ms). PingPong is still partial. Regression tests: `envelopes::tests::*`, `tests/mseg_loop_safety.rs`.
 
 `src/dsp/envelopes/mod.rs:279-289, 347-365`
 
@@ -127,7 +127,7 @@ Related defects in the same code:
   skew timing slightly.
 
 ### ~~C3. Note-on allocates on the audio thread~~ — FIXED
-> **Status: FIXED** (2026-10-05, branch `claude/eloquent-dirac-fc0sqm`) — OpenSpec change [`remove-note-on-audio-allocations`](openspec/changes/remove-note-on-audio-allocations/proposal.md), commit `d16781b`. Each voice preallocates its worst-case bank (`MAX_MODES` = 96) and `rebuild_in_place` refills it at note-on. `reset()` clears voices and the post chain in place, and the mode banks are bit-identical to before (golden fixture). Two findings while fixing: `tests/no_alloc.rs` only checks in **debug** builds (release runs pass vacuously), and three exciters also allocated on the audio thread (MetalChain, WireBrush, ParticleRain), now preallocated. `tests/no_alloc.rs` now runs note-on, stealing, expression and reset inside the check.
+> **Status: FIXED** (2026-10-05, branch `claude/eloquent-dirac-fc0sqm`) — OpenSpec change [`remove-note-on-audio-allocations`](openspec/changes/archive/2026-10-05-remove-note-on-audio-allocations/proposal.md), commit `d16781b`. Each voice preallocates its worst-case bank (`MAX_MODES` = 96) and `rebuild_in_place` refills it at note-on. `reset()` clears voices and the post chain in place, and the mode banks are bit-identical to before (golden fixture). Two findings while fixing: `tests/no_alloc.rs` only checks in **debug** builds (release runs pass vacuously), and three exciters also allocated on the audio thread (MetalChain, WireBrush, ParticleRain), now preallocated. `tests/no_alloc.rs` now runs note-on, stealing, expression and reset inside the check.
 
 `src/dsp/resonators/core.rs:221-268, 536-572`, `src/dsp/profile.rs (damaged())`,
 `src/dsp/interaction.rs:138-141`
@@ -156,7 +156,7 @@ called from the audio thread by hosts.
 defer bank construction to a lock-free swap; make the no-alloc test cover note-on.
 
 ### ~~C4. MSEG velocity/level formula puts a floor under the envelope and steps to zero at release end~~ — FIXED
-> **Status: FIXED** (2026-10-05, branch `claude/eloquent-dirac-fc0sqm`) — OpenSpec change [`fix-mseg-velocity-scaling`](openspec/changes/fix-mseg-velocity-scaling/proposal.md). Velocity is now a pure gain, `level · ((1 − vtl) + vtl · velocity_scale)`, so zero level is silence and Release ends without a step (the click measured 0.175 at velocity 0.3). Full-velocity output matches the old formula within f32 rounding (≤ 1.5e-8) for `velocity_to_level = 1`. Commit `45dd964`. Correction found while scoping: with `velocity_to_level = 1` (all presets) the old formula at full velocity is mathematically `level`, so the floor and release-end click only occur below full velocity or with `velocity_to_level < 1`. Follow-up after verification: Release now ramps from the level the envelope had when the gate closed, so releasing during Attack or Decay no longer jumps to the sustain level first.
+> **Status: FIXED** (2026-10-05, branch `claude/eloquent-dirac-fc0sqm`) — OpenSpec change [`fix-mseg-velocity-scaling`](openspec/changes/archive/2026-10-05-fix-mseg-velocity-scaling/proposal.md). Velocity is now a pure gain, `level · ((1 − vtl) + vtl · velocity_scale)`, so zero level is silence and Release ends without a step (the click measured 0.175 at velocity 0.3). Full-velocity output matches the old formula within f32 rounding (≤ 1.5e-8) for `velocity_to_level = 1`. Commit `45dd964`. Correction found while scoping: with `velocity_to_level = 1` (all presets) the old formula at full velocity is mathematically `level`, so the floor and release-end click only occur below full velocity or with `velocity_to_level < 1`. Follow-up after verification: Release now ramps from the level the envelope had when the gate closed, so releasing during Attack or Decay no longer jumps to the sustain level first.
 
 `src/dsp/envelopes/mod.rs:315-319` (pre-fix line numbers)
 
@@ -182,7 +182,7 @@ preserves zeros. The unit test `velocity_affects_level` only checks that peaks
 differ, so it passes despite the broken floor.
 
 ### ~~C5. Post chain: filter/drive are only audible through the FEM body bank, and the stereo image is 70 % mono-collapsed~~ — FIXED
-> **Status: FIXED** (2026-10-05, branch `claude/eloquent-dirac-fc0sqm`) — OpenSpec change [`fix-post-chain-body-routing`](openspec/changes/fix-post-chain-body-routing/proposal.md), commit `d04d252`. Filter and drive now run per channel. The body resonance is added in parallel at BODY / 5, Chassis Volume only tunes the body, and Eco runs the full chain. All 50 factory presets were re-voiced per preset (BODY, plus an `output` trim on 11) to within 0.5 dB of their old RMS, with no more limiter hits than before. The `body` default moved to 2.62 to keep the default patch's level. Found while fixing: the dry voice signal is very quiet on struck presets (a default note peaks at −51 dBFS with BODY 0), because the always-on body bank used to supply nearly all of their level. HRTF spread's own mono remix stays open.
+> **Status: FIXED** (2026-10-05, branch `claude/eloquent-dirac-fc0sqm`) — OpenSpec change [`fix-post-chain-body-routing`](openspec/changes/archive/2026-10-05-fix-post-chain-body-routing/proposal.md), commit `d04d252`. Filter and drive now run per channel. The body resonance is added in parallel at BODY / 5, Chassis Volume only tunes the body, and Eco runs the full chain. All 50 factory presets were re-voiced per preset (BODY, plus an `output` trim on 11) to within 0.5 dB of their old RMS, with no more limiter hits than before. The `body` default moved to 2.62 to keep the default patch's level. Found while fixing: the dry voice signal is very quiet on struck presets (a default note peaks at −51 dBFS with BODY 0), because the always-on body bank used to supply nearly all of their level. HRTF spread's own mono remix stays open.
 
 `src/dsp/post_processing/post_chain.rs:138-161`, `fem_body.rs:57-78`
 
@@ -206,7 +206,7 @@ differ, so it passes despite the broken floor.
    `max()`, so automating `body` below the current `chassis_volume` does nothing.
 
 ### ~~C6. Spring reverb: one mono state shared by both channels~~ — FIXED
-> **Status: FIXED** (2026-10-05, branch `claude/eloquent-dirac-fc0sqm`) — OpenSpec change [`fix-spring-reverb-stereo`](openspec/changes/fix-spring-reverb-stereo/proposal.md), commit `7d35794`. The post chain now runs one spring per channel, so each tail comes only from its own input and the first echo arrives one full delay length later (80 ms at the default tank size, previously 40 ms). A mono input still gives identical tails. `SpringReverb::reset()` also rewinds the delay line. The two Spring presets (Distant Plate Roll, Spring Reverb Tap) now echo at twice the old spacing, at the same level and with no limiter hits. Spring Reverb Tap's BODY was re-matched from 1.60 to 2.26 to hold that level (`openspec/changes/fix-spring-reverb-stereo/audition.md`).
+> **Status: FIXED** (2026-10-05, branch `claude/eloquent-dirac-fc0sqm`) — OpenSpec change [`fix-spring-reverb-stereo`](openspec/changes/archive/2026-10-05-fix-spring-reverb-stereo/proposal.md), commit `7d35794`. The post chain now runs one spring per channel, so each tail comes only from its own input and the first echo arrives one full delay length later (80 ms at the default tank size, previously 40 ms). A mono input still gives identical tails. `SpringReverb::reset()` also rewinds the delay line. The two Spring presets (Distant Plate Roll, Spring Reverb Tap) now echo at twice the old spacing, at the same level and with no limiter hits. Spring Reverb Tap's BODY was re-matched from 1.60 to 2.26 to hold that level (`openspec/changes/archive/2026-10-05-fix-spring-reverb-stereo/audition.md`).
 
 `src/dsp/post_processing/post_chain.rs:175-182`, `space.rs:133-212` (pre-fix line numbers)
 

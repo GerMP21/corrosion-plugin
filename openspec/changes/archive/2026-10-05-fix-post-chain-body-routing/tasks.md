@@ -2,7 +2,7 @@
 
 ## 1. Baselines
 
-- [x] 1.1 Record, on the current code, the default-note peak from `hosted_normalized_note_velocity_reaches_output_chain` and each factory preset's post-chain output RMS plus its body-to-dry energy ratio (a small offline harness or test under `#[ignore]`); save the numbers in `openspec/changes/fix-post-chain-body-routing/baseline.md`; verify the file lists all 50 presets
+- [x] 1.1 Record, on the current code, the default-note peak from `hosted_normalized_note_velocity_reaches_output_chain` and each factory preset's post-chain output RMS plus its body-to-dry energy ratio (a small offline harness or test under `#[ignore]`); save the numbers in `openspec/changes/archive/2026-10-05-fix-post-chain-body-routing/baseline.md`; verify the file lists all 50 presets
 - [x] 1.2 Add failing routing tests in `src/dsp/post_processing/post_chain.rs`: hard-left input stays ≥ 20 dB louder on the left (BODY 0, spread width 0, space off); BODY 0 output is unchanged as Chassis Volume sweeps 0 → 1; verify both FAIL on the current code
 
 ## 2. Routing

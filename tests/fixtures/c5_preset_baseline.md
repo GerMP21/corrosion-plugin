@@ -1,7 +1,7 @@
 # Pre-C5 factory preset baseline
 
 Per-preset post-chain output measured on commit `45dd964` (before C5's routing
-change), copied from `openspec/changes/fix-post-chain-body-routing/baseline.md`
+change), copied from `openspec/changes/archive/2026-10-05-fix-post-chain-body-routing/baseline.md`
 (see there for method and column definitions). The ignored harness tests in
 `src/lib.rs` (`c5_measurements`) read RMS and limiter hits from this table to
 check that every re-voiced preset stays within 0.5 dB of its old level and
