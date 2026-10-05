@@ -7,9 +7,9 @@
   "rust": 0.0,
   "damage": 0.7,
   "drive": 1.0,
-  "output": 1.0,
+  "output": 0.95,
   "width": 0.5,
-  "body": 1.0,
+  "body": 0.94,
   "quality_mode": 1,
   "play_mode": 0,
   "extra": {

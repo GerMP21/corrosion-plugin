@@ -146,8 +146,11 @@ pub struct CorrosionParams {
     #[id = "width"]
     pub width: FloatParam,
 
-    /// Body resonance amount (0.0 to 5.0)
-    /// Physical cabinet/body resonance simulation
+    /// Body resonance amount (0.0 to 5.0).
+    ///
+    /// Mix level of the chassis body resonance, added in parallel to the
+    /// filtered/driven signal: 0 is no body, 5 is the full body level
+    /// (`body / 5` in the post chain).
     #[id = "body"]
     pub body: FloatParam,
 
@@ -682,8 +685,10 @@ pub struct CorrosionParams {
     #[id = "chassis_material"]
     pub chassis_material: FloatParam,
 
-    /// Chassis volume (0.0 to 1.0)
-    /// Body resonance intensity
+    /// Chassis volume (0.0 to 1.0).
+    ///
+    /// Size of the chassis body: larger volumes move its resonances lower.
+    /// It does not set the body's level; BODY does.
     #[id = "chassis_volume"]
     pub chassis_volume: FloatParam,
 
@@ -1320,7 +1325,9 @@ impl Default for CorrosionParams {
                     max: 3.0,
                 },
             ),
-            body: FloatParam::new("Body", 0.0, FloatRange::Linear { min: 0.0, max: 5.0 }),
+            // 2.62 reproduces the pre-C5 default-note level (peak 0.118) with
+            // the parallel body routing; see `c5_measurements::c5_default_body`.
+            body: FloatParam::new("Body", 2.62, FloatRange::Linear { min: 0.0, max: 5.0 }),
 
             // UI scale (percentage display)
             ui_scale: IntParam::new("UI Scale", 2, IntRange::Linear { min: 0, max: 4 })

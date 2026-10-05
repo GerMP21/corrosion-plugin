@@ -52,10 +52,10 @@ MIDI Note Event
                                        ▼
 ┌─────────────────────────────────────────────────────────────────────┐
 │                       PostProcessingChain                              │
-│  fold→mono → WDF filter → Lorenz drive →                              │
-│    [Eco: bypass body/spread/space] →                                  │
-│  FEM body → re-stereo → HRTF spread → Space(Factory|Spring|Echo) →    │
-│  OversampledClipper (per channel)                                     │
+│  L/R: WDF filter → Lorenz drive (one pair per channel) ─┐             │
+│  FEM body on (L+R)/2, × BODY amount, added to both ─────┤             │
+│  → HRTF spread → Space(Factory|Spring|Echo) →            │             │
+│  OversampledClipper (per channel)      (all quality modes)             │
 └─────────────────────────────────────────────────────────────────────┘
                                        │
                                        ▼
@@ -283,8 +283,10 @@ exciters and envelope velocity response.
 
 ## 9. Post-Processing Chain
 
-`PostProcessingChain` runs, in order: WDF ladder filter → Lorenz drive →
-(Eco bypass) → FEM body → HRTF spread → Space → oversampled clipper. These are
+`PostProcessingChain` runs, per channel, WDF ladder filter → Lorenz drive. It then adds
+the FEM body resonance (run once on the mono sum, mixed at BODY / 5) to both channels,
+followed by HRTF spread → Space → oversampled clipper. Chassis Volume only retunes the
+body. Every quality mode runs every stage (C5, `fix-post-chain-body-routing`). These are
 **lightweight, real-time-safe approximations** of the high-fidelity algorithms in
 `docs/detailed-specs/post-processing.md`; the module docstrings say as much. See
 `docs/code-review.md` §"Post-processing conformance" for the exact gap per stage.
@@ -314,13 +316,13 @@ Stage summary (as implemented):
 
 | Mode | Oversample factor requested | Chain behavior |
 |---|---|---|
-| Eco | 1× | bypasses FEM body, HRTF spread, and Space |
+| Eco | 1× | full chain |
 | Normal (default) | 4× | full chain |
 | High | 8× | full chain |
 | Render | 16× | full chain |
 
 The mapping is wired end-to-end (param → `set_quality_mode` → `set_oversample_factor`),
-and Eco's stage bypass is real and audible. **However the clipper's
+and every mode runs the same stages. **However the clipper's
 oversampling math does not actually oversample** (it zero-order-holds a single
 input and averages identical copies), so Normal/High/Render are sonically
 identical at the clipper. This is the top defect in `docs/code-review.md`.

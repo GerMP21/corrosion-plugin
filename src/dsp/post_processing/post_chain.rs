@@ -1,7 +1,11 @@
 //! Real-time post-processing chain.
 //!
-//! The chain runs mono filtering/drive/body stages, widens to stereo, applies
-//! the selected space mode, and finishes with an oversampled clipper.
+//! Each channel runs its own filter and drive (dual-mono, so the voice
+//! engine's stereo image survives). The body resonator runs in parallel on
+//! the mono sum and is mixed back into both channels at the BODY amount.
+//! The result goes through HRTF spread, the selected space mode, and an
+//! oversampled clipper. Every quality mode runs every stage; modes only
+//! change oversampling (and, at the voice layer, modal density).
 use super::{
     FactoryEcho, FactoryReverb, FemBodyResonator, HrtfSpread, LorenzDrive, OversampledClipper,
     SpaceMode, SpringReverb, WdfLadderFilter,
@@ -18,8 +22,10 @@ pub enum PostQualityMode {
 
 /// Ordered post-processing pipeline for the plugin output.
 pub struct PostProcessingChain {
-    filter: WdfLadderFilter,
-    drive: LorenzDrive,
+    filter_left: WdfLadderFilter,
+    filter_right: WdfLadderFilter,
+    drive_left: LorenzDrive,
+    drive_right: LorenzDrive,
     body: FemBodyResonator,
     spread: HrtfSpread,
     factory_reverb: FactoryReverb,
@@ -29,17 +35,32 @@ pub struct PostProcessingChain {
 
     space_mode: SpaceMode,
     space_amount: f32,
+    /// Smoothed body mix (0–1) and its target; the first set snaps.
+    body_amount: f32,
+    body_amount_target: f32,
+    body_amount_primed: bool,
+    /// Per-sample one-pole coefficient for the body-amount smoother.
+    body_smoothing_coeff: f32,
     quality_mode: PostQualityMode,
 
     sample_rate: f32,
 }
 
 impl PostProcessingChain {
+    /// Time constant of the BODY-amount smoother, matching the filter's.
+    const BODY_SMOOTHING_TAU_SECONDS: f32 = 0.02;
+
+    fn smoothing_coeff(sample_rate: f32) -> f32 {
+        1.0 - (-1.0 / (Self::BODY_SMOOTHING_TAU_SECONDS * sample_rate.max(1.0))).exp()
+    }
+
     /// Creates the chain with default stage instances and sample rate.
     pub fn new() -> Self {
         Self {
-            filter: WdfLadderFilter::new(),
-            drive: LorenzDrive::new(),
+            filter_left: WdfLadderFilter::new(),
+            filter_right: WdfLadderFilter::new(),
+            drive_left: LorenzDrive::new(),
+            drive_right: LorenzDrive::new(),
             body: FemBodyResonator::new(),
             spread: HrtfSpread::new(),
             factory_reverb: FactoryReverb::new(),
@@ -48,6 +69,10 @@ impl PostProcessingChain {
             clipper: OversampledClipper::new(),
             space_mode: SpaceMode::Off,
             space_amount: 0.0,
+            body_amount: 0.0,
+            body_amount_target: 0.0,
+            body_amount_primed: false,
+            body_smoothing_coeff: Self::smoothing_coeff(48000.0),
             quality_mode: PostQualityMode::Normal,
             sample_rate: 48000.0,
         }
@@ -67,8 +92,11 @@ impl PostProcessingChain {
     /// Updates the sample rate for every stage in the chain.
     pub fn set_sample_rate(&mut self, sample_rate: f32) {
         self.sample_rate = sample_rate;
-        self.filter.set_sample_rate(sample_rate);
-        self.drive.set_sample_rate(sample_rate);
+        self.filter_left.set_sample_rate(sample_rate);
+        self.filter_right.set_sample_rate(sample_rate);
+        self.drive_left.set_sample_rate(sample_rate);
+        self.drive_right.set_sample_rate(sample_rate);
+        self.body_smoothing_coeff = Self::smoothing_coeff(sample_rate);
         self.body.set_sample_rate(sample_rate);
         self.spread.set_sample_rate(sample_rate);
         self.factory_reverb.set_sample_rate(sample_rate);
@@ -79,17 +107,31 @@ impl PostProcessingChain {
 
     /// Sets the WDF filter controls.
     pub fn set_filter_params(&mut self, cutoff: f32, resonance: f32, tolerance: f32) {
-        self.filter.set_parameters(cutoff, resonance, tolerance);
+        self.filter_left
+            .set_parameters(cutoff, resonance, tolerance);
+        self.filter_right
+            .set_parameters(cutoff, resonance, tolerance);
     }
 
     /// Sets the chaotic drive controls.
     pub fn set_drive_params(&mut self, amount: f32, starvation: f32, chaos: f32) {
-        self.drive.set_parameters(amount, starvation, chaos);
+        self.drive_left.set_parameters(amount, starvation, chaos);
+        self.drive_right.set_parameters(amount, starvation, chaos);
     }
 
     /// Sets the body resonance controls.
     pub fn set_body_params(&mut self, material: f32, volume: f32) {
         self.body.set_parameters(material, volume);
+    }
+
+    /// Sets how much body resonance is mixed into both channels (0–1).
+    /// Smoothed at audio rate; the first call after `new`/`reset` snaps.
+    pub fn set_body_amount(&mut self, amount: f32) {
+        self.body_amount_target = amount.clamp(0.0, 1.0);
+        if !self.body_amount_primed {
+            self.body_amount_primed = true;
+            self.body_amount = self.body_amount_target;
+        }
     }
 
     /// Sets stereo spread and listener proximity controls.
@@ -136,26 +178,20 @@ impl PostProcessingChain {
 
     /// Processes one stereo frame through the full stage order.
     pub fn process(&mut self, left: f32, right: f32) -> (f32, f32) {
-        let mono = (left + right) * 0.5;
+        // 1–2. Filter and drive, per channel.
+        let driven_left = self.drive_left.process(self.filter_left.process(left));
+        let driven_right = self.drive_right.process(self.filter_right.process(right));
 
-        // 1. WDF Ladder Filter
-        let filtered = self.filter.process(mono);
-
-        // 2. Lorenz Chaotic Drive
-        let driven = self.drive.process(filtered);
-
-        if self.quality_mode == PostQualityMode::Eco {
-            let eco_left = left * 0.3 + driven * 0.7;
-            let eco_right = right * 0.3 + driven * 0.7;
-            return self.clipper.process_stereo(eco_left, eco_right);
-        }
-
-        // 3. FEM Body Resonator
-        let bodied = self.body.process(driven);
-
-        // Convert back to stereo for spread
-        let bodied_left = left * 0.3 + bodied * 0.7;
-        let bodied_right = right * 0.3 + bodied * 0.7;
+        // 3. Body resonance in parallel on the mono sum, mixed at BODY.
+        let diff = self.body_amount_target - self.body_amount;
+        self.body_amount = if diff.abs() < 1e-6 {
+            self.body_amount_target
+        } else {
+            self.body_amount + diff * self.body_smoothing_coeff
+        };
+        let body_wet = self.body.process((driven_left + driven_right) * 0.5) * self.body_amount;
+        let bodied_left = driven_left + body_wet;
+        let bodied_right = driven_right + body_wet;
 
         // 4. HRTF Stereo Spread
         let (spread_left, spread_right) = self.spread.process(bodied_left, bodied_right);
@@ -195,8 +231,11 @@ impl PostProcessingChain {
 
     /// Clears internal state for all stage buffers and filters.
     pub fn reset(&mut self) {
-        self.filter.reset();
-        self.drive.reset();
+        self.filter_left.reset();
+        self.filter_right.reset();
+        self.drive_left.reset();
+        self.drive_right.reset();
+        self.body_amount_primed = false;
         self.body.reset();
         self.spread.reset();
         self.factory_reverb.reset();
@@ -215,6 +254,189 @@ impl Default for PostProcessingChain {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    const SR: f32 = 48_000.0;
+
+    /// A chain with spread bypassed, space off and the given body amount.
+    fn routing_chain(body_amount: f32, chassis_volume: f32) -> PostProcessingChain {
+        routing_chain_with_cutoff(body_amount, chassis_volume, 20_000.0)
+    }
+
+    /// Like `routing_chain`, with the cutoff set on the first (snapping)
+    /// call so the test doesn't measure the smoother's ramp.
+    fn routing_chain_with_cutoff(
+        body_amount: f32,
+        chassis_volume: f32,
+        cutoff: f32,
+    ) -> PostProcessingChain {
+        let mut chain = PostProcessingChain::new();
+        chain.set_sample_rate(SR);
+        chain.set_filter_params(cutoff, 0.0, 0.0);
+        chain.set_drive_params(0.0, 0.0, 0.0);
+        chain.set_body_params(0.5, chassis_volume);
+        chain.set_body_amount(body_amount);
+        chain.set_spread_params(0.0, 0.5);
+        chain.set_space_mode(SpaceMode::Off);
+        chain
+    }
+
+    fn tone(i: usize, freq: f32, amp: f32) -> f32 {
+        amp * (std::f32::consts::TAU * freq * i as f32 / SR).sin()
+    }
+
+    fn rms(xs: &[f32]) -> f32 {
+        (xs.iter().map(|x| x * x).sum::<f32>() / xs.len() as f32).sqrt()
+    }
+
+    #[test]
+    fn hard_left_input_stays_left() {
+        let mut chain = routing_chain(0.0, 0.5);
+        let (mut left, mut right) = (Vec::new(), Vec::new());
+        for i in 0..9_600 {
+            let (l, r) = chain.process(tone(i, 440.0, 0.2), 0.0);
+            if i >= 4_800 {
+                left.push(l);
+                right.push(r);
+            }
+        }
+        let ratio_db = 20.0 * (rms(&right).max(1e-12) / rms(&left)).log10();
+        assert!(
+            ratio_db <= -20.0,
+            "right channel only {ratio_db:.1} dB below left"
+        );
+    }
+
+    #[test]
+    fn body_zero_ignores_chassis_volume() {
+        let render = |volume: f32| {
+            let mut chain = routing_chain(0.0, volume);
+            (0..4_800)
+                .map(|i| {
+                    let x = tone(i, 300.0, 0.2);
+                    chain.process(x, x).0
+                })
+                .collect::<Vec<_>>()
+        };
+        let reference = render(0.0);
+        for volume in [0.25, 0.5, 0.75, 1.0] {
+            let out = render(volume);
+            let max_diff = reference
+                .iter()
+                .zip(&out)
+                .map(|(a, b)| (a - b).abs())
+                .fold(0.0_f32, f32::max);
+            assert!(
+                max_diff <= 1e-6,
+                "chassis volume {volume} changed BODY-0 output by {max_diff}"
+            );
+        }
+    }
+
+    #[test]
+    fn mono_input_stays_mono() {
+        let mut chain = routing_chain(0.6, 0.5);
+        chain.set_drive_params(0.8, 0.3, 0.5);
+        for i in 0..4_800 {
+            let x = tone(i, 220.0, 0.3);
+            let (l, r) = chain.process(x, x);
+            assert_eq!(l, r, "sample {i}");
+        }
+    }
+
+    #[test]
+    fn body_zero_matches_chain_without_body() {
+        // Hand-built filter → drive per channel → (spread bypassed, space off)
+        // → clipper, i.e. the chain minus the body stage.
+        let mut chain = routing_chain(0.0, 0.5);
+        let mut filters = [WdfLadderFilter::new(), WdfLadderFilter::new()];
+        let mut drives = [LorenzDrive::new(), LorenzDrive::new()];
+        for (f, d) in filters.iter_mut().zip(drives.iter_mut()) {
+            f.set_sample_rate(SR);
+            f.set_parameters(20_000.0, 0.0, 0.0);
+            d.set_sample_rate(SR);
+            d.set_parameters(0.0, 0.0, 0.0);
+        }
+        let mut clipper = OversampledClipper::new();
+        clipper.set_sample_rate(SR);
+        for i in 0..4_800 {
+            let (x_l, x_r) = (tone(i, 300.0, 0.2), tone(i, 450.0, 0.1));
+            let expected = clipper.process_stereo(
+                drives[0].process(filters[0].process(x_l)),
+                drives[1].process(filters[1].process(x_r)),
+            );
+            let (l, r) = chain.process(x_l, x_r);
+            assert!(
+                (l - expected.0).abs() <= 1e-6 && (r - expected.1).abs() <= 1e-6,
+                "sample {i}"
+            );
+        }
+    }
+
+    #[test]
+    fn body_level_tracks_body_amount() {
+        // Body contribution = output(amount) − output(0). Low amplitude and
+        // zero drive keep every other stage linear.
+        let render = |amount: f32| {
+            let mut chain = routing_chain(amount, 0.5);
+            (0..9_600)
+                .map(|i| {
+                    let x = tone(i, 250.0, 0.02);
+                    chain.process(x, x).0
+                })
+                .collect::<Vec<_>>()
+        };
+        let dry = render(0.0);
+        let contribution = |amount: f32| {
+            let out = render(amount);
+            rms(&out.iter().zip(&dry).map(|(a, b)| a - b).collect::<Vec<_>>())
+        };
+        // BODY 1.0 and 4.0 → amounts 0.2 and 0.8.
+        let ratio = contribution(0.8) / contribution(0.2);
+        assert!(
+            (ratio - 4.0).abs() <= 0.2,
+            "body contribution ratio {ratio}, expected 4 ± 5 %"
+        );
+    }
+
+    /// Energy above ~4 kHz: four cascaded one-pole high-passes (−24 dB/oct).
+    fn high_band_energy(xs: &[f32]) -> f64 {
+        let a = (-std::f32::consts::TAU * 4_000.0 / SR).exp();
+        let mut stages = [(0.0_f32, 0.0_f32); 4];
+        let mut energy = 0.0_f64;
+        for &x in xs {
+            let mut v = x;
+            for (prev_in, prev_out) in stages.iter_mut() {
+                let y = a * (*prev_out + v - *prev_in);
+                *prev_in = v;
+                *prev_out = y;
+                v = y;
+            }
+            energy += (v * v) as f64;
+        }
+        energy
+    }
+
+    #[test]
+    fn cutoff_shapes_broadband_output() {
+        let render = |cutoff: f32| {
+            let mut chain = routing_chain_with_cutoff(0.2, 0.5, cutoff);
+            let mut seed = 0x1234_5678_u32;
+            (0..24_000)
+                .map(|_| {
+                    seed = seed.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
+                    let x = ((seed >> 8) as f32 / (1u32 << 24) as f32 - 0.5) * 0.2;
+                    chain.process(x, x).0
+                })
+                .collect::<Vec<_>>()
+        };
+        let open = high_band_energy(&render(20_000.0));
+        let closed = high_band_energy(&render(1_000.0));
+        let drop_db = 10.0 * (open / closed).log10();
+        assert!(
+            drop_db >= 20.0,
+            "1 kHz cutoff cut > 4 kHz energy by only {drop_db:.1} dB"
+        );
+    }
 
     #[test]
     fn chain_processes_stereo() {
@@ -240,48 +462,91 @@ mod tests {
         }
     }
 
+    fn quality_chain(
+        mode: PostQualityMode,
+        space: SpaceMode,
+        body_amount: f32,
+    ) -> PostProcessingChain {
+        let mut chain = routing_chain(body_amount, 0.5);
+        chain.set_quality_mode(mode);
+        chain.set_space_mode(space);
+        chain.set_space_amount(0.5);
+        chain.set_factory_params(0.7, 0.3, 0.5);
+        chain
+    }
+
+    /// Energy of the tail after a 0.1 s burst stops (reverb only once the
+    /// dry signal is gone).
+    fn tail_energy(chain: &mut PostProcessingChain) -> f64 {
+        let burst = 4_800;
+        (0..48_000)
+            .map(|i| {
+                let x = if i < burst { tone(i, 330.0, 0.2) } else { 0.0 };
+                chain.process(x, x).0
+            })
+            .skip(burst + 480)
+            .map(|y| (y * y) as f64)
+            .sum()
+    }
+
     #[test]
-    fn eco_mode_bypasses_stages() {
-        let mut eco_chain = PostProcessingChain::new();
-        eco_chain.set_sample_rate(48000.0);
-        eco_chain.set_quality_mode(PostQualityMode::Eco);
-        eco_chain.set_drive_params(1.0, 0.0, 0.0);
-        eco_chain.set_body_params(0.5, 0.8);
-        eco_chain.set_spread_params(0.5, 0.5);
-        eco_chain.set_space_mode(SpaceMode::Factory);
-        eco_chain.set_space_amount(0.5);
-
-        let mut normal_chain = PostProcessingChain::new();
-        normal_chain.set_sample_rate(48000.0);
-        normal_chain.set_quality_mode(PostQualityMode::Normal);
-        normal_chain.set_drive_params(1.0, 0.0, 0.0);
-        normal_chain.set_body_params(0.5, 0.8);
-        normal_chain.set_spread_params(0.5, 0.5);
-        normal_chain.set_space_mode(SpaceMode::Factory);
-        normal_chain.set_space_amount(0.5);
-
-        let mut eco_sum = 0.0_f32;
-        let mut normal_sum = 0.0_f32;
-        for i in 0..100 {
-            let input = (i as f32 * 0.1).sin() * 0.5;
-            let (eco_l, eco_r) = eco_chain.process(input, input);
-            let (normal_l, normal_r) = normal_chain.process(input, input);
-            eco_sum += eco_l.abs() + eco_r.abs();
-            normal_sum += normal_l.abs() + normal_r.abs();
-        }
-
+    fn eco_keeps_the_reverb() {
+        // C5: Eco used to skip body, spread and space entirely.
+        let eco = tail_energy(&mut quality_chain(
+            PostQualityMode::Eco,
+            SpaceMode::Factory,
+            0.0,
+        ));
+        let normal = tail_energy(&mut quality_chain(
+            PostQualityMode::Normal,
+            SpaceMode::Factory,
+            0.0,
+        ));
+        assert!(eco > 0.0, "Eco render has no reverb tail");
+        let diff_db = 10.0 * (eco / normal).log10();
         assert!(
-            (eco_sum - normal_sum).abs() > 0.01,
-            "Eco mode should produce measurably different output when body/spread/space are active"
+            diff_db.abs() <= 3.0,
+            "Eco tail is {diff_db:.1} dB from Normal"
+        );
+    }
+
+    #[test]
+    fn eco_keeps_the_body() {
+        // Body contribution = output(BODY) − output(no body), per mode. Low
+        // amplitude keeps the clipper linear, so the two modes must agree.
+        let contribution = |mode: PostQualityMode| {
+            let render = |amount: f32| {
+                let mut chain = quality_chain(mode, SpaceMode::Off, amount);
+                (0..9_600)
+                    .map(|i| {
+                        let x = tone(i, 250.0, 0.02);
+                        chain.process(x, x).0
+                    })
+                    .collect::<Vec<_>>()
+            };
+            let (with, without) = (render(0.5), render(0.0));
+            rms(&with
+                .iter()
+                .zip(&without)
+                .map(|(a, b)| a - b)
+                .collect::<Vec<_>>())
+        };
+        let (eco, normal) = (
+            contribution(PostQualityMode::Eco),
+            contribution(PostQualityMode::Normal),
+        );
+        assert!(eco > 0.0, "Eco output has no body resonance");
+        assert!(
+            (eco / normal - 1.0).abs() < 0.01,
+            "Eco body {eco} vs Normal {normal}"
         );
     }
 
     #[test]
     fn quality_mode_changes_oversample_factor() {
-        // Both chains run the full (non-Eco) path, so the only difference between
-        // them is the clipper's oversampling factor. Feeding alternating
-        // transients exercises the interpolated upsampling rather than the Eco
-        // bypass.
+        // Every quality mode runs the same stages, so the only difference
+        // between these chains is the clipper's oversampling factor. Feeding
+        // alternating transients exercises the interpolated upsampling.
         let mut normal = PostProcessingChain::new();
         normal.set_sample_rate(48000.0);
         normal.set_quality_mode(PostQualityMode::Normal);

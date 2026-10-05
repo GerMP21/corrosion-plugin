@@ -6,7 +6,7 @@ exciters, post-processing, presets, GUI, offline/render bins, randomizer), plus 
 factory preset bank, test suite expectations, and build configuration.
 **Method:** line-by-line read of the audio path; targeted reads of the GUI and offline
 paths; numeric simulation used to verify the ladder-filter stability finding.
-**Status (2026-10-05):** C1, C2, C3 and C4 are FIXED; C5 and C6 are IN PROGRESS (OpenSpec changes under `openspec/changes/`).
+**Status (2026-10-05):** C1–C5 are FIXED; C6 is IN PROGRESS (OpenSpec changes under `openspec/changes/`).
 **Note:** `docs/CODE-REVIEW.md` (2026-05-27) is now partially stale — its Finding 1
 (clipper oversampling no-op) and the factory-reverb delay compounding have since been
 fixed (regression tests exist for both). This document supersedes it.
@@ -180,8 +180,8 @@ The intended math is presumably
 preserves zeros. The unit test `velocity_affects_level` only checks that peaks
 differ, so it passes despite the broken floor.
 
-### ~~C5. Post chain: filter/drive are only audible through the FEM body bank, and the stereo image is 70 % mono-collapsed~~ — IN PROGRESS
-> **Status: IN PROGRESS** — OpenSpec change [`fix-post-chain-body-routing`](openspec/changes/fix-post-chain-body-routing/proposal.md). Decided: BODY becomes a parallel body wet amount (factory presets re-voiced to keep today's colour), Chassis Volume only tunes the body, filter/drive go dual-mono, and Eco runs the full chain. Also found: the BODY fader is dead for all 50 presets (`body/5` ≤ 0.3 always loses the `max()` against `chassis_volume = 0.5`). HRTF spread's own mono remix stays open.
+### ~~C5. Post chain: filter/drive are only audible through the FEM body bank, and the stereo image is 70 % mono-collapsed~~ — FIXED
+> **Status: FIXED** (2026-10-05, branch `claude/eloquent-dirac-fc0sqm`) — OpenSpec change [`fix-post-chain-body-routing`](openspec/changes/fix-post-chain-body-routing/proposal.md). Filter and drive now run per channel. The body resonance is added in parallel at BODY / 5, Chassis Volume only tunes the body, and Eco runs the full chain. All 50 factory presets were re-voiced per preset (BODY, plus an `output` trim on 11) to within 0.5 dB of their old RMS, with no more limiter hits than before. The `body` default moved to 2.62 to keep the default patch's level. Found while fixing: the dry voice signal is very quiet on struck presets (a default note peaks at −51 dBFS with BODY 0), because the always-on body bank used to supply nearly all of their level. HRTF spread's own mono remix stays open.
 
 `src/dsp/post_processing/post_chain.rs:138-161`, `fem_body.rs:57-78`
 
@@ -463,13 +463,13 @@ above the block. Minor, but the doc and tests promise symmetric behavior.
    macros (H5).
 6. Envelope→strike-position routing promised by `position_envelope` (H9).
 7. ~~Post-chain wet/dry or bypass for the body stage; true stereo processing of
-   filter/drive (C5).~~ — IN PROGRESS
+   filter/drive (C5).~~ — FIXED
 
 ## Suggested priority order
 
 1. ~~**C1** (filter instability — plugin is broken at default settings in a DAW)~~ — FIXED,
 2. ~~**C2** (crash)~~ — FIXED, ~~**C3** (RT allocation; debug abort)~~ — FIXED,
-3. ~~**C4/C5/C6** (audible correctness of envelope, chain topology, spring reverb)~~ — C4 FIXED, C5/C6 IN PROGRESS,
+3. ~~**C4/C5/C6** (audible correctness of envelope, chain topology, spring reverb)~~ — C4/C5 FIXED, C6 IN PROGRESS,
 4. **H1–H4** (parameter ranges, defaults, and preset loading — cheap, high-impact),
 5. **H5** (GUI gaps) and the remaining H items,
 6. Medium items opportunistically, alongside regression tests for each fix.

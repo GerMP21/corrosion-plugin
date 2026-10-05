@@ -46,6 +46,27 @@ User decisions (2026-10-05): BODY becomes a parallel wet amount and factory pres
 
 6. **Level guard.** Measure the default note's peak and the per-preset RMS before and after. Accept if the default note peak stays within ±6 dB of the post-C1 value (0.118), and no preset clips the limiter more than it did before. If it fails, the fix is the body's internal gain constant, not BODY's mapping.
 
+## Implementation findings
+
+- **Decisions 5 and 6 were replaced by per-preset loudness matching.** Measured through the new
+  chain, full BODY at unity body gain is already louder than the old ~70 %-wet mix, so no body-gain
+  constant was needed. One BODY value can't fit all presets either, because the dry level spans
+  ~80 dB: struck presets relied on the body bank for nearly all of their level. Each preset's BODY
+  is bisected to match its baseline RMS. Presets already louder at BODY 0 get BODY 0 and a trimmed
+  `output`, and `output` is also trimmed until limiter hits are no worse than before. 11 presets
+  get an `output` trim (0.57–0.95). All 50 land within 0.5 dB of their baseline RMS. Table, method
+  and verification are in `baseline.md`.
+- **BODY 0 is very quiet on struck presets.** A default note peaks at 0.0028 (≈ −51 dBFS) with no
+  body, and 0.118 at the new default BODY 2.62. This is the voice engine's true dry level. It
+  existed before C5 but was hidden behind the always-on body.
+- **The `body` default moved 0 → 2.62** so a fresh instance keeps its pre-C5 level (default-note
+  peak 0.1179 against 0.118).
+- **The parameter → post-chain wiring moved into `Corrosion::apply_post_chain_params`**
+  (behaviour-neutral). `process()`, the default-note test and the measurement harness
+  (`c5_measurements` in `src/lib.rs`) now share one code path.
+- **CPU** (`baseline.md`): Normal +31 % (second filter/drive pair), Eco +174 % (now runs body,
+  spread and space). Both are around 1 % of one core or less in real time.
+
 ## Risks / Trade-offs
 
 - [Every preset changes sound] → Accepted by the user. Decision 5 keeps the body colour near today's; the summary lists what changed. `render_presets` output can be re-rendered for audition. It currently bypasses the post chain (H13), so the audition should use the plugin or a post-chain render.
