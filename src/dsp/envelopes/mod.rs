@@ -47,6 +47,10 @@ pub struct MSEG {
     sample_rate: f32,
     velocity_scale: f32,
     env_amount: f32,
+
+    /// Most stage transitions resolved in a single sample since creation.
+    #[cfg(test)]
+    peak_transitions: usize,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -104,6 +108,8 @@ impl MSEG {
             sample_rate: 48000.0,
             velocity_scale: 1.0,
             env_amount: 1.0,
+            #[cfg(test)]
+            peak_transitions: 0,
         }
     }
 
@@ -231,70 +237,52 @@ impl MSEG {
         self.env_amount = amount.clamp(0.0, 1.0);
     }
 
+    /// Upper bound on stage transitions resolved in one sample. Six stages
+    /// plus a loop jump fit with room to spare; a loop region whose stages
+    /// all have zero length stops here instead of spinning.
+    const MAX_TRANSITIONS: usize = 8;
+
     /// Process one sample and return the envelope level.
     pub fn process_sample(&mut self) -> f32 {
         let dt = 1.0 / self.sample_rate;
         let time_scale =
             self.global_time_scale * (1.0 - self.velocity_to_time * (1.0 - self.velocity_scale));
+        let step = dt * time_scale;
 
-        self.stage_time += dt * time_scale;
+        self.stage_time += step;
+
+        // Resolve finished stages iteratively (this used to recurse into
+        // `process_sample`, which never terminated for some loop settings —
+        // review C2). Each transition starts the new stage at `step` rather
+        // than 0, matching the time the recursive version added on every
+        // re-entry, so existing output stays bit-identical.
+        let mut transitions = 0;
+        while transitions < Self::MAX_TRANSITIONS && self.stage_finished() {
+            if self.stage == Stage::Release {
+                self.stage = Stage::Idle;
+                self.current_level = self.l_end;
+                return self.current_level * self.env_amount;
+            }
+            self.advance_stage();
+            self.stage_time = step;
+            transitions += 1;
+        }
+        #[cfg(test)]
+        {
+            self.peak_transitions = self.peak_transitions.max(transitions);
+        }
 
         let (target_level, stage_duration, curve) = match self.stage {
             Stage::Idle => {
                 self.current_level = 0.0;
                 return 0.0;
             }
-            Stage::Onset => {
-                if self.t_onset <= 0.0 {
-                    self.advance_stage();
-                    return self.process_sample();
-                }
-                if self.stage_time >= self.t_onset {
-                    self.advance_stage();
-                    return self.process_sample();
-                }
-                (self.l_onset, self.t_onset, self.c_onset)
-            }
-            Stage::Attack => {
-                if self.stage_time >= self.t_attack {
-                    self.advance_stage();
-                    return self.process_sample();
-                }
-                (self.l_peak, self.t_attack, self.c_attack)
-            }
-            Stage::Hold => {
-                if self.stage_time >= self.t_hold {
-                    self.advance_stage();
-                    return self.process_sample();
-                }
-                (self.l_peak, self.t_hold, 0.0)
-            }
-            Stage::Decay => {
-                if self.stage_time >= self.t_decay {
-                    self.advance_stage();
-                    return self.process_sample();
-                }
-                (self.l_sustain, self.t_decay, self.c_decay)
-            }
-            Stage::Sustain => {
-                if !self.gate {
-                    self.advance_stage();
-                    return self.process_sample();
-                }
-                if self.loop_mode != LoopMode::Off && self.stage_time >= 0.0 {
-                    self.handle_loop();
-                    return self.process_sample();
-                }
-                (self.l_sustain, 1.0, 0.0)
-            }
-            Stage::Release => {
-                if self.stage_time >= self.t_release {
-                    self.stage = Stage::Idle;
-                    self.current_level = self.l_end;
-                    return self.current_level * self.env_amount;
-                }
-                (self.l_end, self.t_release, self.c_release)
-            }
+            Stage::Onset => (self.l_onset, self.t_onset, self.c_onset),
+            Stage::Attack => (self.l_peak, self.t_attack, self.c_attack),
+            Stage::Hold => (self.l_peak, self.t_hold, 0.0),
+            Stage::Decay => (self.l_sustain, self.t_decay, self.c_decay),
+            Stage::Sustain => (self.l_sustain, 1.0, 0.0),
+            Stage::Release => (self.l_end, self.t_release, self.c_release),
         };
 
         let progress = (self.stage_time / stage_duration).clamp(0.0, 1.0);
@@ -319,48 +307,64 @@ impl MSEG {
         velocity_adjusted.clamp(0.0, 1.0) * self.env_amount
     }
 
+    /// Whether the current stage has run its course and should hand over.
+    fn stage_finished(&self) -> bool {
+        match self.stage {
+            Stage::Idle => false,
+            Stage::Onset => self.t_onset <= 0.0 || self.stage_time >= self.t_onset,
+            Stage::Attack => self.stage_time >= self.t_attack,
+            Stage::Hold => self.stage_time >= self.t_hold,
+            Stage::Decay => self.stage_time >= self.t_decay,
+            Stage::Sustain => !self.gate,
+            Stage::Release => self.stage_time >= self.t_release,
+        }
+    }
+
     fn advance_stage(&mut self) {
         self.stage_time = 0.0;
-        self.stage = match self.stage {
+        let next = match self.stage {
             Stage::Onset => Stage::Attack,
             Stage::Attack => Stage::Hold,
             Stage::Hold => Stage::Decay,
-            Stage::Decay => {
+            Stage::Decay | Stage::Sustain => {
                 if self.gate {
                     Stage::Sustain
                 } else {
                     Stage::Release
                 }
             }
-            Stage::Sustain => {
-                if self.gate {
-                    Stage::Sustain
-                } else {
-                    Stage::Release
-                }
-            }
-            Stage::Release => Stage::Idle,
-            Stage::Idle => Stage::Idle,
+            Stage::Release | Stage::Idle => Stage::Idle,
+        };
+        // Reaching the loop end stage with the gate held restarts the loop.
+        self.stage = match self.loop_region() {
+            Some((start, end)) if self.gate && next == end => start,
+            _ => next,
         };
     }
 
-    fn handle_loop(&mut self) {
-        match self.loop_mode {
-            LoopMode::Forward => {
-                self.stage = match self.loop_start_stage {
-                    1 => Stage::Attack,
-                    2 => Stage::Hold,
-                    3 => Stage::Decay,
-                    4 => Stage::Sustain,
-                    _ => Stage::Decay,
-                };
-                self.stage_time = 0.0;
-            }
-            LoopMode::PingPong => {
-                self.stage = Stage::Decay;
-                self.stage_time = 0.0;
-            }
-            LoopMode::Off => {}
+    /// The active loop as `(start, end)` stages, or `None` when looping is off
+    /// or the region is empty (start at or after end). Stage indices follow
+    /// the host params: 1 Attack, 2 Hold, 3 Decay, 4 Sustain; Onset (0) and
+    /// Release (5) are never looped and clamp into that range.
+    fn loop_region(&self) -> Option<(Stage, Stage)> {
+        let (start, end) = match self.loop_mode {
+            LoopMode::Off => return None,
+            // PingPong is still partial: it always loops Decay → Sustain.
+            LoopMode::PingPong => (3, 4),
+            LoopMode::Forward => (
+                self.loop_start_stage.clamp(1, 4),
+                self.loop_end_stage.clamp(1, 4),
+            ),
+        };
+        (start < end).then(|| (Self::loop_stage(start), Self::loop_stage(end)))
+    }
+
+    fn loop_stage(index: u8) -> Stage {
+        match index {
+            1 => Stage::Attack,
+            2 => Stage::Hold,
+            3 => Stage::Decay,
+            _ => Stage::Sustain,
         }
     }
 
@@ -405,6 +409,204 @@ impl Default for MSEG {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// FNV-1a over the bit patterns of `held` seconds of gated output followed
+    /// by `released` seconds after `release()`, at 48 kHz.
+    fn output_hash(mut mseg: MSEG, velocity: f32, held: f32, released: f32) -> u64 {
+        let sr = 48_000.0;
+        mseg.set_sample_rate(sr);
+        mseg.trigger(velocity);
+        let mut hash = 0xcbf2_9ce4_8422_2325_u64;
+        let mut feed = |x: f32| {
+            for byte in x.to_bits().to_le_bytes() {
+                hash ^= byte as u64;
+                hash = hash.wrapping_mul(0x0100_0000_01b3);
+            }
+        };
+        for _ in 0..(held * sr) as usize {
+            feed(mseg.process_sample());
+        }
+        mseg.release();
+        for _ in 0..(released * sr) as usize {
+            feed(mseg.process_sample());
+        }
+        hash
+    }
+
+    fn configured(mode: LoopMode, start: u8, end: u8) -> MSEG {
+        let mut mseg = MSEG::new();
+        mseg.set_loop(mode, start, end);
+        mseg
+    }
+
+    /// Golden output captured from the recursive implementation before the
+    /// C2 fix. Loop Off and the default/Drone Forward 3 → 4 loop must stay
+    /// bit-identical.
+    #[test]
+    fn default_and_drone_loops_are_bit_identical_to_pre_fix_output() {
+        let cases = [
+            ("off", configured(LoopMode::Off, 3, 4), 0.8),
+            ("forward 3->4", configured(LoopMode::Forward, 3, 4), 0.8),
+            (
+                "forward 3->4 v=0.3",
+                configured(LoopMode::Forward, 3, 4),
+                0.3,
+            ),
+            ("scrape", MSEG::scrape_envelope(), 1.0),
+            ("pingpong", configured(LoopMode::PingPong, 3, 4), 0.8),
+        ];
+        let golden = [
+            0xe5bb_f7d8_02b1_2cbc_u64,
+            0xba18_7c4f_e193_b969,
+            0x3366_d397_942d_ff22,
+            0xd9ed_e462_c190_d730,
+            0xba18_7c4f_e193_b969,
+        ];
+        for ((name, mseg, velocity), expected) in cases.into_iter().zip(golden) {
+            assert_eq!(
+                output_hash(mseg, velocity, 3.0, 1.0),
+                expected,
+                "{name}: output changed"
+            );
+        }
+    }
+
+    /// Regression for review C2: loop start = Sustain used to recurse forever
+    /// in `process_sample()`. Debug builds overflow the stack; optimized
+    /// builds turn the tail call into an endless loop that hangs the audio
+    /// thread. Run on a small stack with a deadline so either form fails.
+    #[test]
+    fn loop_start_at_sustain_does_not_recurse() {
+        let (tx, rx) = std::sync::mpsc::channel();
+        std::thread::Builder::new()
+            .stack_size(64 * 1024)
+            .spawn(move || {
+                let mut mseg = configured(LoopMode::Forward, 4, 4);
+                mseg.set_sample_rate(48_000.0);
+                mseg.trigger(1.0);
+                let finite = (0..96_000)
+                    .map(|_| mseg.process_sample())
+                    .all(|x| x.is_finite());
+                let _ = tx.send(finite);
+            })
+            .expect("spawn test thread");
+        let finite = rx
+            .recv_timeout(std::time::Duration::from_secs(10))
+            .expect("envelope did not finish 2 s of audio within 10 s (hang or crash)");
+        assert!(finite);
+    }
+
+    fn triggered(mode: LoopMode, start: u8, end: u8) -> MSEG {
+        let mut mseg = configured(mode, start, end);
+        mseg.set_sample_rate(48_000.0);
+        mseg.trigger(1.0);
+        mseg
+    }
+
+    #[test]
+    fn custom_loop_end_restarts_before_decay() {
+        let mut mseg = triggered(LoopMode::Forward, 1, 3);
+        for i in 0..96_000 {
+            mseg.process_sample();
+            assert!(
+                !matches!(mseg.stage(), Stage::Decay | Stage::Sustain),
+                "entered {:?} at sample {i} with a 1 -> 3 loop held",
+                mseg.stage()
+            );
+        }
+    }
+
+    #[test]
+    fn empty_loop_region_holds_sustain() {
+        let mut mseg = triggered(LoopMode::Forward, 4, 4);
+        // Onset + attack + hold + decay ≈ 0.38 s at default times.
+        for _ in 0..24_000 {
+            mseg.process_sample();
+        }
+        assert_eq!(mseg.stage(), Stage::Sustain);
+        let level = mseg.process_sample();
+        for _ in 0..48_000 {
+            assert_eq!(mseg.process_sample(), level, "sustain level drifted");
+            assert_eq!(mseg.stage(), Stage::Sustain);
+        }
+    }
+
+    #[test]
+    fn start_after_end_matches_loop_off() {
+        assert_eq!(
+            output_hash(configured(LoopMode::Forward, 3, 1), 0.8, 3.0, 1.0),
+            output_hash(configured(LoopMode::Off, 3, 1), 0.8, 3.0, 1.0),
+        );
+    }
+
+    #[test]
+    fn release_exits_running_loop() {
+        let mut mseg = triggered(LoopMode::Forward, 3, 4);
+        for _ in 0..48_000 {
+            mseg.process_sample();
+        }
+        mseg.release();
+        // Default release is 0.1 s; allow one 512-sample buffer on top.
+        for _ in 0..(4_800 + 512) {
+            mseg.process_sample();
+        }
+        assert!(!mseg.is_active(), "still {:?} after release", mseg.stage());
+    }
+
+    #[test]
+    fn every_loop_configuration_is_bounded() {
+        let zero_times = |mut mseg: MSEG| {
+            mseg.set_stage_times(0.0, 0.0, 0.0, 0.0, 0.0);
+            mseg
+        };
+        for mode in [LoopMode::Off, LoopMode::Forward, LoopMode::PingPong] {
+            for start in 0..=5 {
+                for end in 0..=5 {
+                    for zero in [false, true] {
+                        let mut mseg = configured(mode, start, end);
+                        if zero {
+                            mseg = zero_times(mseg);
+                        }
+                        mseg.set_sample_rate(48_000.0);
+                        mseg.trigger(1.0);
+                        for i in 0..96_000 {
+                            if i == 48_000 {
+                                mseg.release();
+                            }
+                            let x = mseg.process_sample();
+                            assert!(
+                                (0.0..=1.0).contains(&x),
+                                "{mode:?} {start}->{end} zero_times={zero}: sample {i} = {x}"
+                            );
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn default_and_drone_loops_never_hit_transition_cap() {
+        for mut mseg in [
+            configured(LoopMode::Off, 3, 4),
+            configured(LoopMode::Forward, 3, 4),
+            MSEG::scrape_envelope(),
+        ] {
+            mseg.set_sample_rate(48_000.0);
+            mseg.trigger(1.0);
+            for i in 0..144_000 {
+                if i == 96_000 {
+                    mseg.release();
+                }
+                mseg.process_sample();
+            }
+            assert!(
+                mseg.peak_transitions < MSEG::MAX_TRANSITIONS,
+                "hit the transition cap ({} transitions)",
+                mseg.peak_transitions
+            );
+        }
+    }
 
     #[test]
     fn mseg_starts_idle() {

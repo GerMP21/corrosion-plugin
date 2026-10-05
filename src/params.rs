@@ -212,15 +212,25 @@ pub struct CorrosionParams {
     #[id = "velocity_to_peak"]
     pub velocity_to_peak: FloatParam,
 
-    /// Loop mode for MSEG (0=Off, 1=Forward, 2=PingPong)
+    /// Loop mode for MSEG (0=Off, 1=Forward, 2=PingPong).
+    ///
+    /// PingPong is partial: it ignores the start/end stages and always loops
+    /// Decay → Sustain, like Forward 3 → 4.
     #[id = "loop_mode"]
     pub loop_mode: IntParam,
 
-    /// Loop start stage (0-5, default 3=Decay)
+    /// Loop start stage (0-5, default 3=Decay).
+    ///
+    /// Stages: 0 Onset, 1 Attack, 2 Hold, 3 Decay, 4 Sustain, 5 Release.
+    /// Onset and Release are never looped, so 0 acts as 1 and 5 as 4. With
+    /// Forward looping and the note held, reaching the end stage restarts the
+    /// start stage; if start ≥ end the loop is empty and the envelope holds
+    /// sustain as if looping were off.
     #[id = "loop_start_stage"]
     pub loop_start_stage: IntParam,
 
-    /// Loop end stage (0-5, default 4=Sustain)
+    /// Loop end stage (0-5, default 4=Sustain); 0 acts as 1 and 5 as 4.
+    /// See `loop_start_stage` for how the loop region is applied.
     #[id = "loop_end_stage"]
     pub loop_end_stage: IntParam,
 

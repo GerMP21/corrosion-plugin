@@ -6,7 +6,7 @@ exciters, post-processing, presets, GUI, offline/render bins, randomizer), plus 
 factory preset bank, test suite expectations, and build configuration.
 **Method:** line-by-line read of the audio path; targeted reads of the GUI and offline
 paths; numeric simulation used to verify the ladder-filter stability finding.
-**Status (2026-10-05):** C1 is FIXED; C2 and C3 are IN PROGRESS as OpenSpec changes under `openspec/changes/`.
+**Status (2026-10-05):** C1 and C2 are FIXED; C3 is IN PROGRESS as an OpenSpec change under `openspec/changes/`.
 **Note:** `docs/CODE-REVIEW.md` (2026-05-27) is now partially stale — its Finding 1
 (clipper oversampling no-op) and the factory-reverb delay compounding have since been
 fixed (regression tests exist for both). This document supersedes it.
@@ -88,8 +88,8 @@ renders bypass the post chain entirely (see H14).
 `< 0.49·fs`; add a regression test asserting no DC and bounded output at
 `fc = 20 kHz` and at `fc` swept through `fs/4`.
 
-### ~~C2. MSEG: infinite recursion (audio-thread stack overflow) when `loop_start_stage = 4`~~ — IN PROGRESS
-> **Status: IN PROGRESS** — OpenSpec change [`fix-mseg-loop-recursion`](openspec/changes/fix-mseg-loop-recursion/proposal.md). Covers the recursion, `loop_end_stage`, and loop-stage clamping; PingPong stays partial.
+### ~~C2. MSEG: infinite recursion (audio-thread stack overflow) when `loop_start_stage = 4`~~ — FIXED
+> **Status: FIXED** (2026-10-05, branch `claude/eloquent-dirac-fc0sqm`) — OpenSpec change [`fix-mseg-loop-recursion`](openspec/changes/fix-mseg-loop-recursion/proposal.md). `process_sample()` now resolves stage changes in a capped loop (no recursion), `loop_end_stage` is honored, and loop start ≥ end holds sustain. Output for loop Off and the default/Drone 3 → 4 loop is bit-identical to before. Two findings while fixing: optimized builds *hang* the audio thread here rather than overflowing the stack, and `t_decay = 0` with any loop hit the same recursion (API-only; the host's decay minimum is 10 ms). PingPong is still partial. Regression tests: `envelopes::tests::*`, `tests/mseg_loop_safety.rs`.
 
 `src/dsp/envelopes/mod.rs:279-289, 347-365`
 
@@ -451,7 +451,7 @@ above the block. Minor, but the doc and tests promise symmetric behavior.
 1. User preset save/load — Save button permanently disabled; no file dialog, no
    user bank directory (GUI loads only the embedded `include_dir` factory bank).
 2. Randomizer — fully implemented module, zero integration (no UI, no param).
-3. MSEG PingPong loop — placeholder (C2/H10 above). *(Not covered by the C2 change, which is IN PROGRESS; PingPong remains open.)*
+3. MSEG PingPong loop — placeholder (C2/H10 above). *(Not covered by the C2 fix; PingPong remains open.)*
 4. Sustain pedal / CC64, all-sound-off, MPE per-note bend (M12/M13).
 5. GUI exposure of brightness, thickness, sync rate, play mode, limiter mode,
    macros (H5).
@@ -462,7 +462,7 @@ above the block. Minor, but the doc and tests promise symmetric behavior.
 ## Suggested priority order
 
 1. ~~**C1** (filter instability — plugin is broken at default settings in a DAW)~~ — FIXED,
-2. ~~**C2** (crash)~~ — IN PROGRESS, ~~**C3** (RT allocation; debug abort)~~ — IN PROGRESS,
+2. ~~**C2** (crash)~~ — FIXED, ~~**C3** (RT allocation; debug abort)~~ — IN PROGRESS,
 3. **C4/C5/C6** (audible correctness of envelope, chain topology, spring reverb),
 4. **H1–H4** (parameter ranges, defaults, and preset loading — cheap, high-impact),
 5. **H5** (GUI gaps) and the remaining H items,

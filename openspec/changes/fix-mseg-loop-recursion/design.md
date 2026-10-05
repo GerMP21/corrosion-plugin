@@ -26,11 +26,17 @@ Constraint: 19 factory presets use Drone mode, which forces Forward 3 → 4; all
 
 2. **Do not re-add `dt` on each transition.** Today every recursive call adds `dt` again. To stay sample-identical for the default configs, measure the current behavior first (task 1.1 golden capture). If the golden test shows the extra `dt` is observable for 3 → 4 loops, preserve it explicitly for that path and document it; otherwise drop it. The golden test decides, not assumption.
 
-3. **Normalize loop bounds once in `set_loop()`.** `start = clamp(start, 1, 4)`, `end = clamp(end, 1, 4)`; looping is active only when `mode != Off && start < end`. Precomputing a `loop_active` flag keeps the per-sample path to one branch.
+3. **Normalize loop bounds; derive the region at each transition.** `set_loop()` keeps clamping start and end to 1..=4, and looping is active only when `mode != Off && start < end`. *Implementation note:* the region is computed by `loop_region()` at each stage transition, not cached as a flag in `set_loop()`, because `scrape_envelope()` writes the loop fields directly without calling `set_loop()`. Transitions are rare, so this costs nothing measurable. PingPong maps to the fixed region 3 → 4, matching its old behavior.
 
 4. **Loop trigger = entering the end stage.** When a transition would enter `end` with the gate held and looping active, enter `start` instead with `stage_time = 0`. For end = Sustain this reproduces today's 3 → 4 behavior; for end < Sustain it truncates the held part of the envelope as the spec requires. Because `start < end` is required and the jump goes strictly backwards, a loop always passes through at least one stage with non-zero duration or hits the transition cap — it can never spin.
 
 5. **Zero-duration loop regions.** If every stage in `[start, end)` has zero duration, the loop would immediately re-trigger each sample. The transition cap bounds the work; the output simply holds that stage's level. Covered by the exhaustive sweep test.
+
+## Implementation findings
+
+- **The release-build symptom is a hang, not a crash.** Optimized builds turn the self-recursive tail call into an endless loop, so the audio thread spins forever instead of overflowing its stack. The regression tests therefore run the envelope on a separate thread with a deadline, so they fail on either symptom.
+- **A second path to the same bug.** With any loop on and `t_decay = 0`, the old code recursed forever even for the default 3 → 4 loop (Decay → Sustain → Decay …). The host can't reach it (`mseg_decay` has a 10 ms minimum), but the API can; the transition cap now bounds it, and the sweep test covers zero-length stages.
+- **Decision 2 resolved:** each transition starts the new stage at `stage_time = step`. That equals the old `0 + dt` re-entry exactly, and the golden test confirms bit-identical output for Off, Forward 3 → 4 (two velocities), `scrape_envelope()`, and PingPong.
 
 ## Risks / Trade-offs
 
