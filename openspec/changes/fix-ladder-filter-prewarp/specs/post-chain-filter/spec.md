@@ -32,6 +32,20 @@ The filter's single-stage −3 dB point SHALL be within 10 % of the cutoff value
 - **WHEN** the same broadband input is filtered with cutoffs of 2 kHz and 8 kHz
 - **THEN** the 8 kHz output contains more energy above 4 kHz than the 2 kHz output
 
+### Requirement: Passband has unity gain
+With zero resonance, a tone well below the cutoff SHALL pass through the filter at its input level, within 3 %.
+
+#### Scenario: Low tone at the default cutoff
+- **WHEN** a 0.1-amplitude 100 Hz sine is filtered at 48 kHz with cutoff 20 kHz and zero resonance
+- **THEN** the steady-state output RMS is between 0.97 and 1.01 times the input RMS
+
+### Requirement: Maximum resonance stays bounded
+At resonance 1.0 the filter SHALL produce finite output within ±1.0 for every cutoff and supported sample rate.
+
+#### Scenario: Resonance 1.0 across cutoffs
+- **WHEN** a 0.5-amplitude 1 kHz sine burst is filtered with resonance 1.0 at cutoffs 100 Hz, 1 kHz, 5 kHz, fs/4 and 20 kHz, at 44.1, 48 and 96 kHz
+- **THEN** every output sample is finite and within ±1.0
+
 ### Requirement: Filter recovers from reset
 After a reset the filter SHALL hold no residual state, so silent input produces silent output.
 

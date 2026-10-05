@@ -20,8 +20,8 @@ Numeric check of the stage transfer function at 48 kHz: with the bug, 1 kHz disp
 - Regression tests that would have caught C1.
 
 **Non-Goals:**
-- Rewriting the stage into a canonical zero-delay-feedback TPT ladder. The current stage has a per-stage DC gain of 0.5 (≈ −24 dB through four stages). Fixing that changes output loudness of every preset by ~24 dB and interacts with the body/remix topology in review finding C5. It is tracked as a follow-up, not part of this change.
-- Changing resonance behavior, the saturator curve, or the `0.3/0.7` post-chain remix (C5).
+- A zero-delay-feedback (implicit) resonance solve. Resonance keeps its one-sample-delayed feedback.
+- Changing the resonance range or its `g_comp` compensation curve, the saturator curve, or the `0.3/0.7` post-chain remix (C5). (Resonance *does* sound stronger as a side effect of Decision 5.)
 - Renaming `WdfLadderFilter` (kept for ABI/preset stability).
 
 ## Decisions
@@ -34,8 +34,11 @@ Numeric check of the stage transfer function at 48 kHz: with the bug, 1 kHz disp
 
 4. **Tests at two levels.** Unit tests in `wdf_filter.rs` cover the sweep through `fs/4`, the Nyquist clamp, the −3 dB mapping, and reset. One integration test runs `PostProcessingChain` with default parameters at 48 kHz and checks for no DC at the output, since that is the path users hear.
 
+5. **Unity-gain TPT stages (added during implementation).** The design originally deferred the old stage's 0.5 DC gain. Once the filter stopped railing, a full-velocity default note through the real post chain peaked at 0.0075 (≈ −42 dBFS), versus 0.342 before the fix, and that 0.342 was almost all DC rail. Each stage is now the canonical TPT one-pole (`v = (x − s)·g/(1+g)`, `y = v + s`, `s ← y + v`) with the saturator applied to the stage output only, so the integrator state stays linear and cannot latch. Measured default-note peak: 0.118 (≈ −18.5 dBFS). Resonance feedback now taps the saturated last-stage output from the previous sample. Alternatives considered: keep the 0.5 gain and lower the failing test threshold (plugin nearly silent at defaults), or add a fixed ×16 makeup gain (changes how hard the saturators are driven relative to a true unity stage). Chosen by the user.
+
 ## Risks / Trade-offs
 
-- [Presets voiced against the buggy mapping sound darker below `fs/4`] → Note it in the change summary; preset re-voicing is a separate decision. All factory presets use 20 kHz, so the factory bank is affected only through the clamp (which removes the DC rail).
+- [Presets voiced against the buggy mapping sound darker below `fs/4`] → Note it in the change summary; preset re-voicing is a separate decision. All factory presets use 20 kHz and resonance 0, so the factory bank changes through the removed DC rail and the restored passband level (Decision 5), not the cutoff mapping.
 - [Existing filter tests assume the old mapping] → Any test that breaks is re-based to the corrected mapping in the same task that changes the formula; failures are inspected, not loosened blindly.
+- [Stronger resonance with unity-gain stages] → `g_comp = 1/(1 + 3.5·r)` still compensates level; a test checks resonance 1.0 stays bounded and finite at 44.1/48/96 kHz across the cutoff range (measured: it decays, no self-oscillation).
 - [Saturator can still mask instability in future edits] → The new tests assert decay to zero after input stops, which a latched rail fails.

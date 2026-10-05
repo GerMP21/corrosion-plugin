@@ -6,7 +6,7 @@ exciters, post-processing, presets, GUI, offline/render bins, randomizer), plus 
 factory preset bank, test suite expectations, and build configuration.
 **Method:** line-by-line read of the audio path; targeted reads of the GUI and offline
 paths; numeric simulation used to verify the ladder-filter stability finding.
-**Status (2026-10-05):** C1, C2 and C3 are IN PROGRESS as OpenSpec changes under `openspec/changes/`.
+**Status (2026-10-05):** C1 is FIXED; C2 and C3 are IN PROGRESS as OpenSpec changes under `openspec/changes/`.
 **Note:** `docs/CODE-REVIEW.md` (2026-05-27) is now partially stale — its Finding 1
 (clipper oversampling no-op) and the factory-reverb delay compounding have since been
 fixed (regression tests exist for both). This document supersedes it.
@@ -40,8 +40,8 @@ this topology.
 
 ## CRITICAL
 
-### ~~C1. Ladder filter is unstable for cutoff ≥ fs/4 — including the default 20 kHz — and latches to a DC rail~~ — IN PROGRESS
-> **Status: IN PROGRESS** — OpenSpec change [`fix-ladder-filter-prewarp`](openspec/changes/fix-ladder-filter-prewarp/proposal.md).
+### ~~C1. Ladder filter is unstable for cutoff ≥ fs/4 — including the default 20 kHz — and latches to a DC rail~~ — FIXED
+> **Status: FIXED** (2026-10-05, branch `claude/eloquent-dirac-fc0sqm`) — OpenSpec change [`fix-ladder-filter-prewarp`](openspec/changes/fix-ladder-filter-prewarp/proposal.md). Prewarp is now `tan(π·fc/fs)` with `fc ≤ 0.49·fs`. The stages are also rebuilt as unity-gain TPT one-poles, because the old stage's 0.5 DC gain (−24 dB over four stages) left a default note at ≈ −42 dBFS once the rail was gone. Regression tests: `wdf_filter::tests::*`, `tests/post_chain_default_dc.rs`.
 > Correction found while scoping: below `fs/4` the bug puts the effective cutoff about an octave *above* the displayed value, not half of it.
 
 `src/dsp/post_processing/wdf_filter.rs:106-112, 144-159`
@@ -325,7 +325,7 @@ Should be rate-limited (per block) or use incremental rotation.
 `src/bin/render_presets.rs` renders `VoiceManager` + a standalone body resonator
 only — no `PostProcessingChain`, no master drive, no limiter. The `output/*.wav`
 audition set therefore does not represent what the plugin outputs (and is exactly
-why C1 — IN PROGRESS — was never heard). The renderer's own comment says it exists so presets are
+why C1 — now FIXED — was never heard). The renderer's own comment says it exists so presets are
 auditioned "as the plugin would sound".
 
 ### H14. Kit-mode notes ignore per-slot pitch documentation and wrap oddly
@@ -433,7 +433,7 @@ above the block. Minor, but the doc and tests promise symmetric behavior.
 ## Tests & tooling observations
 
 - The test suite is heavy on "A differs from B" energy assertions and light on
-  invariants: ~~nothing pins the filter's frequency response at high cutoffs (C1)~~ (IN PROGRESS),
+  invariants: ~~nothing pins the filter's frequency response at high cutoffs (C1)~~ (FIXED),
   envelope continuity (C4), DC at the output, sample-rate invariance (H10), or
   Nyquist safety (H11).
 - ~~`tests/no_alloc.rs` scopes note-on *outside* the no-alloc zone, so the strongest
@@ -461,7 +461,7 @@ above the block. Minor, but the doc and tests promise symmetric behavior.
 
 ## Suggested priority order
 
-1. ~~**C1** (filter instability — plugin is broken at default settings in a DAW)~~ — IN PROGRESS,
+1. ~~**C1** (filter instability — plugin is broken at default settings in a DAW)~~ — FIXED,
 2. ~~**C2** (crash)~~ — IN PROGRESS, ~~**C3** (RT allocation; debug abort)~~ — IN PROGRESS,
 3. **C4/C5/C6** (audible correctness of envelope, chain topology, spring reverb),
 4. **H1–H4** (parameter ranges, defaults, and preset loading — cheap, high-impact),

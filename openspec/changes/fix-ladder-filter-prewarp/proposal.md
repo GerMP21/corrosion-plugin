@@ -7,9 +7,11 @@ The post-chain ladder filter computes its prewarp coefficient as `tan(2π·fc/fs
 ## What Changes
 
 - Correct the cutoff prewarp so the filter maps the displayed cutoff to the intended frequency.
+- Replace each ladder stage with a unity-DC-gain TPT one-pole. The old stage had a DC gain of 0.5 (−24 dB through four stages). That loss was hidden while the filter railed, but once stable it left a default note at ≈ −42 dBFS peak. *(Scope added during implementation; see design Decision 5.)*
 - Clamp the effective cutoff strictly below Nyquist (relative to the current sample rate) so no host-reachable cutoff/sample-rate combination can make a stage unstable.
 - Add regression tests that pin the filter's behavior at high cutoffs: no DC rail, bounded output, and stable decay to silence at 20 kHz and across a sweep through `fs/4` at several sample rates.
 - **Audible change:** cutoffs below `fs/4` currently land roughly an octave *above* the displayed value (e.g. 1 kHz displayed → ≈2 kHz −3 dB point at 48 kHz). After the fix they track the displayed value, so presets with cutoffs below `fs/4` will sound darker than today. (The review text says "half"; numeric check of the per-stage transfer function shows it is double.)
+- **Audible change:** passband level rises by ≈24 dB relative to the old stable-region behavior, and resonance feedback now acts through unity-gain stages (stronger peak, still bounded and decaying at resonance 1.0). All factory presets use resonance 0.
 
 ## Capabilities
 
