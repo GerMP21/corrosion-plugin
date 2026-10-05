@@ -6,7 +6,7 @@ exciters, post-processing, presets, GUI, offline/render bins, randomizer), plus 
 factory preset bank, test suite expectations, and build configuration.
 **Method:** line-by-line read of the audio path; targeted reads of the GUI and offline
 paths; numeric simulation used to verify the ladder-filter stability finding.
-**Status (2026-10-05):** C1, C2 and C3 are FIXED (OpenSpec changes under `openspec/changes/`).
+**Status (2026-10-05):** C1, C2 and C3 are FIXED; C4, C5 and C6 are IN PROGRESS (OpenSpec changes under `openspec/changes/`).
 **Note:** `docs/CODE-REVIEW.md` (2026-05-27) is now partially stale — its Finding 1
 (clipper oversampling no-op) and the factory-reverb delay compounding have since been
 fixed (regression tests exist for both). This document supersedes it.
@@ -154,7 +154,9 @@ called from the audio thread by hosts.
 **Fix:** preallocate a max-size mode pool per voice and generate modes into it, or
 defer bank construction to a lock-free swap; make the no-alloc test cover note-on.
 
-### C4. MSEG velocity/level formula puts a floor under the envelope and steps to zero at release end
+### ~~C4. MSEG velocity/level formula puts a floor under the envelope and steps to zero at release end~~ — IN PROGRESS
+> **Status: IN PROGRESS** — OpenSpec change [`fix-mseg-velocity-scaling`](openspec/changes/fix-mseg-velocity-scaling/proposal.md). Correction found while scoping: full-velocity output (presets use `velocity_to_level = 1`) is already exactly `level`, so the floor and release-end click only occur below full velocity or with `velocity_to_level < 1`.
+
 `src/dsp/envelopes/mod.rs:315-319`
 
 ```rust
@@ -178,7 +180,9 @@ The intended math is presumably
 preserves zeros. The unit test `velocity_affects_level` only checks that peaks
 differ, so it passes despite the broken floor.
 
-### C5. Post chain: filter/drive are only audible through the FEM body bank, and the stereo image is 70 % mono-collapsed
+### ~~C5. Post chain: filter/drive are only audible through the FEM body bank, and the stereo image is 70 % mono-collapsed~~ — IN PROGRESS
+> **Status: IN PROGRESS** — OpenSpec change [`fix-post-chain-body-routing`](openspec/changes/fix-post-chain-body-routing/proposal.md). Decided: BODY becomes a parallel body wet amount (factory presets re-voiced to keep today's colour), Chassis Volume only tunes the body, filter/drive go dual-mono, and Eco runs the full chain. Also found: the BODY fader is dead for all 50 presets (`body/5` ≤ 0.3 always loses the `max()` against `chassis_volume = 0.5`). HRTF spread's own mono remix stays open.
+
 `src/dsp/post_processing/post_chain.rs:138-161`, `fem_body.rs:57-78`
 
 1. `FemBodyResonator::process` returns **only** the resonator-bank sum — there is no
@@ -200,7 +204,9 @@ differ, so it passes despite the broken floor.
    chassis_volume.max(body/5))` — `body` and `chassis_volume` fight through a
    `max()`, so automating `body` below the current `chassis_volume` does nothing.
 
-### C6. Spring reverb: one mono state shared by both channels
+### ~~C6. Spring reverb: one mono state shared by both channels~~ — IN PROGRESS
+> **Status: IN PROGRESS** — OpenSpec change [`fix-spring-reverb-stereo`](openspec/changes/fix-spring-reverb-stereo/proposal.md).
+
 `src/dsp/post_processing/post_chain.rs:175-182`, `space.rs:133-212`
 
 `SpaceMode::Spring` calls `self.spring_reverb.process(spread_left)` and then
@@ -434,7 +440,7 @@ above the block. Minor, but the doc and tests promise symmetric behavior.
 
 - The test suite is heavy on "A differs from B" energy assertions and light on
   invariants: ~~nothing pins the filter's frequency response at high cutoffs (C1)~~ (FIXED),
-  envelope continuity (C4), DC at the output, sample-rate invariance (H10), or
+  ~~envelope continuity (C4)~~ (IN PROGRESS), DC at the output, sample-rate invariance (H10), or
   Nyquist safety (H11).
 - ~~`tests/no_alloc.rs` scopes note-on *outside* the no-alloc zone, so the strongest
   RT-safety claim in the docs is untested where it actually breaks (C3).~~ — FIXED (note: the check only runs in debug builds)
@@ -456,14 +462,14 @@ above the block. Minor, but the doc and tests promise symmetric behavior.
 5. GUI exposure of brightness, thickness, sync rate, play mode, limiter mode,
    macros (H5).
 6. Envelope→strike-position routing promised by `position_envelope` (H9).
-7. Post-chain wet/dry or bypass for the body stage; true stereo processing of
-   filter/drive (C5).
+7. ~~Post-chain wet/dry or bypass for the body stage; true stereo processing of
+   filter/drive (C5).~~ — IN PROGRESS
 
 ## Suggested priority order
 
 1. ~~**C1** (filter instability — plugin is broken at default settings in a DAW)~~ — FIXED,
 2. ~~**C2** (crash)~~ — FIXED, ~~**C3** (RT allocation; debug abort)~~ — FIXED,
-3. **C4/C5/C6** (audible correctness of envelope, chain topology, spring reverb),
+3. ~~**C4/C5/C6** (audible correctness of envelope, chain topology, spring reverb)~~ — IN PROGRESS,
 4. **H1–H4** (parameter ranges, defaults, and preset loading — cheap, high-impact),
 5. **H5** (GUI gaps) and the remaining H items,
 6. Medium items opportunistically, alongside regression tests for each fix.
