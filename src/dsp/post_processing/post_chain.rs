@@ -425,8 +425,12 @@ mod tests {
 
     #[test]
     fn cutoff_shapes_broadband_output() {
+        // At the factory BODY (default 2.62 → mix 0.524), so the parallel
+        // body path is in the measurement too.
+        let factory_body = crate::CorrosionParams::default().body.value() / 5.0;
+        assert!(factory_body > 0.5, "factory BODY mix {factory_body}");
         let render = |cutoff: f32| {
-            let mut chain = routing_chain_with_cutoff(0.2, 0.5, cutoff);
+            let mut chain = routing_chain_with_cutoff(factory_body, 0.5, cutoff);
             let mut seed = 0x1234_5678_u32;
             (0..24_000)
                 .map(|_| {
@@ -442,6 +446,45 @@ mod tests {
         assert!(
             drop_db >= 20.0,
             "1 kHz cutoff cut > 4 kHz energy by only {drop_db:.1} dB"
+        );
+    }
+
+    /// Frequency (Hz) of the strongest component of `xs` between `lo` and
+    /// `hi`, by a direct DFT in 1 Hz steps.
+    fn strongest_frequency(xs: &[f32], lo: usize, hi: usize) -> usize {
+        (lo..=hi)
+            .max_by(|&a, &b| {
+                let power = |hz: usize| {
+                    let w = std::f64::consts::TAU * hz as f64 / SR as f64;
+                    let (re, im) = xs.iter().enumerate().fold((0.0, 0.0), |(re, im), (i, &x)| {
+                        (
+                            re + x as f64 * (w * i as f64).cos(),
+                            im + x as f64 * (w * i as f64).sin(),
+                        )
+                    });
+                    re * re + im * im
+                };
+                power(a).total_cmp(&power(b))
+            })
+            .unwrap()
+    }
+
+    #[test]
+    fn larger_chassis_moves_the_body_peak_lower_in_the_output() {
+        // Measured on the chain's output at full BODY, not on the body's
+        // internal tuning: an impulse excites the body, whose first mode
+        // dominates 100–400 Hz (≈314 Hz at volume 0.2, ≈169 Hz at 0.8).
+        let peak_hz = |chassis_volume: f32| {
+            let mut chain = routing_chain(1.0, chassis_volume);
+            let response: Vec<f32> = (0..24_000)
+                .map(|i| chain.process(if i == 0 { 0.5 } else { 0.0 }, 0.0).0)
+                .collect();
+            strongest_frequency(&response, 100, 400)
+        };
+        let (small, large) = (peak_hz(0.2), peak_hz(0.8));
+        assert!(
+            large + 50 < small,
+            "larger chassis should resonate lower: {large} Hz vs {small} Hz"
         );
     }
 
@@ -576,15 +619,23 @@ mod tests {
         );
     }
 
-    /// Spring delay length for `spring_chain`: 80 ms × (0.5 + tank size 0.5)
-    /// at 48 kHz.
-    const SPRING_DELAY: usize = 3_840;
+    /// Sample rate and spring settings for `spring_chain`, all away from the
+    /// `SpringReverb::new()` defaults (48 kHz, 0.5/0.5/0.5), so a setter
+    /// that doesn't reach the right-hand spring shows up in the tests.
+    const SPRING_SR: f32 = 44_100.0;
+    const SPRING_TENSION: f32 = 0.8;
+    const SPRING_STIFFNESS: f32 = 0.2;
+    const SPRING_TANK: f32 = 0.25;
+    /// 80 ms at 44.1 kHz (3,528 samples) × (0.5 + tank size 0.25).
+    const SPRING_DELAY: usize = 2_646;
+    /// Spring output gain: tank size × 0.7.
+    const SPRING_ECHO_GAIN: f32 = SPRING_TANK * 0.7;
 
     /// A chain in Spring mode with a known delay length.
     fn spring_chain() -> PostProcessingChain {
         let mut chain = PostProcessingChain::new();
-        chain.set_sample_rate(SR);
-        chain.set_spring_params(0.5, 0.5, 0.5);
+        chain.set_sample_rate(SPRING_SR);
+        chain.set_spring_params(SPRING_TENSION, SPRING_STIFFNESS, SPRING_TANK);
         chain.set_space_mode(SpaceMode::Spring);
         chain.set_space_amount(1.0);
         chain
@@ -632,12 +683,11 @@ mod tests {
         for (side, wet, level) in [("left", &left, 1.0), ("right", &right, 0.5)] {
             let first = wet.iter().position(|&x| x != 0.0);
             assert_eq!(first, Some(SPRING_DELAY), "{side} echo timing");
-            // Output gain: tank size 0.5 × 0.7.
             let echo = wet[SPRING_DELAY];
             assert!(
-                (echo - level * 0.35).abs() < 1e-6,
+                (echo - level * SPRING_ECHO_GAIN).abs() < 1e-6,
                 "{side} echo level {echo}, expected {}",
-                level * 0.35
+                level * SPRING_ECHO_GAIN
             );
         }
     }

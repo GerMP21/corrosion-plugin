@@ -22,3 +22,10 @@
 - [x] 4.1 Add a test in `tests/` that plays a friction-family note (e.g. Bow) through `VoiceManager` with loop Forward, start 4, end 4 for 2 s and asserts finite output; verify it passes
 - [x] 4.2 Run `cargo test --no-default-features --release`, `cargo fmt --check`, and `cargo clippy --no-default-features --all-targets`; verify all green with no new warnings
 - [x] 4.3 Update `FABLE-CODE-REVIEW-2026-07-07.md` C2 status from IN PROGRESS to FIXED with the commit reference (noting PingPong remains partial); verify the heading and priority list reflect the new status
+
+## 5. Verification follow-up
+
+- [x] 5.1 Run `every_loop_configuration_is_bounded` on a thread with a 60 s deadline (a release-build regression hangs rather than overflows) and assert every configuration reaches Idle after release
+- [x] 5.2 Add a positive check to `custom_loop_end_restarts_before_decay` (at least two Hold → Attack restarts in 2 s) and assert `release_exits_running_loop` actually enters Release from a looping stage
+- [x] 5.3 Make `is_loop_enabled()` report whether a non-empty loop region is set (empty regions such as Forward 4 → 4 never loop), move the stray `set_loop` doc line, and state the real longest transition chain in the `MAX_TRANSITIONS` comment
+- [x] 5.4 Note in the code review that bit-identity held until C4 (commit `3540048`), and mark the replaced `handle_loop()` in this change's proposal and design

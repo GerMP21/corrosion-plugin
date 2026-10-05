@@ -5,8 +5,15 @@
 //! and does not perform iterative Newton-Raphson on a non-linear circuit.
 //! It is a much cheaper approximation: four cascaded TPT (topology-preserving
 //! transform) one-pole low-pass stages with transistor-style soft-saturation
-//! between stages, plus a one-sample-delayed feedback term for resonance —
-//! i.e. a Moog-flavored topology, not an electrical-domain WDF.
+//! between stages, plus zero-delay resonance feedback — i.e. a Moog-flavored
+//! topology, not an electrical-domain WDF.
+//!
+//! Resonance: the feedback `u = x − k·y₄` is solved each sample against the
+//! linear cascade (no extra sample of delay), with `k = 4·resonance / 0.9`.
+//! The ladder therefore self-oscillates exactly when `k ≥ 4`, i.e. from
+//! resonance [`SELF_OSCILLATION_RESONANCE`] (0.9) up, at every cutoff and
+//! sample rate; below that, tails always decay. The saturators bound the
+//! oscillation.
 //!
 //! Coefficients: the cutoff is prewarped with `g = tan(π·fc/fs)` and `fc` is
 //! clamped to `0.49·fs`, which keeps every stage stable at any host cutoff
@@ -33,9 +40,6 @@ pub struct WdfLadderFilter {
 
     /// Trapezoidal integrator state, one per stage (linear, unsaturated).
     s: [f32; 4],
-    /// Saturated output of the last stage on the previous sample; drives
-    /// the resonance feedback.
-    last_output: f32,
 
     // Cached coefficients
     g: f32,
@@ -47,6 +51,9 @@ pub struct WdfLadderFilter {
     /// new/reset. The first call snaps; later calls smooth.
     smoothing_primed: bool,
 }
+
+/// Resonance at and above which the ladder self-oscillates.
+pub const SELF_OSCILLATION_RESONANCE: f32 = 0.9;
 
 impl WdfLadderFilter {
     /// One-pole smoother time constant in seconds. Slow enough to kill zipper
@@ -65,7 +72,6 @@ impl WdfLadderFilter {
             target_resonance: 0.0,
             component_tolerance: 0.0,
             s: [0.0; 4],
-            last_output: 0.0,
             g: 0.0,
             g_comp: 0.0,
             sample_rate: 48000.0,
@@ -143,8 +149,9 @@ impl WdfLadderFilter {
             self.update_coefficients();
         }
 
-        // Apply component tolerance as subtle noise/jitter
-        let tolerance_jitter = if self.component_tolerance > 0.0 {
+        // Apply component tolerance as subtle noise/jitter. Gated on the
+        // input so silence in stays silence out (and a reset stays silent).
+        let tolerance_jitter = if self.component_tolerance > 0.0 && input != 0.0 {
             let noise = (self.s[0] * 43_758.547).fract() * 2.0 - 1.0;
             noise * self.component_tolerance * 0.001
         } else {
@@ -153,23 +160,31 @@ impl WdfLadderFilter {
 
         let x = input + tolerance_jitter;
 
-        // Feedback path with resonance
-        let feedback = self.last_output * self.resonance * 4.0;
-        let x_in = x - feedback;
+        // Each TPT stage is y = G·x + (1 − G)·s. Through the linear cascade
+        // the last stage gives y₄ = G⁴·u + Σ, with Σ collected from the
+        // integrator states. Solving u = x − k·y₄ for u removes the
+        // one-sample feedback delay that made the ladder oscillate at low
+        // resonance near high cutoffs.
+        let big_g = self.g / (1.0 + self.g);
+        let k = self.resonance * 4.0 / SELF_OSCILLATION_RESONANCE;
+        let sigma = self
+            .s
+            .iter()
+            .fold(0.0, |acc, &state| acc * big_g + (1.0 - big_g) * state);
+        let g4 = big_g * big_g * big_g * big_g;
+        let u = (x - k * sigma) / (1.0 + k * g4);
 
         // 4-pole ladder: unity-DC-gain TPT one-pole stages
         // (v = (x − s)·g/(1+g), y = v + s, s ← y + v), each followed by the
         // transistor saturator. The integrator state stays linear so the
         // saturator cannot latch it; only the signal passed on is shaped.
-        let big_g = self.g / (1.0 + self.g);
-        let mut stage_in = x_in;
+        let mut stage_in = u;
         for state in self.s.iter_mut() {
             let v = (stage_in - *state) * big_g;
             let y = v + *state;
             *state = y + v;
             stage_in = Self::transistor_saturate(y);
         }
-        self.last_output = stage_in;
 
         // Output with compensation
         stage_in * self.g_comp
@@ -191,7 +206,6 @@ impl WdfLadderFilter {
     /// Clears the filter state history.
     pub fn reset(&mut self) {
         self.s = [0.0; 4];
-        self.last_output = 0.0;
         // Re-prime so the next `set_parameters` snaps to the requested values.
         self.smoothing_primed = false;
     }
@@ -207,9 +221,10 @@ impl Default for WdfLadderFilter {
 mod tests {
     use super::*;
 
-    /// Drives `filter` with a sine burst then silence and returns
-    /// `(max_abs, all_finite, mean_of_tail)` where the tail is the final
-    /// 100 ms of the silent section.
+    /// Drives `filter` with a one-second sine burst then one second of
+    /// silence and returns `(max_abs, all_finite, tail_max_abs)`, where the
+    /// tail is the final 100 ms of the silent section. A per-sample maximum
+    /// (not a mean) so a ringing or oscillating tail can't average out.
     fn burst_then_silence(
         filter: &mut WdfLadderFilter,
         sr: f32,
@@ -220,7 +235,7 @@ mod tests {
         let tail = (sr * 0.1) as usize;
         let mut max_abs = 0.0_f32;
         let mut finite = true;
-        let mut tail_sum = 0.0_f32;
+        let mut tail_max = 0.0_f32;
         for i in 0..2 * n {
             let x = if i < n {
                 amplitude * (2.0 * std::f32::consts::PI * freq_hz * i as f32 / sr).sin()
@@ -231,10 +246,10 @@ mod tests {
             finite &= y.is_finite();
             max_abs = max_abs.max(y.abs());
             if i >= 2 * n - tail {
-                tail_sum += y;
+                tail_max = tail_max.max(y.abs());
             }
         }
-        (max_abs, finite, tail_sum / tail as f32)
+        (max_abs, finite, tail_max)
     }
 
     /// Steady-state RMS of the filter output for a sine input, skipping the
@@ -260,12 +275,12 @@ mod tests {
         let mut filter = WdfLadderFilter::new();
         filter.set_sample_rate(sr);
         filter.set_parameters(20_000.0, 0.0, 0.0);
-        let (max_abs, finite, tail_mean) = burst_then_silence(&mut filter, sr, 1_000.0, 0.1);
+        let (max_abs, finite, tail_max) = burst_then_silence(&mut filter, sr, 1_000.0, 0.1);
         assert!(finite, "output must stay finite");
         assert!(max_abs <= 1.0, "output must stay within ±1, got {max_abs}");
         assert!(
-            tail_mean.abs() < 1e-3,
-            "output must return to zero after input stops, tail mean {tail_mean}"
+            tail_max < 1e-3,
+            "output must return to zero after input stops, tail max {tail_max}"
         );
     }
 
@@ -276,11 +291,11 @@ mod tests {
                 let mut filter = WdfLadderFilter::new();
                 filter.set_sample_rate(sr);
                 filter.set_parameters(cutoff, 0.0, 0.0);
-                let (_, finite, tail_mean) = burst_then_silence(&mut filter, sr, 1_000.0, 0.1);
+                let (_, finite, tail_max) = burst_then_silence(&mut filter, sr, 1_000.0, 0.1);
                 assert!(finite, "non-finite output at sr={sr} cutoff={cutoff}");
                 assert!(
-                    tail_mean.abs() < 1e-3,
-                    "no decay to zero at sr={sr} cutoff={cutoff}: tail mean {tail_mean}"
+                    tail_max < 1e-3,
+                    "no decay to zero at sr={sr} cutoff={cutoff}: tail max {tail_max}"
                 );
             }
         }
@@ -293,16 +308,20 @@ mod tests {
         let mut filter = WdfLadderFilter::new();
         filter.set_sample_rate(sr);
         filter.set_parameters(20_000.0, 0.0, 0.0);
-        let (_, finite, tail_mean) = burst_then_silence(&mut filter, sr, 1_000.0, 0.1);
-        assert!(finite && tail_mean.abs() < 1e-3, "unstable above Nyquist");
+        // Strictly below Nyquist: g = tan(π·fc/fs) is finite and positive
+        // only for fc < fs/2.
+        assert!(filter.g.is_finite() && filter.g > 0.0, "g = {}", filter.g);
+        let (_, finite, tail_max) = burst_then_silence(&mut filter, sr, 1_000.0, 0.1);
+        assert!(finite && tail_max < 1e-3, "unstable above Nyquist");
 
         // Cutoff set first, then the sample rate lowered underneath it.
         let mut filter = WdfLadderFilter::new();
         filter.set_parameters(20_000.0, 0.0, 0.0);
         filter.set_sample_rate(sr);
-        let (_, finite, tail_mean) = burst_then_silence(&mut filter, sr, 1_000.0, 0.1);
+        assert!(filter.g.is_finite() && filter.g > 0.0, "g = {}", filter.g);
+        let (_, finite, tail_max) = burst_then_silence(&mut filter, sr, 1_000.0, 0.1);
         assert!(
-            finite && tail_mean.abs() < 1e-3,
+            finite && tail_max < 1e-3,
             "unstable after lowering the sample rate below 2·cutoff"
         );
     }
@@ -362,20 +381,124 @@ mod tests {
     }
 
     #[test]
+    fn max_resonance_tail_stays_bounded_while_oscillating() {
+        // Resonance 1.0 self-oscillates; the saturators must keep the
+        // sustained tail bounded too.
+        for &sr in &[44_100.0_f32, 48_000.0, 96_000.0] {
+            for &cutoff in &[100.0, 1_000.0, 5_000.0, 0.25 * sr, 20_000.0] {
+                let mut filter = WdfLadderFilter::new();
+                filter.set_sample_rate(sr);
+                filter.set_parameters(cutoff, 1.0, 0.0);
+                let (_, finite, tail_max) = burst_then_silence(&mut filter, sr, 1_000.0, 0.5);
+                assert!(
+                    finite && tail_max <= 1.0,
+                    "sr={sr} cutoff={cutoff}: {tail_max}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn resonance_below_ninety_percent_decays() {
+        // Regression for the verification finding: with one-sample-delayed
+        // feedback the ladder rang forever at resonance 0.35 and the 20 kHz
+        // default cutoff.
+        for &sr in &[44_100.0_f32, 48_000.0, 96_000.0] {
+            for &cutoff in &[200.0, 1_000.0, 5_000.0, 0.25 * sr, 20_000.0] {
+                for &resonance in &[0.35, 0.6, 0.85] {
+                    let mut filter = WdfLadderFilter::new();
+                    filter.set_sample_rate(sr);
+                    filter.set_parameters(cutoff, resonance, 0.0);
+                    let (_, finite, tail_max) = burst_then_silence(&mut filter, sr, 1_000.0, 0.5);
+                    assert!(
+                        finite && tail_max < 1e-3,
+                        "sr={sr} cutoff={cutoff} resonance={resonance}: tail max {tail_max}"
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn resonance_above_ninety_percent_self_oscillates() {
+        for &sr in &[44_100.0_f32, 48_000.0, 96_000.0] {
+            for &cutoff in &[200.0, 1_000.0, 5_000.0, 0.25 * sr, 20_000.0] {
+                for &resonance in &[0.95, 1.0] {
+                    let mut filter = WdfLadderFilter::new();
+                    filter.set_sample_rate(sr);
+                    filter.set_parameters(cutoff, resonance, 0.0);
+                    let (_, _, tail_max) = burst_then_silence(&mut filter, sr, 1_000.0, 0.5);
+                    assert!(
+                        tail_max > 0.01,
+                        "sr={sr} cutoff={cutoff} resonance={resonance}: no oscillation ({tail_max})"
+                    );
+                }
+            }
+        }
+    }
+
+    /// Energy of `xs` above `min_hz`, from a direct DFT over every fourth bin.
+    fn energy_above(xs: &[f32], sr: f32, min_hz: f32) -> f64 {
+        let n = xs.len();
+        let first_bin = (min_hz / sr * n as f32).ceil() as usize;
+        (first_bin..n / 2)
+            .step_by(4)
+            .map(|bin| {
+                let w = std::f64::consts::TAU * bin as f64 / n as f64;
+                let (re, im) = xs.iter().enumerate().fold((0.0, 0.0), |(re, im), (i, &x)| {
+                    let phase = w * i as f64;
+                    (re + x as f64 * phase.cos(), im - x as f64 * phase.sin())
+                });
+                re * re + im * im
+            })
+            .sum()
+    }
+
+    #[test]
     fn higher_cutoff_passes_more_high_frequency_energy() {
+        // Same broadband (white noise) input through 2 kHz and 8 kHz cutoffs;
+        // compare the energy above 4 kHz after the filters have settled.
         let sr = 48_000.0;
-        let mut dark = WdfLadderFilter::new();
-        dark.set_sample_rate(sr);
-        dark.set_parameters(2_000.0, 0.0, 0.0);
-        let mut bright = WdfLadderFilter::new();
-        bright.set_sample_rate(sr);
-        bright.set_parameters(8_000.0, 0.0, 0.0);
-        let dark_hf = steady_rms(&mut dark, sr, 6_000.0, 0.05);
-        let bright_hf = steady_rms(&mut bright, sr, 6_000.0, 0.05);
+        let render = |cutoff: f32| {
+            let mut filter = WdfLadderFilter::new();
+            filter.set_sample_rate(sr);
+            filter.set_parameters(cutoff, 0.0, 0.0);
+            let mut seed = 0x2468_ace1_u32;
+            let out: Vec<f32> = (0..6_144)
+                .map(|_| {
+                    seed = seed.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
+                    let x = (seed >> 8) as f32 / (1u32 << 24) as f32 - 0.5;
+                    filter.process(0.2 * x)
+                })
+                .collect();
+            energy_above(&out[2_048..], sr, 4_000.0)
+        };
+        let (dark, bright) = (render(2_000.0), render(8_000.0));
         assert!(
-            bright_hf > dark_hf,
-            "8 kHz cutoff should pass more 6 kHz energy ({bright_hf}) than 2 kHz ({dark_hf})"
+            bright > 4.0 * dark,
+            "8 kHz cutoff should pass much more energy above 4 kHz ({bright}) than 2 kHz ({dark})"
         );
+    }
+
+    #[test]
+    fn tolerance_adds_nothing_to_silence() {
+        // Component tolerance shapes signal; it must not create output from
+        // silence, including after a reset.
+        let mut filter = WdfLadderFilter::new();
+        filter.set_sample_rate(48_000.0);
+        filter.set_parameters(5_000.0, 0.3, 1.0);
+        for i in 0..4_800 {
+            filter.process((i as f32 * 0.05).sin() * 0.5);
+        }
+        filter.reset();
+        filter.set_parameters(5_000.0, 0.3, 1.0);
+        for _ in 0..4_800 {
+            assert_eq!(
+                filter.process(0.0),
+                0.0,
+                "tolerance jitter leaked into silence"
+            );
+        }
     }
 
     #[test]

@@ -211,7 +211,9 @@ pub struct CorrosionParams {
     #[id = "env_amount"]
     pub env_amount: FloatParam,
 
-    /// Velocity to peak amount - how much velocity affects envelope peak (0.0 to 1.0)
+    /// Friction envelope peak level (0.0 to 1.0): peak = 0.5 + 0.5·value.
+    /// Despite the id it does not read velocity; velocity scales the whole
+    /// envelope via velocity-to-level.
     #[id = "velocity_to_peak"]
     pub velocity_to_peak: FloatParam,
 
@@ -688,7 +690,9 @@ pub struct CorrosionParams {
     /// Chassis volume (0.0 to 1.0).
     ///
     /// Size of the chassis body: larger volumes move its resonances lower.
-    /// It does not set the body's level; BODY does.
+    /// It applies no gain of its own (BODY sets the body's mix level), but
+    /// lower modes ring with more resonant gain, so at the same BODY a larger
+    /// chassis sounds somewhat louder.
     #[id = "chassis_volume"]
     pub chassis_volume: FloatParam,
 
@@ -986,9 +990,13 @@ pub fn exciter_model_items() -> &'static [(i32, &'static str)] {
 
 /// Quality mode enumeration for CPU/quality tradeoff.
 ///
-/// - **Eco**: Reduced oversampling, simplified space processing
+/// Every mode runs the full post chain; modes change only the clipper's
+/// oversampling (1×/4×/8×/16×) and the per-voice modal density
+/// (0.5×/1×/1.5×/2× the object's base mode count).
+///
+/// - **Eco**: No oversampling, half modal density
 /// - **Normal**: Balanced quality (default, matches pre-quality-mode behavior)
-/// - **High**: Full quality with richer spatial processing
+/// - **High**: 8× oversampling, 1.5× modal density
 /// - **Render**: Maximum quality, may be too expensive for live use
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "PascalCase")]

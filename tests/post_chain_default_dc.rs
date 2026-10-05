@@ -25,6 +25,8 @@ fn default_chain(sample_rate: f32) -> PostProcessingChain {
         params.chassis_material.value(),
         params.chassis_volume.value(),
     );
+    // BODY 0–5 maps to the body mix as in `Corrosion::apply_post_chain_params`.
+    chain.set_body_amount((params.body.value() / 5.0).clamp(0.0, 1.0));
     chain.set_spread_params(
         params.spread_width.value(),
         params.listener_proximity.value(),

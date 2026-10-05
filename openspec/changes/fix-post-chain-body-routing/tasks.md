@@ -29,3 +29,11 @@
 - [x] 5.1 Update README (Quality line: Eco no longer bypasses; Post chain line: dual-mono filter/drive, parallel body, BODY / Chassis Volume meaning) and `docs/ARCHITECTURE.md` (signal-flow diagram, Eco row); verify no remaining "Eco … bypasses" text with `grep -rn "bypass" README.md docs/ARCHITECTURE.md`
 - [x] 5.2 Run `cargo test --workspace --no-default-features` (debug), `cargo test --no-default-features --release`, the `tests/no_alloc.rs` suite in debug, `cargo fmt --check`, and `cargo clippy --workspace --all-targets --no-default-features -- -D warnings`; verify all green
 - [x] 5.3 Update `FABLE-CODE-REVIEW-2026-07-07.md` C5 status from IN PROGRESS to FIXED with a short summary (noting HRTF spread's mono remix remains open); verify the heading and priority list reflect it
+
+## 6. Verification follow-up
+
+- [x] 6.1 Move the pre-C5 preset baseline the harness reads into `tests/fixtures/c5_preset_baseline.md`, so archiving this change can't break `cargo test`
+- [x] 6.2 Run `cutoff_shapes_broadband_output` at the factory BODY (from `CorrosionParams::default()`, mix 0.524) as task 2.5 specified
+- [x] 6.3 Test the chassis peak on the chain's output at full BODY (`larger_chassis_moves_the_body_peak_lower_in_the_output`); add `body_mix` with a mapping test; tighten the default-note test to ±6 dB of 0.118
+- [x] 6.4 Update the `QualityMode` docs, `docs/detailed-specs/post-processing.md` and `docs/PRD.md` (no Eco bypass, parallel body, no `max()`), note that lower chassis tunings ring louder (params, README, spec), and set the BODY amount in `tests/post_chain_default_dc.rs`
+- [x] 6.5 Fix the Hollow Smokestack Hum hit count (20 060 as stored) and the trim range (0.57–0.952); re-run `c5_verify_revoiced_presets` after the C4 release change: all 50 still pass

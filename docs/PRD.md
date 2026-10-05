@@ -26,7 +26,7 @@
 | Parameters | ~6 MVP params | **127** host parameters with stable IDs (the §11 tables are an MVP subset) |
 | Drive | `tanh(asymmetric·drive)` | master `apply_drive` (asymmetric waveshaper) **plus** a Lorenz-modulated post drive |
 | Output safety | `clamp(out, −1.0, 1.0)` | hard limiter at **±0.9661 (≈ −0.3 dBFS)**; soft diode clipper before it |
-| Quality modes | listed as future | **implemented**: Eco/Normal/High/Render (post-stage bypass + oversample-factor wiring) |
+| Quality modes | listed as future | **implemented**: Eco/Normal/High/Render (clipper oversampling + per-voice modal density; every mode runs the full post chain) |
 | Polyphony | 8 voices | 8 voices, quietest-peak + oldest stealing, idle voices skip rendering |
 | Post/space | "MVP may omit" | full chain: WDF-style filter, Lorenz drive, FEM-style body, HRTF-style spread, Factory/Spring/Echo space, oversampled clipper (all **approximations** — see code review) |
 | Body/space DSP | algorithmic body resonator | shipped, but lightweight approximations of the high-fidelity `detailed-specs/post-processing.md` targets |

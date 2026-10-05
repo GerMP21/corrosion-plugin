@@ -44,6 +44,10 @@ pub struct MSEG {
     stage: Stage,
     stage_time: f32,
     current_level: f32,
+    /// Level (before velocity) that Release ramps down from: the level the
+    /// envelope had when the gate closed, so releasing mid-Attack or
+    /// mid-Decay doesn't jump to the sustain level first.
+    release_level: f32,
     sample_rate: f32,
     velocity_scale: f32,
     env_amount: f32,
@@ -105,6 +109,7 @@ impl MSEG {
             stage: Stage::Idle,
             stage_time: 0.0,
             current_level: 0.0,
+            release_level: 0.0,
             sample_rate: 48000.0,
             velocity_scale: 1.0,
             env_amount: 1.0,
@@ -174,7 +179,10 @@ impl MSEG {
         self.t_release = release.max(0.0);
     }
 
-    /// Set stage levels in the 0..1 range.
+    /// Set stage levels in the 0..1 range. `end` is the level Release ramps
+    /// to; the envelope reports it for the one sample where Release hands
+    /// over to Idle and outputs 0 after that, so a non-zero `end` ends with
+    /// a step (voices always use 0).
     pub fn set_stage_levels(&mut self, onset: f32, peak: f32, sustain: f32, end: f32) {
         self.l_onset = onset.clamp(0.0, 1.0);
         self.l_peak = peak.clamp(0.0, 1.0);
@@ -190,13 +198,14 @@ impl MSEG {
         self.c_release = release.clamp(-1.0, 1.0);
     }
 
-    /// Set looping behavior and loop bounds.
-    /// Whether the loop region is currently engaged. Used by tests to verify
+    /// Whether a non-empty loop region is set, i.e. the envelope will
+    /// actually loop while the gate is held. Used by tests to verify
     /// Drone-mode wiring.
     pub fn is_loop_enabled(&self) -> bool {
-        !matches!(self.loop_mode, LoopMode::Off)
+        self.loop_region().is_some()
     }
 
+    /// Set looping behavior and loop bounds.
     pub fn set_loop(&mut self, mode: LoopMode, start_stage: u8, end_stage: u8) {
         self.loop_mode = mode;
         self.loop_start_stage = start_stage.clamp(1, 4);
@@ -227,6 +236,7 @@ impl MSEG {
     pub fn release(&mut self) {
         self.gate = false;
         if self.stage != Stage::Idle && self.stage != Stage::Release {
+            self.release_level = self.current_level;
             self.stage = Stage::Release;
             self.stage_time = 0.0;
         }
@@ -237,9 +247,12 @@ impl MSEG {
         self.env_amount = amount.clamp(0.0, 1.0);
     }
 
-    /// Upper bound on stage transitions resolved in one sample. Six stages
-    /// plus a loop jump fit with room to spare; a loop region whose stages
-    /// all have zero length stops here instead of spinning.
+    /// Upper bound on stage transitions resolved in one sample. With
+    /// zero-length stages the longest legitimate chain is four (Onset →
+    /// Attack → Hold → Decay → Sustain, or the loop start in place of
+    /// Sustain; the loop jump happens inside that last transition), so 8
+    /// leaves margin. A loop region whose stages all have zero length stops
+    /// here instead of spinning.
     const MAX_TRANSITIONS: usize = 8;
 
     /// Process one sample and return the envelope level.
@@ -255,7 +268,8 @@ impl MSEG {
         // `process_sample`, which never terminated for some loop settings —
         // review C2). Each transition starts the new stage at `step` rather
         // than 0, matching the time the recursive version added on every
-        // re-entry, so existing output stays bit-identical.
+        // re-entry, so C2 kept the output bit-identical (C4 later changed
+        // the velocity gain and the release start level).
         let mut transitions = 0;
         while transitions < Self::MAX_TRANSITIONS && self.stage_finished() {
             if self.stage == Stage::Release {
@@ -294,7 +308,7 @@ impl MSEG {
             Stage::Hold => self.l_peak,
             Stage::Decay => self.l_peak,
             Stage::Sustain => self.l_sustain,
-            Stage::Release => self.l_sustain,
+            Stage::Release => self.release_level,
             _ => 0.0,
         };
 
@@ -342,6 +356,9 @@ impl MSEG {
             }
             Stage::Release | Stage::Idle => Stage::Idle,
         };
+        if next == Stage::Release {
+            self.release_level = self.current_level;
+        }
         // Reaching the loop end stage with the gate held restarts the loop.
         self.stage = match self.loop_region() {
             Some((start, end)) if self.gate && next == end => start,
@@ -449,9 +466,13 @@ mod tests {
     /// Golden output for loop Off, the default/Drone Forward 3 → 4 loop,
     /// `scrape_envelope()` and PingPong. First captured from the recursive
     /// implementation before the C2 fix (loop timing must not drift), then
-    /// re-captured once for C4, when velocity became a pure gain: below
-    /// full velocity the old floor is gone, and at full velocity the only
-    /// change is f32 rounding (see `full_velocity_matches_previous_formula`).
+    /// re-captured for C4, when velocity became a pure gain: below full
+    /// velocity the old floor is gone, and at full velocity the only change
+    /// is f32 rounding (see `full_velocity_matches_previous_formula`).
+    /// Re-captured again when Release started ramping from the current level
+    /// instead of the sustain level: only the looping cases changed, since
+    /// they release mid-Decay; loop Off releases from Sustain and kept its
+    /// hash.
     #[test]
     fn loop_output_matches_golden() {
         let cases = [
@@ -467,10 +488,10 @@ mod tests {
         ];
         let golden = [
             0x6545_734c_fe98_dcb4_u64,
-            0x589e_fab7_76f4_e923,
-            0x97a1_1d94_3312_2db4,
-            0x41c9_3e5d_5f8e_a43a,
-            0x589e_fab7_76f4_e923,
+            0xd903_68da_df52_8eb3,
+            0x67c9_5244_0a15_cb77,
+            0xdb6d_60e5_9cfa_29e9,
+            0xd903_68da_df52_8eb3,
         ];
         for ((name, mseg, velocity), expected) in cases.into_iter().zip(golden) {
             assert_eq!(
@@ -565,6 +586,31 @@ mod tests {
         }
     }
 
+    /// At velocity 1.0 the gain is exactly 1 for any `velocity_to_level`,
+    /// so the output is the stage level times `env_amount`.
+    #[test]
+    fn full_velocity_gives_the_stage_level() {
+        for vtl in [0.0, 0.3, 0.7, 1.0] {
+            let mut mseg = MSEG::scrape_envelope();
+            mseg.set_velocity_response(vtl, 0.0);
+            mseg.set_env_amount(0.8);
+            mseg.set_sample_rate(48_000.0);
+            mseg.trigger(1.0);
+            for i in 0..96_000 {
+                if i == 72_000 {
+                    mseg.release();
+                }
+                let out = mseg.process_sample();
+                let expected = if mseg.stage() == Stage::Idle {
+                    0.0
+                } else {
+                    mseg.current_level() * 0.8
+                };
+                assert_eq!(out, expected, "vtl {vtl}, sample {i}");
+            }
+        }
+    }
+
     #[test]
     fn velocity_to_level_off_adds_no_offset() {
         for velocity in [0.0, 0.5, 1.0] {
@@ -577,11 +623,13 @@ mod tests {
 
     #[test]
     fn velocity_scales_level_multiplicatively() {
-        // velocity_scale = 0.5 + v/2, so full level at velocity 0 is half.
+        // velocity_scale = 0.5 + v/2, so full level at velocity 0 is half,
+        // then scaled by env_amount.
         let mut mseg = MSEG::new();
         mseg.set_stage_levels(0.1, 1.0, 1.0, 0.0);
+        mseg.set_env_amount(0.8);
         let mut mseg = held_into_sustain(mseg, 0.0);
-        assert_eq!(mseg.process_sample(), 0.5);
+        assert_eq!(mseg.process_sample(), 0.5 * 0.8);
     }
 
     #[test]
@@ -609,11 +657,46 @@ mod tests {
             final_step <= largest_release_step,
             "release ended with a {final_step} step (largest in-release step {largest_release_step})"
         );
+        assert_eq!(previous.map(|_| mseg.process_sample()), Some(0.0));
+    }
+
+    /// Releasing before Sustain ramps down from the level the envelope had,
+    /// instead of jumping to the sustain level first.
+    #[test]
+    fn release_starts_from_the_current_level() {
+        // (stage to release in, samples to run first): default times are
+        // onset 10 ms, attack 50 ms, hold 20 ms, decay 300 ms.
+        for (stage, samples) in [(Stage::Attack, 1_200), (Stage::Decay, 6_000)] {
+            let mut mseg = MSEG::new();
+            mseg.set_stage_levels(0.1, 1.0, 0.05, 0.0);
+            mseg.set_sample_rate(48_000.0);
+            mseg.trigger(1.0);
+            let mut last = 0.0;
+            let mut largest_step = 0.0_f32;
+            for _ in 0..samples {
+                let x = mseg.process_sample();
+                largest_step = largest_step.max((x - last).abs());
+                last = x;
+            }
+            assert_eq!(mseg.stage(), stage);
+            assert!(
+                last > 0.2,
+                "{stage:?}: level {last} too close to sustain to test"
+            );
+            mseg.release();
+            let first = mseg.process_sample();
+            assert!(
+                (first - last).abs() <= largest_step,
+                "{stage:?}: release jumped {last} -> {first} (largest earlier step {largest_step})"
+            );
+        }
     }
 
     #[test]
     fn custom_loop_end_restarts_before_decay() {
         let mut mseg = triggered(LoopMode::Forward, 1, 3);
+        let mut restarts = 0;
+        let mut previous = mseg.stage();
         for i in 0..96_000 {
             mseg.process_sample();
             assert!(
@@ -621,7 +704,16 @@ mod tests {
                 "entered {:?} at sample {i} with a 1 -> 3 loop held",
                 mseg.stage()
             );
+            if previous == Stage::Hold && mseg.stage() == Stage::Attack {
+                restarts += 1;
+            }
+            previous = mseg.stage();
         }
+        // Attack + hold = 70 ms at default times: ~28 restarts in 2 s.
+        assert!(
+            restarts >= 2,
+            "only {restarts} Hold -> Attack restarts in 2 s"
+        );
     }
 
     #[test]
@@ -653,7 +745,9 @@ mod tests {
         for _ in 0..48_000 {
             mseg.process_sample();
         }
+        assert!(matches!(mseg.stage(), Stage::Decay | Stage::Sustain));
         mseg.release();
+        assert_eq!(mseg.stage(), Stage::Release);
         // Default release is 0.1 s; allow one 512-sample buffer on top.
         for _ in 0..(4_800 + 512) {
             mseg.process_sample();
@@ -661,36 +755,45 @@ mod tests {
         assert!(!mseg.is_active(), "still {:?} after release", mseg.stage());
     }
 
+    /// Every mode × start × end (with normal and zero-length stages) stays in
+    /// [0, 1] and reaches Idle after release. Runs on a thread with a
+    /// deadline: in release builds a recursion regression hangs instead of
+    /// overflowing, and the deadline turns that into a failure.
     #[test]
     fn every_loop_configuration_is_bounded() {
-        let zero_times = |mut mseg: MSEG| {
-            mseg.set_stage_times(0.0, 0.0, 0.0, 0.0, 0.0);
-            mseg
-        };
-        for mode in [LoopMode::Off, LoopMode::Forward, LoopMode::PingPong] {
-            for start in 0..=5 {
-                for end in 0..=5 {
-                    for zero in [false, true] {
-                        let mut mseg = configured(mode, start, end);
-                        if zero {
-                            mseg = zero_times(mseg);
-                        }
-                        mseg.set_sample_rate(48_000.0);
-                        mseg.trigger(1.0);
-                        for i in 0..96_000 {
-                            if i == 48_000 {
-                                mseg.release();
+        let (tx, rx) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            let result = std::panic::catch_unwind(|| {
+                for mode in [LoopMode::Off, LoopMode::Forward, LoopMode::PingPong] {
+                    for start in 0..=5 {
+                        for end in 0..=5 {
+                            for zero in [false, true] {
+                                let mut mseg = configured(mode, start, end);
+                                if zero {
+                                    mseg.set_stage_times(0.0, 0.0, 0.0, 0.0, 0.0);
+                                }
+                                mseg.set_sample_rate(48_000.0);
+                                mseg.trigger(1.0);
+                                let name = format!("{mode:?} {start}->{end} zero_times={zero}");
+                                for i in 0..96_000 {
+                                    if i == 48_000 {
+                                        mseg.release();
+                                    }
+                                    let x = mseg.process_sample();
+                                    assert!((0.0..=1.0).contains(&x), "{name}: sample {i} = {x}");
+                                }
+                                assert!(!mseg.is_active(), "{name}: still {:?}", mseg.stage());
                             }
-                            let x = mseg.process_sample();
-                            assert!(
-                                (0.0..=1.0).contains(&x),
-                                "{mode:?} {start}->{end} zero_times={zero}: sample {i} = {x}"
-                            );
                         }
                     }
                 }
-            }
-        }
+            });
+            let _ = tx.send(result.is_ok());
+        });
+        let ok = rx
+            .recv_timeout(std::time::Duration::from_secs(60))
+            .expect("loop sweep did not finish within 60 s (hang)");
+        assert!(ok, "loop sweep failed (see panic above)");
     }
 
     #[test]

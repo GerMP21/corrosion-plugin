@@ -27,3 +27,10 @@
 
 - [x] 5.1 Run `cargo test --no-default-features --release`, `cargo fmt --check`, `cargo clippy --no-default-features --all-targets`, and `cargo bench --no-run`; verify all green with no new warnings
 - [x] 5.2 Update `FABLE-CODE-REVIEW-2026-07-07.md` C3 status from IN PROGRESS to FIXED with the commit reference; verify the heading, the tests section bullet, and the priority list reflect the new status
+
+## 6. Verification follow-up
+
+- [x] 6.1 Iterate exciters 1..=16 (the parameter's real range) in `tests/no_alloc.rs`, so Particle Rain runs under the check
+- [x] 6.2 Replace the vacuous `note_on_banks_fit_max_modes` with checks on the raw count (`MAX_RAW_MODES`) and the untruncated damage expansion; make the scale cap an integer so `MAX_MODES` is exact; debug-assert the raw bound in `rebuild_in_place`
+- [x] 6.3 Assert released voices go idle and stealing keeps the pool full with the new note sounding (`VoiceManager::active_notes`); add the plugin-level reset test with Echo/Spring tails
+- [x] 6.4 Zero large delay lines with `fill(0.0)` in the space, spread and limiter resets (no 32–128 KB stack temporaries in debug builds); add commit `d16781b` to the review's C3 entry

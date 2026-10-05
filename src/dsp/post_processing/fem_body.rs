@@ -32,8 +32,8 @@ impl FemBodyResonator {
     }
 
     /// Sets material and cavity volume controls. Volume sets the body's size:
-    /// larger volumes move every mode lower. It does not change the output
-    /// level.
+    /// larger volumes move every mode lower. It applies no output gain, though
+    /// lower modes ring with more resonant gain (see `process`).
     pub fn set_parameters(&mut self, material: f32, volume: f32) {
         self.material = material.clamp(0.0, 1.0);
         self.volume = volume.clamp(0.0, 1.0);

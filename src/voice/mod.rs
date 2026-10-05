@@ -96,7 +96,9 @@ pub struct VoiceControls {
     pub mseg_release: f32,
     /// Scales the overall envelope contribution for friction voices.
     pub env_amount: f32,
-    /// Maps velocity to the peak level of the friction MSEG.
+    /// Sets the friction MSEG's peak level: `0.5 + 0.5·velocity_to_peak`.
+    /// Despite the name it does not read velocity; velocity scales the whole
+    /// envelope through the MSEG's velocity-to-level gain.
     pub velocity_to_peak: f32,
     /// Selects the MSEG loop mode: off, forward, or ping-pong.
     pub loop_mode: i32,

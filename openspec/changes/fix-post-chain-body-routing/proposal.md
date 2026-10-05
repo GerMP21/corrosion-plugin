@@ -24,6 +24,6 @@ The post chain mixes the voice engine down to mono, then filters and drives that
 ## Impact
 
 - Code: `src/dsp/post_processing/post_chain.rs` (topology, per-channel filter/drive, Eco path), `fem_body.rs` (gain no longer tied to volume), `src/lib.rs` (body/chassis parameter routing), `src/params.rs` (`body` default and doc), `src/bin/seed_presets.rs` plus a regenerated `presets/factory/*` (re-voiced `body`).
-- Tests: new routing tests (stereo preserved, BODY 0 has no body colouring, Chassis Volume doesn't change body level, Eco keeps body/space). The existing Eco-differs test in `post_chain.rs` is re-based.
+- Tests: new routing tests (stereo preserved, BODY 0 has no body colouring, Chassis Volume applies no gain of its own (lower tunings still ring with more resonant gain), Eco keeps body/space). The existing Eco-differs test in `post_chain.rs` is re-based.
 - Docs: README (Quality / Post chain), `docs/ARCHITECTURE.md` (signal-flow diagram, Eco row), `FABLE-CODE-REVIEW-2026-07-07.md` C5 status.
 - CPU: one extra filter and drive instance per plugin (not per voice). Negligible.

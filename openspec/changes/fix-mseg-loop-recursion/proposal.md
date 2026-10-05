@@ -22,7 +22,7 @@ The 6-stage MSEG used by friction-family exciters recurses into `process_sample(
 
 ## Impact
 
-- Code: `src/dsp/envelopes/mod.rs` (`process_sample`, `advance_stage`, `handle_loop`, `set_loop`); `src/params.rs` doc comments for `loop_start_stage` / `loop_end_stage`.
+- Code: `src/dsp/envelopes/mod.rs` (`process_sample`, `advance_stage`, `handle_loop` — replaced by `loop_region`/`loop_stage` — and `set_loop`); `src/params.rs` doc comments for `loop_start_stage` / `loop_end_stage`.
 - Behavior: existing presets all use `loop_mode = 0`, start 3, end 4; Drone mode forces Forward 3 → 4. Their output must be sample-identical before/after.
 - Tests: new unit tests in the envelope module plus a voice-level test that plays a friction note with the previously crashing settings.
 - Docs: `FABLE-CODE-REVIEW-2026-07-07.md` C2 status.

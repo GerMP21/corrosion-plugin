@@ -14,6 +14,9 @@ for 1 s, then releases for 1 s, at 48 kHz, through the real voice path and post 
   ratio under the new parallel routing *with the body at unity gain*. Estimated from the
   mono replica, so only indicative; task 4.1 re-measures through the new chain.
 
+The preset table below is also stored at `tests/fixtures/c5_preset_baseline.md`, which the
+harness reads (so archiving this change doesn't break the test build).
+
 Default-note reference: `hosted_normalized_note_velocity_reaches_output_chain` peak = **0.118**
 (post-C1).
 
@@ -118,7 +121,8 @@ peak: 0.1179 against 0.118 (BODY 0 → 0.0028, BODY 5 → 0.2251).
 **Verification** (`c5_verify_revoiced_presets`, stored presets as loaded from disk): every preset
 is within 0.5 dB of its baseline RMS and hits the limiter no more than before. Chain Bell Tower
 goes from 44 943 hits to 0, Spring Reverb Tap from 25 758 to 0, and Hollow Smokestack Hum from
-20 813 to 20 006.
+20 813 to 20 060 (20 006 at the unrounded BODY the re-voicing search found; the stored 0.47
+gives 20 060).
 
 | preset | BODY | output | rms | Δ vs baseline | peak | limiter hits | baseline hits |
 |---|---|---|---|---|---|---|---|

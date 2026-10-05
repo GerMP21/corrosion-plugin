@@ -8,7 +8,7 @@ The MSEG that shapes friction-family exciters applies velocity with `0.5 + (leve
 
 - Velocity scales the envelope level multiplicatively: `level · ((1 − vtl) + vtl · velocity_scale)`, so a zero stage level is silence at any velocity and any `velocity_to_level`.
 - The Release → Idle hand-off is continuous: the last Release samples converge on the end level (0), so the envelope reaches Idle without a step.
-- **Audible change:** full-velocity output is bit-identical (the old formula reduces to `level` there). Below full velocity, sustained friction notes get quieter, fully decay in release instead of sitting on a floor, and lose the release-end click. With `velocity_to_level < 1` the +0.5 offset disappears.
+- **Audible change:** with `velocity_to_level = 1` (every factory preset), full-velocity output equals the old output within f32 rounding (≤ 1.5e-8; the old formula is mathematically `level` there). With `velocity_to_level < 1`, full velocity also loses the old +0.5·(1 − vtl) offset. Below full velocity, sustained friction notes get quieter, fully decay in release instead of sitting on a floor, and lose the release-end click. With `velocity_to_level < 1` the +0.5 offset disappears.
 - The C2 golden-output test (`envelopes::tests`) is re-captured, because its expected values encode the floor. Its loop-timing protections stay.
 
 ## Capabilities
@@ -25,3 +25,7 @@ The MSEG that shapes friction-family exciters applies velocity with `0.5 + (leve
 - Tests: new envelope tests for silence at zero level, velocity scaling, `velocity_to_level = 0`, and release continuity; the C2 golden hashes are re-captured with the reason recorded.
 - Presets: no file changes. Friction presets at sub-maximal velocity sound quieter in sustain and release.
 - Docs: `FABLE-CODE-REVIEW-2026-07-07.md` C4 status.
+
+### Added after verification
+
+- Release ramps from the level the envelope had when the gate closed, instead of starting at the sustain level. Releasing during Attack or Decay (including a running Decay → Sustain loop) no longer jumps. Releases from Sustain are unchanged.

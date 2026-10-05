@@ -54,7 +54,7 @@ User decisions (2026-10-05): BODY becomes a parallel wet amount and factory pres
   ~80 dB: struck presets relied on the body bank for nearly all of their level. Each preset's BODY
   is bisected to match its baseline RMS. Presets already louder at BODY 0 get BODY 0 and a trimmed
   `output`, and `output` is also trimmed until limiter hits are no worse than before. 11 presets
-  get an `output` trim (0.57–0.95). All 50 land within 0.5 dB of their baseline RMS. Table, method
+  get an `output` trim (0.57–0.952). All 50 land within 0.5 dB of their baseline RMS. Table, method
   and verification are in `baseline.md`.
 - **BODY 0 is very quiet on struck presets.** A default note peaks at 0.0028 (≈ −51 dBFS) with no
   body, and 0.118 at the new default BODY 2.62. This is the voice engine's true dry level. It

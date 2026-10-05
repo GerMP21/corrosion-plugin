@@ -1045,7 +1045,7 @@ const C5_REVOICE: [(&str, f32, f32); 50] = [
     ("Empty Drum Cavern", 2.55, 1.000), // rms 0.30815 (baseline 0.30815), peak 0.3552, hits 0 (baseline 0)
     ("Falling Chain Cluster", 2.62, 1.000), // rms 0.00181 (baseline 0.00181), peak 0.0126, hits 0 (baseline 0)
     ("Hanging Chain Echo", 0.94, 1.000), // rms 0.33652 (baseline 0.33651), peak 0.8646, hits 0 (baseline 0)
-    ("Hollow Smokestack Hum", 0.47, 1.000), // rms 0.63572 (baseline 0.63571), peak 0.9661, hits 20006 (baseline 20813)
+    ("Hollow Smokestack Hum", 0.47, 1.000), // rms 0.63572 (baseline 0.63571), peak 0.9661, hits 20006 at the unrounded BODY, 20060 as stored (baseline 20813)
     ("Industrial Plate Bow", 2.40, 1.000), // rms 0.29549 (baseline 0.29549), peak 0.4395, hits 0 (baseline 0)
     ("Ironforge Anvil Strike", 0.78, 1.000), // rms 0.59690 (baseline 0.59690), peak 0.7797, hits 0 (baseline 0)
     ("Liquid Tank Drone", 0.50, 1.000), // rms 0.53198 (baseline 0.53198), peak 0.7306, hits 0 (baseline 0)

@@ -2,7 +2,7 @@
 
 ## Context
 
-`MsegEnvelope::process_sample()` (`src/dsp/envelopes/mod.rs`) advances `stage_time`, then matches on the stage. Whenever a stage is finished it calls `advance_stage()` or `handle_loop()` and then `return self.process_sample()`. Each re-entry adds another `dt · time_scale` to `stage_time`. The Sustain arm with any loop mode calls `handle_loop()` unconditionally (`stage_time >= 0.0` is always true); if `handle_loop()` maps back to Sustain (start stage 4, or 5 clamped to 4), recursion never terminates.
+`MSEG::process_sample()` (`src/dsp/envelopes/mod.rs`; pre-fix code, where `handle_loop()` has since been replaced by `loop_region()`/`loop_stage()`) advances `stage_time`, then matches on the stage. Whenever a stage is finished it calls `advance_stage()` or `handle_loop()` and then `return self.process_sample()`. Each re-entry adds another `dt · time_scale` to `stage_time`. The Sustain arm with any loop mode calls `handle_loop()` unconditionally (`stage_time >= 0.0` is always true); if `handle_loop()` maps back to Sustain (start stage 4, or 5 clamped to 4), recursion never terminates.
 
 `set_loop()` stores `end_stage` but nothing reads it. `release()` already jumps straight to Release from any non-idle stage, so gate-off cannot be blocked by a loop.
 

@@ -16,3 +16,10 @@
 
 - [x] 3.1 Run `cargo test --workspace --no-default-features` (debug, as CI does), `cargo test --no-default-features --release`, `cargo fmt --check`, and `cargo clippy --workspace --all-targets --no-default-features -- -D warnings`; verify all green
 - [x] 3.2 Update `FABLE-CODE-REVIEW-2026-07-07.md` C4 status from IN PROGRESS to FIXED with a short summary; verify the heading and priority list reflect it
+
+## 4. Verification follow-up
+
+- [x] 4.1 Correct the "bit-identical" claims in the proposal and design (equal within f32 rounding at `vtl = 1`; the +0.5·(1 − vtl) offset goes at `vtl < 1`), and fix the review wording and pre-fix line references
+- [x] 4.2 Rename the "Full velocity is unaffected" scenario and test it exactly (`full_velocity_gives_the_stage_level`: vtl 0/0.3/0.7/1, `env_amount` 0.8); use `env_amount` 0.8 in `velocity_scales_level_multiplicatively`; assert the first Idle sample is exactly 0.0
+- [x] 4.3 Start Release from the current level, add `release_starts_from_the_current_level` (fails on the old code), re-capture the looping golden hashes, and document the non-zero `l_end` step
+- [x] 4.4 Correct the `velocity_to_peak` docs: it sets the peak level, it does not read velocity

@@ -105,8 +105,8 @@ impl HrtfSpread {
 
     /// Clears delay and filter state.
     pub fn reset(&mut self) {
-        self.delay_buffer_left = [0.0; 64];
-        self.delay_buffer_right = [0.0; 64];
+        self.delay_buffer_left.fill(0.0);
+        self.delay_buffer_right.fill(0.0);
         self.delay_index = 0;
         self.left_lpf = 0.0;
         self.right_lpf = 0.0;

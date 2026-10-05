@@ -25,3 +25,11 @@
 
 - [x] 4.1 Run `cargo fmt --check` and `cargo clippy --no-default-features --all-targets`; verify no new warnings
 - [x] 4.2 Update `FABLE-CODE-REVIEW-2026-07-07.md` C1 status from IN PROGRESS to FIXED with the commit reference, and note the corrected "octave above, not below" observation; verify the heading and priority list reflect the new status
+
+## 5. Verification follow-up
+
+- [x] 5.1 Make the resonance feedback zero-delay with `k = 4·res/0.9` (design Decision 6) so tails decay below 90 % resonance and the filter self-oscillates from 90 % up; add `resonance_below_ninety_percent_decays` and `resonance_above_ninety_percent_self_oscillates` (44.1/48/96 kHz, 200 Hz–20 kHz) and the bounded-oscillating-tail test; verify they pass and that they fail on the delayed-feedback code (measured: −13 dBFS tail at resonance 0.35, 20 kHz)
+- [x] 5.2 Switch tail checks from the mean to the per-sample maximum, assert the prewarp coefficient is finite and positive above Nyquist, and make the cutoff-energy test broadband (white noise, energy above 4 kHz); update the spec scenarios to match
+- [x] 5.3 Gate component-tolerance jitter on non-zero input (Decision 7) and add `tolerance_adds_nothing_to_silence`
+- [x] 5.4 Set the BODY amount in `tests/post_chain_default_dc.rs` so the DC guard covers the body path (default BODY is 2.62 since C5)
+- [x] 5.5 Update `docs/detailed-specs/post-processing.md`, the module docs, and the code review's C1 entry (commit `d33bb26`, plus this follow-up)

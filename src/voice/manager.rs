@@ -60,6 +60,15 @@ impl VoiceManager {
         }
     }
 
+    /// MIDI notes of the active (held or tailing) voices, in slot order.
+    /// Allocation-free.
+    pub fn active_notes(&self) -> impl Iterator<Item = u8> + '_ {
+        self.voices
+            .iter()
+            .filter(|voice| voice.is_active())
+            .map(|voice| voice.note())
+    }
+
     /// Silence every voice and clear channel expression in place, leaving
     /// the manager as `new()` would for playback purposes but without
     /// allocating, so the host may call it from the audio thread.

@@ -16,3 +16,9 @@
 - [x] 3.1 Render the two factory presets that use Space = Spring through the post chain before and after, and note the audible change (echo spacing, cross-talk) in the change summary; verify the presets are named *(Distant Plate Roll, Spring Reverb Tap — `audition.md`; Spring Reverb Tap's BODY re-matched 1.60 → 2.26 to stay within C5's 0.5 dB level check)*
 - [x] 3.2 Run `cargo test --workspace --no-default-features` (debug), `cargo test --no-default-features --release`, `cargo fmt --check`, and `cargo clippy --workspace --all-targets --no-default-features -- -D warnings`; verify all green
 - [x] 3.3 Update `FABLE-CODE-REVIEW-2026-07-07.md` C6 status from IN PROGRESS to FIXED with a short summary; verify the heading and priority list reflect it
+
+## 4. Verification follow-up
+
+- [x] 4.1 Run the spring tests at non-default settings so the right spring's setters are exercised; verify that deleting either fan-out call fails them
+- [x] 4.2 Wrap `delay_index` when the delay shrinks; add `spring_reset_rewinds_the_delay_line` and `spring_delay_index_stays_inside_a_shorter_delay`; reword design Decision 2
+- [x] 4.3 Update `docs/detailed-specs/post-processing.md` (one delay line per channel) and the review's pre-fix line references; render each preset once in `c6_spring_preset_measurements` (results unchanged)

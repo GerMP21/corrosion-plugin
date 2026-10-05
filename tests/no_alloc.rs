@@ -29,8 +29,9 @@ const PROFILES: [ModalProfileId; 9] = [
 /// QualityMode Eco / Normal / High / Render mode-count scales.
 const QUALITY_SCALES: [f32; 4] = [0.5, 1.0, 1.5, 2.0];
 
-/// Exciter selectors 0..=15 cover the hit, friction and specialty families.
-const EXCITERS: std::ops::RangeInclusive<i32> = 0..=15;
+/// Exciter selectors 1..=16, the host parameter's full range (Bow through
+/// Particle Rain), covering the hit, friction and specialty families.
+const EXCITERS: std::ops::RangeInclusive<i32> = 1..=16;
 
 fn controls(mode_count_scale: f32) -> VoiceControls {
     VoiceControls {
@@ -130,6 +131,11 @@ fn note_off_and_tail_are_alloc_free() {
         // Long enough for the released voices to decay and go idle.
         run(&mut manager, 480_000);
     });
+    assert_eq!(
+        manager.active_notes().count(),
+        0,
+        "released voices never went idle, so deactivation wasn't exercised"
+    );
 }
 
 #[test]
@@ -162,6 +168,10 @@ fn voice_stealing_is_alloc_free() {
                 1,
                 controls(2.0),
             );
+            // The pool stays full and the new note took a slot, i.e. it
+            // stole one (iterating `active_notes` doesn't allocate).
+            assert_eq!(manager.active_notes().count(), MAX_VOICES);
+            assert!(manager.active_notes().any(|note| note == 80 + i as u8));
             run(&mut manager, 64);
         }
     });

@@ -24,9 +24,9 @@ The output SHALL equal `level · ((1 − velocity_to_level) + velocity_to_level 
 - **WHEN** `velocity_to_level` is 1, the velocity is 0, and the current level is 1.0
 - **THEN** the output is 0.5 · env_amount
 
-#### Scenario: Full velocity is unaffected
+#### Scenario: Full velocity gives the stage level
 - **WHEN** the velocity is 1.0
-- **THEN** the output equals level · env_amount for any `velocity_to_level`
+- **THEN** the output equals level · env_amount exactly, for any `velocity_to_level` and `env_amount`
 
 ### Requirement: Release ends without a step
 The envelope SHALL reach Idle from Release without a discontinuity: the last Release sample and the first Idle sample differ by no more than the largest single-sample change during that Release.
@@ -34,3 +34,10 @@ The envelope SHALL reach Idle from Release without a discontinuity: the last Rel
 #### Scenario: Release end at low velocity
 - **WHEN** a held envelope at velocity 0.3 is released and processed until it goes Idle
 - **THEN** the step from the last Release sample to the first Idle sample (0.0) is no larger than the largest sample-to-sample change within the Release stage
+
+### Requirement: Release starts from the current level
+Release SHALL ramp from the level the envelope had when the gate closed, so releasing before Sustain is reached does not jump.
+
+#### Scenario: Release during Attack or Decay
+- **WHEN** the gate closes during Attack or Decay, with the sustain level well below the current level
+- **THEN** the first Release sample differs from the last pre-release sample by no more than the largest single-sample change before the release

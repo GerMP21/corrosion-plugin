@@ -6,22 +6,27 @@
 > `src/dsp/post_processing/` and `src/lib.rs`. See `docs/ARCHITECTURE.md` §9 and
 > `docs/code-review.md` for the conformance matrix and known defects.
 >
-> Chain order (`PostProcessingChain::process`): fold→mono → WDF filter → Lorenz
-> drive → **[Eco: bypass body/spread/space]** → FEM body → re-stereo → HRTF
-> spread → Space → oversampled clipper. The whole chain runs **per sample**
-> today, and `lib.rs` currently sets every stage's parameters once per sample
-> (a known inefficiency — see code review Finding 3).
+> Chain order (`PostProcessingChain::process`, updated 2026-10 for review
+> findings C1/C5/C6): per-channel WDF filter → per-channel Lorenz drive → FEM
+> body on the mono sum, added in parallel to both channels at BODY / 5 → HRTF
+> spread → Space → oversampled clipper. Every quality mode runs every stage. The
+> whole chain runs **per sample** today, and `lib.rs` currently sets every
+> stage's parameters once per sample (a known inefficiency — see code review
+> Finding 3).
 
 ---
 
 ### `4. Post / Space / Output Processing`
 
 ### 1. Multimode Ladder Filter
-**Implemented (`wdf_filter.rs`):** A 4-pole ladder approximation. Per-stage
-trapezoidal-style update with a `tanh`-like soft "transistor" clip; resonance via
-a feedback path with a `1/(1+res·3.5)` compensation gain; `component_tolerance`
-injects a tiny hash-noise jitter. It is **not** a Newton-Raphson WDF circuit
-solver. Parameters: `filter_cutoff` (20 Hz–20 kHz, clamped), `filter_resonance`
+**Implemented (`wdf_filter.rs`):** A 4-pole ladder approximation: four unity-DC-gain
+TPT one-pole stages (`g = tan(π·fc/fs)`, cutoff clamped to 0.49·fs) with a soft
+"transistor" clip between stages; zero-delay resonance feedback (`k = 4·res/0.9`,
+solved against the linear cascade each sample) with a `1/(1+res·3.5)`
+compensation gain. Tails always decay below 90 % resonance; from 90 % up the
+filter self-oscillates at any cutoff, bounded by the clips. `component_tolerance`
+injects a tiny hash-noise jitter while there is input (silence stays silent). It
+is **not** a Newton-Raphson WDF circuit solver. Parameters: `filter_cutoff` (20 Hz–20 kHz, clamped), `filter_resonance`
 (0–1), `component_tolerance` (0–1).
 
 **Design target:** Wave Digital Filter / RK4 transistor-ladder circuit simulation
@@ -51,9 +56,11 @@ filters (`h_{L,n}(t,θ,φ)`).
 **Implemented (`fem_body.rs`):** A bank of **8 fixed second-order modes**
 (220–1400 Hz base) whose frequencies shift with `chassis_material` and
 `chassis_volume`. It is a small modal coloration stage, **not** a finite-element
-mesh. Parameters: `chassis_material` (0–1), `chassis_volume` (0–1). Note:
-`lib.rs` feeds `chassis_volume.max(body_amount)` so the global `Body` macro can
-drive it.
+mesh. Parameters: `chassis_material` (0–1), `chassis_volume` (0–1; tuning only,
+larger = lower). It runs in parallel on the mono sum of the driven channels and
+is added to both at `body / 5` (the `Body` control, 0–5). Because lower modes
+ring with more gain, a larger chassis also sounds somewhat louder at the same
+BODY.
 
 **Design target:** Pre-computed 3D FEM mesh of a wooden/metallic body with
 thousands of interconnected nodes.
@@ -66,16 +73,17 @@ thousands of interconnected nodes.
 **Implemented (`space.rs::FactoryReverb`):** A Schroeder-style reverb — 4 comb
 filters + 2 allpass diffusers, with `wall_impedance` setting feedback and
 `machinery_clutter` modulating it. It is **not** an FDTD wave solver.
-> ⚠️ **Known bug:** `update_delays` re-scales `comb_delays` cumulatively and is
-> called every sample, so `factory_size` rails the delays to their clamp bounds.
-> See code review Finding 2.
+> ✅ The old cumulative `update_delays` re-scaling (code review 2026-05,
+> Finding 2) is fixed and has a regression test.
 
 **Design target:** 3D Finite-Difference Time-Domain acoustic wave solver with
 diffraction around injected boundary nodes.
 
 ### 6. Spring Reverb
-**Implemented (`space.rs::SpringReverb`):** A single delay line with a one-pole
-dispersion filter and tension-controlled feedback. **Not** a helical PDE.
+**Implemented (`space.rs::SpringReverb`):** One delay line per channel (two
+instances in the post chain, so each channel's tail comes only from its own
+input) with a one-pole dispersion filter and tension-controlled feedback. **Not**
+a helical PDE.
 Parameters: `spring_tension`, `wire_stiffness`, `spring_tank_size`.
 
 **Design target:** FDTD stiff-string PDE capturing longitudinal/transverse/
@@ -93,10 +101,9 @@ design intent. Parameters: `delay_time`, `machinery_movement`, `high_frequency_d
 **Implemented (`oversampled_clipper.rs` + `lib.rs`):** A soft diode-style clip
 with adjustable `analog_ceiling` (default 0.9661 ≈ −0.3 dBFS) and `diode_softness`.
 The final output limiter (`apply_output_limiter`) hard-clamps to ±0.9661.
-> ❌ **Known defect:** the "oversampling" loop zero-order-holds a single input and
-> averages identical clipped copies, so **1×/4×/8×/16× all produce identical
-> output** — there is no real oversampling or anti-aliasing. The quality-mode
-> factor is therefore inaudible at the clipper. See code review Finding 1.
+> ✅ The old zero-order-hold "oversampling" no-op (code review 2026-05,
+> Finding 1) is fixed: the clipper interpolates between samples, so the
+> 1×/4×/8×/16× factors give different, progressively less aliased output.
 
 **Design target:** 16× polyphase upsample → analog diode clip → linear-phase
 anti-aliasing decimation, guaranteeing a true-peak ceiling.
@@ -107,12 +114,13 @@ anti-aliasing decimation, guaranteeing a true-peak ceiling.
 
 `QualityMode` (`Eco`/`Normal`/`High`/`Render`) maps to `PostQualityMode`:
 
-| Mode | Requested oversample | Chain |
+| Mode | Clipper oversample | Chain |
 |---|---|---|
-| Eco | 1× | bypasses FEM body, HRTF spread, Space |
+| Eco | 1× | full |
 | Normal (default) | 4× | full |
 | High | 8× | full |
 | Render | 16× | full |
 
-The Eco stage-bypass is real and audible; the oversample factor is currently not
-(see defect above).
+Since 2026-10 (review finding C5) Eco no longer bypasses the body, spread or
+Space; quality modes trade fidelity and CPU (oversampling and, at the voice
+layer, modal density), not effects.

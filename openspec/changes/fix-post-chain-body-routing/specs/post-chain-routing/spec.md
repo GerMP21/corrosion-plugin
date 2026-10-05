@@ -36,11 +36,11 @@ BODY (0–5) SHALL set the body resonance's mix level linearly from 0 % to 100 %
 - **THEN** the output is unchanged (no body resonance at any Chassis Volume)
 
 ### Requirement: Chassis Volume sets body size only
-Chassis Volume SHALL change the body's resonant frequencies, and SHALL NOT apply any output gain of its own to the body.
+Chassis Volume SHALL change the body's resonant frequencies, and SHALL NOT apply any output gain of its own to the body. (Lower modes ring with more resonant gain, so at the same BODY a larger chassis can sound somewhat louder; that is the resonator's response, not a gain stage.)
 
 #### Scenario: Larger chassis resonates lower
 - **WHEN** Chassis Volume is raised from 0.2 to 0.8 with BODY above 0
-- **THEN** the body's lowest resonant peak moves to a lower frequency
+- **THEN** the strongest body peak in the chain's output (100–400 Hz, impulse input) moves to a lower frequency
 
 #### Scenario: No volume-dependent gain stage
 - **WHEN** the body resonator is driven by the same input at Chassis Volume 0.2 and 0.8, and each output is compared with a resonator retuned to the same frequencies but with no volume gain

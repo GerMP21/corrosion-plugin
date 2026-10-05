@@ -202,6 +202,11 @@ impl MacroBias {
     };
 }
 
+/// Body mix (0–1) for the post chain from the BODY control (0–5).
+fn body_mix(body: f32) -> f32 {
+    (body / 5.0).clamp(0.0, 1.0)
+}
+
 /// Derive the macro bias from the current parameter values.
 fn resolve_macro_bias(params: &CorrosionParams) -> MacroBias {
     // Each macro is `0.0..=1.0`; subtract the neutral midpoint so the bias is
@@ -700,7 +705,7 @@ pub fn corrosion_version() -> &'static str {
 /// Main plugin struct containing all state.
 ///
 /// This struct implements the nih_plug Plugin trait and contains:
-/// - Parameter storage (Arc<CorrosionParams>)
+/// - Parameter storage (`Arc<CorrosionParams>`)
 /// - Voice manager for polyphony
 /// - Post-processing effects chain
 ///
@@ -955,7 +960,7 @@ impl Plugin for Corrosion {
         // version compounded the FactoryReverb comb delays. Host automation is
         // applied at buffer granularity, so per-buffer updates are sufficient.
         let width = self.params.width.value();
-        let body_amount = (self.params.body.value() / 5.0).clamp(0.0, 1.0);
+        let body_amount = body_mix(self.params.body.value());
 
         // Resolve the macro bias once for the whole buffer so per-buffer DSP
         // setters and per-buffer held-note automation see the same numbers.
@@ -1094,6 +1099,71 @@ mod tests {
     use nih_plug::prelude::NoteEvent;
     use std::sync::Arc;
 
+    /// C3 follow-up: `Plugin::reset` with notes ringing through Echo and
+    /// Spring must not allocate (checked in debug builds, where the checking
+    /// allocator is installed) and must leave the whole chain silent.
+    #[test]
+    fn body_maps_to_a_zero_to_one_mix() {
+        assert_eq!(super::body_mix(0.0), 0.0);
+        assert!((super::body_mix(2.62) - 0.524).abs() < 1e-6);
+        assert_eq!(super::body_mix(5.0), 1.0);
+        assert_eq!(super::body_mix(7.0), 1.0);
+        assert_eq!(super::body_mix(-1.0), 0.0);
+    }
+
+    #[test]
+    fn plugin_reset_with_sounding_space_is_alloc_free_and_silent() {
+        use nih_plug::prelude::Plugin;
+        for file in ["hanging_chain_echo", "spring_reverb_tap"] {
+            let path = format!(
+                "{}/presets/factory/{file}.corrosion-preset",
+                env!("CARGO_MANIFEST_DIR")
+            );
+            let preset = crate::presets::Preset::load(std::path::Path::new(&path)).unwrap();
+            let mut plugin = Corrosion {
+                params: Arc::new(preset.into_params()),
+                ..Corrosion::default()
+            };
+            let params = plugin.params.clone();
+            let bias = super::resolve_macro_bias(&params);
+            let body_amount = super::body_mix(params.body.value());
+            let width = params.width.value();
+            plugin.apply_post_chain_params(48_000, None, &bias, body_amount);
+            for note in [48, 55, 60, 67] {
+                handle_note_event(
+                    &mut plugin,
+                    NoteEvent::NoteOn {
+                        timing: 0,
+                        voice_id: None,
+                        channel: 0,
+                        note,
+                        velocity: 1.0,
+                    },
+                );
+            }
+            let render = |plugin: &mut Corrosion| {
+                let (l, r) = plugin.voice_manager.process_sample_stereo(48_000, width);
+                plugin.post_chain.process(l, r)
+            };
+            let mut loudest = 0.0_f32;
+            for _ in 0..24_000 {
+                let (l, r) = render(&mut plugin);
+                loudest = loudest.max(l.abs()).max(r.abs());
+            }
+            assert!(loudest > 0.01, "{file}: nothing sounding before reset");
+
+            assert_no_alloc::assert_no_alloc(|| plugin.reset());
+            plugin.apply_post_chain_params(48_000, None, &bias, body_amount);
+            for i in 0..48_000 {
+                let (l, r) = render(&mut plugin);
+                assert!(
+                    l == 0.0 && r == 0.0,
+                    "{file}: sample {i} after reset = ({l}, {r})"
+                );
+            }
+        }
+    }
+
     /// C5: with BODY at 0, Chassis Volume must not bring the body back in
     /// (it used to win a `max()` against BODY).
     #[test]
@@ -1214,7 +1284,7 @@ mod tests {
         // Same parameter → post-chain wiring as `process()` (space mode is
         // already Off by default).
         let bias = super::resolve_macro_bias(&plugin.params);
-        let body_amount = (plugin.params.body.value() / 5.0).clamp(0.0, 1.0);
+        let body_amount = super::body_mix(plugin.params.body.value());
         plugin.apply_post_chain_params(sample_rate, None, &bias, body_amount);
         let mut peak = 0.0f32;
         for _ in 0..4096 {
@@ -1232,9 +1302,11 @@ mod tests {
         }
 
         eprintln!("hosted normalized note peak={peak:.6}");
+        // C5 level guard: within ±6 dB of the 0.118 reference measured when
+        // the default BODY (2.62) was chosen to keep the pre-C5 level.
         assert!(
-            peak > 0.01,
-            "hosted note should produce audible output, peak={peak}"
+            (0.059..=0.236).contains(&peak),
+            "default note peak {peak} is more than 6 dB from 0.118"
         );
     }
 
@@ -1614,7 +1686,7 @@ mod c5_measurements {
         };
         let params = plugin.params.clone();
         let bias = resolve_macro_bias(&params);
-        let body_amount = (params.body.value() / 5.0).clamp(0.0, 1.0);
+        let body_amount = super::body_mix(params.body.value());
         plugin.apply_post_chain_params(SAMPLE_RATE, None, &bias, body_amount);
 
         // Replica of the pre-C5 mono filter → drive → body path.
@@ -1721,7 +1793,11 @@ mod c5_measurements {
         body_amount: f32,
         output_scale: f32,
     ) -> (f32, f32, usize) {
-        let frames = render_preset_frames(path, body_amount, output_scale);
+        frame_stats(&render_preset_frames(path, body_amount, output_scale))
+    }
+
+    /// (peak, rms, limiter hits) of rendered frames, after the hard limiter.
+    fn frame_stats(frames: &[(f32, f32)]) -> (f32, f32, usize) {
         let (mut peak, mut sum_sq, mut hits) = (0.0_f32, 0.0_f64, 0usize);
         for x in frames.iter().flat_map(|&(l, r)| [l, r]) {
             if x.abs() > LIMITER_THRESHOLD {
@@ -1798,19 +1874,12 @@ mod c5_measurements {
             .collect()
     }
 
-    /// Baseline (pre-C5) (RMS, limiter hits) per preset name, from `baseline.md`.
+    /// Baseline (pre-C5) (RMS, limiter hits) per preset name, from
+    /// `tests/fixtures/c5_preset_baseline.md`.
     fn baseline() -> std::collections::HashMap<String, (f32, usize)> {
-        let doc = include_str!("../openspec/changes/fix-post-chain-body-routing/baseline.md");
-        // Only the pre-C5 table: everything before the first analysis heading.
-        let table = doc.split("## Reading").next().unwrap_or(doc);
-        table
+        include_str!("../tests/fixtures/c5_preset_baseline.md")
             .lines()
-            .filter(|l| {
-                l.starts_with("| ")
-                    && !l.starts_with("| preset")
-                    && !l.starts_with("| bench")
-                    && !l.starts_with("| `")
-            })
+            .filter(|l| l.starts_with("| ") && !l.starts_with("| preset"))
             .filter_map(|l| {
                 let cols: Vec<&str> = l.split('|').map(str::trim).collect();
                 Some((
@@ -2025,8 +2094,8 @@ mod c5_measurements {
         for path in spring_presets {
             let preset = Preset::load(&path).unwrap();
             let amount = preset.body / 5.0;
-            let (peak, rms, hits) = render_preset(&path, amount, 1.0);
             let frames = render_preset_frames(&path, amount, 1.0);
+            let (peak, rms, hits) = frame_stats(&frames);
             let mut dry_preset = Preset::load(&path).unwrap();
             dry_preset.extra.space_amount = 0.0;
             let dry = render_frames(dry_preset, amount, 1.0);
@@ -2039,9 +2108,9 @@ mod c5_measurements {
                 xs.iter().map(|&(l, r)| (l * l + r * r) as f64).sum()
             };
             let spring_share_db = 10.0 * (energy(&wet) / energy(&frames).max(1e-30)).log10();
-            let tail = &wet[..];
+
             let (mut e_mid, mut e_side, mut lr, mut ll, mut rr) = (0.0f64, 0.0, 0.0, 0.0, 0.0);
-            for &(l, r) in tail {
+            for &(l, r) in &wet {
                 let (l, r) = (l as f64, r as f64);
                 e_mid += (0.5 * (l + r)).powi(2);
                 e_side += (0.5 * (l - r)).powi(2);

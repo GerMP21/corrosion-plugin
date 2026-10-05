@@ -94,13 +94,18 @@ const MAX_BASE_MODE_COUNT: usize = {
     max
 };
 
-/// Upper clamp on the quality-mode `mode_count_scale`.
-const MAX_MODE_COUNT_SCALE: f32 = 4.0;
+/// Upper clamp on the quality-mode `mode_count_scale`. An integer, so
+/// `MAX_MODES` below is exact: `round(base · scale) ≤ base · this`.
+const MAX_MODE_COUNT_SCALE_INT: usize = 4;
+const MAX_MODE_COUNT_SCALE: f32 = MAX_MODE_COUNT_SCALE_INT as f32;
+
+/// Most raw (pre-damage) modes one note-on can generate.
+const MAX_RAW_MODES: usize = MAX_BASE_MODE_COUNT * MAX_MODE_COUNT_SCALE_INT;
 
 /// Worst-case number of modes in one note-on bank: the largest profile at the
 /// `mode_count_scale` cap, doubled for damage companion modes. Voices reserve
 /// this much up front so note-on never allocates (review C3).
-pub const MAX_MODES: usize = MAX_BASE_MODE_COUNT * MAX_MODE_COUNT_SCALE as usize * 2;
+pub const MAX_MODES: usize = MAX_RAW_MODES * 2;
 
 #[derive(Clone, Copy)]
 struct AlgorithmTransformControls {
@@ -641,6 +646,13 @@ impl ModalResonator {
             mode_count_scale,
             &mut self.raw_specs,
         );
+        // Generators must stay within the preallocated raw buffer; growing
+        // it here would allocate on the audio thread.
+        debug_assert!(
+            self.raw_specs.len() <= MAX_RAW_MODES,
+            "{profile_id:?} generated {} raw modes > {MAX_RAW_MODES}",
+            self.raw_specs.len()
+        );
         Self::transform_algorithm_modes_into(
             &self.raw_specs,
             AlgorithmTransformControls {
@@ -1058,9 +1070,14 @@ mod tests {
         lines
     }
 
+    /// `MAX_MODES` must cover every bank a note-on can build. The transform
+    /// truncates at `MAX_MODES`, so checking the final bank would pass
+    /// vacuously; check the generator's raw count and the untruncated
+    /// damage expansion instead.
     #[test]
     fn note_on_banks_fit_max_modes() {
         let extremes = [0.0, 1.0, 2.0];
+        let mut raw = Vec::new();
         for profile in PROFILES {
             for scale in [0.25, 0.5, 1.0, 1.5, 2.0, 4.0, 100.0] {
                 for value in extremes {
@@ -1080,24 +1097,32 @@ mod tests {
                         sheet_thinness: value,
                         cog_dissonance: value,
                     };
-                    let bank = ModalResonator::with_algorithm_controls_and_note(
+                    ModalResonator::generate_algorithm_modes_into(
                         profile,
                         crate::dsp::SizeScale::new(1.0),
-                        crate::dsp::RustAmount::new(1.0),
-                        crate::dsp::DamageAmount::new(10.0),
-                        crate::dsp::ThicknessAmount::new(1.0),
-                        crate::dsp::HeatAmount::new(1.0),
-                        crate::dsp::SludgeAmount::new(1.0),
                         261.63,
-                        0.5,
-                        0.5,
                         character,
                         scale,
+                        &mut raw,
                     );
+                    let name = format!("{profile:?} scale={scale} character={value}");
                     assert!(
-                        bank.modes.len() <= MAX_MODES,
-                        "{profile:?} scale={scale} character={value}: {} modes > MAX_MODES {MAX_MODES}",
-                        bank.modes.len()
+                        raw.len() <= MAX_RAW_MODES,
+                        "{name}: {} raw modes > {MAX_RAW_MODES}",
+                        raw.len()
+                    );
+                    let mode_count = raw.len().max(1);
+                    let damaged: usize = raw
+                        .iter()
+                        .enumerate()
+                        .map(|(index, mode)| {
+                            mode.damaged(crate::dsp::DamageAmount::new(10.0), index, mode_count)
+                                .count()
+                        })
+                        .sum();
+                    assert!(
+                        damaged <= MAX_MODES,
+                        "{name}: {damaged} damaged modes > MAX_MODES {MAX_MODES}"
                     );
                 }
             }
