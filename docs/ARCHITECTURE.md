@@ -136,8 +136,15 @@ src/
 
 The audio callback guarantees:
 
-- **No heap allocation** — verified by `tests/no_alloc.rs`; the non-Windows build
-  enables nih_plug's `assert_process_allocs` feature (`Cargo.toml` target cfg).
+- **No heap allocation** — covers note-on (every object × quality mode × exciter),
+  voice stealing, note-off tails, live expression, and `reset()`. Each voice's
+  `ModalResonator` preallocates `MAX_MODES` (largest profile × 4 scale cap × 2
+  damage companions = 96) and `rebuild_in_place` refills it at note-on; streaming
+  exciters (wire brush, metal chain, particle rain) preallocate to their clamps.
+  Verified by `tests/no_alloc.rs` in **debug** builds only — the checking
+  allocator is installed under `debug_assertions`, so `--release` runs pass
+  vacuously. The non-Windows build enables nih_plug's `assert_process_allocs`
+  feature (`Cargo.toml` target cfg).
 - **No locks / blocking / I/O / logging** in `process()`.
 - **Fixed voice array** — 8 `Voice` instances, each owning all 16 exciter structs
   so dispatch is a `match` on an integer (no trait objects, no allocation).

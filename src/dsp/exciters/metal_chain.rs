@@ -34,6 +34,9 @@ struct ChainLink {
 }
 
 impl MetalChain {
+    /// Upper clamp on `link_count`; `links` is preallocated to this.
+    const MAX_LINKS: u32 = 20;
+
     /// Creates a default metal-chain exciter.
     pub fn new() -> Self {
         Self {
@@ -42,7 +45,9 @@ impl MetalChain {
             drop_spread_ms: 200.0,
             internal_rattle: 0.3,
             rattle_color: 0.5,
-            links: Vec::new(),
+            // Full capacity up front so `trigger` (note-on, audio thread)
+            // never grows the buffer.
+            links: Vec::with_capacity(Self::MAX_LINKS as usize),
             active: false,
             time_ms: 0.0,
             sample_rate: 48000.0,
@@ -60,7 +65,7 @@ impl MetalChain {
         rattle: f32,
         color: f32,
     ) {
-        self.link_count = links.clamp(2, 20);
+        self.link_count = links.clamp(2, Self::MAX_LINKS);
         self.chain_mass = mass.clamp(0.1, 2.0);
         self.drop_spread_ms = spread_ms.clamp(50.0, 1000.0);
         self.internal_rattle = rattle.clamp(0.0, 1.0);

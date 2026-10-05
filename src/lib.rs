@@ -829,10 +829,11 @@ impl Plugin for Corrosion {
 
     /// Resets all plugin state (called when playback starts/stops).
     ///
-    /// Reinitializes voice manager and post-processing chain to clean state.
+    /// Clears voice and post-processing state in place. Hosts may call this
+    /// on the audio thread, so it must not allocate (review C3).
     fn reset(&mut self) {
-        self.voice_manager = VoiceManager::new();
-        self.post_chain = dsp::PostProcessingChain::new();
+        self.voice_manager.reset();
+        self.post_chain.reset();
         self.drive_smoother = OnePoleSmoother::new(self.params.drive.value());
         self.output_gain_smoother = OnePoleSmoother::new(self.params.output.value());
         self.lookahead_left.reset();

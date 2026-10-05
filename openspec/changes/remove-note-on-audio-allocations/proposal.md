@@ -9,6 +9,7 @@ Every MIDI note-on runs inside `process()` and rebuilds the voice's modal resona
 - Note-on, note-off, voice stealing, and all live MIDI expression perform zero heap allocations and deallocations on the audio thread, for every object, quality mode, damage amount, and character setting.
 - Each voice owns preallocated, worst-case-sized storage for its modal bank and interaction coefficients; note-on rebuilds the bank in place.
 - `reset()` clears state in place instead of reconstructing large structures.
+- Streaming exciters that grew `Vec`s on the audio thread (MetalChain, WireBrush, ParticleRain) preallocate to their clamps. *(Scope added during implementation: found by the per-exciter no-alloc test.)*
 - `tests/no_alloc.rs` is extended so note-on, stealing, and `reset()` happen inside the no-alloc zone, across all objects and quality modes.
 - No audible change: generated modes, their order, and their parameters stay identical.
 

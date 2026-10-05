@@ -50,6 +50,14 @@ The existing allocation check (`assert_no_alloc`) is only available on non-Windo
 
 7. **Golden mode-bank test before refactoring.** Capture mode banks from the current implementation (object × quality × damage 0/0.5/1) into a test fixture first; the refactor must reproduce them.
 
+## Implementation findings
+
+- **The allocation check was a no-op in release builds.** `assert_no_alloc` defaults to `disable_release`, and nih-plug only installs its checking allocator under `debug_assertions`. A probe that allocated inside `assert_no_alloc` passed in `--release`, and aborted in debug. `tests/no_alloc.rs` is only meaningful in debug builds, which CI uses (`cargo test --workspace --no-default-features`); its header and the README/ARCHITECTURE notes now say so. A violation aborts the process, so failing cases had to be found one test at a time.
+- **Exciters allocated too.** The review only listed the modal bank. The new per-exciter note-on test also caught three exciters that grow `Vec`s on the audio thread. MetalChain grows `links` on trigger, and WireBrush reserved 100 impulses against a clamp of 5000. ParticleRain grows `particles` while processing. Each now preallocates to its own clamp (20 links, 5000 impulses). Particle rain is capped at 64 live particles, above its physical ceiling of 60 (≤ 2 spawns per sample × ≤ 30-sample lifetime), so the sound is unchanged.
+- **`MAX_MODES` = 96**, computed at compile time from the profile tables (`ModalProfile::from_id` / `mode_count` are now `const fn`). The largest bank actually produced is 40 (Render quality, damage on).
+- **Reset leaves voices in their natural idle state** instead of matching `Voice::new()` field by field. It clears rendering flags, resonator filter history, envelope and excitation state, and expression. That is the same state a voice reaches when its tail ends, and the next note-on rebuilds the bank and re-triggers the exciter. `PostProcessingChain::reset()` already existed and resets in place. Post-chain parameters are re-applied every buffer, so nothing is lost versus constructing a new chain.
+- `with_algorithm_controls_and_note` now builds an empty preallocated resonator and calls `rebuild_in_place`, so the golden fixture exercises the in-place path. A second test rebuilds one reused resonator across all 108 cases (growing and shrinking the bank) and requires each to match a fresh build.
+
 ## Risks / Trade-offs
 
 - [`MAX_MODES` too small for a future object] → Decision 4's test fails on any new object that exceeds it; runtime truncation keeps audio-thread safety.

@@ -6,7 +6,7 @@ exciters, post-processing, presets, GUI, offline/render bins, randomizer), plus 
 factory preset bank, test suite expectations, and build configuration.
 **Method:** line-by-line read of the audio path; targeted reads of the GUI and offline
 paths; numeric simulation used to verify the ladder-filter stability finding.
-**Status (2026-10-05):** C1 and C2 are FIXED; C3 is IN PROGRESS as an OpenSpec change under `openspec/changes/`.
+**Status (2026-10-05):** C1, C2 and C3 are FIXED (OpenSpec changes under `openspec/changes/`).
 **Note:** `docs/CODE-REVIEW.md` (2026-05-27) is now partially stale — its Finding 1
 (clipper oversampling no-op) and the factory-reverb delay compounding have since been
 fixed (regression tests exist for both). This document supersedes it.
@@ -125,8 +125,8 @@ Related defects in the same code:
   `dt·time_scale` to `stage_time` on every re-entry, so zero-length stage chains
   skew timing slightly.
 
-### ~~C3. Note-on allocates on the audio thread~~ — IN PROGRESS
-> **Status: IN PROGRESS** — OpenSpec change [`remove-note-on-audio-allocations`](openspec/changes/remove-note-on-audio-allocations/proposal.md). Includes the `reset()` reconstruction and the `tests/no_alloc.rs` gap.
+### ~~C3. Note-on allocates on the audio thread~~ — FIXED
+> **Status: FIXED** (2026-10-05, branch `claude/eloquent-dirac-fc0sqm`) — OpenSpec change [`remove-note-on-audio-allocations`](openspec/changes/remove-note-on-audio-allocations/proposal.md). Each voice preallocates its worst-case bank (`MAX_MODES` = 96) and `rebuild_in_place` refills it at note-on. `reset()` clears voices and the post chain in place, and the mode banks are bit-identical to before (golden fixture). Two findings while fixing: `tests/no_alloc.rs` only checks in **debug** builds (release runs pass vacuously), and three exciters also allocated on the audio thread (MetalChain, WireBrush, ParticleRain), now preallocated. `tests/no_alloc.rs` now runs note-on, stealing, expression and reset inside the check.
 
 `src/dsp/resonators/core.rs:221-268, 536-572`, `src/dsp/profile.rs (damaged())`,
 `src/dsp/interaction.rs:138-141`
@@ -437,7 +437,7 @@ above the block. Minor, but the doc and tests promise symmetric behavior.
   envelope continuity (C4), DC at the output, sample-rate invariance (H10), or
   Nyquist safety (H11).
 - ~~`tests/no_alloc.rs` scopes note-on *outside* the no-alloc zone, so the strongest
-  RT-safety claim in the docs is untested where it actually breaks (C3).~~ — IN PROGRESS
+  RT-safety claim in the docs is untested where it actually breaks (C3).~~ — FIXED (note: the check only runs in debug builds)
 - `dsp::mod` re-exports `crate::offline::*` specs (mod.rs:43-46) — an inverted
   dependency (DSP core depending on the offline module) that exists only for
   convenience re-export; it drags offline render specs into every DSP consumer.
@@ -462,7 +462,7 @@ above the block. Minor, but the doc and tests promise symmetric behavior.
 ## Suggested priority order
 
 1. ~~**C1** (filter instability — plugin is broken at default settings in a DAW)~~ — FIXED,
-2. ~~**C2** (crash)~~ — FIXED, ~~**C3** (RT allocation; debug abort)~~ — IN PROGRESS,
+2. ~~**C2** (crash)~~ — FIXED, ~~**C3** (RT allocation; debug abort)~~ — FIXED,
 3. **C4/C5/C6** (audible correctness of envelope, chain topology, spring reverb),
 4. **H1–H4** (parameter ranges, defaults, and preset loading — cheap, high-impact),
 5. **H5** (GUI gaps) and the remaining H items,

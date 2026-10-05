@@ -34,6 +34,9 @@ struct Impulse {
 }
 
 impl WireBrush {
+    /// Upper clamp on `wire_density`; `impulses` is preallocated to this.
+    const MAX_WIRE_DENSITY: u32 = 5000;
+
     /// Creates a default wire-brush exciter.
     pub fn new() -> Self {
         Self {
@@ -41,7 +44,9 @@ impl WireBrush {
             spread_duration_ms: 100.0,
             wire_stiffness: 0.5,
             amplitude_randomization: 0.3,
-            impulses: Vec::with_capacity(100),
+            // Full capacity up front so `trigger` (note-on, audio thread)
+            // never grows the buffer, even at the maximum density.
+            impulses: Vec::with_capacity(Self::MAX_WIRE_DENSITY as usize),
             active: false,
             time_ms: 0.0,
             sample_rate: 48000.0,
@@ -61,7 +66,7 @@ impl WireBrush {
         stiffness: f32,
         randomization: f32,
     ) {
-        self.wire_density = density.clamp(1, 5000);
+        self.wire_density = density.clamp(1, Self::MAX_WIRE_DENSITY);
         self.spread_duration_ms = spread_ms.clamp(1.0, 10000.0);
         self.wire_stiffness = stiffness.clamp(0.0, 5.0);
         self.amplitude_randomization = randomization.clamp(0.0, 5.0);

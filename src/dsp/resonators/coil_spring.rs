@@ -40,26 +40,25 @@ impl Default for CoilSpringResonator {
 }
 
 impl ResonatorAlgorithm for CoilSpringResonator {
-    fn generate_modes(
+    fn generate_modes_into(
         &self,
         fundamental_hz: f32,
         mode_count: usize,
         size_scale: crate::dsp::SizeScale,
-    ) -> Vec<ModalModeSpec> {
+        out: &mut Vec<ModalModeSpec>,
+    ) {
         let f1 = fundamental_hz / size_scale.factor();
         let alpha = 0.5 + self.coil_length * 0.5;
 
-        (1..=mode_count)
-            .map(|n| {
-                let nf = n as f32;
-                let jitter = (nf * 1.618).fract() * self.spring_slosh * 0.5;
-                let freq = f1 * (nf.powf(alpha) + jitter);
-                let decay = 1.0 + 0.5 * (nf / mode_count as f32);
-                let dispersion = (nf * self.dispersion_chirp * std::f32::consts::PI).cos();
-                let gain = (0.02 / nf) * dispersion.abs();
+        out.extend((1..=mode_count).map(|n| {
+            let nf = n as f32;
+            let jitter = (nf * 1.618).fract() * self.spring_slosh * 0.5;
+            let freq = f1 * (nf.powf(alpha) + jitter);
+            let decay = 1.0 + 0.5 * (nf / mode_count as f32);
+            let dispersion = (nf * self.dispersion_chirp * std::f32::consts::PI).cos();
+            let gain = (0.02 / nf) * dispersion.abs();
 
-                ModalModeSpec::new(freq, decay, gain.max(0.001))
-            })
-            .collect()
+            ModalModeSpec::new(freq, decay, gain.max(0.001))
+        }));
     }
 }

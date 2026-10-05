@@ -47,26 +47,25 @@ impl Default for TautCableResonator {
 }
 
 impl ResonatorAlgorithm for TautCableResonator {
-    fn generate_modes(
+    fn generate_modes_into(
         &self,
         fundamental_hz: f32,
         mode_count: usize,
         size_scale: crate::dsp::SizeScale,
-    ) -> Vec<ModalModeSpec> {
+        out: &mut Vec<ModalModeSpec>,
+    ) {
         let tension_factor = 0.8 + self.cable_tension * 0.4;
         let f0 = (fundamental_hz * tension_factor) / size_scale.factor();
         let b = self.braid_stiffness * 0.01;
 
-        (1..=mode_count)
-            .map(|n| {
-                let nf = n as f32;
-                let freq = nf * f0 * (1.0 + b * nf * nf).sqrt();
-                let decay = 2.0 - 0.5 * (nf / mode_count as f32);
-                let gain = 0.025 / (nf * nf * 0.5 + 0.5);
+        out.extend((1..=mode_count).map(|n| {
+            let nf = n as f32;
+            let freq = nf * f0 * (1.0 + b * nf * nf).sqrt();
+            let decay = 2.0 - 0.5 * (nf / mode_count as f32);
+            let gain = 0.025 / (nf * nf * 0.5 + 0.5);
 
-                ModalModeSpec::new(freq, decay, gain)
-            })
-            .collect()
+            ModalModeSpec::new(freq, decay, gain)
+        }));
     }
 
     fn update_dynamic_frequencies(&mut self, modes: &mut [ModalModeSpec], total_amplitude: f32) {
