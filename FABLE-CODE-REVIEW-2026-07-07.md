@@ -6,6 +6,7 @@ exciters, post-processing, presets, GUI, offline/render bins, randomizer), plus 
 factory preset bank, test suite expectations, and build configuration.
 **Method:** line-by-line read of the audio path; targeted reads of the GUI and offline
 paths; numeric simulation used to verify the ladder-filter stability finding.
+**Status (2026-10-05):** C1, C2 and C3 are IN PROGRESS as OpenSpec changes under `openspec/changes/`.
 **Note:** `docs/CODE-REVIEW.md` (2026-05-27) is now partially stale — its Finding 1
 (clipper oversampling no-op) and the factory-reverb delay compounding have since been
 fixed (regression tests exist for both). This document supersedes it.
@@ -39,7 +40,10 @@ this topology.
 
 ## CRITICAL
 
-### C1. Ladder filter is unstable for cutoff ≥ fs/4 — including the default 20 kHz — and latches to a DC rail
+### ~~C1. Ladder filter is unstable for cutoff ≥ fs/4 — including the default 20 kHz — and latches to a DC rail~~ — IN PROGRESS
+> **Status: IN PROGRESS** — OpenSpec change [`fix-ladder-filter-prewarp`](openspec/changes/fix-ladder-filter-prewarp/proposal.md).
+> Correction found while scoping: below `fs/4` the bug puts the effective cutoff about an octave *above* the displayed value, not half of it.
+
 `src/dsp/post_processing/wdf_filter.rs:106-112, 144-159`
 
 ```rust
@@ -84,7 +88,9 @@ renders bypass the post chain entirely (see H14).
 `< 0.49·fs`; add a regression test asserting no DC and bounded output at
 `fc = 20 kHz` and at `fc` swept through `fs/4`.
 
-### C2. MSEG: infinite recursion (audio-thread stack overflow) when `loop_start_stage = 4`
+### ~~C2. MSEG: infinite recursion (audio-thread stack overflow) when `loop_start_stage = 4`~~ — IN PROGRESS
+> **Status: IN PROGRESS** — OpenSpec change [`fix-mseg-loop-recursion`](openspec/changes/fix-mseg-loop-recursion/proposal.md). Covers the recursion, `loop_end_stage`, and loop-stage clamping; PingPong stays partial.
+
 `src/dsp/envelopes/mod.rs:279-289, 347-365`
 
 `Stage::Sustain` with any loop mode calls `handle_loop()` and recurses:
@@ -119,7 +125,9 @@ Related defects in the same code:
   `dt·time_scale` to `stage_time` on every re-entry, so zero-length stage chains
   skew timing slightly.
 
-### C3. Note-on allocates on the audio thread
+### ~~C3. Note-on allocates on the audio thread~~ — IN PROGRESS
+> **Status: IN PROGRESS** — OpenSpec change [`remove-note-on-audio-allocations`](openspec/changes/remove-note-on-audio-allocations/proposal.md). Includes the `reset()` reconstruction and the `tests/no_alloc.rs` gap.
+
 `src/dsp/resonators/core.rs:221-268, 536-572`, `src/dsp/profile.rs (damaged())`,
 `src/dsp/interaction.rs:138-141`
 
@@ -317,7 +325,7 @@ Should be rate-limited (per block) or use incremental rotation.
 `src/bin/render_presets.rs` renders `VoiceManager` + a standalone body resonator
 only — no `PostProcessingChain`, no master drive, no limiter. The `output/*.wav`
 audition set therefore does not represent what the plugin outputs (and is exactly
-why C1 was never heard). The renderer's own comment says it exists so presets are
+why C1 — IN PROGRESS — was never heard). The renderer's own comment says it exists so presets are
 auditioned "as the plugin would sound".
 
 ### H14. Kit-mode notes ignore per-slot pitch documentation and wrap oddly
@@ -425,11 +433,11 @@ above the block. Minor, but the doc and tests promise symmetric behavior.
 ## Tests & tooling observations
 
 - The test suite is heavy on "A differs from B" energy assertions and light on
-  invariants: nothing pins the filter's frequency response at high cutoffs (C1),
+  invariants: ~~nothing pins the filter's frequency response at high cutoffs (C1)~~ (IN PROGRESS),
   envelope continuity (C4), DC at the output, sample-rate invariance (H10), or
   Nyquist safety (H11).
-- `tests/no_alloc.rs` scopes note-on *outside* the no-alloc zone, so the strongest
-  RT-safety claim in the docs is untested where it actually breaks (C3).
+- ~~`tests/no_alloc.rs` scopes note-on *outside* the no-alloc zone, so the strongest
+  RT-safety claim in the docs is untested where it actually breaks (C3).~~ — IN PROGRESS
 - `dsp::mod` re-exports `crate::offline::*` specs (mod.rs:43-46) — an inverted
   dependency (DSP core depending on the offline module) that exists only for
   convenience re-export; it drags offline render specs into every DSP consumer.
@@ -443,7 +451,7 @@ above the block. Minor, but the doc and tests promise symmetric behavior.
 1. User preset save/load — Save button permanently disabled; no file dialog, no
    user bank directory (GUI loads only the embedded `include_dir` factory bank).
 2. Randomizer — fully implemented module, zero integration (no UI, no param).
-3. MSEG PingPong loop — placeholder (C2/H10 above).
+3. MSEG PingPong loop — placeholder (C2/H10 above). *(Not covered by the C2 change, which is IN PROGRESS; PingPong remains open.)*
 4. Sustain pedal / CC64, all-sound-off, MPE per-note bend (M12/M13).
 5. GUI exposure of brightness, thickness, sync rate, play mode, limiter mode,
    macros (H5).
@@ -453,8 +461,8 @@ above the block. Minor, but the doc and tests promise symmetric behavior.
 
 ## Suggested priority order
 
-1. **C1** (filter instability — plugin is broken at default settings in a DAW),
-2. **C2** (crash), **C3** (RT allocation; debug abort),
+1. ~~**C1** (filter instability — plugin is broken at default settings in a DAW)~~ — IN PROGRESS,
+2. ~~**C2** (crash)~~ — IN PROGRESS, ~~**C3** (RT allocation; debug abort)~~ — IN PROGRESS,
 3. **C4/C5/C6** (audible correctness of envelope, chain topology, spring reverb),
 4. **H1–H4** (parameter ranges, defaults, and preset loading — cheap, high-impact),
 5. **H5** (GUI gaps) and the remaining H items,
