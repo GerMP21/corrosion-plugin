@@ -261,7 +261,7 @@ impl MSEG {
             if self.stage == Stage::Release {
                 self.stage = Stage::Idle;
                 self.current_level = self.l_end;
-                return self.current_level * self.env_amount;
+                return self.velocity_scaled(self.current_level);
             }
             self.advance_stage();
             self.stage_time = step;
@@ -300,11 +300,18 @@ impl MSEG {
 
         self.current_level = start_level + (target_level - start_level) * curved_progress;
 
-        let velocity_adjusted = 0.5
-            + (self.current_level - 0.5) * self.velocity_scale * self.velocity_to_level
-            + self.current_level * (1.0 - self.velocity_to_level);
+        self.velocity_scaled(self.current_level)
+    }
 
-        velocity_adjusted.clamp(0.0, 1.0) * self.env_amount
+    /// Apply velocity as a pure gain: `level · ((1 − vtl) + vtl · velocity_scale)`.
+    ///
+    /// A zero level stays silent at any velocity. The previous formula,
+    /// `0.5 + (level − 0.5)·velocity_scale·vtl + level·(1 − vtl)`, left a
+    /// floor under low-velocity notes and stepped to 0 when Release ended
+    /// (review C4).
+    fn velocity_scaled(&self, level: f32) -> f32 {
+        let gain = (1.0 - self.velocity_to_level) + self.velocity_to_level * self.velocity_scale;
+        (level * gain).clamp(0.0, 1.0) * self.env_amount
     }
 
     /// Whether the current stage has run its course and should hand over.
@@ -439,11 +446,14 @@ mod tests {
         mseg
     }
 
-    /// Golden output captured from the recursive implementation before the
-    /// C2 fix. Loop Off and the default/Drone Forward 3 → 4 loop must stay
-    /// bit-identical.
+    /// Golden output for loop Off, the default/Drone Forward 3 → 4 loop,
+    /// `scrape_envelope()` and PingPong. First captured from the recursive
+    /// implementation before the C2 fix (loop timing must not drift), then
+    /// re-captured once for C4, when velocity became a pure gain: below
+    /// full velocity the old floor is gone, and at full velocity the only
+    /// change is f32 rounding (see `full_velocity_matches_previous_formula`).
     #[test]
-    fn default_and_drone_loops_are_bit_identical_to_pre_fix_output() {
+    fn loop_output_matches_golden() {
         let cases = [
             ("off", configured(LoopMode::Off, 3, 4), 0.8),
             ("forward 3->4", configured(LoopMode::Forward, 3, 4), 0.8),
@@ -456,11 +466,11 @@ mod tests {
             ("pingpong", configured(LoopMode::PingPong, 3, 4), 0.8),
         ];
         let golden = [
-            0xe5bb_f7d8_02b1_2cbc_u64,
-            0xba18_7c4f_e193_b969,
-            0x3366_d397_942d_ff22,
-            0xd9ed_e462_c190_d730,
-            0xba18_7c4f_e193_b969,
+            0x6545_734c_fe98_dcb4_u64,
+            0x589e_fab7_76f4_e923,
+            0x97a1_1d94_3312_2db4,
+            0x41c9_3e5d_5f8e_a43a,
+            0x589e_fab7_76f4_e923,
         ];
         for ((name, mseg, velocity), expected) in cases.into_iter().zip(golden) {
             assert_eq!(
@@ -501,6 +511,104 @@ mod tests {
         mseg.set_sample_rate(48_000.0);
         mseg.trigger(1.0);
         mseg
+    }
+
+    /// Triggers `mseg` at 48 kHz and runs it past onset+attack+hold+decay
+    /// (0.38 s at default times) into sustain.
+    fn held_into_sustain(mut mseg: MSEG, velocity: f32) -> MSEG {
+        mseg.set_sample_rate(48_000.0);
+        mseg.trigger(velocity);
+        for _ in 0..24_000 {
+            mseg.process_sample();
+        }
+        assert_eq!(mseg.stage(), Stage::Sustain);
+        mseg
+    }
+
+    /// At full velocity with `velocity_to_level = 1` (every factory preset),
+    /// the pre-C4 formula `0.5 + (level − 0.5)·velocity_scale` equals `level`
+    /// up to f32 rounding. Pin that the new gain keeps full-velocity output
+    /// within 1e-7 of it (measured max difference: 1.5e-8).
+    #[test]
+    fn full_velocity_matches_previous_formula() {
+        let mut mseg = MSEG::scrape_envelope();
+        mseg.set_sample_rate(48_000.0);
+        mseg.trigger(1.0);
+        for i in 0..192_000 {
+            if i == 144_000 {
+                mseg.release();
+            }
+            let new = mseg.process_sample();
+            if mseg.stage() == Stage::Idle {
+                assert_eq!(new, 0.0);
+                continue;
+            }
+            let level = mseg.current_level();
+            let previous =
+                (0.5 + (level - 0.5) * mseg.velocity_scale).clamp(0.0, 1.0) * mseg.env_amount;
+            assert!(
+                (new - previous).abs() <= 1e-7,
+                "sample {i}: {new} vs previous formula {previous}"
+            );
+        }
+    }
+
+    #[test]
+    fn zero_level_is_silence_at_low_velocity() {
+        // Regression for review C4: the old velocity formula put a
+        // 0.5·(1 − velocity_scale) floor under a zero stage level.
+        let mut mseg = MSEG::new();
+        mseg.set_stage_levels(0.1, 1.0, 0.0, 0.0);
+        let mut mseg = held_into_sustain(mseg, 0.0);
+        for _ in 0..4_800 {
+            assert_eq!(mseg.process_sample(), 0.0);
+        }
+    }
+
+    #[test]
+    fn velocity_to_level_off_adds_no_offset() {
+        for velocity in [0.0, 0.5, 1.0] {
+            let mut mseg = MSEG::new();
+            mseg.set_velocity_response(0.0, 0.0);
+            let mut mseg = held_into_sustain(mseg, velocity);
+            assert_eq!(mseg.process_sample(), 0.5, "velocity {velocity}");
+        }
+    }
+
+    #[test]
+    fn velocity_scales_level_multiplicatively() {
+        // velocity_scale = 0.5 + v/2, so full level at velocity 0 is half.
+        let mut mseg = MSEG::new();
+        mseg.set_stage_levels(0.1, 1.0, 1.0, 0.0);
+        let mut mseg = held_into_sustain(mseg, 0.0);
+        assert_eq!(mseg.process_sample(), 0.5);
+    }
+
+    #[test]
+    fn release_reaches_idle_without_a_step() {
+        let mut mseg = held_into_sustain(MSEG::new(), 0.3);
+        mseg.release();
+        let mut previous: Option<f32> = None;
+        let mut largest_release_step = 0.0_f32;
+        let mut final_step = None;
+        for _ in 0..48_000 {
+            let x = mseg.process_sample();
+            if let Some(p) = previous {
+                let step = (x - p).abs();
+                if mseg.is_active() {
+                    largest_release_step = largest_release_step.max(step);
+                } else {
+                    final_step = Some(step);
+                    break;
+                }
+            }
+            previous = Some(x);
+        }
+        let final_step = final_step.expect("envelope never went idle");
+        assert!(
+            final_step <= largest_release_step,
+            "release ended with a {final_step} step (largest in-release step {largest_release_step})"
+        );
     }
 
     #[test]
@@ -727,11 +835,13 @@ mod tests {
             .map(|_| mseg_high.process_sample())
             .fold(0.0, f32::max);
 
+        // Velocity is a pure gain: velocity_scale = 0.5 + v/2, so the peak at
+        // velocity 0.3 is 0.65 of the peak at 1.0 (the pre-C4 formula gave
+        // 0.825 by adding a floor).
+        let ratio = max_low / max_high;
         assert!(
-            max_high > max_low,
-            "High velocity should give higher peak: high={}, low={}",
-            max_high,
-            max_low
+            (ratio - 0.65).abs() < 1e-3,
+            "peak ratio should be 0.65, got {ratio} (high={max_high}, low={max_low})"
         );
     }
 }

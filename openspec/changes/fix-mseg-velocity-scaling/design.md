@@ -33,6 +33,11 @@ Since C2, the stage loop is iterative and a golden-hash test pins the output for
 
 3. **Re-capture the C2 golden hashes in a separate, explained step.** First confirm that the C2 timing tests (Sustain-start deadline test, sweep, cap test, loop-end semantics) pass unchanged. Then regenerate only the hash constants, and record in the test comment that they changed for C4 on purpose. Run the full-velocity cases before and after: with `vtl = 1` the new formula is mathematically identical there, so their hashes (e.g. `scrape_envelope()` at velocity 1.0) must not change. Only the sub-maximal-velocity hashes may move. That is a check that the math change is the only change.
 
+## Implementation findings
+
+- **Full velocity is equal up to rounding, not bit-identical.** `0.5 + (level − 0.5)` and `level` round differently in f32, so even the full-velocity golden hash (`scrape_envelope()` at 1.0) moved. A side-by-side check over 4 s found a maximum difference of 1.5e-8 (≈ −156 dB) in 795 of 192,000 samples. The hash check in Decision 3 was replaced with a permanent test, `full_velocity_matches_previous_formula`, that requires full-velocity output to match the old formula within 1e-7 per sample. All five golden hashes were then re-captured, and the golden test was renamed `loop_output_matches_golden`.
+- **The release-end click measured 0.175 at velocity 0.3**, against a largest in-release step of 0.00007. After the fix the final step is within the release's own slope.
+
 ## Risks / Trade-offs
 
 - [Sub-maximal-velocity friction notes become noticeably quieter in sustain] → Intended (it was a floor). Note it in the summary. Presets keep `vtl = 1`, so full-velocity playing is bit-identical.

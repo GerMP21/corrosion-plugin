@@ -6,7 +6,7 @@ exciters, post-processing, presets, GUI, offline/render bins, randomizer), plus 
 factory preset bank, test suite expectations, and build configuration.
 **Method:** line-by-line read of the audio path; targeted reads of the GUI and offline
 paths; numeric simulation used to verify the ladder-filter stability finding.
-**Status (2026-10-05):** C1, C2 and C3 are FIXED; C4, C5 and C6 are IN PROGRESS (OpenSpec changes under `openspec/changes/`).
+**Status (2026-10-05):** C1, C2, C3 and C4 are FIXED; C5 and C6 are IN PROGRESS (OpenSpec changes under `openspec/changes/`).
 **Note:** `docs/CODE-REVIEW.md` (2026-05-27) is now partially stale — its Finding 1
 (clipper oversampling no-op) and the factory-reverb delay compounding have since been
 fixed (regression tests exist for both). This document supersedes it.
@@ -154,8 +154,8 @@ called from the audio thread by hosts.
 **Fix:** preallocate a max-size mode pool per voice and generate modes into it, or
 defer bank construction to a lock-free swap; make the no-alloc test cover note-on.
 
-### ~~C4. MSEG velocity/level formula puts a floor under the envelope and steps to zero at release end~~ — IN PROGRESS
-> **Status: IN PROGRESS** — OpenSpec change [`fix-mseg-velocity-scaling`](openspec/changes/fix-mseg-velocity-scaling/proposal.md). Correction found while scoping: full-velocity output (presets use `velocity_to_level = 1`) is already exactly `level`, so the floor and release-end click only occur below full velocity or with `velocity_to_level < 1`.
+### ~~C4. MSEG velocity/level formula puts a floor under the envelope and steps to zero at release end~~ — FIXED
+> **Status: FIXED** (2026-10-05, branch `claude/eloquent-dirac-fc0sqm`) — OpenSpec change [`fix-mseg-velocity-scaling`](openspec/changes/fix-mseg-velocity-scaling/proposal.md). Velocity is now a pure gain, `level · ((1 − vtl) + vtl · velocity_scale)`, so zero level is silence and Release ends without a step (the click measured 0.175 at velocity 0.3). Full-velocity output matches the old formula within f32 rounding (≤ 1.5e-8). Correction found while scoping: full-velocity output (presets use `velocity_to_level = 1`) is already exactly `level`, so the floor and release-end click only occur below full velocity or with `velocity_to_level < 1`.
 
 `src/dsp/envelopes/mod.rs:315-319`
 
@@ -440,7 +440,7 @@ above the block. Minor, but the doc and tests promise symmetric behavior.
 
 - The test suite is heavy on "A differs from B" energy assertions and light on
   invariants: ~~nothing pins the filter's frequency response at high cutoffs (C1)~~ (FIXED),
-  ~~envelope continuity (C4)~~ (IN PROGRESS), DC at the output, sample-rate invariance (H10), or
+  ~~envelope continuity (C4)~~ (FIXED), DC at the output, sample-rate invariance (H10), or
   Nyquist safety (H11).
 - ~~`tests/no_alloc.rs` scopes note-on *outside* the no-alloc zone, so the strongest
   RT-safety claim in the docs is untested where it actually breaks (C3).~~ — FIXED (note: the check only runs in debug builds)
@@ -469,7 +469,7 @@ above the block. Minor, but the doc and tests promise symmetric behavior.
 
 1. ~~**C1** (filter instability — plugin is broken at default settings in a DAW)~~ — FIXED,
 2. ~~**C2** (crash)~~ — FIXED, ~~**C3** (RT allocation; debug abort)~~ — FIXED,
-3. ~~**C4/C5/C6** (audible correctness of envelope, chain topology, spring reverb)~~ — IN PROGRESS,
+3. ~~**C4/C5/C6** (audible correctness of envelope, chain topology, spring reverb)~~ — C4 FIXED, C5/C6 IN PROGRESS,
 4. **H1–H4** (parameter ranges, defaults, and preset loading — cheap, high-impact),
 5. **H5** (GUI gaps) and the remaining H items,
 6. Medium items opportunistically, alongside regression tests for each fix.
