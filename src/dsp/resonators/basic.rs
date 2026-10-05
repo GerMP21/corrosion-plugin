@@ -19,12 +19,30 @@ use crate::dsp::ModalModeSpec;
 pub trait ResonatorAlgorithm {
     /// Generate mode specifications for this resonator type.
     /// Called during note-on to create the modal bank.
+    ///
+    /// Appends the modes to `out` instead of returning a new `Vec`, so the
+    /// note-on path can refill a preallocated buffer without allocating on
+    /// the audio thread (review C3).
+    fn generate_modes_into(
+        &self,
+        fundamental_hz: f32,
+        mode_count: usize,
+        size_scale: crate::dsp::SizeScale,
+        out: &mut Vec<ModalModeSpec>,
+    );
+
+    /// Allocating convenience wrapper around `generate_modes_into` for
+    /// offline and test callers.
     fn generate_modes(
         &self,
         fundamental_hz: f32,
         mode_count: usize,
         size_scale: crate::dsp::SizeScale,
-    ) -> Vec<ModalModeSpec>;
+    ) -> Vec<ModalModeSpec> {
+        let mut modes = Vec::new();
+        self.generate_modes_into(fundamental_hz, mode_count, size_scale, &mut modes);
+        modes
+    }
 
     /// Update dynamic frequencies for tension-modulated resonators (Cable, etc).
     /// Called per-sample or per-block for real-time pitch effects.
@@ -70,28 +88,27 @@ impl Default for PipeResonator {
 }
 
 impl ResonatorAlgorithm for PipeResonator {
-    fn generate_modes(
+    fn generate_modes_into(
         &self,
         fundamental_hz: f32,
         mode_count: usize,
         size_scale: crate::dsp::SizeScale,
-    ) -> Vec<ModalModeSpec> {
+        out: &mut Vec<ModalModeSpec>,
+    ) {
         let f1 = fundamental_hz / size_scale.factor();
         let b = self.tube_diameter * 0.1; // Stiffness coefficient
 
-        (1..=mode_count)
-            .map(|n| {
-                let nf = n as f32;
-                // Stiffness formula: f_n = n * f_1 * sqrt(1 + B * n^2)
-                let freq = nf * f1 * (1.0 + b * nf * nf).sqrt();
-                // Decay decreases with mode number
-                let decay = self.sustain_time * (1.5 - 0.15 * nf);
-                // Gain follows 1/n roughly
-                let gain = 0.02 / nf;
+        out.extend((1..=mode_count).map(|n| {
+            let nf = n as f32;
+            // Stiffness formula: f_n = n * f_1 * sqrt(1 + B * n^2)
+            let freq = nf * f1 * (1.0 + b * nf * nf).sqrt();
+            // Decay decreases with mode number
+            let decay = self.sustain_time * (1.5 - 0.15 * nf);
+            // Gain follows 1/n roughly
+            let gain = 0.02 / nf;
 
-                ModalModeSpec::new(freq, decay, gain)
-            })
-            .collect()
+            ModalModeSpec::new(freq, decay, gain)
+        }));
     }
 }
 
@@ -121,23 +138,24 @@ impl Default for PlateResonator {
 }
 
 impl ResonatorAlgorithm for PlateResonator {
-    fn generate_modes(
+    fn generate_modes_into(
         &self,
         fundamental_hz: f32,
         mode_count: usize,
         size_scale: crate::dsp::SizeScale,
-    ) -> Vec<ModalModeSpec> {
+        out: &mut Vec<ModalModeSpec>,
+    ) {
         let k = self.metal_stiffness * fundamental_hz / size_scale.factor();
         let lx = 1.0;
         let ly = lx / self.aspect_ratio.max(0.1);
 
         // Generate 2D grid modes (m, n pairs)
         let grid_size = (mode_count as f32).sqrt().ceil() as usize;
-        let mut modes = Vec::with_capacity(mode_count);
+        let start = out.len();
 
         for m in 1..=grid_size {
             for n in 1..=grid_size {
-                if modes.len() >= mode_count {
+                if out.len() - start >= mode_count {
                     break;
                 }
                 let mf = m as f32;
@@ -149,11 +167,9 @@ impl ResonatorAlgorithm for PlateResonator {
                 let decay = 0.4 - 0.02 * (mf + nf);
                 let gain = 0.008 / (mf + nf);
 
-                modes.push(ModalModeSpec::new(freq, decay, gain));
+                out.push(ModalModeSpec::new(freq, decay, gain));
             }
         }
-
-        modes
     }
 }
 
@@ -185,14 +201,14 @@ impl Default for TankResonator {
 }
 
 impl ResonatorAlgorithm for TankResonator {
-    fn generate_modes(
+    fn generate_modes_into(
         &self,
         fundamental_hz: f32,
         mode_count: usize,
         size_scale: crate::dsp::SizeScale,
-    ) -> Vec<ModalModeSpec> {
+        out: &mut Vec<ModalModeSpec>,
+    ) {
         let f_base = fundamental_hz / size_scale.factor();
-        let mut modes = Vec::with_capacity(mode_count);
 
         // Helmholtz cavity resonance (low frequency boom). The cavity follows
         // the played note (a deep sub-octave) rather than sitting at a fixed Hz,
@@ -202,7 +218,7 @@ impl ResonatorAlgorithm for TankResonator {
         let cavity_gain = 0.05 * self.cavity_mix;
         let cavity_decay = 2.5 * (1.0 + self.tank_volume); // Long sustain for boom
 
-        modes.push(ModalModeSpec::new(cavity_freq, cavity_decay, cavity_gain));
+        out.push(ModalModeSpec::new(cavity_freq, cavity_decay, cavity_gain));
 
         // Shell modes (structural vibrations)
         let shell_modes = mode_count.saturating_sub(1);
@@ -214,10 +230,8 @@ impl ResonatorAlgorithm for TankResonator {
             let decay = (2.0 - self.wall_thickness) * (1.0 + n * 0.1);
             let gain = 0.015 * (1.0 - self.cavity_mix) / n;
 
-            modes.push(ModalModeSpec::new(freq, decay, gain));
+            out.push(ModalModeSpec::new(freq, decay, gain));
         }
-
-        modes
     }
 }
 
@@ -252,7 +266,7 @@ impl ChainResonator {
     fn goe_frequency(&self, index: usize, fundamental_hz: f32) -> f32 {
         let n = index as f32;
         // Chaotic distribution using random-like but deterministic sequence
-        let chaos = (n * 1.618_034).fract(); // Golden ratio conjugate
+        let chaos = (n * crate::dsp::utils::GOLDEN_STEP).fract();
         let base = fundamental_hz / (0.5 + self.link_mass);
         base * (1.0 + n * 0.15 + chaos * self.instability)
     }
@@ -265,26 +279,25 @@ impl Default for ChainResonator {
 }
 
 impl ResonatorAlgorithm for ChainResonator {
-    fn generate_modes(
+    fn generate_modes_into(
         &self,
         fundamental_hz: f32,
         mode_count: usize,
         size_scale: crate::dsp::SizeScale,
-    ) -> Vec<ModalModeSpec> {
+        out: &mut Vec<ModalModeSpec>,
+    ) {
         let count = mode_count.min(self.chain_length);
 
-        (0..count)
-            .map(|i| {
-                // GOE chaotic frequencies, anchored to the played note
-                let freq = self.goe_frequency(i, fundamental_hz) / size_scale.factor();
-                // High damping for individual modes
-                let decay = 0.4 / self.friction_decay;
-                // Dense cluster
-                let gain = 0.018;
+        out.extend((0..count).map(|i| {
+            // GOE chaotic frequencies, anchored to the played note
+            let freq = self.goe_frequency(i, fundamental_hz) / size_scale.factor();
+            // High damping for individual modes
+            let decay = 0.4 / self.friction_decay;
+            // Dense cluster
+            let gain = 0.018;
 
-                ModalModeSpec::new(freq, decay, gain)
-            })
-            .collect()
+            ModalModeSpec::new(freq, decay, gain)
+        }));
     }
 
     fn get_coupling(&self, mode_index: usize) -> f32 {

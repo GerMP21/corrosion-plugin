@@ -52,10 +52,10 @@ MIDI Note Event
                                        ▼
 ┌─────────────────────────────────────────────────────────────────────┐
 │                       PostProcessingChain                              │
-│  fold→mono → WDF filter → Lorenz drive →                              │
-│    [Eco: bypass body/spread/space] →                                  │
-│  FEM body → re-stereo → HRTF spread → Space(Factory|Spring|Echo) →    │
-│  OversampledClipper (per channel)                                     │
+│  L/R: WDF filter → Lorenz drive (one pair per channel) ─┐             │
+│  FEM body on (L+R)/2, × BODY amount, added to both ─────┤             │
+│  → HRTF spread → Space(Factory|Spring|Echo) →            │             │
+│  OversampledClipper (per channel)      (all quality modes)             │
 └─────────────────────────────────────────────────────────────────────┘
                                        │
                                        ▼
@@ -136,8 +136,15 @@ src/
 
 The audio callback guarantees:
 
-- **No heap allocation** — verified by `tests/no_alloc.rs`; the non-Windows build
-  enables nih_plug's `assert_process_allocs` feature (`Cargo.toml` target cfg).
+- **No heap allocation** — covers note-on (every object × quality mode × exciter),
+  voice stealing, note-off tails, live expression, and `reset()`. Each voice's
+  `ModalResonator` preallocates `MAX_MODES` (largest profile × 4 scale cap × 2
+  damage companions = 96) and `rebuild_in_place` refills it at note-on; streaming
+  exciters (wire brush, metal chain, particle rain) preallocate to their clamps.
+  Verified by `tests/no_alloc.rs` in **debug** builds only — the checking
+  allocator is installed under `debug_assertions`, so `--release` runs pass
+  vacuously. The non-Windows build enables nih_plug's `assert_process_allocs`
+  feature (`Cargo.toml` target cfg).
 - **No locks / blocking / I/O / logging** in `process()`.
 - **Fixed voice array** — 8 `Voice` instances, each owning all 16 exciter structs
   so dispatch is a `match` on an integer (no trait objects, no allocation).
@@ -276,8 +283,10 @@ exciters and envelope velocity response.
 
 ## 9. Post-Processing Chain
 
-`PostProcessingChain` runs, in order: WDF ladder filter → Lorenz drive →
-(Eco bypass) → FEM body → HRTF spread → Space → oversampled clipper. These are
+`PostProcessingChain` runs, per channel, WDF ladder filter → Lorenz drive. It then adds
+the FEM body resonance (run once on the mono sum, mixed at BODY / 5) to both channels,
+followed by HRTF spread → Space → oversampled clipper. Chassis Volume only retunes the
+body. Every quality mode runs every stage (C5, `fix-post-chain-body-routing`). These are
 **lightweight, real-time-safe approximations** of the high-fidelity algorithms in
 `docs/detailed-specs/post-processing.md`; the module docstrings say as much. See
 `docs/code-review.md` §"Post-processing conformance" for the exact gap per stage.
@@ -299,7 +308,7 @@ Stage summary (as implemented):
 | FEM body | 8 fixed modal resonators — not a finite-element mesh |
 | HRTF spread | ≤1 ms delay + 1-pole LP/HP + crossfeed — not HRIR convolution |
 | Factory reverb | 4 comb + 2 allpass (Schroeder) — not 3D FDTD |
-| Spring reverb | single delay line + 1-pole dispersion — not a helical PDE |
+| Spring reverb | one delay line + 1-pole dispersion per channel — not a helical PDE |
 | Factory echo | modulated stereo delay (gentle Doppler-ish) |
 | Oversampled clipper | soft diode clip; **the oversample factor is currently a no-op** (see code review) |
 
@@ -307,13 +316,13 @@ Stage summary (as implemented):
 
 | Mode | Oversample factor requested | Chain behavior |
 |---|---|---|
-| Eco | 1× | bypasses FEM body, HRTF spread, and Space |
+| Eco | 1× | full chain |
 | Normal (default) | 4× | full chain |
 | High | 8× | full chain |
 | Render | 16× | full chain |
 
 The mapping is wired end-to-end (param → `set_quality_mode` → `set_oversample_factor`),
-and Eco's stage bypass is real and audible. **However the clipper's
+and every mode runs the same stages. **However the clipper's
 oversampling math does not actually oversample** (it zero-order-holds a single
 input and averages identical copies), so Normal/High/Render are sonically
 identical at the clipper. This is the top defect in `docs/code-review.md`.

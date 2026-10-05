@@ -96,7 +96,9 @@ pub struct VoiceControls {
     pub mseg_release: f32,
     /// Scales the overall envelope contribution for friction voices.
     pub env_amount: f32,
-    /// Maps velocity to the peak level of the friction MSEG.
+    /// Sets the friction MSEG's peak level: `0.5 + 0.5·velocity_to_peak`.
+    /// Despite the name it does not read velocity; velocity scales the whole
+    /// envelope through the MSEG's velocity-to-level gain.
     pub velocity_to_peak: f32,
     /// Selects the MSEG loop mode: off, forward, or ping-pong.
     pub loop_mode: i32,
@@ -780,8 +782,10 @@ impl Voice {
         let clamped_damage = damage.clamp(0.0, 10.0);
         self.damage_amount = clamped_damage;
         // The algorithmic per-object generator is the only resonator path; the
-        // profile tables now contribute only mode counts (see core.rs).
-        self.resonator = ModalResonator::with_algorithm_controls_and_note(
+        // profile tables now contribute only mode counts (see core.rs). The
+        // bank is rebuilt in the voice's preallocated buffers so note-on never
+        // allocates on the audio thread.
+        self.resonator.rebuild_in_place(
             profile_id,
             SizeScale::new(size),
             RustAmount::new(rust),
@@ -1082,6 +1086,32 @@ impl Voice {
         self.active
     }
 
+    /// Silence the voice and return it to idle without allocating, as if its
+    /// tail had finished. The next note-on rebuilds the resonator and
+    /// re-triggers its exciter, so only the state that could leak sound or
+    /// expression into that note is cleared here.
+    pub fn reset(&mut self) {
+        self.active = false;
+        self.rendering = false;
+        self.excitation_sent = false;
+        self.resonator.clear_state();
+        self.peak_hold = 0.0;
+        self.frames_below_threshold = 0;
+        self.excitation_value = 0.0;
+        self.excitation_state = 0.0;
+        self.highpass_state = 0.0;
+        self.rattle_phase = 0.0;
+        self.one_shot_phase = OneShotEnvelopePhase::Idle;
+        self.one_shot_level = 0.0;
+        self.adsr_phase = AdsrPhase::Idle;
+        self.adsr_level = 0.0;
+        self.mseg = MSEG::new();
+        self.pitch_bend_semitones = 0.0;
+        self.channel_pressure = 0.0;
+        self.poly_pressure = 0.0;
+        self.mod_wheel = 0.0;
+    }
+
     pub fn is_rendering(&self) -> bool {
         self.rendering
     }
@@ -1137,7 +1167,7 @@ impl Voice {
             return 0.0;
         }
 
-        self.rattle_phase += 1.618_034;
+        self.rattle_phase += crate::dsp::utils::GOLDEN_STEP;
         if self.rattle_phase > 1000.0 {
             self.rattle_phase -= 1000.0;
         }

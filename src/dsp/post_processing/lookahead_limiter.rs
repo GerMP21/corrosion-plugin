@@ -74,7 +74,7 @@ impl LookaheadLimiter {
     /// Reset the delay line and gain history. Use at note pauses or after a
     /// host reset to avoid leaking the previous buffer into a fresh render.
     pub fn reset(&mut self) {
-        self.buffer = [0.0; LOOKAHEAD_SAMPLES];
+        self.buffer.fill(0.0);
         self.write_pos = 0;
         self.gain = 1.0;
     }

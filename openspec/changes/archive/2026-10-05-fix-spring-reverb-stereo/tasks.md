@@ -1,0 +1,24 @@
+# Tasks
+
+## 1. Failing tests
+
+- [x] 1.1 Extract the Space stage of `PostProcessingChain::process` into `process_space(left, right) -> (wet_l, wet_r)` with no behaviour change (existing post-chain tests stay green), then add spring tests against it in `src/dsp/post_processing/post_chain.rs`: left-only impulse leaves the right wet output exactly 0.0; with a known `delay_length` N, each channel's first wet sample lands N samples after a stereo impulse; verify both FAIL on the current code
+- [x] 1.2 Add a mono-input test (identical L/R → identical wet tails); record whether it passes on the current code (it may, by symmetry), so the result is documented *(it FAILS on the current code: the shared dispersion state makes the interleaved L/R tails differ from the first echo)*
+
+## 2. Fix
+
+- [x] 2.1 Replace the single `spring_reverb` in `PostProcessingChain` with `spring_left` / `spring_right`, fanning out `set_spring_params`, `set_sample_rate` and `reset`, and process each channel through its own instance in Spring mode; verify 1.1 and 1.2 pass
+- [x] 2.2 Make `SpringReverb::reset()` also zero `delay_index`, and add the "reset clears both channels" test (ringing tail → reset → silence gives exactly 0.0); verify it passes
+- [x] 2.3 Run the debug `tests/no_alloc.rs` suite (reset with sounding voices, process callback); verify it still passes
+
+## 3. Close out
+
+- [x] 3.1 Render the two factory presets that use Space = Spring through the post chain before and after, and note the audible change (echo spacing, cross-talk) in the change summary; verify the presets are named *(Distant Plate Roll, Spring Reverb Tap — `audition.md`; Spring Reverb Tap's BODY re-matched 1.60 → 2.26 to stay within C5's 0.5 dB level check)*
+- [x] 3.2 Run `cargo test --workspace --no-default-features` (debug), `cargo test --no-default-features --release`, `cargo fmt --check`, and `cargo clippy --workspace --all-targets --no-default-features -- -D warnings`; verify all green
+- [x] 3.3 Update `FABLE-CODE-REVIEW-2026-07-07.md` C6 status from IN PROGRESS to FIXED with a short summary; verify the heading and priority list reflect it
+
+## 4. Verification follow-up
+
+- [x] 4.1 Run the spring tests at non-default settings so the right spring's setters are exercised; verify that deleting either fan-out call fails them
+- [x] 4.2 Wrap `delay_index` when the delay shrinks; add `spring_reset_rewinds_the_delay_line` and `spring_delay_index_stays_inside_a_shorter_delay`; reword design Decision 2
+- [x] 4.3 Update `docs/detailed-specs/post-processing.md` (one delay line per channel) and the review's pre-fix line references; render each preset once in `c6_spring_preset_measurements` (results unchanged)

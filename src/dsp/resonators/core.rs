@@ -67,6 +67,46 @@ enum Dynamics {
     SheetMetal(SheetMetalResonator),
 }
 
+/// Every object profile, in `ModalProfileId` order.
+const ALL_PROFILES: [crate::dsp::ModalProfileId; 9] = [
+    crate::dsp::ModalProfileId::Pipe,
+    crate::dsp::ModalProfileId::Plate,
+    crate::dsp::ModalProfileId::Tank,
+    crate::dsp::ModalProfileId::Chain,
+    crate::dsp::ModalProfileId::IBeam,
+    crate::dsp::ModalProfileId::TautCable,
+    crate::dsp::ModalProfileId::CoilSpring,
+    crate::dsp::ModalProfileId::SheetMetal,
+    crate::dsp::ModalProfileId::IndustrialCog,
+];
+
+/// Largest base mode count across the object profile tables.
+const MAX_BASE_MODE_COUNT: usize = {
+    let mut max = 0;
+    let mut i = 0;
+    while i < ALL_PROFILES.len() {
+        let count = crate::dsp::ModalProfile::from_id(ALL_PROFILES[i]).mode_count();
+        if count > max {
+            max = count;
+        }
+        i += 1;
+    }
+    max
+};
+
+/// Upper clamp on the quality-mode `mode_count_scale`. An integer, so
+/// `MAX_MODES` below is exact: `round(base · scale) ≤ base · this`.
+const MAX_MODE_COUNT_SCALE_INT: usize = 4;
+const MAX_MODE_COUNT_SCALE: f32 = MAX_MODE_COUNT_SCALE_INT as f32;
+
+/// Most raw (pre-damage) modes one note-on can generate.
+const MAX_RAW_MODES: usize = MAX_BASE_MODE_COUNT * MAX_MODE_COUNT_SCALE_INT;
+
+/// Worst-case number of modes in one note-on bank: the largest profile at the
+/// `mode_count_scale` cap, doubled for damage companion modes. Voices reserve
+/// this much up front so note-on never allocates (review C3).
+pub const MAX_MODES: usize = MAX_RAW_MODES * 2;
+
 #[derive(Clone, Copy)]
 struct AlgorithmTransformControls {
     rust_amount: crate::dsp::RustAmount,
@@ -213,23 +253,20 @@ pub struct ModalResonator {
     /// `1.0` is neutral; written by `set_pitch_bend_factor` from MIDI pitch bend
     /// or poly tuning events. Layered with object dynamics in `apply_dynamics`.
     pitch_bend_factor: f32,
+    /// Note-on scratch for raw generator output. Keeps `MAX_MODES` capacity
+    /// so `rebuild_in_place` never allocates.
+    raw_specs: Vec<crate::dsp::ModalModeSpec>,
+    /// Note-on scratch for the rust/thickness/heat/sludge/damage-transformed
+    /// specs, also kept at `MAX_MODES` capacity.
+    transformed_specs: Vec<crate::dsp::ModalModeSpec>,
 }
 
 impl ModalResonator {
     const REFERENCE_PITCH_HZ: f32 = 220.0;
 
-    fn from_mode_specs(
-        profile_id: crate::dsp::ModalProfileId,
-        modes: Vec<crate::dsp::ModalModeSpec>,
-        dynamics: Dynamics,
-    ) -> Self {
-        let modes = modes
-            .into_iter()
-            .map(SecondOrderMode::new)
-            .collect::<Vec<_>>();
-        let mut interaction_bus = crate::dsp::BidirectionalInteractionBus::new();
-        interaction_bus.initialize(modes.len());
-
+    /// An empty resonator whose mode, scratch, and interaction buffers are
+    /// preallocated for the worst-case bank (`MAX_MODES`).
+    fn with_note_capacity(profile_id: crate::dsp::ModalProfileId) -> Self {
         Self {
             profile: profile_id,
             size_scale: crate::dsp::SizeScale::default(),
@@ -238,33 +275,41 @@ impl ModalResonator {
             thickness_amount: crate::dsp::ThicknessAmount::default(),
             heat_amount: crate::dsp::HeatAmount::default(),
             sludge_amount: crate::dsp::SludgeAmount::default(),
-            modes,
-            interaction_bus,
-            dynamics,
+            modes: Vec::with_capacity(MAX_MODES),
+            interaction_bus: crate::dsp::BidirectionalInteractionBus::with_capacity(MAX_MODES),
+            dynamics: Dynamics::None,
             dyn_amplitude: 0.0,
             dyn_lf_displacement: 0.0,
             pitch_bend_factor: 1.0,
+            raw_specs: Vec::with_capacity(MAX_MODES),
+            transformed_specs: Vec::with_capacity(MAX_MODES),
         }
     }
 
-    fn transform_algorithm_modes(
-        mut modes: Vec<crate::dsp::ModalModeSpec>,
+    /// Apply the material transforms to `modes`, replacing the contents of
+    /// `out`. Stops at `MAX_MODES` so a preallocated `out` never grows.
+    fn transform_algorithm_modes_into(
+        modes: &[crate::dsp::ModalModeSpec],
         controls: AlgorithmTransformControls,
-    ) -> Vec<crate::dsp::ModalModeSpec> {
+        out: &mut Vec<crate::dsp::ModalModeSpec>,
+    ) {
+        out.clear();
         let mode_count = modes.len().max(1);
-        let mut transformed = Vec::new();
 
-        for (index, mode) in modes.drain(..).enumerate() {
+        for (index, &mode) in modes.iter().enumerate() {
             let rusted = mode.corroded(controls.rust_amount, index, mode_count);
             let thickened = rusted.thickened(controls.thickness_amount, index);
             let heated = thickened.heated(controls.heat_amount);
             let sludge_loaded = heated.sludge_loaded(controls.sludge_amount);
             let damaged = sludge_loaded.damaged(controls.damage_amount, index, mode_count);
 
-            transformed.extend(damaged);
+            for damaged_mode in damaged {
+                if out.len() == MAX_MODES {
+                    return;
+                }
+                out.push(damaged_mode);
+            }
         }
-
-        transformed
     }
 
     /// Generate the algorithmic modal bank for an object, configured by the
@@ -274,20 +319,23 @@ impl ModalResonator {
     /// `mode_count_scale` multiplies the base mode count; QualityMode supplies
     /// 0.5/1.0/1.5/2.0 so Eco runs leaner banks and Render builds richer ones.
     ///
-    /// Returns the raw modes plus any per-sample dynamic behavior the object
-    /// retains (cable tension drop, sheet-metal warp).
-    fn generate_algorithm_modes(
+    /// Replaces the contents of `out` with the raw modes and returns any
+    /// per-sample dynamic behavior the object retains (cable tension drop,
+    /// sheet-metal warp).
+    fn generate_algorithm_modes_into(
         profile_id: crate::dsp::ModalProfileId,
         size_scale: crate::dsp::SizeScale,
         target_frequency_hz: f32,
         character: CharacterParams,
         mode_count_scale: f32,
-    ) -> (Vec<crate::dsp::ModalModeSpec>, Dynamics) {
+        out: &mut Vec<crate::dsp::ModalModeSpec>,
+    ) -> Dynamics {
+        out.clear();
         let base = crate::dsp::ModalProfile::from_id(profile_id)
             .mode_count()
             .max(1);
         let scale = if mode_count_scale.is_finite() && mode_count_scale > 0.0 {
-            mode_count_scale.clamp(0.25, 4.0)
+            mode_count_scale.clamp(0.25, MAX_MODE_COUNT_SCALE)
         } else {
             1.0
         };
@@ -299,16 +347,16 @@ impl ModalResonator {
                     tube_diameter: character.pipe_diameter,
                     sustain_time: 1.0,
                 };
-                let modes = resonator.generate_modes(target_frequency_hz, mode_count, size_scale);
-                (modes, Dynamics::None)
+                resonator.generate_modes_into(target_frequency_hz, mode_count, size_scale, out);
+                Dynamics::None
             }
             crate::dsp::ModalProfileId::Plate => {
                 let resonator = PlateResonator {
                     aspect_ratio: character.plate_aspect,
                     metal_stiffness: character.plate_stiffness,
                 };
-                let modes = resonator.generate_modes(target_frequency_hz, mode_count, size_scale);
-                (modes, Dynamics::None)
+                resonator.generate_modes_into(target_frequency_hz, mode_count, size_scale, out);
+                Dynamics::None
             }
             crate::dsp::ModalProfileId::Tank => {
                 let resonator = TankResonator {
@@ -316,8 +364,8 @@ impl ModalResonator {
                     wall_thickness: 0.5,
                     cavity_mix: character.tank_cavity_mix,
                 };
-                let modes = resonator.generate_modes(target_frequency_hz, mode_count, size_scale);
-                (modes, Dynamics::None)
+                resonator.generate_modes_into(target_frequency_hz, mode_count, size_scale, out);
+                Dynamics::None
             }
             crate::dsp::ModalProfileId::Chain => {
                 let resonator = ChainResonator {
@@ -326,39 +374,39 @@ impl ModalResonator {
                     instability: character.chain_instability,
                     friction_decay: 2.0,
                 };
-                let modes = resonator.generate_modes(target_frequency_hz, mode_count, size_scale);
-                (modes, Dynamics::None)
+                resonator.generate_modes_into(target_frequency_hz, mode_count, size_scale, out);
+                Dynamics::None
             }
             crate::dsp::ModalProfileId::IBeam => {
                 let resonator = IBeamResonator::with_character(character.beam_shear);
-                let modes = resonator.generate_modes(target_frequency_hz, mode_count, size_scale);
-                (modes, Dynamics::None)
+                resonator.generate_modes_into(target_frequency_hz, mode_count, size_scale, out);
+                Dynamics::None
             }
             crate::dsp::ModalProfileId::TautCable => {
                 let resonator = TautCableResonator::with_character(
                     character.cable_braid,
                     character.cable_tension_drop,
                 );
-                let modes = resonator.generate_modes(target_frequency_hz, mode_count, size_scale);
-                (modes, Dynamics::TautCable(resonator))
+                resonator.generate_modes_into(target_frequency_hz, mode_count, size_scale, out);
+                Dynamics::TautCable(resonator)
             }
             crate::dsp::ModalProfileId::CoilSpring => {
                 let resonator = CoilSpringResonator::with_character(
                     character.spring_dispersion,
                     character.spring_slosh,
                 );
-                let modes = resonator.generate_modes(target_frequency_hz, mode_count, size_scale);
-                (modes, Dynamics::None)
+                resonator.generate_modes_into(target_frequency_hz, mode_count, size_scale, out);
+                Dynamics::None
             }
             crate::dsp::ModalProfileId::SheetMetal => {
                 let resonator = SheetMetalResonator::with_character(character.sheet_thinness);
-                let modes = resonator.generate_modes(target_frequency_hz, mode_count, size_scale);
-                (modes, Dynamics::SheetMetal(resonator))
+                resonator.generate_modes_into(target_frequency_hz, mode_count, size_scale, out);
+                Dynamics::SheetMetal(resonator)
             }
             crate::dsp::ModalProfileId::IndustrialCog => {
                 let resonator = IndustrialCogResonator::with_character(character.cog_dissonance);
-                let modes = resonator.generate_modes(target_frequency_hz, mode_count, size_scale);
-                (modes, Dynamics::None)
+                resonator.generate_modes_into(target_frequency_hz, mode_count, size_scale, out);
+                Dynamics::None
             }
         }
     }
@@ -380,7 +428,7 @@ impl ModalResonator {
         let pitch_scale = target_frequency_hz
             .map(|target| (target / Self::REFERENCE_PITCH_HZ.max(f32::EPSILON)).max(f32::EPSILON));
         let mode_count = profile.mode_count().max(1);
-        let modes: Vec<SecondOrderMode> = profile
+        let mut modes: Vec<SecondOrderMode> = profile
             .scaled_mode_specs_extended(
                 size_scale,
                 rust_amount,
@@ -406,8 +454,11 @@ impl ModalResonator {
             })
             .map(SecondOrderMode::new)
             .collect();
+        // Reserve the worst-case bank so a later `rebuild_in_place` (note-on
+        // on the audio thread) never has to grow these buffers.
+        modes.reserve(MAX_MODES.saturating_sub(modes.len()));
 
-        let mut interaction_bus = crate::dsp::BidirectionalInteractionBus::new();
+        let mut interaction_bus = crate::dsp::BidirectionalInteractionBus::with_capacity(MAX_MODES);
         interaction_bus.initialize(modes.len());
 
         Self {
@@ -424,6 +475,8 @@ impl ModalResonator {
             dyn_amplitude: 0.0,
             dyn_lf_displacement: 0.0,
             pitch_bend_factor: 1.0,
+            raw_specs: Vec::with_capacity(MAX_MODES),
+            transformed_specs: Vec::with_capacity(MAX_MODES),
         }
     }
 
@@ -547,15 +600,61 @@ impl ModalResonator {
         character: CharacterParams,
         mode_count_scale: f32,
     ) -> Self {
-        let (raw_modes, dynamics) = Self::generate_algorithm_modes(
+        let mut resonator = Self::with_note_capacity(profile_id);
+        resonator.rebuild_in_place(
+            profile_id,
+            size_scale,
+            rust_amount,
+            damage_amount,
+            thickness_amount,
+            heat_amount,
+            sludge_amount,
+            target_frequency_hz,
+            damping,
+            brightness,
+            character,
+            mode_count_scale,
+        );
+        resonator
+    }
+
+    /// Rebuild this resonator's modal bank for a new note, reusing its
+    /// preallocated buffers. Produces the same bank as
+    /// `with_algorithm_controls_and_note` without allocating or freeing, so
+    /// the voice can call it from note-on on the audio thread (review C3).
+    #[allow(clippy::too_many_arguments)]
+    pub fn rebuild_in_place(
+        &mut self,
+        profile_id: crate::dsp::ModalProfileId,
+        size_scale: crate::dsp::SizeScale,
+        rust_amount: crate::dsp::RustAmount,
+        damage_amount: crate::dsp::DamageAmount,
+        thickness_amount: crate::dsp::ThicknessAmount,
+        heat_amount: crate::dsp::HeatAmount,
+        sludge_amount: crate::dsp::SludgeAmount,
+        target_frequency_hz: f32,
+        damping: f32,
+        brightness: f32,
+        character: CharacterParams,
+        mode_count_scale: f32,
+    ) {
+        let dynamics = Self::generate_algorithm_modes_into(
             profile_id,
             size_scale,
             target_frequency_hz,
             character,
             mode_count_scale,
+            &mut self.raw_specs,
         );
-        let transformed = Self::transform_algorithm_modes(
-            raw_modes,
+        // Generators must stay within the preallocated raw buffer; growing
+        // it here would allocate on the audio thread.
+        debug_assert!(
+            self.raw_specs.len() <= MAX_RAW_MODES,
+            "{profile_id:?} generated {} raw modes > {MAX_RAW_MODES}",
+            self.raw_specs.len()
+        );
+        Self::transform_algorithm_modes_into(
+            &self.raw_specs,
             AlgorithmTransformControls {
                 rust_amount,
                 damage_amount,
@@ -563,12 +662,32 @@ impl ModalResonator {
                 heat_amount,
                 sludge_amount,
             },
+            &mut self.transformed_specs,
         );
+        self.modes.clear();
+        self.modes.extend(
+            self.transformed_specs
+                .iter()
+                .copied()
+                .map(SecondOrderMode::new),
+        );
+
+        self.profile = profile_id;
+        self.size_scale = crate::dsp::SizeScale::default();
+        self.rust_amount = crate::dsp::RustAmount::default();
+        self.damage_amount = crate::dsp::DamageAmount::default();
+        self.thickness_amount = crate::dsp::ThicknessAmount::default();
+        self.heat_amount = crate::dsp::HeatAmount::default();
+        self.sludge_amount = crate::dsp::SludgeAmount::default();
+        self.interaction_bus.reset(self.modes.len());
+        self.dynamics = dynamics;
+        self.dyn_amplitude = 0.0;
+        self.dyn_lf_displacement = 0.0;
+        self.pitch_bend_factor = 1.0;
+
         // Damping/brightness are kept off `base_decay_seconds`/`base_gain` so
         // held-note automation can re-derive them; apply them here at note-on.
-        let mut resonator = Self::from_mode_specs(profile_id, transformed, dynamics);
-        resonator.set_live_resonator_controls(damping, brightness, 48_000);
-        resonator
+        self.set_live_resonator_controls(damping, brightness, 48_000);
     }
 }
 
@@ -604,6 +723,19 @@ pub trait ResonatorCore {
 }
 
 impl ModalResonator {
+    /// Silence the resonator in place: zero every mode's filter history and
+    /// the dynamics trackers. The bank itself is kept; the next note-on
+    /// rebuilds it. Allocation-free.
+    pub fn clear_state(&mut self) {
+        for mode in &mut self.modes {
+            mode.y1 = 0.0;
+            mode.y2 = 0.0;
+        }
+        self.dyn_amplitude = 0.0;
+        self.dyn_lf_displacement = 0.0;
+        self.interaction_bus.reset(self.modes.len());
+    }
+
     /// Apply live damping/brightness updates to every mode.
     ///
     /// Modes keep their note-on `base_decay_seconds` / `base_gain`; this method
@@ -853,5 +985,206 @@ impl ResonatorCore for ModalResonator {
             interaction_displacement - self.interaction_bus.state.resonator_displacement;
         self.interaction_bus.state.resonator_displacement = interaction_displacement;
         (left_sum, right_sum)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::dsp::ModalProfileId;
+
+    const PROFILES: [ModalProfileId; 9] = [
+        ModalProfileId::Pipe,
+        ModalProfileId::Plate,
+        ModalProfileId::Tank,
+        ModalProfileId::Chain,
+        ModalProfileId::IBeam,
+        ModalProfileId::TautCable,
+        ModalProfileId::CoilSpring,
+        ModalProfileId::SheetMetal,
+        ModalProfileId::IndustrialCog,
+    ];
+    /// QualityMode Eco / Normal / High / Render mode-count scales.
+    const QUALITY_SCALES: [f32; 4] = [0.5, 1.0, 1.5, 2.0];
+    const DAMAGE: [f32; 3] = [0.0, 0.5, 1.0];
+    const FIXTURE: &str = include_str!("../../../tests/fixtures/mode_bank_hashes.txt");
+
+    /// Builds a note-on bank the way `Voice::note_on_with_controls` does,
+    /// with every transform engaged so they all reach the fingerprint.
+    fn note_on_bank(profile: ModalProfileId, scale: f32, damage: f32) -> ModalResonator {
+        ModalResonator::with_algorithm_controls_and_note(
+            profile,
+            crate::dsp::SizeScale::new(1.2),
+            crate::dsp::RustAmount::new(0.4),
+            crate::dsp::DamageAmount::new(damage),
+            crate::dsp::ThicknessAmount::new(0.3),
+            crate::dsp::HeatAmount::new(0.2),
+            crate::dsp::SludgeAmount::new(0.1),
+            261.63,
+            0.45,
+            0.6,
+            CharacterParams::default(),
+            scale,
+        )
+    }
+
+    /// FNV-1a over the mode count and every mode's spec and base values.
+    fn bank_hash(resonator: &ModalResonator) -> u64 {
+        let mut hash = 0xcbf2_9ce4_8422_2325_u64;
+        let mut feed = |bits: u32| {
+            for byte in bits.to_le_bytes() {
+                hash ^= byte as u64;
+                hash = hash.wrapping_mul(0x0100_0000_01b3);
+            }
+        };
+        feed(resonator.modes.len() as u32);
+        for mode in &resonator.modes {
+            for value in [
+                mode.spec.frequency_hz,
+                mode.spec.decay_seconds,
+                mode.spec.gain,
+                mode.base_frequency_hz,
+                mode.base_decay_seconds,
+                mode.base_gain,
+            ] {
+                feed(value.to_bits());
+            }
+        }
+        hash
+    }
+
+    fn current_fingerprints() -> Vec<String> {
+        let mut lines = Vec::new();
+        for profile in PROFILES {
+            for scale in QUALITY_SCALES {
+                for damage in DAMAGE {
+                    let bank = note_on_bank(profile, scale, damage);
+                    lines.push(format!(
+                        "{profile:?} scale={scale} damage={damage} modes={} {:#018x}",
+                        bank.modes.len(),
+                        bank_hash(&bank)
+                    ));
+                }
+            }
+        }
+        lines
+    }
+
+    /// `MAX_MODES` must cover every bank a note-on can build. The transform
+    /// truncates at `MAX_MODES`, so checking the final bank would pass
+    /// vacuously; check the generator's raw count and the untruncated
+    /// damage expansion instead.
+    #[test]
+    fn note_on_banks_fit_max_modes() {
+        let extremes = [0.0, 1.0, 2.0];
+        let mut raw = Vec::new();
+        for profile in PROFILES {
+            for scale in [0.25, 0.5, 1.0, 1.5, 2.0, 4.0, 100.0] {
+                for value in extremes {
+                    let character = CharacterParams {
+                        pipe_diameter: value,
+                        plate_aspect: value,
+                        plate_stiffness: value,
+                        tank_volume: value,
+                        tank_cavity_mix: value,
+                        chain_link_mass: value,
+                        chain_instability: value,
+                        beam_shear: value,
+                        cable_braid: value,
+                        cable_tension_drop: value,
+                        spring_dispersion: value,
+                        spring_slosh: value,
+                        sheet_thinness: value,
+                        cog_dissonance: value,
+                    };
+                    ModalResonator::generate_algorithm_modes_into(
+                        profile,
+                        crate::dsp::SizeScale::new(1.0),
+                        261.63,
+                        character,
+                        scale,
+                        &mut raw,
+                    );
+                    let name = format!("{profile:?} scale={scale} character={value}");
+                    assert!(
+                        raw.len() <= MAX_RAW_MODES,
+                        "{name}: {} raw modes > {MAX_RAW_MODES}",
+                        raw.len()
+                    );
+                    let mode_count = raw.len().max(1);
+                    let damaged: usize = raw
+                        .iter()
+                        .enumerate()
+                        .map(|(index, mode)| {
+                            mode.damaged(crate::dsp::DamageAmount::new(10.0), index, mode_count)
+                                .count()
+                        })
+                        .sum();
+                    assert!(
+                        damaged <= MAX_MODES,
+                        "{name}: {damaged} damaged modes > MAX_MODES {MAX_MODES}"
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn rebuilding_a_reused_resonator_matches_a_fresh_one() {
+        // One long-lived resonator, rebuilt for every case in turn (growing
+        // and shrinking the bank), must match a freshly built bank exactly.
+        let mut reused = ModalResonator::with_profile(ModalProfileId::Pipe);
+        for profile in PROFILES {
+            for scale in QUALITY_SCALES {
+                for damage in DAMAGE {
+                    reused.rebuild_in_place(
+                        profile,
+                        crate::dsp::SizeScale::new(1.2),
+                        crate::dsp::RustAmount::new(0.4),
+                        crate::dsp::DamageAmount::new(damage),
+                        crate::dsp::ThicknessAmount::new(0.3),
+                        crate::dsp::HeatAmount::new(0.2),
+                        crate::dsp::SludgeAmount::new(0.1),
+                        261.63,
+                        0.45,
+                        0.6,
+                        CharacterParams::default(),
+                        scale,
+                    );
+                    let fresh = note_on_bank(profile, scale, damage);
+                    assert_eq!(
+                        bank_hash(&reused),
+                        bank_hash(&fresh),
+                        "{profile:?} scale={scale} damage={damage}"
+                    );
+                    assert_eq!(
+                        reused.interaction_bus.mode_coefficients,
+                        fresh.interaction_bus.mode_coefficients
+                    );
+                }
+            }
+        }
+    }
+
+    /// Note-on mode banks must not change when allocation is removed from the
+    /// note-on path (review C3). The fixture was captured from the allocating
+    /// implementation; regenerate it only for an intended sound change with
+    /// `CORROSION_UPDATE_GOLDEN=1 cargo test mode_banks_match_golden`.
+    #[test]
+    fn mode_banks_match_golden_fixture() {
+        let current = current_fingerprints();
+        if std::env::var_os("CORROSION_UPDATE_GOLDEN").is_some() {
+            let path = concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/tests/fixtures/mode_bank_hashes.txt"
+            );
+            std::fs::write(path, current.join("\n") + "\n").expect("write fixture");
+            return;
+        }
+        let golden: Vec<&str> = FIXTURE.lines().collect();
+        assert_eq!(golden.len(), current.len(), "fixture case count changed");
+        for (expected, actual) in golden.iter().zip(&current) {
+            assert_eq!(*expected, actual.as_str());
+        }
     }
 }

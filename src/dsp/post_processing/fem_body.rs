@@ -3,6 +3,7 @@
 //! This is a compact modal approximation used to add material-specific body
 //! coloration after the drive stage.
 /// Modal body resonator with eight FEM-inspired modes.
+#[derive(Clone, Debug)]
 pub struct FemBodyResonator {
     material: f32,
     volume: f32,
@@ -30,7 +31,9 @@ impl FemBodyResonator {
         }
     }
 
-    /// Sets material and cavity volume controls.
+    /// Sets material and cavity volume controls. Volume sets the body's size:
+    /// larger volumes move every mode lower. It applies no output gain, though
+    /// lower modes ring with more resonant gain (see `process`).
     pub fn set_parameters(&mut self, material: f32, volume: f32) {
         self.material = material.clamp(0.0, 1.0);
         self.volume = volume.clamp(0.0, 1.0);
@@ -74,7 +77,9 @@ impl FemBodyResonator {
             sum += self.y[i] * material_gain * (1.0 / (i + 1) as f32);
         }
 
-        sum.clamp(-1.0, 1.0) * (0.5 + self.volume * 0.5)
+        // Volume only retunes the modes (see `update_mode_frequencies`); the
+        // mix level is set by the post chain's BODY amount.
+        sum.clamp(-1.0, 1.0)
     }
 
     /// Clears the resonator state history.
@@ -93,6 +98,43 @@ impl Default for FemBodyResonator {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn larger_chassis_resonates_lower() {
+        let mut small = FemBodyResonator::new();
+        small.set_sample_rate(48_000.0);
+        small.set_parameters(0.5, 0.2);
+        let mut large = FemBodyResonator::new();
+        large.set_sample_rate(48_000.0);
+        large.set_parameters(0.5, 0.8);
+        assert!(
+            large.base_freqs[0] < small.base_freqs[0],
+            "lowest mode should move down: {} -> {}",
+            small.base_freqs[0],
+            large.base_freqs[0]
+        );
+    }
+
+    #[test]
+    fn volume_applies_no_output_gain() {
+        // Same tuning, different `volume` field: if volume only retunes the
+        // modes, the outputs must match exactly.
+        for volume in [0.2, 0.8] {
+            let mut tuned = FemBodyResonator::new();
+            tuned.set_sample_rate(48_000.0);
+            tuned.set_parameters(0.5, volume);
+            let mut retuned_only = tuned.clone();
+            retuned_only.volume = 1.0 - volume;
+            for i in 0..4_800 {
+                let x = if i == 0 { 1.0 } else { 0.0 };
+                assert_eq!(
+                    tuned.process(x),
+                    retuned_only.process(x),
+                    "volume {volume}, sample {i}"
+                );
+            }
+        }
+    }
 
     #[test]
     fn processes_without_nan() {

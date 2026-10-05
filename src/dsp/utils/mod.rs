@@ -5,6 +5,13 @@
 //! estimation.
 
 pub mod body;
+
+/// Golden-ratio step used to advance the deterministic pseudo-random phases
+/// in exciters, voices and the chain resonator. The exact literal is kept (not
+/// `f32::consts::GOLDEN_RATIO`, which may round differently and is newer than
+/// some toolchains) so every RNG sequence, and the sound, stays bit-identical.
+#[allow(clippy::approx_constant)]
+pub const GOLDEN_STEP: f32 = 1.618_034;
 pub mod budget;
 pub mod deterministic_excitation;
 

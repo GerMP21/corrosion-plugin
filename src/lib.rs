@@ -202,6 +202,11 @@ impl MacroBias {
     };
 }
 
+/// Body mix (0–1) for the post chain from the BODY control (0–5).
+fn body_mix(body: f32) -> f32 {
+    (body / 5.0).clamp(0.0, 1.0)
+}
+
 /// Derive the macro bias from the current parameter values.
 fn resolve_macro_bias(params: &CorrosionParams) -> MacroBias {
     // Each macro is `0.0..=1.0`; subtract the neutral midpoint so the bias is
@@ -700,7 +705,7 @@ pub fn corrosion_version() -> &'static str {
 /// Main plugin struct containing all state.
 ///
 /// This struct implements the nih_plug Plugin trait and contains:
-/// - Parameter storage (Arc<CorrosionParams>)
+/// - Parameter storage (`Arc<CorrosionParams>`)
 /// - Voice manager for polyphony
 /// - Post-processing effects chain
 ///
@@ -782,6 +787,93 @@ impl Corrosion {
     }
 }
 
+impl Corrosion {
+    /// Push the current parameter values (plus macro biases) into the post
+    /// chain. Called once per buffer from `process()`; shared with offline
+    /// measurement tests so they configure the chain exactly as the plugin does.
+    fn apply_post_chain_params(
+        &mut self,
+        sample_rate: u32,
+        host_tempo: Option<f32>,
+        bias: &MacroBias,
+        body_amount: f32,
+    ) {
+        self.post_chain.set_sample_rate(sample_rate as f32);
+        let biased_cutoff =
+            (self.params.filter_cutoff.value() * bias.filter_cutoff_factor).clamp(20.0, 20_000.0);
+        self.post_chain.set_filter_params(
+            biased_cutoff,
+            self.params.filter_resonance.value(),
+            self.params.component_tolerance.value(),
+        );
+        self.post_chain.set_drive_params(
+            (self.params.drive_amount.value() + bias.drive_amount_offset).clamp(0.0, 1.0),
+            self.params.bias_starvation.value(),
+            (self.params.chaos_depth.value() + bias.chaos_depth_offset).clamp(0.0, 1.0),
+        );
+        // Chassis Volume only tunes the body; BODY alone sets its mix (C5).
+        self.post_chain.set_body_params(
+            self.params.chassis_material.value(),
+            self.params.chassis_volume.value(),
+        );
+        self.post_chain.set_body_amount(body_amount);
+        self.post_chain.set_spread_params(
+            self.params.spread_width.value(),
+            self.params.listener_proximity.value(),
+        );
+
+        // Map space mode integer to enum
+        let space_mode = match self.params.space_mode.value() {
+            0 => dsp::SpaceMode::Off,
+            1 => dsp::SpaceMode::Factory,
+            2 => dsp::SpaceMode::Spring,
+            3 => dsp::SpaceMode::Echo,
+            _ => dsp::SpaceMode::Off,
+        };
+        self.post_chain.set_space_mode(space_mode);
+
+        let post_quality = match self.params.quality_mode.value() {
+            0 => dsp::PostQualityMode::Eco,
+            1 => dsp::PostQualityMode::Normal,
+            2 => dsp::PostQualityMode::High,
+            3 => dsp::PostQualityMode::Render,
+            _ => dsp::PostQualityMode::Normal,
+        };
+        self.post_chain.set_quality_mode(post_quality);
+        self.post_chain
+            .set_space_amount(self.params.space_amount.value());
+        self.post_chain.set_factory_params(
+            self.params.factory_size.value(),
+            self.params.machinery_clutter.value(),
+            self.params.wall_impedance.value(),
+        );
+        self.post_chain.set_spring_params(
+            self.params.spring_tension.value(),
+            self.params.wire_stiffness.value(),
+            self.params.spring_tank_size.value(),
+        );
+        // Tempo-synced echo delay (P1.6). When sync_rate is engaged and the
+        // host reports a BPM, the sync_rate selects a musical division which
+        // overrides the free-running delay_time knob. Otherwise the knob
+        // value passes through unchanged. The remap inside
+        // `sync_rate_to_delay_time` keeps the echo's existing 0..1 contract.
+        let effective_delay_time = sync_rate_to_delay_time(
+            self.params.sync_rate.value(),
+            host_tempo,
+            self.params.delay_time.value(),
+        );
+        self.post_chain.set_echo_params(
+            effective_delay_time,
+            self.params.machinery_movement.value(),
+            self.params.high_frequency_damping.value(),
+        );
+        self.post_chain.set_clipper_params(
+            self.params.analog_ceiling.value(),
+            self.params.diode_softness.value(),
+        );
+    }
+}
+
 impl Plugin for Corrosion {
     // Plugin metadata constants
     const NAME: &'static str = "Corrosion";
@@ -829,10 +921,11 @@ impl Plugin for Corrosion {
 
     /// Resets all plugin state (called when playback starts/stops).
     ///
-    /// Reinitializes voice manager and post-processing chain to clean state.
+    /// Clears voice and post-processing state in place. Hosts may call this
+    /// on the audio thread, so it must not allocate (review C3).
     fn reset(&mut self) {
-        self.voice_manager = VoiceManager::new();
-        self.post_chain = dsp::PostProcessingChain::new();
+        self.voice_manager.reset();
+        self.post_chain.reset();
         self.drive_smoother = OnePoleSmoother::new(self.params.drive.value());
         self.output_gain_smoother = OnePoleSmoother::new(self.params.output.value());
         self.lookahead_left.reset();
@@ -867,7 +960,7 @@ impl Plugin for Corrosion {
         // version compounded the FactoryReverb comb delays. Host automation is
         // applied at buffer granularity, so per-buffer updates are sufficient.
         let width = self.params.width.value();
-        let body_amount = (self.params.body.value() / 5.0).clamp(0.0, 1.0);
+        let body_amount = body_mix(self.params.body.value());
 
         // Resolve the macro bias once for the whole buffer so per-buffer DSP
         // setters and per-buffer held-note automation see the same numbers.
@@ -904,78 +997,8 @@ impl Plugin for Corrosion {
             self.reported_latency_samples = target_latency;
         }
 
-        self.post_chain.set_sample_rate(sample_rate as f32);
-        let biased_cutoff =
-            (self.params.filter_cutoff.value() * bias.filter_cutoff_factor).clamp(20.0, 20_000.0);
-        self.post_chain.set_filter_params(
-            biased_cutoff,
-            self.params.filter_resonance.value(),
-            self.params.component_tolerance.value(),
-        );
-        self.post_chain.set_drive_params(
-            (self.params.drive_amount.value() + bias.drive_amount_offset).clamp(0.0, 1.0),
-            self.params.bias_starvation.value(),
-            (self.params.chaos_depth.value() + bias.chaos_depth_offset).clamp(0.0, 1.0),
-        );
-        self.post_chain.set_body_params(
-            self.params.chassis_material.value(),
-            self.params.chassis_volume.value().max(body_amount),
-        );
-        self.post_chain.set_spread_params(
-            self.params.spread_width.value(),
-            self.params.listener_proximity.value(),
-        );
-
-        // Map space mode integer to enum
-        let space_mode = match self.params.space_mode.value() {
-            0 => dsp::SpaceMode::Off,
-            1 => dsp::SpaceMode::Factory,
-            2 => dsp::SpaceMode::Spring,
-            3 => dsp::SpaceMode::Echo,
-            _ => dsp::SpaceMode::Off,
-        };
-        self.post_chain.set_space_mode(space_mode);
-
-        let post_quality = match self.params.quality_mode.value() {
-            0 => dsp::PostQualityMode::Eco,
-            1 => dsp::PostQualityMode::Normal,
-            2 => dsp::PostQualityMode::High,
-            3 => dsp::PostQualityMode::Render,
-            _ => dsp::PostQualityMode::Normal,
-        };
-        self.post_chain.set_quality_mode(post_quality);
-        self.post_chain
-            .set_space_amount(self.params.space_amount.value());
-        self.post_chain.set_factory_params(
-            self.params.factory_size.value(),
-            self.params.machinery_clutter.value(),
-            self.params.wall_impedance.value(),
-        );
-        self.post_chain.set_spring_params(
-            self.params.spring_tension.value(),
-            self.params.wire_stiffness.value(),
-            self.params.spring_tank_size.value(),
-        );
-        // Tempo-synced echo delay (P1.6). When sync_rate is engaged and the
-        // host reports a BPM, the sync_rate selects a musical division which
-        // overrides the free-running delay_time knob. Otherwise the knob
-        // value passes through unchanged. The remap inside
-        // `sync_rate_to_delay_time` keeps the echo's existing 0..1 contract.
         let host_tempo = context.transport().tempo.map(|t| t as f32);
-        let effective_delay_time = sync_rate_to_delay_time(
-            self.params.sync_rate.value(),
-            host_tempo,
-            self.params.delay_time.value(),
-        );
-        self.post_chain.set_echo_params(
-            effective_delay_time,
-            self.params.machinery_movement.value(),
-            self.params.high_frequency_damping.value(),
-        );
-        self.post_chain.set_clipper_params(
-            self.params.analog_ceiling.value(),
-            self.params.diode_softness.value(),
-        );
+        self.apply_post_chain_params(sample_rate, host_tempo, &bias, body_amount);
 
         // Push subset of controls into still-held voices so sustaining notes
         // respond to damping / brightness / strike-position automation. Drive
@@ -1076,6 +1099,99 @@ mod tests {
     use nih_plug::prelude::NoteEvent;
     use std::sync::Arc;
 
+    /// C3 follow-up: `Plugin::reset` with notes ringing through Echo and
+    /// Spring must not allocate (checked in debug builds, where the checking
+    /// allocator is installed) and must leave the whole chain silent.
+    #[test]
+    fn body_maps_to_a_zero_to_one_mix() {
+        assert_eq!(super::body_mix(0.0), 0.0);
+        assert!((super::body_mix(2.62) - 0.524).abs() < 1e-6);
+        assert_eq!(super::body_mix(5.0), 1.0);
+        assert_eq!(super::body_mix(7.0), 1.0);
+        assert_eq!(super::body_mix(-1.0), 0.0);
+    }
+
+    #[test]
+    fn plugin_reset_with_sounding_space_is_alloc_free_and_silent() {
+        use nih_plug::prelude::Plugin;
+        for file in ["hanging_chain_echo", "spring_reverb_tap"] {
+            let path = format!(
+                "{}/presets/factory/{file}.corrosion-preset",
+                env!("CARGO_MANIFEST_DIR")
+            );
+            let preset = crate::presets::Preset::load(std::path::Path::new(&path)).unwrap();
+            let mut plugin = Corrosion {
+                params: Arc::new(preset.into_params()),
+                ..Corrosion::default()
+            };
+            let params = plugin.params.clone();
+            let bias = super::resolve_macro_bias(&params);
+            let body_amount = super::body_mix(params.body.value());
+            let width = params.width.value();
+            plugin.apply_post_chain_params(48_000, None, &bias, body_amount);
+            for note in [48, 55, 60, 67] {
+                handle_note_event(
+                    &mut plugin,
+                    NoteEvent::NoteOn {
+                        timing: 0,
+                        voice_id: None,
+                        channel: 0,
+                        note,
+                        velocity: 1.0,
+                    },
+                );
+            }
+            let render = |plugin: &mut Corrosion| {
+                let (l, r) = plugin.voice_manager.process_sample_stereo(48_000, width);
+                plugin.post_chain.process(l, r)
+            };
+            let mut loudest = 0.0_f32;
+            for _ in 0..24_000 {
+                let (l, r) = render(&mut plugin);
+                loudest = loudest.max(l.abs()).max(r.abs());
+            }
+            assert!(loudest > 0.01, "{file}: nothing sounding before reset");
+
+            assert_no_alloc::assert_no_alloc(|| plugin.reset());
+            plugin.apply_post_chain_params(48_000, None, &bias, body_amount);
+            for i in 0..48_000 {
+                let (l, r) = render(&mut plugin);
+                assert!(
+                    l == 0.0 && r == 0.0,
+                    "{file}: sample {i} after reset = ({l}, {r})"
+                );
+            }
+        }
+    }
+
+    /// C5: with BODY at 0, Chassis Volume must not bring the body back in
+    /// (it used to win a `max()` against BODY).
+    #[test]
+    fn chassis_volume_does_not_override_body_zero() {
+        let render = |chassis_volume: f32| {
+            let mut params = crate::params::CorrosionParams::default();
+            params.body = crate::params::float_param_for_test("Body", 0.0, 0.0, 5.0);
+            params.chassis_volume =
+                crate::params::float_param_for_test("Chassis Volume", chassis_volume, 0.0, 1.0);
+            let mut plugin = Corrosion {
+                params: Arc::new(params),
+                ..Corrosion::default()
+            };
+            let bias = super::resolve_macro_bias(&plugin.params);
+            plugin.apply_post_chain_params(48_000, None, &bias, 0.0);
+            (0..4_800)
+                .map(|i| {
+                    let x = 0.1 * (i as f32 * 0.03).sin();
+                    plugin.post_chain.process(x, x).0
+                })
+                .collect::<Vec<_>>()
+        };
+        let reference = render(0.0);
+        for volume in [0.5, 1.0] {
+            assert_eq!(render(volume), reference, "chassis volume {volume}");
+        }
+    }
+
     /// Tests that multiple note events are processed correctly across a buffer.
     ///
     /// Verifies sample-accurate event timing and energy accumulation.
@@ -1165,6 +1281,11 @@ mod tests {
         );
 
         let sample_rate = 48_000u32;
+        // Same parameter → post-chain wiring as `process()` (space mode is
+        // already Off by default).
+        let bias = super::resolve_macro_bias(&plugin.params);
+        let body_amount = super::body_mix(plugin.params.body.value());
+        plugin.apply_post_chain_params(sample_rate, None, &bias, body_amount);
         let mut peak = 0.0f32;
         for _ in 0..4096 {
             let (left_sample, right_sample) = plugin
@@ -1174,34 +1295,6 @@ mod tests {
             let mut left = apply_drive(left_sample, plugin.params.drive.value());
             let mut right = apply_drive(right_sample, plugin.params.drive.value());
 
-            plugin.post_chain.set_sample_rate(sample_rate as f32);
-            plugin.post_chain.set_filter_params(
-                plugin.params.filter_cutoff.value(),
-                plugin.params.filter_resonance.value(),
-                plugin.params.component_tolerance.value(),
-            );
-            plugin.post_chain.set_drive_params(
-                plugin.params.drive_amount.value(),
-                plugin.params.bias_starvation.value(),
-                plugin.params.chaos_depth.value(),
-            );
-            plugin.post_chain.set_body_params(
-                plugin.params.chassis_material.value(),
-                plugin.params.chassis_volume.value(),
-            );
-            plugin.post_chain.set_spread_params(
-                plugin.params.spread_width.value(),
-                plugin.params.listener_proximity.value(),
-            );
-            plugin.post_chain.set_space_mode(crate::dsp::SpaceMode::Off);
-            plugin
-                .post_chain
-                .set_space_amount(plugin.params.space_amount.value());
-            plugin.post_chain.set_clipper_params(
-                plugin.params.analog_ceiling.value(),
-                plugin.params.diode_softness.value(),
-            );
-
             (left, right) = plugin.post_chain.process(left, right);
             left = apply_output_limiter(left * plugin.params.output.value());
             right = apply_output_limiter(right * plugin.params.output.value());
@@ -1209,9 +1302,11 @@ mod tests {
         }
 
         eprintln!("hosted normalized note peak={peak:.6}");
+        // C5 level guard: within ±6 dB of the 0.118 reference measured when
+        // the default BODY (2.62) was chosen to keep the pre-C5 level.
         assert!(
-            peak > 0.01,
-            "hosted note should produce audible output, peak={peak}"
+            (0.059..=0.236).contains(&peak),
+            "default note peak {peak} is more than 6 dB from 0.118"
         );
     }
 
@@ -1540,4 +1635,524 @@ impl Vst3Plugin for Corrosion {
 
 // Export plugin entry points for CLAP and VST3 hosts.
 nih_export_clap!(Corrosion);
-nih_export_vst3!(Corrosion);
+// nih-plug's VST3 export expands `vst3_com::vtable`, which trips the
+// `semicolon_in_expressions_from_non_local_macros` future-incompat lint on
+// newer toolchains (Rust 1.99+). The code is upstream's, so the lint is
+// allowed on a wrapper module (a lint attribute on the macro call itself is
+// ignored). The exported entry point is `#[no_mangle]`, so the module path
+// doesn't change the symbol hosts load.
+#[allow(semicolon_in_expressions_from_non_local_macros)]
+mod vst3_export {
+    use super::Corrosion;
+    use nih_plug::prelude::*;
+
+    nih_export_vst3!(Corrosion);
+}
+
+/// Offline measurement harness for the C5 post-chain re-routing
+/// (OpenSpec change `fix-post-chain-body-routing`). Ignored by default; run
+/// with `cargo test --release --no-default-features --lib c5_preset_measurements -- --ignored --nocapture`.
+#[cfg(test)]
+mod c5_measurements {
+    use super::{apply_drive, handle_note_event, resolve_macro_bias, Corrosion, LIMITER_THRESHOLD};
+    use crate::dsp::{FemBodyResonator, LorenzDrive, WdfLadderFilter};
+    use crate::presets::Preset;
+    use nih_plug::prelude::NoteEvent;
+    use std::sync::Arc;
+
+    const SAMPLE_RATE: u32 = 48_000;
+
+    /// One preset's measurements: post-chain output peak/RMS and limiter hits
+    /// (through the real chain), plus body-vs-dry energies from a replica of
+    /// the pre-C5 mono routing.
+    pub(crate) struct PresetMeasurement {
+        pub name: String,
+        pub peak: f32,
+        pub rms: f32,
+        pub limiter_hits: usize,
+        /// Old routing: E(0.7·body) / E(0.3·dry).
+        pub old_body_to_dry: f32,
+        /// New parallel routing: BODY (0–5) whose body/dry energy ratio
+        /// matches `old_body_to_dry`, before clamping to the BODY range.
+        pub implied_body: f32,
+    }
+
+    pub(crate) fn measure_preset(path: &std::path::Path) -> PresetMeasurement {
+        let preset = Preset::load(path).expect("load preset");
+        let name = preset.name.clone();
+        let mut plugin = Corrosion {
+            params: Arc::new(preset.into_params()),
+            ..Corrosion::default()
+        };
+        let params = plugin.params.clone();
+        let bias = resolve_macro_bias(&params);
+        let body_amount = super::body_mix(params.body.value());
+        plugin.apply_post_chain_params(SAMPLE_RATE, None, &bias, body_amount);
+
+        // Replica of the pre-C5 mono filter → drive → body path.
+        let sr = SAMPLE_RATE as f32;
+        let biased_cutoff =
+            (params.filter_cutoff.value() * bias.filter_cutoff_factor).clamp(20.0, 20_000.0);
+        let mut filter = WdfLadderFilter::new();
+        filter.set_sample_rate(sr);
+        filter.set_parameters(
+            biased_cutoff,
+            params.filter_resonance.value(),
+            params.component_tolerance.value(),
+        );
+        let mut drive = LorenzDrive::new();
+        drive.set_sample_rate(sr);
+        drive.set_parameters(
+            (params.drive_amount.value() + bias.drive_amount_offset).clamp(0.0, 1.0),
+            params.bias_starvation.value(),
+            (params.chaos_depth.value() + bias.chaos_depth_offset).clamp(0.0, 1.0),
+        );
+        let mut body = FemBodyResonator::new();
+        body.set_sample_rate(sr);
+        body.set_parameters(
+            params.chassis_material.value(),
+            params.chassis_volume.value().max(body_amount),
+        );
+        // Old body output carried a (0.5 + 0.5·volume) gain the new routing drops.
+        let old_body_gain = 0.5 + 0.5 * params.chassis_volume.value().max(body_amount);
+
+        handle_note_event(
+            &mut plugin,
+            NoteEvent::NoteOn {
+                timing: 0,
+                voice_id: None,
+                channel: 0,
+                note: 60,
+                velocity: 1.0,
+            },
+        );
+
+        let master_drive = (params.drive.value() + bias.drive_offset).clamp(0.0, 5.0);
+        let width = params.width.value();
+        let output = params.output.value();
+        let total = SAMPLE_RATE as usize * 2;
+        let (mut peak, mut sum_sq, mut hits) = (0.0_f32, 0.0_f64, 0usize);
+        let (mut e_dry, mut e_old_body, mut e_driven, mut e_new_body) =
+            (0.0_f64, 0.0_f64, 0.0_f64, 0.0_f64);
+        for i in 0..total {
+            if i == total / 2 {
+                handle_note_event(
+                    &mut plugin,
+                    NoteEvent::NoteOff {
+                        timing: 0,
+                        voice_id: None,
+                        channel: 0,
+                        note: 60,
+                        velocity: 0.0,
+                    },
+                );
+            }
+            let (l, r) = plugin
+                .voice_manager
+                .process_sample_stereo(SAMPLE_RATE, width);
+            let l = apply_drive(l, master_drive);
+            let r = apply_drive(r, master_drive);
+
+            let mono = (l + r) * 0.5;
+            let driven = drive.process(filter.process(mono));
+            let bodied = body.process(driven);
+            e_dry += 0.09 * ((l * l + r * r) as f64);
+            e_old_body += 0.49 * 2.0 * (bodied * bodied) as f64;
+            e_driven += 2.0 * (driven * driven) as f64;
+            let unity_body = bodied / old_body_gain;
+            e_new_body += 2.0 * (unity_body * unity_body) as f64;
+
+            let (pl, pr) = plugin.post_chain.process(l, r);
+            for x in [pl * output, pr * output] {
+                if x.abs() > LIMITER_THRESHOLD {
+                    hits += 1;
+                }
+                let x = x.clamp(-LIMITER_THRESHOLD, LIMITER_THRESHOLD);
+                peak = peak.max(x.abs());
+                sum_sq += (x * x) as f64;
+            }
+        }
+        let old_body_to_dry = (e_old_body / e_dry.max(1e-30)) as f32;
+        // amount² · E(new body) / E(driven) = old ratio → BODY = 5 · amount.
+        let amount = ((old_body_to_dry as f64) * e_driven / e_new_body.max(1e-30)).sqrt();
+        PresetMeasurement {
+            name,
+            peak,
+            rms: (sum_sq / (2 * total) as f64).sqrt() as f32,
+            limiter_hits: hits,
+            old_body_to_dry,
+            implied_body: (5.0 * amount) as f32,
+        }
+    }
+
+    /// Render one preset through the current chain with BODY forced to
+    /// `body_amount` (0–1), the same note pattern as `measure_preset`.
+    /// Returns (peak, rms, limiter hits).
+    pub(crate) fn render_preset(
+        path: &std::path::Path,
+        body_amount: f32,
+        output_scale: f32,
+    ) -> (f32, f32, usize) {
+        frame_stats(&render_preset_frames(path, body_amount, output_scale))
+    }
+
+    /// (peak, rms, limiter hits) of rendered frames, after the hard limiter.
+    fn frame_stats(frames: &[(f32, f32)]) -> (f32, f32, usize) {
+        let (mut peak, mut sum_sq, mut hits) = (0.0_f32, 0.0_f64, 0usize);
+        for x in frames.iter().flat_map(|&(l, r)| [l, r]) {
+            if x.abs() > LIMITER_THRESHOLD {
+                hits += 1;
+            }
+            let x = x.clamp(-LIMITER_THRESHOLD, LIMITER_THRESHOLD);
+            peak = peak.max(x.abs());
+            sum_sq += (x * x) as f64;
+        }
+        (
+            peak,
+            (sum_sq / (2 * frames.len()) as f64).sqrt() as f32,
+            hits,
+        )
+    }
+
+    /// The stereo output frames (after `output`, before the limiter) of the
+    /// note pattern `render_preset` measures: note on, note off at 1 s, 2 s total.
+    pub(crate) fn render_preset_frames(
+        path: &std::path::Path,
+        body_amount: f32,
+        output_scale: f32,
+    ) -> Vec<(f32, f32)> {
+        render_frames(
+            Preset::load(path).expect("load preset"),
+            body_amount,
+            output_scale,
+        )
+    }
+
+    fn render_frames(preset: Preset, body_amount: f32, output_scale: f32) -> Vec<(f32, f32)> {
+        let mut plugin = Corrosion {
+            params: Arc::new(preset.into_params()),
+            ..Corrosion::default()
+        };
+        let params = plugin.params.clone();
+        let bias = resolve_macro_bias(&params);
+        plugin.apply_post_chain_params(SAMPLE_RATE, None, &bias, body_amount);
+        handle_note_event(
+            &mut plugin,
+            NoteEvent::NoteOn {
+                timing: 0,
+                voice_id: None,
+                channel: 0,
+                note: 60,
+                velocity: 1.0,
+            },
+        );
+        let master_drive = (params.drive.value() + bias.drive_offset).clamp(0.0, 5.0);
+        let (width, output) = (params.width.value(), params.output.value() * output_scale);
+        let total = SAMPLE_RATE as usize * 2;
+        (0..total)
+            .map(|i| {
+                if i == total / 2 {
+                    handle_note_event(
+                        &mut plugin,
+                        NoteEvent::NoteOff {
+                            timing: 0,
+                            voice_id: None,
+                            channel: 0,
+                            note: 60,
+                            velocity: 0.0,
+                        },
+                    );
+                }
+                let (l, r) = plugin
+                    .voice_manager
+                    .process_sample_stereo(SAMPLE_RATE, width);
+                let (pl, pr) = plugin
+                    .post_chain
+                    .process(apply_drive(l, master_drive), apply_drive(r, master_drive));
+                (pl * output, pr * output)
+            })
+            .collect()
+    }
+
+    /// Baseline (pre-C5) (RMS, limiter hits) per preset name, from
+    /// `tests/fixtures/c5_preset_baseline.md`.
+    fn baseline() -> std::collections::HashMap<String, (f32, usize)> {
+        include_str!("../tests/fixtures/c5_preset_baseline.md")
+            .lines()
+            .filter(|l| l.starts_with("| ") && !l.starts_with("| preset"))
+            .filter_map(|l| {
+                let cols: Vec<&str> = l.split('|').map(str::trim).collect();
+                Some((
+                    cols[1].to_string(),
+                    (cols[3].parse().ok()?, cols[4].parse().ok()?),
+                ))
+            })
+            .collect()
+    }
+
+    /// Per preset: the BODY amount (0–1) whose output RMS matches the
+    /// pre-C5 baseline, by bisection (RMS rises with BODY).
+    #[test]
+    #[ignore]
+    fn c5_loudness_matched_body() {
+        let baseline = baseline();
+        println!(
+            "| preset | baseline rms | BODY 0 rms | matched BODY | rms | peak | limiter hits |"
+        );
+        println!("|---|---|---|---|---|---|---|");
+        for path in factory_preset_paths() {
+            let name = Preset::load(&path).unwrap().name;
+            let target = baseline[&name].0;
+            let (_, rms0, _) = render_preset(&path, 0.0, 1.0);
+            let amount = if rms0 >= target {
+                0.0
+            } else if render_preset(&path, 1.0, 1.0).1 <= target {
+                1.0
+            } else {
+                let (mut lo, mut hi) = (0.0_f32, 1.0_f32);
+                for _ in 0..14 {
+                    let mid = 0.5 * (lo + hi);
+                    if render_preset(&path, mid, 1.0).1 < target {
+                        lo = mid;
+                    } else {
+                        hi = mid;
+                    }
+                }
+                0.5 * (lo + hi)
+            };
+            let (peak, rms, hits) = render_preset(&path, amount, 1.0);
+            println!(
+                "| {name} | {target:.5} | {rms0:.5} | {:.2} | {rms:.5} | {peak:.4} | {hits} |",
+                amount * 5.0
+            );
+        }
+    }
+
+    /// Per preset: (BODY 0–5, output scale) re-voicing for the C5 routing.
+    /// BODY is bisected so output RMS matches the pre-C5 baseline; if the
+    /// preset is already louder at BODY 0, BODY stays 0 and output is trimmed
+    /// to the baseline RMS. Output is then trimmed in 5 % steps until limiter
+    /// hits are no more than the baseline count. Prints the seeder table.
+    #[test]
+    #[ignore]
+    fn c5_revoice_table() {
+        let baseline = baseline();
+        println!("REVOICE // (name, body, output, rms, baseline rms, peak, hits, baseline hits)");
+        for path in factory_preset_paths() {
+            let name = Preset::load(&path).unwrap().name;
+            let (target, old_hits) = baseline[&name];
+            let (_, rms0, _) = render_preset(&path, 0.0, 1.0);
+            let (amount, mut out) = if rms0 >= target {
+                (0.0, target / rms0)
+            } else if render_preset(&path, 1.0, 1.0).1 <= target {
+                (1.0, 1.0)
+            } else {
+                let (mut lo, mut hi) = (0.0_f32, 1.0_f32);
+                for _ in 0..14 {
+                    let mid = 0.5 * (lo + hi);
+                    if render_preset(&path, mid, 1.0).1 < target {
+                        lo = mid;
+                    } else {
+                        hi = mid;
+                    }
+                }
+                (0.5 * (lo + hi), 1.0)
+            };
+            let mut result = render_preset(&path, amount, out);
+            let mut steps = 0;
+            while result.2 > old_hits && steps < 60 {
+                out *= 0.95;
+                result = render_preset(&path, amount, out);
+                steps += 1;
+            }
+            let body = (amount * 5.0 * 100.0).round() / 100.0;
+            let out = (out * 1000.0).round() / 1000.0;
+            println!(
+                "REVOICE (\"{name}\", {body:.2}, {out:.3}), // rms {:.5} (baseline {target:.5}), peak {:.4}, hits {} (baseline {old_hits})",
+                result.1, result.0, result.2
+            );
+        }
+    }
+
+    /// The default patch: BODY whose default-note peak (the
+    /// `hosted_normalized_note_velocity_reaches_output_chain` setup: note 60,
+    /// velocity 1, 4096 samples) matches the pre-C5 peak of 0.118.
+    #[test]
+    #[ignore]
+    fn c5_default_body() {
+        let peak_at = |amount: f32| {
+            let mut plugin = Corrosion::default();
+            let params = plugin.params.clone();
+            let bias = resolve_macro_bias(&params);
+            plugin.apply_post_chain_params(SAMPLE_RATE, None, &bias, amount);
+            handle_note_event(
+                &mut plugin,
+                NoteEvent::NoteOn {
+                    timing: 0,
+                    voice_id: None,
+                    channel: 0,
+                    note: 60,
+                    velocity: 1.0,
+                },
+            );
+            let md = (params.drive.value() + bias.drive_offset).clamp(0.0, 5.0);
+            (0..4_096)
+                .map(|_| {
+                    let (l, r) = plugin
+                        .voice_manager
+                        .process_sample_stereo(SAMPLE_RATE, params.width.value());
+                    let (pl, pr) = plugin
+                        .post_chain
+                        .process(apply_drive(l, md), apply_drive(r, md));
+                    pl.abs().max(pr.abs())
+                })
+                .fold(0.0_f32, f32::max)
+        };
+        let (mut lo, mut hi) = (0.0_f32, 1.0_f32);
+        for _ in 0..16 {
+            let mid = 0.5 * (lo + hi);
+            if peak_at(mid) < 0.118 {
+                lo = mid;
+            } else {
+                hi = mid;
+            }
+        }
+        let amount = 0.5 * (lo + hi);
+        println!(
+            "DEFAULT body {:.2} → peak {:.4} (BODY 0 peak {:.4}, BODY 5 peak {:.4})",
+            amount * 5.0,
+            peak_at(amount),
+            peak_at(0.0),
+            peak_at(1.0)
+        );
+    }
+
+    /// Each factory preset, rendered with its own stored BODY and output,
+    /// stays within 0.5 dB of its pre-C5 RMS and hits the limiter no more
+    /// often than before.
+    #[test]
+    #[ignore]
+    fn c5_verify_revoiced_presets() {
+        let baseline = baseline();
+        for path in factory_preset_paths() {
+            let preset = Preset::load(&path).unwrap();
+            let (name, amount) = (preset.name.clone(), preset.body / 5.0);
+            let (target, old_hits) = baseline[&name];
+            let (peak, rms, hits) = render_preset(&path, amount, 1.0);
+            let diff_db = 20.0 * (rms / target).log10();
+            println!("VERIFY {name}: rms {rms:.5} ({diff_db:+.2} dB), peak {peak:.4}, hits {hits} (was {old_hits})");
+            assert!(
+                diff_db.abs() <= 0.5,
+                "{name}: {diff_db:+.2} dB from baseline"
+            );
+            assert!(
+                hits <= old_hits,
+                "{name}: {hits} limiter hits, baseline {old_hits}"
+            );
+        }
+    }
+
+    pub(crate) fn factory_preset_paths() -> Vec<std::path::PathBuf> {
+        let dir = concat!(env!("CARGO_MANIFEST_DIR"), "/presets/factory");
+        let mut paths: Vec<_> = std::fs::read_dir(dir)
+            .expect("read presets/factory")
+            .map(|e| e.expect("dir entry").path())
+            .filter(|p| p.extension().is_some_and(|e| e == "corrosion-preset"))
+            .collect();
+        paths.sort();
+        paths
+    }
+
+    #[test]
+    #[ignore]
+    fn c5_preset_measurements() {
+        println!("| preset | peak | rms | limiter hits | old body/dry | implied BODY |");
+        println!("|---|---|---|---|---|---|");
+        for path in factory_preset_paths() {
+            let m = measure_preset(&path);
+            println!(
+                "| {} | {:.4} | {:.5} | {} | {:.3} | {:.2} |",
+                m.name, m.peak, m.rms, m.limiter_hits, m.old_body_to_dry, m.implied_body
+            );
+        }
+    }
+
+    /// C6 audition numbers for the factory presets that use Space = Spring:
+    /// level, and for the spring's own contribution (render minus the same
+    /// render with space amount 0) its L/R balance and correlation and its
+    /// share of the output, plus the spring's first-echo delay.
+    #[test]
+    #[ignore]
+    fn c6_spring_preset_measurements() {
+        let spring_presets: Vec<_> = factory_preset_paths()
+            .into_iter()
+            .filter(|p| Preset::load(p).unwrap().into_params().space_mode.value() == 2)
+            .collect();
+        assert_eq!(spring_presets.len(), 2, "expected two Spring presets");
+        println!("| preset | peak | rms | limiter hits | spring/output (dB) | spring side/mid (dB) | spring L/R corr | first echo (ms) |");
+        println!("|---|---|---|---|---|---|---|---|");
+        for path in spring_presets {
+            let preset = Preset::load(&path).unwrap();
+            let amount = preset.body / 5.0;
+            let frames = render_preset_frames(&path, amount, 1.0);
+            let (peak, rms, hits) = frame_stats(&frames);
+            let mut dry_preset = Preset::load(&path).unwrap();
+            dry_preset.extra.space_amount = 0.0;
+            let dry = render_frames(dry_preset, amount, 1.0);
+            let wet: Vec<(f32, f32)> = frames
+                .iter()
+                .zip(&dry)
+                .map(|(&(l, r), &(dl, dr))| (l - dl, r - dr))
+                .collect();
+            let energy = |xs: &[(f32, f32)]| -> f64 {
+                xs.iter().map(|&(l, r)| (l * l + r * r) as f64).sum()
+            };
+            let spring_share_db = 10.0 * (energy(&wet) / energy(&frames).max(1e-30)).log10();
+
+            let (mut e_mid, mut e_side, mut lr, mut ll, mut rr) = (0.0f64, 0.0, 0.0, 0.0, 0.0);
+            for &(l, r) in &wet {
+                let (l, r) = (l as f64, r as f64);
+                e_mid += (0.5 * (l + r)).powi(2);
+                e_side += (0.5 * (l - r)).powi(2);
+                lr += l * r;
+                ll += l * l;
+                rr += r * r;
+            }
+            let side_mid_db = 10.0 * (e_side / e_mid.max(1e-30)).log10();
+            let corr = lr / (ll * rr).sqrt().max(1e-30);
+
+            // First-echo delay: an impulse through this preset's post chain,
+            // with the spring on minus off. The two are identical until the
+            // spring's first echo returns.
+            let impulse_mid = |space_amount: f32| -> Vec<f32> {
+                let mut p = Preset::load(&path).unwrap();
+                p.extra.space_amount = space_amount;
+                let mut plugin = Corrosion {
+                    params: Arc::new(p.into_params()),
+                    ..Corrosion::default()
+                };
+                let params = plugin.params.clone();
+                let bias = resolve_macro_bias(&params);
+                plugin.apply_post_chain_params(SAMPLE_RATE, None, &bias, amount);
+                (0..SAMPLE_RATE as usize / 4)
+                    .map(|i| {
+                        let x = if i == 0 { 0.1 } else { 0.0 };
+                        let (l, r) = plugin.post_chain.process(x, x);
+                        0.5 * (l + r)
+                    })
+                    .collect()
+            };
+            let space_amount = preset.extra.space_amount;
+            let first_echo = impulse_mid(space_amount)
+                .iter()
+                .zip(&impulse_mid(0.0))
+                .position(|(a, b)| a != b)
+                .expect("spring never echoed");
+            let echo_ms = first_echo as f32 * 1_000.0 / SAMPLE_RATE as f32;
+            println!(
+                "| {} | {peak:.4} | {rms:.5} | {hits} | {spring_share_db:.1} | {side_mid_db:.1} | {corr:.3} | {echo_ms:.1} |",
+                preset.name
+            );
+        }
+    }
+}

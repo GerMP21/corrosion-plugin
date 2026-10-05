@@ -60,6 +60,28 @@ impl VoiceManager {
         }
     }
 
+    /// MIDI notes of the active (held or tailing) voices, in slot order.
+    /// Allocation-free.
+    pub fn active_notes(&self) -> impl Iterator<Item = u8> + '_ {
+        self.voices
+            .iter()
+            .filter(|voice| voice.is_active())
+            .map(|voice| voice.note())
+    }
+
+    /// Silence every voice and clear channel expression in place, leaving
+    /// the manager as `new()` would for playback purposes but without
+    /// allocating, so the host may call it from the audio thread.
+    pub fn reset(&mut self) {
+        for voice in &mut self.voices {
+            voice.reset();
+        }
+        self.frame_counter = 0;
+        self.pitch_bend_semitones = 0.0;
+        self.channel_pressure = 0.0;
+        self.mod_wheel = 0.0;
+    }
+
     /// Trigger a note using default voice controls.
     ///
     /// This is the simple wrapper used when the caller does not need

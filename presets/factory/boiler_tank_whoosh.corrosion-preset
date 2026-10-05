@@ -9,7 +9,7 @@
   "drive": 0.0,
   "output": 1.0,
   "width": 0.5,
-  "body": 1.0,
+  "body": 0.49,
   "quality_mode": 1,
   "play_mode": 2,
   "extra": {

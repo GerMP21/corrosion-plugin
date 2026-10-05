@@ -134,6 +134,22 @@ impl BidirectionalInteractionBus {
         }
     }
 
+    /// Create an empty bus whose coefficient buffer can hold `mode_capacity`
+    /// modes without reallocating.
+    pub fn with_capacity(mode_capacity: usize) -> Self {
+        Self {
+            state: InteractionState::new(),
+            mode_coefficients: Vec::with_capacity(mode_capacity),
+        }
+    }
+
+    /// Return to the freshly-created state for `mode_count` modes, reusing
+    /// the coefficient buffer (allocation-free within its capacity).
+    pub fn reset(&mut self, mode_count: usize) {
+        self.state = InteractionState::new();
+        self.initialize(mode_count);
+    }
+
     /// Initialize buffers for the requested mode count.
     pub fn initialize(&mut self, mode_count: usize) {
         self.mode_coefficients.resize(mode_count, 0.0);

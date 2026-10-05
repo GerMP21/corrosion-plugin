@@ -46,25 +46,24 @@ impl Default for SheetMetalResonator {
 }
 
 impl ResonatorAlgorithm for SheetMetalResonator {
-    fn generate_modes(
+    fn generate_modes_into(
         &self,
         fundamental_hz: f32,
         mode_count: usize,
         size_scale: crate::dsp::SizeScale,
-    ) -> Vec<ModalModeSpec> {
+        out: &mut Vec<ModalModeSpec>,
+    ) {
         let base = fundamental_hz / (size_scale.factor() * self.sheet_size);
 
-        (1..=mode_count)
-            .map(|n| {
-                let nf = n as f32;
-                let freq = base * (nf * nf);
-                let warp_factor = 1.0 + self.metal_thinness * 0.2;
-                let decay = (2.0 - self.edge_damping) * (1.0 + nf / mode_count as f32);
-                let gain = 0.03 / nf;
+        out.extend((1..=mode_count).map(|n| {
+            let nf = n as f32;
+            let freq = base * (nf * nf);
+            let warp_factor = 1.0 + self.metal_thinness * 0.2;
+            let decay = (2.0 - self.edge_damping) * (1.0 + nf / mode_count as f32);
+            let gain = 0.03 / nf;
 
-                ModalModeSpec::new(freq * warp_factor, decay, gain)
-            })
-            .collect()
+            ModalModeSpec::new(freq * warp_factor, decay, gain)
+        }));
     }
 
     /// Dynamic buckling: frequencies wobble based on LF displacement

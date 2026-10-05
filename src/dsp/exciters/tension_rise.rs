@@ -99,7 +99,7 @@ impl TensionRise {
     }
 
     fn pseudo_random(&mut self) -> f32 {
-        self.rng_phase += 1.618_034;
+        self.rng_phase += crate::dsp::utils::GOLDEN_STEP;
         ((self.rng_phase.sin() * 43_758.547).fract()).abs()
     }
 }

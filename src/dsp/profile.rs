@@ -112,15 +112,20 @@ impl ModalModeSpec {
         }
     }
 
+    /// Split a mode into its damaged primary and a detuned companion.
+    ///
+    /// Yields one mode (unchanged) at zero damage and two otherwise. Returned
+    /// as a fixed-size iterator rather than a `Vec` so note-on can build the
+    /// modal bank without allocating on the audio thread (review C3).
     pub fn damaged(
         self,
         damage_amount: crate::dsp::DamageAmount,
         mode_index: usize,
         mode_count: usize,
-    ) -> Vec<Self> {
+    ) -> std::iter::Take<std::array::IntoIter<Self, 2>> {
         let damage = damage_amount.amount();
         if damage <= 0.0 {
-            return vec![self];
+            return [self, self].into_iter().take(1);
         }
 
         let mode_position = if mode_count <= 1 {
@@ -155,7 +160,7 @@ impl ModalModeSpec {
             gain: companion_gain.max(f32::EPSILON),
         };
 
-        vec![primary, companion]
+        [primary, companion].into_iter().take(2)
     }
 
     pub fn retuned(self, pitch_scale: f32) -> Self {
@@ -197,7 +202,7 @@ pub struct ModalProfile {
 }
 
 impl ModalProfile {
-    pub fn from_id(id: ModalProfileId) -> Self {
+    pub const fn from_id(id: ModalProfileId) -> Self {
         match id {
             ModalProfileId::Pipe => pipe::pipe(),
             ModalProfileId::Plate => plate::plate(),
@@ -247,7 +252,7 @@ impl ModalProfile {
         industrial_cog::industrial_cog()
     }
 
-    pub fn mode_count(&self) -> usize {
+    pub const fn mode_count(&self) -> usize {
         self.modes.len()
     }
 
@@ -405,7 +410,10 @@ mod tests {
     #[test]
     fn damaged_expands_and_preserves_finite() {
         let mode = ModalModeSpec::new(440.0, 1.0, 0.01);
-        let damaged = mode.damaged(crate::dsp::DamageAmount::new(0.5), 1, 3);
+        let damaged: Vec<_> = mode
+            .damaged(crate::dsp::DamageAmount::new(0.5), 1, 3)
+            .collect();
+        assert_eq!(damaged.len(), 2, "damage should add a companion mode");
         assert!(
             !damaged.is_empty(),
             "damaged() should return at least the primary mode"
@@ -423,7 +431,9 @@ mod tests {
     #[test]
     fn damaged_with_zero_returns_single_mode() {
         let mode = ModalModeSpec::new(440.0, 1.0, 0.01);
-        let damaged = mode.damaged(crate::dsp::DamageAmount::new(0.0), 1, 3);
+        let damaged: Vec<_> = mode
+            .damaged(crate::dsp::DamageAmount::new(0.0), 1, 3)
+            .collect();
         assert_eq!(damaged.len(), 1);
         assert_eq!(damaged[0].frequency_hz, mode.frequency_hz);
         assert_eq!(damaged[0].decay_seconds, mode.decay_seconds);

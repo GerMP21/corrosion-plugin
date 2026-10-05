@@ -146,8 +146,11 @@ pub struct CorrosionParams {
     #[id = "width"]
     pub width: FloatParam,
 
-    /// Body resonance amount (0.0 to 5.0)
-    /// Physical cabinet/body resonance simulation
+    /// Body resonance amount (0.0 to 5.0).
+    ///
+    /// Mix level of the chassis body resonance, added in parallel to the
+    /// filtered/driven signal: 0 is no body, 5 is the full body level
+    /// (`body / 5` in the post chain).
     #[id = "body"]
     pub body: FloatParam,
 
@@ -208,19 +211,31 @@ pub struct CorrosionParams {
     #[id = "env_amount"]
     pub env_amount: FloatParam,
 
-    /// Velocity to peak amount - how much velocity affects envelope peak (0.0 to 1.0)
+    /// Friction envelope peak level (0.0 to 1.0): peak = 0.5 + 0.5·value.
+    /// Despite the id it does not read velocity; velocity scales the whole
+    /// envelope via velocity-to-level.
     #[id = "velocity_to_peak"]
     pub velocity_to_peak: FloatParam,
 
-    /// Loop mode for MSEG (0=Off, 1=Forward, 2=PingPong)
+    /// Loop mode for MSEG (0=Off, 1=Forward, 2=PingPong).
+    ///
+    /// PingPong is partial: it ignores the start/end stages and always loops
+    /// Decay → Sustain, like Forward 3 → 4.
     #[id = "loop_mode"]
     pub loop_mode: IntParam,
 
-    /// Loop start stage (0-5, default 3=Decay)
+    /// Loop start stage (0-5, default 3=Decay).
+    ///
+    /// Stages: 0 Onset, 1 Attack, 2 Hold, 3 Decay, 4 Sustain, 5 Release.
+    /// Onset and Release are never looped, so 0 acts as 1 and 5 as 4. With
+    /// Forward looping and the note held, reaching the end stage restarts the
+    /// start stage; if start ≥ end the loop is empty and the envelope holds
+    /// sustain as if looping were off.
     #[id = "loop_start_stage"]
     pub loop_start_stage: IntParam,
 
-    /// Loop end stage (0-5, default 4=Sustain)
+    /// Loop end stage (0-5, default 4=Sustain); 0 acts as 1 and 5 as 4.
+    /// See `loop_start_stage` for how the loop region is applied.
     #[id = "loop_end_stage"]
     pub loop_end_stage: IntParam,
 
@@ -672,8 +687,12 @@ pub struct CorrosionParams {
     #[id = "chassis_material"]
     pub chassis_material: FloatParam,
 
-    /// Chassis volume (0.0 to 1.0)
-    /// Body resonance intensity
+    /// Chassis volume (0.0 to 1.0).
+    ///
+    /// Size of the chassis body: larger volumes move its resonances lower.
+    /// It applies no gain of its own (BODY sets the body's mix level), but
+    /// lower modes ring with more resonant gain, so at the same BODY a larger
+    /// chassis sounds somewhat louder.
     #[id = "chassis_volume"]
     pub chassis_volume: FloatParam,
 
@@ -971,9 +990,13 @@ pub fn exciter_model_items() -> &'static [(i32, &'static str)] {
 
 /// Quality mode enumeration for CPU/quality tradeoff.
 ///
-/// - **Eco**: Reduced oversampling, simplified space processing
+/// Every mode runs the full post chain; modes change only the clipper's
+/// oversampling (1×/4×/8×/16×) and the per-voice modal density
+/// (0.5×/1×/1.5×/2× the object's base mode count).
+///
+/// - **Eco**: No oversampling, half modal density
 /// - **Normal**: Balanced quality (default, matches pre-quality-mode behavior)
-/// - **High**: Full quality with richer spatial processing
+/// - **High**: 8× oversampling, 1.5× modal density
 /// - **Render**: Maximum quality, may be too expensive for live use
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "PascalCase")]
@@ -1310,7 +1333,9 @@ impl Default for CorrosionParams {
                     max: 3.0,
                 },
             ),
-            body: FloatParam::new("Body", 0.0, FloatRange::Linear { min: 0.0, max: 5.0 }),
+            // 2.62 reproduces the pre-C5 default-note level (peak 0.118) with
+            // the parallel body routing; see `c5_measurements::c5_default_body`.
+            body: FloatParam::new("Body", 2.62, FloatRange::Linear { min: 0.0, max: 5.0 }),
 
             // UI scale (percentage display)
             ui_scale: IntParam::new("UI Scale", 2, IntRange::Linear { min: 0, max: 4 })

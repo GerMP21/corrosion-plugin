@@ -42,15 +42,14 @@ impl Default for IndustrialCogResonator {
 }
 
 impl ResonatorAlgorithm for IndustrialCogResonator {
-    fn generate_modes(
+    fn generate_modes_into(
         &self,
         fundamental_hz: f32,
         mode_count: usize,
         size_scale: crate::dsp::SizeScale,
-    ) -> Vec<ModalModeSpec> {
+        out: &mut Vec<ModalModeSpec>,
+    ) {
         let scale = fundamental_hz / (size_scale.factor() * (0.5 + self.blade_radius));
-        let mut modes = Vec::with_capacity(mode_count * 2);
-
         for (i, &root) in Self::BESSEL_ROOTS
             .iter()
             .take(mode_count.min(6))
@@ -63,14 +62,12 @@ impl ResonatorAlgorithm for IndustrialCogResonator {
             let gain = 0.015 / ((i + 1) as f32);
 
             // Mode splitting creates metallic beating
-            modes.push(ModalModeSpec::new(base_freq * (1.0 - epsilon), decay, gain));
-            modes.push(ModalModeSpec::new(
+            out.push(ModalModeSpec::new(base_freq * (1.0 - epsilon), decay, gain));
+            out.push(ModalModeSpec::new(
                 base_freq * (1.0 + epsilon),
                 decay * 0.9,
                 gain * 0.8,
             ));
         }
-
-        modes
     }
 }

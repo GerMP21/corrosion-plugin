@@ -117,8 +117,12 @@ impl FactoryReverb {
 
     /// Clears the delay and diffusion state.
     pub fn reset(&mut self) {
-        self.comb_buffers = [[0.0; 2048]; 4];
-        self.allpass_buffers = [[0.0; 512]; 2];
+        self.comb_buffers
+            .iter_mut()
+            .for_each(|buffer| buffer.fill(0.0));
+        self.allpass_buffers
+            .iter_mut()
+            .for_each(|buffer| buffer.fill(0.0));
         self.diffusion_y = [0.0; 4];
     }
 }
@@ -179,6 +183,8 @@ impl SpringReverb {
         let base_delay = (self.sample_rate * 0.08) as usize; // 80ms base
         self.delay_length = (base_delay as f32 * (0.5 + self.tank_size)) as usize;
         self.delay_length = self.delay_length.clamp(1000, 8000);
+        // A shorter delay must not leave the write position outside the loop.
+        self.delay_index %= self.delay_length;
     }
 
     /// Processes one mono sample through the spring model.
@@ -204,9 +210,10 @@ impl SpringReverb {
         delay_sample * self.tank_size * 0.7
     }
 
-    /// Clears the spring state.
+    /// Clears the spring state and rewinds the delay line.
     pub fn reset(&mut self) {
-        self.delay_buffer = [0.0; 8192];
+        self.delay_buffer.fill(0.0);
+        self.delay_index = 0;
         self.dispersion_state = 0.0;
     }
 }
@@ -289,8 +296,8 @@ impl FactoryEcho {
 
     /// Clears the echo buffers and modulation phase.
     pub fn reset(&mut self) {
-        self.delay_buffer_left = [0.0; 16384];
-        self.delay_buffer_right = [0.0; 16384];
+        self.delay_buffer_left.fill(0.0);
+        self.delay_buffer_right.fill(0.0);
         self.write_index = 0;
         self.phase = 0.0;
     }
@@ -328,6 +335,32 @@ mod tests {
             let output = reverb.process(input);
             assert!(output.is_finite(), "Spring output should be finite");
         }
+    }
+
+    #[test]
+    fn spring_reset_rewinds_the_delay_line() {
+        let mut reverb = SpringReverb::new();
+        reverb.set_sample_rate(48_000.0);
+        for i in 0..1_234 {
+            reverb.process((i as f32 * 0.1).sin());
+        }
+        assert_ne!(reverb.delay_index, 0);
+        reverb.reset();
+        assert_eq!(reverb.delay_index, 0);
+    }
+
+    #[test]
+    fn spring_delay_index_stays_inside_a_shorter_delay() {
+        // Default tank 0.5 at 48 kHz: 3,840 samples. Park the write position
+        // past where the tank-0 delay (1,920) ends, then shrink the delay.
+        let mut reverb = SpringReverb::new();
+        reverb.set_sample_rate(48_000.0);
+        for _ in 0..3_000 {
+            reverb.process(0.1);
+        }
+        reverb.set_parameters(0.5, 0.5, 0.0);
+        assert_eq!(reverb.delay_length, 1_920);
+        assert!(reverb.delay_index < reverb.delay_length);
     }
 
     #[test]

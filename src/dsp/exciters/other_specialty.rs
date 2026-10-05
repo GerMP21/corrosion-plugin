@@ -246,6 +246,12 @@ struct Particle {
 }
 
 impl ParticleRain {
+    /// Most particles alive at once. Spawning is at most 2 per sample (flow is
+    /// clamped to 20) and a particle lives at most 30 samples, so 60 is the
+    /// physical ceiling; the buffer is preallocated to this so processing
+    /// never allocates.
+    const MAX_PARTICLES: usize = 64;
+
     /// Creates a default particle-rain exciter.
     pub fn new() -> Self {
         Self {
@@ -254,7 +260,7 @@ impl ParticleRain {
             mass_variance: 0.3,
             active: false,
             spawn_accumulator: 0.0,
-            particles: Vec::new(),
+            particles: Vec::with_capacity(Self::MAX_PARTICLES),
             rng_phase: 0.0,
         }
     }
@@ -281,6 +287,9 @@ impl ParticleRain {
         self.spawn_accumulator += self.flow_rate * 0.1;
         while self.spawn_accumulator > 1.0 {
             self.spawn_accumulator -= 1.0;
+            if self.particles.len() == Self::MAX_PARTICLES {
+                continue;
+            }
             let variance = (self.pseudo_random() - 0.5) * 2.0 * self.mass_variance;
             self.particles.push(Particle {
                 age: 0.0,
