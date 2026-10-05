@@ -171,7 +171,7 @@ impl WireBrush {
 
     /// Simple deterministic pseudo-random for reproducibility
     fn pseudo_random(&mut self, seed: u32) -> f32 {
-        self.rng_phase += 1.618_034 + seed as f32 * 0.1;
+        self.rng_phase += crate::dsp::utils::GOLDEN_STEP + seed as f32 * 0.1;
         let hash = (self.rng_phase.sin() * 43_758.547).fract();
         hash.abs()
     }

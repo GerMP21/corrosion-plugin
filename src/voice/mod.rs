@@ -1165,7 +1165,7 @@ impl Voice {
             return 0.0;
         }
 
-        self.rattle_phase += 1.618_034;
+        self.rattle_phase += crate::dsp::utils::GOLDEN_STEP;
         if self.rattle_phase > 1000.0 {
             self.rattle_phase -= 1000.0;
         }

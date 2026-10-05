@@ -167,7 +167,7 @@ impl MetalChain {
     }
 
     fn generate_noise(&mut self) -> f32 {
-        self.rng_phase += 1.618_034;
+        self.rng_phase += crate::dsp::utils::GOLDEN_STEP;
         let noise = (self.rng_phase.sin() * 43_758.547).fract();
         noise * 2.0 - 1.0
     }

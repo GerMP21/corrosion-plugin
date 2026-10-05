@@ -1541,4 +1541,16 @@ impl Vst3Plugin for Corrosion {
 
 // Export plugin entry points for CLAP and VST3 hosts.
 nih_export_clap!(Corrosion);
-nih_export_vst3!(Corrosion);
+// nih-plug's VST3 export expands `vst3_com::vtable`, which trips the
+// `semicolon_in_expressions_from_non_local_macros` future-incompat lint on
+// newer toolchains (Rust 1.99+). The code is upstream's, so the lint is
+// allowed on a wrapper module (a lint attribute on the macro call itself is
+// ignored). The exported entry point is `#[no_mangle]`, so the module path
+// doesn't change the symbol hosts load.
+#[allow(semicolon_in_expressions_from_non_local_macros)]
+mod vst3_export {
+    use super::Corrosion;
+    use nih_plug::prelude::*;
+
+    nih_export_vst3!(Corrosion);
+}
