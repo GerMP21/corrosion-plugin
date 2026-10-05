@@ -23,6 +23,14 @@
 
 3. **Extract the Space stage into `PostProcessingChain::process_space(left, right) -> (wet_l, wet_r)` and test that.** The bug is in how the chain calls the spring, so the tests must go through the chain's own Space code, not `SpringReverb` alone. But the stages before it (the mono body remix today, HRTF spread when width > 0) cross-mix channels on their own, so a whole-chain left-only test would fail for reasons unrelated to C6. Testing the extracted stage isolates the spring routing and keeps this change independent of C5. `process()` calls `process_space` and adds the wet × space amount as before. For the echo-timing scenario, set tank size so `delay_length` is a known value and assert the first wet sample index.
 
+## Implementation findings
+
+- **The mono-input test failed on the old code too.** Identical L/R inputs did not give identical tails: the shared dispersion state is updated twice per frame, so the interleaved channels diverge from the first echo on. Symmetry didn't hide the bug.
+- **Echo timing before the fix was exactly half a delay:** the first echo came at 1,920 samples for a 3,840-sample spring, on the left channel.
+- **Preset audition (`audition.md`):** both Spring presets now echo at 80 ms instead of 40 ms. Level moved by under 0.2 dB and neither hits the limiter. Both feed the spring a nearly mono signal (spread width 0.5), so the cross-talk itself was barely audible on them.
+- **Spring Reverb Tap was re-voiced (BODY 1.60 → 2.26)** to keep C5's per-preset level guarantee. The fix moved it to −0.63 dB from its pre-C5 RMS, past the 0.5 dB that `c5_verify_revoiced_presets` allows. C5's own matching procedure gave the new value. The entry in `C5_REVOICE` (`src/bin/seed_presets.rs`) carries a comment, and only that preset file was regenerated.
+- **The C5 preset harness gained `render_preset_frames`**, which returns the stereo frames. `render_preset` now computes its stats from that, with unchanged results. The new ignored test `c6_spring_preset_measurements` uses it.
+
 ## Risks / Trade-offs
 
 - [The two spring presets sound different (longer echo, no cross-talk)] → Intended. Mention them by name in the summary so they can be auditioned.

@@ -308,7 +308,7 @@ Stage summary (as implemented):
 | FEM body | 8 fixed modal resonators — not a finite-element mesh |
 | HRTF spread | ≤1 ms delay + 1-pole LP/HP + crossfeed — not HRIR convolution |
 | Factory reverb | 4 comb + 2 allpass (Schroeder) — not 3D FDTD |
-| Spring reverb | single delay line + 1-pole dispersion — not a helical PDE |
+| Spring reverb | one delay line + 1-pole dispersion per channel — not a helical PDE |
 | Factory echo | modulated stereo delay (gentle Doppler-ish) |
 | Oversampled clipper | soft diode clip; **the oversample factor is currently a no-op** (see code review) |
 

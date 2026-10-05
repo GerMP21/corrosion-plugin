@@ -1721,7 +1721,38 @@ mod c5_measurements {
         body_amount: f32,
         output_scale: f32,
     ) -> (f32, f32, usize) {
-        let preset = Preset::load(path).expect("load preset");
+        let frames = render_preset_frames(path, body_amount, output_scale);
+        let (mut peak, mut sum_sq, mut hits) = (0.0_f32, 0.0_f64, 0usize);
+        for x in frames.iter().flat_map(|&(l, r)| [l, r]) {
+            if x.abs() > LIMITER_THRESHOLD {
+                hits += 1;
+            }
+            let x = x.clamp(-LIMITER_THRESHOLD, LIMITER_THRESHOLD);
+            peak = peak.max(x.abs());
+            sum_sq += (x * x) as f64;
+        }
+        (
+            peak,
+            (sum_sq / (2 * frames.len()) as f64).sqrt() as f32,
+            hits,
+        )
+    }
+
+    /// The stereo output frames (after `output`, before the limiter) of the
+    /// note pattern `render_preset` measures: note on, note off at 1 s, 2 s total.
+    pub(crate) fn render_preset_frames(
+        path: &std::path::Path,
+        body_amount: f32,
+        output_scale: f32,
+    ) -> Vec<(f32, f32)> {
+        render_frames(
+            Preset::load(path).expect("load preset"),
+            body_amount,
+            output_scale,
+        )
+    }
+
+    fn render_frames(preset: Preset, body_amount: f32, output_scale: f32) -> Vec<(f32, f32)> {
         let mut plugin = Corrosion {
             params: Arc::new(preset.into_params()),
             ..Corrosion::default()
@@ -1742,36 +1773,29 @@ mod c5_measurements {
         let master_drive = (params.drive.value() + bias.drive_offset).clamp(0.0, 5.0);
         let (width, output) = (params.width.value(), params.output.value() * output_scale);
         let total = SAMPLE_RATE as usize * 2;
-        let (mut peak, mut sum_sq, mut hits) = (0.0_f32, 0.0_f64, 0usize);
-        for i in 0..total {
-            if i == total / 2 {
-                handle_note_event(
-                    &mut plugin,
-                    NoteEvent::NoteOff {
-                        timing: 0,
-                        voice_id: None,
-                        channel: 0,
-                        note: 60,
-                        velocity: 0.0,
-                    },
-                );
-            }
-            let (l, r) = plugin
-                .voice_manager
-                .process_sample_stereo(SAMPLE_RATE, width);
-            let (pl, pr) = plugin
-                .post_chain
-                .process(apply_drive(l, master_drive), apply_drive(r, master_drive));
-            for x in [pl * output, pr * output] {
-                if x.abs() > LIMITER_THRESHOLD {
-                    hits += 1;
+        (0..total)
+            .map(|i| {
+                if i == total / 2 {
+                    handle_note_event(
+                        &mut plugin,
+                        NoteEvent::NoteOff {
+                            timing: 0,
+                            voice_id: None,
+                            channel: 0,
+                            note: 60,
+                            velocity: 0.0,
+                        },
+                    );
                 }
-                let x = x.clamp(-LIMITER_THRESHOLD, LIMITER_THRESHOLD);
-                peak = peak.max(x.abs());
-                sum_sq += (x * x) as f64;
-            }
-        }
-        (peak, (sum_sq / (2 * total) as f64).sqrt() as f32, hits)
+                let (l, r) = plugin
+                    .voice_manager
+                    .process_sample_stereo(SAMPLE_RATE, width);
+                let (pl, pr) = plugin
+                    .post_chain
+                    .process(apply_drive(l, master_drive), apply_drive(r, master_drive));
+                (pl * output, pr * output)
+            })
+            .collect()
     }
 
     /// Baseline (pre-C5) (RMS, limiter hits) per preset name, from `baseline.md`.
@@ -1980,6 +2004,85 @@ mod c5_measurements {
             println!(
                 "| {} | {:.4} | {:.5} | {} | {:.3} | {:.2} |",
                 m.name, m.peak, m.rms, m.limiter_hits, m.old_body_to_dry, m.implied_body
+            );
+        }
+    }
+
+    /// C6 audition numbers for the factory presets that use Space = Spring:
+    /// level, and for the spring's own contribution (render minus the same
+    /// render with space amount 0) its L/R balance and correlation and its
+    /// share of the output, plus the spring's first-echo delay.
+    #[test]
+    #[ignore]
+    fn c6_spring_preset_measurements() {
+        let spring_presets: Vec<_> = factory_preset_paths()
+            .into_iter()
+            .filter(|p| Preset::load(p).unwrap().into_params().space_mode.value() == 2)
+            .collect();
+        assert_eq!(spring_presets.len(), 2, "expected two Spring presets");
+        println!("| preset | peak | rms | limiter hits | spring/output (dB) | spring side/mid (dB) | spring L/R corr | first echo (ms) |");
+        println!("|---|---|---|---|---|---|---|---|");
+        for path in spring_presets {
+            let preset = Preset::load(&path).unwrap();
+            let amount = preset.body / 5.0;
+            let (peak, rms, hits) = render_preset(&path, amount, 1.0);
+            let frames = render_preset_frames(&path, amount, 1.0);
+            let mut dry_preset = Preset::load(&path).unwrap();
+            dry_preset.extra.space_amount = 0.0;
+            let dry = render_frames(dry_preset, amount, 1.0);
+            let wet: Vec<(f32, f32)> = frames
+                .iter()
+                .zip(&dry)
+                .map(|(&(l, r), &(dl, dr))| (l - dl, r - dr))
+                .collect();
+            let energy = |xs: &[(f32, f32)]| -> f64 {
+                xs.iter().map(|&(l, r)| (l * l + r * r) as f64).sum()
+            };
+            let spring_share_db = 10.0 * (energy(&wet) / energy(&frames).max(1e-30)).log10();
+            let tail = &wet[..];
+            let (mut e_mid, mut e_side, mut lr, mut ll, mut rr) = (0.0f64, 0.0, 0.0, 0.0, 0.0);
+            for &(l, r) in tail {
+                let (l, r) = (l as f64, r as f64);
+                e_mid += (0.5 * (l + r)).powi(2);
+                e_side += (0.5 * (l - r)).powi(2);
+                lr += l * r;
+                ll += l * l;
+                rr += r * r;
+            }
+            let side_mid_db = 10.0 * (e_side / e_mid.max(1e-30)).log10();
+            let corr = lr / (ll * rr).sqrt().max(1e-30);
+
+            // First-echo delay: an impulse through this preset's post chain,
+            // with the spring on minus off. The two are identical until the
+            // spring's first echo returns.
+            let impulse_mid = |space_amount: f32| -> Vec<f32> {
+                let mut p = Preset::load(&path).unwrap();
+                p.extra.space_amount = space_amount;
+                let mut plugin = Corrosion {
+                    params: Arc::new(p.into_params()),
+                    ..Corrosion::default()
+                };
+                let params = plugin.params.clone();
+                let bias = resolve_macro_bias(&params);
+                plugin.apply_post_chain_params(SAMPLE_RATE, None, &bias, amount);
+                (0..SAMPLE_RATE as usize / 4)
+                    .map(|i| {
+                        let x = if i == 0 { 0.1 } else { 0.0 };
+                        let (l, r) = plugin.post_chain.process(x, x);
+                        0.5 * (l + r)
+                    })
+                    .collect()
+            };
+            let space_amount = preset.extra.space_amount;
+            let first_echo = impulse_mid(space_amount)
+                .iter()
+                .zip(&impulse_mid(0.0))
+                .position(|(a, b)| a != b)
+                .expect("spring never echoed");
+            let echo_ms = first_echo as f32 * 1_000.0 / SAMPLE_RATE as f32;
+            println!(
+                "| {} | {peak:.4} | {rms:.5} | {hits} | {spring_share_db:.1} | {side_mid_db:.1} | {corr:.3} | {echo_ms:.1} |",
+                preset.name
             );
         }
     }

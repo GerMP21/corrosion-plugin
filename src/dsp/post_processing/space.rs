@@ -204,9 +204,10 @@ impl SpringReverb {
         delay_sample * self.tank_size * 0.7
     }
 
-    /// Clears the spring state.
+    /// Clears the spring state and rewinds the delay line.
     pub fn reset(&mut self) {
         self.delay_buffer = [0.0; 8192];
+        self.delay_index = 0;
         self.dispersion_state = 0.0;
     }
 }

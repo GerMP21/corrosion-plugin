@@ -6,7 +6,7 @@ exciters, post-processing, presets, GUI, offline/render bins, randomizer), plus 
 factory preset bank, test suite expectations, and build configuration.
 **Method:** line-by-line read of the audio path; targeted reads of the GUI and offline
 paths; numeric simulation used to verify the ladder-filter stability finding.
-**Status (2026-10-05):** C1–C5 are FIXED; C6 is IN PROGRESS (OpenSpec changes under `openspec/changes/`).
+**Status (2026-10-05):** C1–C6 are FIXED (OpenSpec changes under `openspec/changes/`).
 **Note:** `docs/CODE-REVIEW.md` (2026-05-27) is now partially stale — its Finding 1
 (clipper oversampling no-op) and the factory-reverb delay compounding have since been
 fixed (regression tests exist for both). This document supersedes it.
@@ -204,8 +204,8 @@ differ, so it passes despite the broken floor.
    chassis_volume.max(body/5))` — `body` and `chassis_volume` fight through a
    `max()`, so automating `body` below the current `chassis_volume` does nothing.
 
-### ~~C6. Spring reverb: one mono state shared by both channels~~ — IN PROGRESS
-> **Status: IN PROGRESS** — OpenSpec change [`fix-spring-reverb-stereo`](openspec/changes/fix-spring-reverb-stereo/proposal.md).
+### ~~C6. Spring reverb: one mono state shared by both channels~~ — FIXED
+> **Status: FIXED** (2026-10-05, branch `claude/eloquent-dirac-fc0sqm`) — OpenSpec change [`fix-spring-reverb-stereo`](openspec/changes/fix-spring-reverb-stereo/proposal.md). The post chain now runs one spring per channel, so each tail comes only from its own input and the first echo arrives one full delay length later (80 ms at the default tank size, previously 40 ms). A mono input still gives identical tails. `SpringReverb::reset()` also rewinds the delay line. The two Spring presets (Distant Plate Roll, Spring Reverb Tap) now echo at twice the old spacing, at the same level and with no limiter hits. Spring Reverb Tap's BODY was re-matched from 1.60 to 2.26 to hold that level (`openspec/changes/fix-spring-reverb-stereo/audition.md`).
 
 `src/dsp/post_processing/post_chain.rs:175-182`, `space.rs:133-212`
 
@@ -469,7 +469,7 @@ above the block. Minor, but the doc and tests promise symmetric behavior.
 
 1. ~~**C1** (filter instability — plugin is broken at default settings in a DAW)~~ — FIXED,
 2. ~~**C2** (crash)~~ — FIXED, ~~**C3** (RT allocation; debug abort)~~ — FIXED,
-3. ~~**C4/C5/C6** (audible correctness of envelope, chain topology, spring reverb)~~ — C4/C5 FIXED, C6 IN PROGRESS,
+3. ~~**C4/C5/C6** (audible correctness of envelope, chain topology, spring reverb)~~ — FIXED,
 4. **H1–H4** (parameter ranges, defaults, and preset loading — cheap, high-impact),
 5. **H5** (GUI gaps) and the remaining H items,
 6. Medium items opportunistically, alongside regression tests for each fix.

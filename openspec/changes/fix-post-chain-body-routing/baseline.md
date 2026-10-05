@@ -172,3 +172,5 @@ goes from 44 943 hits to 0, Spring Reverb Tap from 25 758 to 0, and Hollow Smoke
 | Sympathetic Chain | 2.48 | 1.000 | 0.17422 | -0.00 | 0.5217 | 0 | 0 |
 | Thin Sheet Roll | 0.00 | 0.627 | 0.20542 | -0.00 | 0.3846 | 0 | 0 |
 | Workshop Plate Scrape | 0.00 | 0.665 | 0.28064 | +0.00 | 0.3182 | 0 | 0 |
+
+> **Later (C6):** fixing the spring reverb's shared state moved Spring Reverb Tap to −0.63 dB, so its BODY was re-matched to 2.26 (output 0.950 unchanged; +0.00 dB, 0 hits). See `openspec/changes/fix-spring-reverb-stereo/audition.md`.

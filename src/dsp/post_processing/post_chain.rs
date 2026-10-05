@@ -29,7 +29,9 @@ pub struct PostProcessingChain {
     body: FemBodyResonator,
     spread: HrtfSpread,
     factory_reverb: FactoryReverb,
-    spring_reverb: SpringReverb,
+    /// One mono spring per channel, so each tail comes from its own input.
+    spring_left: SpringReverb,
+    spring_right: SpringReverb,
     factory_echo: FactoryEcho,
     clipper: OversampledClipper,
 
@@ -64,7 +66,8 @@ impl PostProcessingChain {
             body: FemBodyResonator::new(),
             spread: HrtfSpread::new(),
             factory_reverb: FactoryReverb::new(),
-            spring_reverb: SpringReverb::new(),
+            spring_left: SpringReverb::new(),
+            spring_right: SpringReverb::new(),
             factory_echo: FactoryEcho::new(),
             clipper: OversampledClipper::new(),
             space_mode: SpaceMode::Off,
@@ -100,7 +103,8 @@ impl PostProcessingChain {
         self.body.set_sample_rate(sample_rate);
         self.spread.set_sample_rate(sample_rate);
         self.factory_reverb.set_sample_rate(sample_rate);
-        self.spring_reverb.set_sample_rate(sample_rate);
+        self.spring_left.set_sample_rate(sample_rate);
+        self.spring_right.set_sample_rate(sample_rate);
         self.factory_echo.set_sample_rate(sample_rate);
         self.clipper.set_sample_rate(sample_rate);
     }
@@ -156,7 +160,9 @@ impl PostProcessingChain {
 
     /// Sets the spring reverb parameters.
     pub fn set_spring_params(&mut self, tension: f32, stiffness: f32, tank_size: f32) {
-        self.spring_reverb
+        self.spring_left
+            .set_parameters(tension, stiffness, tank_size);
+        self.spring_right
             .set_parameters(tension, stiffness, tank_size);
     }
 
@@ -196,28 +202,11 @@ impl PostProcessingChain {
         // 4. HRTF Stereo Spread
         let (spread_left, spread_right) = self.spread.process(bodied_left, bodied_right);
 
-        // 5. Space (Factory or Spring)
+        // 5. Space, added at the space amount
         let (space_left, space_right) = match self.space_mode {
             SpaceMode::Off => (spread_left, spread_right),
-            SpaceMode::Factory => {
-                let wet = self
-                    .factory_reverb
-                    .process((spread_left + spread_right) * 0.5);
-                (
-                    spread_left + wet * self.space_amount,
-                    spread_right + wet * self.space_amount,
-                )
-            }
-            SpaceMode::Spring => {
-                let wet_l = self.spring_reverb.process(spread_left);
-                let wet_r = self.spring_reverb.process(spread_right);
-                (
-                    spread_left + wet_l * self.space_amount,
-                    spread_right + wet_r * self.space_amount,
-                )
-            }
-            SpaceMode::Echo => {
-                let (wet_l, wet_r) = self.factory_echo.process_stereo(spread_left, spread_right);
+            _ => {
+                let (wet_l, wet_r) = self.process_space(spread_left, spread_right);
                 (
                     spread_left + wet_l * self.space_amount,
                     spread_right + wet_r * self.space_amount,
@@ -227,6 +216,23 @@ impl PostProcessingChain {
 
         // 6. Oversampled Clipper
         self.clipper.process_stereo(space_left, space_right)
+    }
+
+    /// Runs the selected space algorithm and returns its wet (left, right)
+    /// output, before the space amount is applied.
+    fn process_space(&mut self, left: f32, right: f32) -> (f32, f32) {
+        match self.space_mode {
+            SpaceMode::Off => (0.0, 0.0),
+            SpaceMode::Factory => {
+                let wet = self.factory_reverb.process((left + right) * 0.5);
+                (wet, wet)
+            }
+            SpaceMode::Spring => (
+                self.spring_left.process(left),
+                self.spring_right.process(right),
+            ),
+            SpaceMode::Echo => self.factory_echo.process_stereo(left, right),
+        }
     }
 
     /// Clears internal state for all stage buffers and filters.
@@ -239,7 +245,8 @@ impl PostProcessingChain {
         self.body.reset();
         self.spread.reset();
         self.factory_reverb.reset();
-        self.spring_reverb.reset();
+        self.spring_left.reset();
+        self.spring_right.reset();
         self.factory_echo.reset();
         self.clipper.reset();
     }
@@ -566,6 +573,106 @@ mod tests {
         assert!(
             total_diff > 0.001,
             "4x and 16x oversampling should diverge on transients, diff={total_diff}"
+        );
+    }
+
+    /// Spring delay length for `spring_chain`: 80 ms × (0.5 + tank size 0.5)
+    /// at 48 kHz.
+    const SPRING_DELAY: usize = 3_840;
+
+    /// A chain in Spring mode with a known delay length.
+    fn spring_chain() -> PostProcessingChain {
+        let mut chain = PostProcessingChain::new();
+        chain.set_sample_rate(SR);
+        chain.set_spring_params(0.5, 0.5, 0.5);
+        chain.set_space_mode(SpaceMode::Spring);
+        chain.set_space_amount(1.0);
+        chain
+    }
+
+    /// Feeds `frames` frames of `input` to the Space stage alone and returns
+    /// the wet (left, right) outputs.
+    fn space_wet(
+        chain: &mut PostProcessingChain,
+        frames: usize,
+        input: impl Fn(usize) -> (f32, f32),
+    ) -> (Vec<f32>, Vec<f32>) {
+        (0..frames)
+            .map(|i| {
+                let (l, r) = input(i);
+                chain.process_space(l, r)
+            })
+            .unzip()
+    }
+
+    /// Deterministic white noise in [-0.5, 0.5).
+    fn noise(i: usize) -> f32 {
+        let x = (i as u32)
+            .wrapping_mul(1_664_525)
+            .wrapping_add(1_013_904_223);
+        (x >> 8) as f32 / (1u32 << 24) as f32 - 0.5
+    }
+
+    #[test]
+    fn spring_left_only_input_leaves_right_silent() {
+        let mut chain = spring_chain();
+        let impulse = |i: usize| (if i == 0 { 1.0 } else { 0.0 }, 0.0);
+        let (left, right) = space_wet(&mut chain, SPRING_DELAY * 6, impulse);
+        assert!(left.iter().any(|&x| x != 0.0), "left channel has no tail");
+        let first_leak = right.iter().position(|&x| x != 0.0);
+        assert_eq!(first_leak, None, "left input leaked into the right tail");
+    }
+
+    #[test]
+    fn spring_echo_arrives_after_full_delay() {
+        let mut chain = spring_chain();
+        // Different levels per side, so an echo on the wrong channel shows.
+        let impulse = |i: usize| if i == 0 { (1.0, 0.5) } else { (0.0, 0.0) };
+        let (left, right) = space_wet(&mut chain, SPRING_DELAY * 2, impulse);
+        for (side, wet, level) in [("left", &left, 1.0), ("right", &right, 0.5)] {
+            let first = wet.iter().position(|&x| x != 0.0);
+            assert_eq!(first, Some(SPRING_DELAY), "{side} echo timing");
+            // Output gain: tank size 0.5 × 0.7.
+            let echo = wet[SPRING_DELAY];
+            assert!(
+                (echo - level * 0.35).abs() < 1e-6,
+                "{side} echo level {echo}, expected {}",
+                level * 0.35
+            );
+        }
+    }
+
+    #[test]
+    fn spring_mono_input_gives_identical_tails() {
+        let mut chain = spring_chain();
+        let burst = |i: usize| {
+            let x = if i < 4_800 { noise(i) } else { 0.0 };
+            (x, x)
+        };
+        let (left, right) = space_wet(&mut chain, SPRING_DELAY * 6, burst);
+        assert!(left.iter().any(|&x| x != 0.0), "no tail");
+        let first_diff = left.iter().zip(&right).position(|(l, r)| l != r);
+        assert_eq!(first_diff, None, "mono input gave different tails");
+    }
+
+    #[test]
+    fn spring_reset_clears_both_channels() {
+        let mut chain = spring_chain();
+        let (left, right) = space_wet(&mut chain, SPRING_DELAY * 3, |i| {
+            (noise(i), noise(i + 7_919))
+        });
+        let tail = SPRING_DELAY * 2..;
+        assert!(
+            left[tail.clone()].iter().any(|&x| x != 0.0),
+            "left not ringing"
+        );
+        assert!(right[tail].iter().any(|&x| x != 0.0), "right not ringing");
+
+        chain.reset();
+        let (left, right) = space_wet(&mut chain, SPRING_DELAY * 3, |_| (0.0, 0.0));
+        assert!(
+            left.iter().chain(&right).all(|&x| x == 0.0),
+            "reset left spring state behind"
         );
     }
 }

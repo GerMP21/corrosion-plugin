@@ -1062,7 +1062,8 @@ const C5_REVOICE: [(&str, f32, f32); 50] = [
     ("Spring Drag", 0.52, 1.000), // rms 0.48682 (baseline 0.48683), peak 0.6571, hits 0 (baseline 0)
     ("Spring Grind", 0.95, 0.950), // rms 0.11399 (baseline 0.11999), peak 0.9180, hits 0 (baseline 0)
     ("Spring Pluck", 2.61, 1.000), // rms 0.02590 (baseline 0.02590), peak 0.0745, hits 0 (baseline 0)
-    ("Spring Reverb Tap", 1.60, 0.950), // rms 0.53697 (baseline 0.56506), peak 0.9183, hits 0 (baseline 25758)
+    // BODY re-matched after C6 (one spring per channel); was 1.60.
+    ("Spring Reverb Tap", 2.26, 0.950), // rms 0.56506 (baseline 0.56506), peak 0.9183, hits 0 (baseline 25758)
     ("Steel Tank Rumble", 1.05, 1.000), // rms 0.60923 (baseline 0.60924), peak 0.9287, hits 0 (baseline 0)
     ("Suspension Cable Pluck", 0.15, 1.000), // rms 0.46502 (baseline 0.46501), peak 0.4958, hits 0 (baseline 0)
     ("Sympathetic Chain", 2.48, 1.000), // rms 0.17424 (baseline 0.17425), peak 0.5217, hits 0 (baseline 0)
