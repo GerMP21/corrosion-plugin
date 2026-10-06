@@ -196,8 +196,16 @@ resonator:
 y[n] = b0·x[n] − a1·y[n-1] − a2·y[n-2]
 ω = 2π·f / sample_rate
 r = exp(−1 / (decay_seconds · sample_rate))
-a1 = −2r·cos(ω),  a2 = r²,  b0 = gain
+a1 = −2r·cos(ω),  a2 = r²,  b0 = gain · (48 000 / sample_rate)²
 ```
+
+The `(48 000 / fs)²` input scale keeps the level independent of the host
+sample rate: the mode stands in for a force-driven oscillator, whose
+discretized force term scales with `dt²`. Without it, a force lasting a fixed
+time rang the mode at a level ∝ fs² (+12 dB at 96 kHz). At 48 kHz the factor
+is exactly 1. `decay_seconds` is a 1/e time constant (T60 ≈ 6.9·τ). Caveat:
+at 192 kHz, f32 rounding in this direct-form recursion costs very low,
+long-ringing modes up to ~1.5 dB under sustained drive.
 
 The resonator is built by a single path (algorithmic), then transformed:
 

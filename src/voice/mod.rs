@@ -1943,4 +1943,60 @@ mod tests {
             "poly pressure should raise expression gain: baseline={baseline}, with_poly={with_poly}"
         );
     }
+
+    /// Measurement for `fix-resonator-sample-rate-gain` (task 2.1): a struck
+    /// and a bowed C4 on Tank, Pipe and Plate through the full voice at 44.1,
+    /// 48 and 96 kHz. Reports the raw resonator peak (before the voice's
+    /// clamp) and the voice output RMS, each relative to 48 kHz.
+    #[test]
+    #[ignore]
+    fn sample_rate_voice_level_measurements() {
+        use crate::dsp::{ModalProfileId, ResonatorCore};
+        println!("| note | rate | raw peak (dB vs 48k) | output RMS (dB vs 48k) |");
+        println!("|---|---|---|---|");
+        for (exciter, exciter_name) in [(2, "HandStrike"), (1, "Bow")] {
+            for profile in [
+                ModalProfileId::Tank,
+                ModalProfileId::Pipe,
+                ModalProfileId::Plate,
+            ] {
+                let measure = |sample_rate: u32| {
+                    let mut voice = Voice::new();
+                    voice.note_on_with_controls(
+                        60,
+                        100.0,
+                        profile,
+                        0,
+                        1.0,
+                        0.0,
+                        0.0,
+                        exciter,
+                        VoiceControls::default(),
+                    );
+                    let (mut raw_peak, mut sum_sq) = (0.0_f32, 0.0_f64);
+                    let n = sample_rate as usize * 2;
+                    for i in 0..n {
+                        if i == n / 2 {
+                            voice.note_off();
+                        }
+                        let excitation = voice.process_exciter();
+                        let raw = voice.resonator.process_sample(excitation, sample_rate);
+                        raw_peak = raw_peak.max(raw.abs());
+                        let out = raw.clamp(-1.0, 1.0);
+                        sum_sq += (out * out) as f64;
+                    }
+                    (raw_peak, (sum_sq / n as f64).sqrt() as f32)
+                };
+                let (ref_peak, ref_rms) = measure(48_000);
+                for sample_rate in [44_100, 96_000] {
+                    let (peak, rms) = measure(sample_rate);
+                    println!(
+                        "| {exciter_name} {profile:?} | {sample_rate} | {:+.1} | {:+.1} |",
+                        20.0 * (peak / ref_peak).log10(),
+                        20.0 * (rms / ref_rms).log10()
+                    );
+                }
+            }
+        }
+    }
 }

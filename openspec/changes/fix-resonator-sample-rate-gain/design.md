@@ -38,7 +38,24 @@ Every coefficient rebuild goes through `for_mode`: at note-on, when the sample r
 
 2. **The scale goes in `for_mode`, not in the voice.** It is the one place every coefficient path shares, and the exciters' bidirectional coupling (they read resonator displacement and velocity) then sees the same physical scale at any rate.
 
-3. **The tests measure at the resonator level, using the spec's scenarios.** Golden 48 kHz behaviour is pinned by the existing mode-bank fixture plus a new hash of a 48 kHz resonator render captured before the change.
+3. **The tests measure at the resonator level, using the spec's scenarios.** Golden 48 kHz behaviour is pinned by the existing mode-bank fixture plus an exact check that `b0` equals the mode gain at 48 kHz. *(A render hash was tried first. It passed on musl but not on glibc, because libm differs between the two CI targets. The hash was identical with and without the change on each target, but a hash isn't portable, so the exact `b0` check replaced it.)*
+
+## Implementation findings
+
+- **Strikes match at every rate.** After the change, the 1 ms pulse peak is within 0.03 dB of 48 kHz at 44.1, 96 and 192 kHz for Tank, Pipe, Plate and Cog. Sustained drive is within 0.1 dB at 44.1 and 96 kHz.
+- **Voice-level levels before and after** (`voice::tests::sample_rate_voice_level_measurements`, ignored; C4, 1 s held plus 1 s released; raw resonator peak in dB relative to 48 kHz):
+
+  | note | 44.1 kHz before → after | 96 kHz before → after |
+  |---|---|---|
+  | Bow, Tank / Pipe / Plate | −1.8 / −1.6 / −1.5 → −0.3 / −0.1 / −0.1 | +12.2 / +12.1 / +12.1 → +0.1 / +0.0 / +0.1 |
+  | HandStrike, Tank / Pipe / Plate | −0.7 → +0.7 (all three) | +6.0 / +6.0 / +6.2 → −6.0 / −6.0 / −5.9 |
+
+  - **Bowed notes are fixed.** The bow produces a continuous force signal, so the resonator scaling alone makes its level rate-independent.
+  - **Struck notes flip from +6 dB to −6 dB at 96 kHz.** HandStrike's per-sample constants (`hand_velocity *= 0.99`, `hand_position += v · 0.01`, `voice/mod.rs` and `hand_strike.rs`) halve its contact time at 96 kHz, so the force-time it delivers halves; before, it grew only as fs, not fs².
+  - `fix-sample-rate-time-constants` fixes exactly these constants. Until it lands, struck notes at 96 kHz are 6 dB too quiet instead of 6 dB too loud, so the two changes should ship together.
+- **f32 precision limits very high rates (pre-existing, out of scope).** Under sustained drive at 192 kHz, Tank comes out −1.44 dB, Pipe −0.31 dB, Plate −0.01 dB and Cog −0.12 dB. Simulating Tank's 87 Hz cavity mode alone gives −1.47 dB with f32 arithmetic and −0.00 dB with f64. So the gain scaling is right, and the loss comes from f32 rounding in the direct-form recursion (`a1 ≈ −2`, `a2 ≈ 1`) for low, long-ringing modes. The rounded coefficients also detune that mode by about 0.2 Hz (4 cents) at 192 kHz.
+  - Fixing it means f64 mode state or a better-conditioned structure (coupled or state-variable form), which would change 48 kHz output and break this change's bit-identity requirement.
+  - The sustained scenario is therefore limited to 44.1 to 96 kHz, and the precision fix is left for a change that re-captures golden output anyway (suggested: `normalize-object-loudness`).
 
 ## Risks / Trade-offs
 

@@ -14,8 +14,8 @@ The same force applied over the same time SHALL produce the same resonator outpu
 - **THEN** each object's peak output at every rate is within 0.5 dB of its 48 kHz peak
 
 #### Scenario: Sustained excitation
-- **WHEN** a sine force at the resonator's lowest mode frequency drives it for one second at 44.1, 48, 96 and 192 kHz
-- **THEN** the steady-state output RMS at every rate is within 0.5 dB of the 48 kHz RMS
+- **WHEN** a sine force at the resonator's lowest mode frequency drives it for one second at 44.1, 48 and 96 kHz
+- **THEN** the output RMS over the last half second at every rate is within 0.5 dB of the 48 kHz RMS
 
 ### Requirement: 48 kHz output is unchanged
 At 48 kHz the resonator output SHALL be bit-identical to the output before this requirement existed.

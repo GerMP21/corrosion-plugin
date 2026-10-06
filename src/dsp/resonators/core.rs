@@ -127,16 +127,27 @@ pub struct ResonatorCoefficients {
     pub a2: f32,
 }
 
+/// Sample rate at which mode gains are specified (and at which the input
+/// gain scaling below is exactly 1).
+pub const REFERENCE_SAMPLE_RATE: f32 = 48_000.0;
+
 impl ResonatorCoefficients {
     /// Compute resonator coefficients for a modal specification.
+    ///
+    /// The input gain is `gain · (48 kHz / fs)²`. Each mode stands in for an
+    /// oscillator driven by a force, whose discretized force term scales
+    /// with `dt²`; without this, a force lasting a fixed time rings the mode
+    /// with a level proportional to fs² (+12 dB at 96 kHz). At 48 kHz the
+    /// factor is exactly 1, so output there is unchanged.
     pub fn for_mode(mode: crate::dsp::ModalModeSpec, sample_rate: u32) -> Self {
         let safe_sample_rate = sample_rate.max(1) as f32;
         let decay_seconds = mode.decay_seconds.max(f32::EPSILON);
         let omega = 2.0 * PI * mode.frequency_hz / safe_sample_rate;
         let r = (-1.0 / (decay_seconds * safe_sample_rate)).exp();
+        let rate_ratio = REFERENCE_SAMPLE_RATE / safe_sample_rate;
 
         Self {
-            b0: mode.gain,
+            b0: mode.gain * (rate_ratio * rate_ratio),
             a1: -2.0 * r * omega.cos(),
             a2: r * r,
         }
@@ -1185,6 +1196,126 @@ mod tests {
         assert_eq!(golden.len(), current.len(), "fixture case count changed");
         for (expected, actual) in golden.iter().zip(&current) {
             assert_eq!(*expected, actual.as_str());
+        }
+    }
+
+    // --- Sample-rate-independent level (fix-resonator-sample-rate-gain) ---
+
+    const LEVEL_PROFILES: [ModalProfileId; 4] = [
+        ModalProfileId::Tank,
+        ModalProfileId::Pipe,
+        ModalProfileId::Plate,
+        ModalProfileId::IndustrialCog,
+    ];
+
+    fn c4_bank(profile: ModalProfileId) -> ModalResonator {
+        ModalResonator::with_algorithm_controls_and_note(
+            profile,
+            crate::dsp::SizeScale::new(1.0),
+            crate::dsp::RustAmount::new(0.0),
+            crate::dsp::DamageAmount::new(0.0),
+            crate::dsp::ThicknessAmount::new(0.0),
+            crate::dsp::HeatAmount::new(0.0),
+            crate::dsp::SludgeAmount::new(0.0),
+            261.63,
+            0.5,
+            0.5,
+            CharacterParams::default(),
+            1.0,
+        )
+    }
+
+    /// Peak output of a 1 ms unit force pulse, over one second.
+    fn pulse_peak(profile: ModalProfileId, sample_rate: u32) -> f32 {
+        let mut bank = c4_bank(profile);
+        let pulse = (sample_rate as f32 * 0.001).round() as usize;
+        (0..sample_rate as usize)
+            .map(|i| {
+                bank.process_sample(if i < pulse { 1.0 } else { 0.0 }, sample_rate)
+                    .abs()
+            })
+            .fold(0.0, f32::max)
+    }
+
+    /// RMS over the second half of a one-second sine drive at the bank's
+    /// lowest mode, at the frequency its f32 coefficients actually resonate
+    /// at for this sample rate, so the test measures gain, not tuning.
+    fn sine_rms(profile: ModalProfileId, sample_rate: u32) -> f32 {
+        let mut bank = c4_bank(profile);
+        let lowest = bank
+            .modes
+            .iter()
+            .min_by(|a, b| a.spec.frequency_hz.total_cmp(&b.spec.frequency_hz))
+            .map(|m| m.spec)
+            .unwrap();
+        let c = ResonatorCoefficients::for_mode(lowest, sample_rate);
+        let r = (c.a2 as f64).sqrt();
+        let omega = (-(c.a1 as f64) / (2.0 * r)).clamp(-1.0, 1.0).acos();
+        let f = (omega * sample_rate as f64 / std::f64::consts::TAU) as f32;
+        let n = sample_rate as usize;
+        let sum: f64 = (0..n)
+            .map(|i| {
+                let x = 0.01 * (std::f32::consts::TAU * f * i as f32 / sample_rate as f32).sin();
+                let y = bank.process_sample(x, sample_rate);
+                if i >= n / 2 {
+                    (y * y) as f64
+                } else {
+                    0.0
+                }
+            })
+            .sum();
+        (sum / (n / 2) as f64).sqrt() as f32
+    }
+
+    fn db(ratio: f32) -> f32 {
+        20.0 * ratio.log10()
+    }
+
+    #[test]
+    fn short_strike_level_does_not_depend_on_sample_rate() {
+        for profile in LEVEL_PROFILES {
+            let reference = pulse_peak(profile, 48_000);
+            for sample_rate in [44_100, 96_000, 192_000] {
+                let diff = db(pulse_peak(profile, sample_rate) / reference);
+                assert!(
+                    diff.abs() <= 0.5,
+                    "{profile:?} at {sample_rate} Hz: {diff:+.2} dB vs 48 kHz"
+                );
+            }
+        }
+    }
+
+    /// Up to 96 kHz. At 192 kHz, f32 rounding in the direct-form recursion
+    /// (a1 ≈ −2, a2 ≈ 1) costs a low, long-ringing mode about 1.5 dB under
+    /// sustained drive (Tank's 87 Hz cavity: −1.47 dB in f32, 0.00 dB in
+    /// f64). That is a precision issue separate from the gain scaling, and is
+    /// recorded in the change's design findings.
+    #[test]
+    fn sustained_level_does_not_depend_on_sample_rate() {
+        for profile in LEVEL_PROFILES {
+            let reference = sine_rms(profile, 48_000);
+            for sample_rate in [44_100, 96_000] {
+                let diff = db(sine_rms(profile, sample_rate) / reference);
+                assert!(
+                    diff.abs() <= 0.5,
+                    "{profile:?} at {sample_rate} Hz: {diff:+.2} dB vs 48 kHz"
+                );
+            }
+        }
+    }
+
+    /// 48 kHz output must not change (fix-resonator-sample-rate-gain). Only
+    /// the input gain picked up a sample-rate factor, so it is enough that
+    /// `b0` equals the mode gain exactly at 48 kHz, for every mode of every
+    /// object. (A render hash would also prove it, but libm differs between
+    /// the musl and glibc targets CI runs, so a hash isn't portable.)
+    #[test]
+    fn input_gain_is_unchanged_at_48k() {
+        for profile in PROFILES {
+            for mode in &c4_bank(profile).modes {
+                let c = ResonatorCoefficients::for_mode(mode.spec, 48_000);
+                assert_eq!(c.b0.to_bits(), mode.spec.gain.to_bits(), "{profile:?}");
+            }
         }
     }
 }
