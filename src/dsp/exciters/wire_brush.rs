@@ -6,6 +6,7 @@
 //! mass/spring contact model.
 //! Use it for brushed metal, bristle sweeps, and dense granular swishes.
 
+use crate::dsp::utils::rate;
 /// Stochastic impulse-cluster exciter for wire-brush textures.
 #[derive(Clone, Debug)]
 pub struct WireBrush {
@@ -147,13 +148,18 @@ impl WireBrush {
         // Higher stiffness = higher cutoff = brighter, sharper sound
         let cutoff = 100.0 + self.wire_stiffness * 4000.0;
         let rc = 1.0 / (2.0 * std::f32::consts::PI * cutoff);
-        let alpha = dt_ms / 1000.0 / (rc + dt_ms / 1000.0);
+        // The filter and the one-sample impulses are tuned per 48 kHz sample:
+        // derive the coefficient at the reference step, and scale the output
+        // so each impulse keeps its area at other rates (exactly unchanged at
+        // 48 kHz).
+        let ref_dt_ms = 1000.0 / rate::REFERENCE_RATE;
+        let alpha = ref_dt_ms / 1000.0 / (rc + ref_dt_ms / 1000.0);
 
         // Simple high-pass approximation using struct state
         let filtered = alpha * (self.filter_output + output - self.filter_input);
         self.filter_input = output;
         self.filter_output = filtered;
-        output = filtered.max(0.0);
+        output = filtered.max(0.0) * (self.sample_rate / rate::REFERENCE_RATE);
 
         // Deactivate when all impulses triggered and duration elapsed
         if self.time_ms > self.spread_duration_ms && self.next_impulse_index >= self.impulses.len()

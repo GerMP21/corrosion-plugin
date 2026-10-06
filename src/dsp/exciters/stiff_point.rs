@@ -6,6 +6,7 @@
 //! Use it for squeaks, tiny slips, and high-frequency scraping chatter inside
 //! the `dsp/exciters` friction family.
 
+use crate::dsp::utils::rate;
 /// Rigid-point scrape model with snap-back chatter.
 #[derive(Clone, Debug)]
 pub struct StiffPointScrape {
@@ -20,6 +21,8 @@ pub struct StiffPointScrape {
     accumulated_deflection: f32,
     active: bool,
     slip_threshold: f32,
+    /// `48 kHz / fs` (`fix-sample-rate-time-constants`).
+    ratio: f32,
 }
 
 impl StiffPointScrape {
@@ -35,7 +38,13 @@ impl StiffPointScrape {
             accumulated_deflection: 0.0,
             active: false,
             slip_threshold: 0.1,
+            ratio: 1.0,
         }
+    }
+
+    /// Re-derives the per-sample constants for `sample_rate`.
+    pub fn set_sample_rate(&mut self, sample_rate: f32) {
+        self.ratio = rate::ratio(sample_rate);
     }
 
     /// Sets scrape speed, contact pressure, chatter pitch, and damping.
@@ -66,7 +75,7 @@ impl StiffPointScrape {
         let v_rel = self.scrape_speed - resonator_velocity;
 
         // Accumulate deflection (spring winding up)
-        self.accumulated_deflection += v_rel * 0.001;
+        self.accumulated_deflection += v_rel * rate::step(0.001, self.ratio);
 
         // Spring force from deflection
         let k_point = 100.0 + self.chatter_pitch * 900.0; // 100-1000 Hz range

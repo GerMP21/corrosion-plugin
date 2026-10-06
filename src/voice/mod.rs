@@ -10,6 +10,7 @@
 //! exciter families exposed by `crate::dsp`, keeping the audio-thread
 //! path allocation-free and deterministic.
 
+use crate::dsp::utils::rate;
 use crate::dsp::{
     BowExciter, CharacterParams, CorrugatedDrag, DamageAmount, Drumstick, ElectromagneticHum,
     FeltMallet, HandStrike, HardMallet, HeatAmount, HeavyGrinding, LoopMode, MetalChain, MetalPipe,
@@ -433,6 +434,8 @@ pub struct Voice {
     damage_amount: f32,
     rattle_phase: f32,
     sample_rate: f32,
+    /// Per-sample constants converted for `sample_rate` (see `set_rate`).
+    rate: VoiceRateConstants,
     exciter_family: ExciterFamily,
     one_shot_phase: OneShotEnvelopePhase,
     one_shot_level: f32,
@@ -460,8 +463,43 @@ pub struct Voice {
 }
 
 const TAIL_ENERGY_THRESHOLD: f32 = 1e-4;
+/// Frames of near-silence before a released tail deactivates, at 48 kHz.
 const TAIL_DEACTIVATE_FRAMES: u32 = 4800;
+/// Per-sample peak-hold decay, at 48 kHz.
 const PEAK_DECAY: f32 = 0.999;
+/// Pole and input gain of the voice's one-pole high-pass boost, at 48 kHz.
+/// (The gain is kept as its own literal: `1.0 − 0.8` isn't exactly `0.2` in
+/// f32.)
+const HIGHPASS_POLE: f32 = 0.8;
+const HIGHPASS_GAIN: f32 = 0.2;
+
+/// The voice's per-sample constants for one sample rate. Each is exactly its
+/// 48 kHz value at 48 kHz (`fix-sample-rate-time-constants`).
+#[derive(Clone, Copy, Debug)]
+struct VoiceRateConstants {
+    sample_rate: f32,
+    highpass_pole: f32,
+    highpass_gain: f32,
+    peak_decay: f32,
+    tail_frames: u32,
+}
+
+impl VoiceRateConstants {
+    fn for_rate(sample_rate: f32) -> Self {
+        let r = rate::ratio(sample_rate);
+        Self {
+            sample_rate,
+            highpass_pole: rate::decay(HIGHPASS_POLE, r),
+            highpass_gain: if r == 1.0 {
+                HIGHPASS_GAIN
+            } else {
+                1.0 - rate::decay(HIGHPASS_POLE, r)
+            },
+            peak_decay: rate::decay(PEAK_DECAY, r),
+            tail_frames: rate::frames(TAIL_DEACTIVATE_FRAMES, r),
+        }
+    }
+}
 
 impl Voice {
     /// Create an inactive voice with default resonator and exciter state.
@@ -508,6 +546,7 @@ impl Voice {
             damage_amount: 0.0,
             rattle_phase: 0.0,
             sample_rate: 48000.0,
+            rate: VoiceRateConstants::for_rate(48_000.0),
             exciter_family: ExciterFamily::Hit,
             one_shot_phase: OneShotEnvelopePhase::Idle,
             one_shot_level: 0.0,
@@ -1158,6 +1197,31 @@ impl Voice {
         self.mseg.is_loop_enabled()
     }
 
+    /// Track the host sample rate, re-deriving per-sample constants when it
+    /// changes. Cheap when unchanged (one comparison).
+    fn set_rate(&mut self, sample_rate: f32) {
+        self.sample_rate = sample_rate;
+        if self.rate.sample_rate != sample_rate {
+            self.rate = VoiceRateConstants::for_rate(sample_rate);
+            self.bow_exciter.set_sample_rate(sample_rate);
+            self.hand_strike.set_sample_rate(sample_rate);
+            self.felt_mallet.set_sample_rate(sample_rate);
+            self.hard_mallet.set_sample_rate(sample_rate);
+            self.drumstick.set_sample_rate(sample_rate);
+            self.wire_brush.set_sample_rate(sample_rate);
+            self.metal_pipe.set_sample_rate(sample_rate);
+            self.metal_chain.set_sample_rate(sample_rate);
+            self.stiff_point.set_sample_rate(sample_rate);
+            self.heavy_grinding.set_sample_rate(sample_rate);
+            self.corrugated_drag.set_sample_rate(sample_rate);
+            self.tension_rise.set_sample_rate(sample_rate);
+            self.pneumatic_jet.set_sample_rate(sample_rate);
+            self.electromagnetic_hum.set_sample_rate(sample_rate);
+            self.tension_snap.set_sample_rate(sample_rate);
+            self.particle_rain.set_sample_rate(sample_rate);
+        }
+    }
+
     fn rattle_noise(&mut self, signal_level: f32) -> f32 {
         if self.damage_amount <= 0.0 {
             return 0.0;
@@ -1236,7 +1300,7 @@ impl Voice {
             return 0.0;
         }
 
-        self.sample_rate = sample_rate as f32;
+        self.set_rate(sample_rate as f32);
         let velocity_norm = self.velocity / 127.0;
 
         let excitation = self.process_exciter();
@@ -1253,7 +1317,8 @@ impl Voice {
         let rattle = self.rattle_noise(sample.abs());
         let sample_with_rattle = sample + rattle;
 
-        self.highpass_state = 0.8 * self.highpass_state + 0.2 * sample_with_rattle;
+        self.highpass_state = self.rate.highpass_pole * self.highpass_state
+            + self.rate.highpass_gain * sample_with_rattle;
         let highpass = sample_with_rattle - self.highpass_state;
         let boost_amount = velocity_norm * 1.5;
         let boosted_sample = sample_with_rattle + (highpass * boost_amount);
@@ -1270,10 +1335,10 @@ impl Voice {
         // Track decaying peak energy so the manager can steal the quietest
         // voice and so inactive tails eventually self-disable.
         self.peak_hold = self.peak_hold.max(clamped.abs());
-        self.peak_hold *= PEAK_DECAY;
+        self.peak_hold *= self.rate.peak_decay;
         if !self.active && self.peak_hold < TAIL_ENERGY_THRESHOLD {
             self.frames_below_threshold += 1;
-            if self.frames_below_threshold >= TAIL_DEACTIVATE_FRAMES {
+            if self.frames_below_threshold >= self.rate.tail_frames {
                 self.active = false;
                 self.rendering = false;
             }
@@ -1306,7 +1371,7 @@ impl Voice {
             return (0.0, 0.0);
         }
 
-        self.sample_rate = sample_rate as f32;
+        self.set_rate(sample_rate as f32);
         let velocity_norm = self.velocity / 127.0;
 
         let excitation = self.process_exciter_stereo(width);
@@ -1332,7 +1397,8 @@ impl Voice {
         let left_with_rattle = left + rattle;
         let right_with_rattle = right + rattle;
 
-        self.highpass_state = 0.8 * self.highpass_state + 0.2 * (mono + rattle);
+        self.highpass_state = self.rate.highpass_pole * self.highpass_state
+            + self.rate.highpass_gain * (mono + rattle);
         let highpass = (mono + rattle) - self.highpass_state;
         // Exciter ids are 1..=16 (see params::ExciterType). The `0` branch
         // never fires today, so we keep the unconditional 1.5x boost.
@@ -1355,10 +1421,10 @@ impl Voice {
         // voice and so inactive tails eventually self-disable.
         let peak = clamped_left.abs().max(clamped_right.abs());
         self.peak_hold = self.peak_hold.max(peak);
-        self.peak_hold *= PEAK_DECAY;
+        self.peak_hold *= self.rate.peak_decay;
         if !self.active && self.peak_hold < TAIL_ENERGY_THRESHOLD {
             self.frames_below_threshold += 1;
-            if self.frames_below_threshold >= TAIL_DEACTIVATE_FRAMES {
+            if self.frames_below_threshold >= self.rate.tail_frames {
                 self.active = false;
                 self.rendering = false;
             }
@@ -1997,6 +2063,170 @@ mod tests {
                     );
                 }
             }
+        }
+    }
+
+    // --- Sample-rate independence (fix-sample-rate-time-constants) ---
+
+    /// Render Pipe C4 at velocity 100 with `exciter`: `held` seconds held,
+    /// then `released` seconds after note-off. Returns the voice output.
+    fn render_pipe_note(exciter: i32, sample_rate: u32, held: f32, released: f32) -> Vec<f32> {
+        let mut voice = Voice::new();
+        voice.note_on_with_controls(
+            60,
+            100.0,
+            crate::dsp::ModalProfileId::Pipe,
+            0,
+            1.0,
+            0.0,
+            0.0,
+            exciter,
+            VoiceControls::default(),
+        );
+        let held_n = (held * sample_rate as f32) as usize;
+        let total = held_n + (released * sample_rate as f32) as usize;
+        (0..total)
+            .map(|i| {
+                if i == held_n {
+                    voice.note_off();
+                }
+                voice.process_sample(sample_rate)
+            })
+            .collect()
+    }
+
+    fn rms(xs: &[f32]) -> f32 {
+        (xs.iter().map(|&x| (x * x) as f64).sum::<f64>() / xs.len().max(1) as f64).sqrt() as f32
+    }
+
+    /// The level tolerance (dB) for `exciter`: the spec's 1.5 dB, widened
+    /// only where a residual comes from sample-grid rounding or chaotic
+    /// contact rather than an unconverted constant. Each reason, with the
+    /// measured numbers, is in `fix-sample-rate-time-constants`'s design.md
+    /// ("Implementation findings").
+    fn level_tolerance_db(exciter: i32) -> f32 {
+        match exciter {
+            // ~5-sample strike on the envelope's attack ramp.
+            2 => 3.0,
+            // Chaotic chatter after the bounce limit.
+            5 => 3.0,
+            // Impulse times rounded to the sample grid.
+            6 => 2.5,
+            // Hash noise and a few random-phase impacts, at about -80 dBFS.
+            8 => 3.0,
+            // Clipped stick-slip.
+            12 => 3.0,
+            // Grid-rounded spawn train aliasing onto the modes.
+            16 => 8.0,
+            _ => 1.5,
+        }
+    }
+
+    #[test]
+    fn every_exciter_has_the_same_level_at_any_sample_rate() {
+        let mut failures = Vec::new();
+        for exciter in 1..=16 {
+            let reference = rms(&render_pipe_note(exciter, 48_000, 1.0, 1.0));
+            for sample_rate in [44_100, 96_000] {
+                let level = rms(&render_pipe_note(exciter, sample_rate, 1.0, 1.0));
+                let diff = 20.0 * (level / reference).log10();
+                if diff.abs() > level_tolerance_db(exciter) || !diff.is_finite() {
+                    failures.push(format!("exciter {exciter} @ {sample_rate}: {diff:+.2} dB"));
+                }
+            }
+        }
+        assert!(
+            failures.is_empty(),
+            "level differs from 48 kHz:\n{}",
+            failures.join("\n")
+        );
+    }
+
+    #[test]
+    fn struck_attack_timing_does_not_depend_on_sample_rate() {
+        let time_to_peak = |exciter: i32, sample_rate: u32| {
+            let mut out = render_pipe_note(exciter, sample_rate, 0.5, 0.0);
+            // The drumstick keeps chattering on the resonator after its
+            // bounce limit, and its loudest peak lands somewhere in that
+            // chaotic chatter. Time its strike instead: the first 20 ms.
+            if exciter == 5 {
+                out.truncate(sample_rate as usize / 50);
+            }
+            let peak = out
+                .iter()
+                .enumerate()
+                .max_by(|a, b| a.1.abs().total_cmp(&b.1.abs()))
+                .map(|(i, _)| i)
+                .unwrap();
+            peak as f32 / sample_rate as f32
+        };
+        for exciter in [2, 3, 4, 5] {
+            let reference = time_to_peak(exciter, 48_000);
+            for sample_rate in [44_100, 96_000] {
+                let t = time_to_peak(exciter, sample_rate);
+                assert!(
+                    (t / reference - 1.0).abs() <= 0.1,
+                    "exciter {exciter} @ {sample_rate}: peak at {:.2} ms vs {:.2} ms",
+                    t * 1e3,
+                    reference * 1e3
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn struck_tail_ends_at_the_same_time_at_any_sample_rate() {
+        let seconds_to_idle = |sample_rate: u32| {
+            let mut voice = Voice::new();
+            voice.note_on_with_controls(
+                60,
+                100.0,
+                crate::dsp::ModalProfileId::Pipe,
+                0,
+                1.0,
+                0.0,
+                0.0,
+                2,
+                VoiceControls::default(),
+            );
+            let held = sample_rate as usize / 10;
+            for _ in 0..held {
+                voice.process_sample(sample_rate);
+            }
+            voice.note_off();
+            let mut n = 0usize;
+            while voice.is_rendering() && n < sample_rate as usize * 60 {
+                voice.process_sample(sample_rate);
+                n += 1;
+            }
+            n as f32 / sample_rate as f32
+        };
+        let reference = seconds_to_idle(48_000);
+        for sample_rate in [44_100, 96_000] {
+            let t = seconds_to_idle(sample_rate);
+            assert!(
+                (t / reference - 1.0).abs() <= 0.1,
+                "tail @ {sample_rate}: {t:.2} s vs {reference:.2} s at 48 kHz"
+            );
+        }
+    }
+
+    /// Prints a 48 kHz render hash per exciter, run before and after
+    /// `fix-sample-rate-time-constants` to show 48 kHz output is unchanged.
+    /// Not asserted: libm differs between CI targets, so the hashes are
+    /// platform-specific.
+    #[test]
+    #[ignore]
+    fn print_48k_exciter_render_hashes() {
+        for exciter in 1..=16 {
+            let mut hash = 0xcbf2_9ce4_8422_2325_u64;
+            for x in render_pipe_note(exciter, 48_000, 1.0, 1.0) {
+                for byte in x.to_bits().to_le_bytes() {
+                    hash ^= byte as u64;
+                    hash = hash.wrapping_mul(0x0100_0000_01b3);
+                }
+            }
+            println!("HASH exciter {exciter:2}: {hash:#018x}");
         }
     }
 }

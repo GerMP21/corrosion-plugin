@@ -7,6 +7,7 @@
 //! Use it for conveyor squeals, dragged tools, corrugated metal, or textured
 //! industrial drag sounds.
 
+use crate::dsp::utils::rate;
 /// Drag exciter for periodic ridge contact.
 #[derive(Clone, Debug)]
 pub struct CorrugatedDrag {
@@ -18,6 +19,8 @@ pub struct CorrugatedDrag {
     position: f32,
     active: bool,
     last_bump_force: f32,
+    /// `48 kHz / fs` (`fix-sample-rate-time-constants`).
+    ratio: f32,
 }
 
 impl CorrugatedDrag {
@@ -31,7 +34,13 @@ impl CorrugatedDrag {
             position: 0.0,
             active: false,
             last_bump_force: 0.0,
+            ratio: 1.0,
         }
+    }
+
+    /// Re-derives the per-sample constants for `sample_rate`.
+    pub fn set_sample_rate(&mut self, sample_rate: f32) {
+        self.ratio = rate::ratio(sample_rate);
     }
 
     /// Sets drag speed, ridge spacing, ridge depth, and exciter mass.
@@ -56,7 +65,7 @@ impl CorrugatedDrag {
         }
 
         let v_rel = self.drag_speed - resonator_velocity;
-        self.position += v_rel * 0.01;
+        self.position += v_rel * rate::step(0.01, self.ratio);
 
         // Periodic ridge profile: positive lobes become contact bumps.
         let bump = (2.0 * std::f32::consts::PI * self.position / self.ridge_spacing).sin();

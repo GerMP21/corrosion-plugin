@@ -4,6 +4,7 @@
 //! interaction bus updates coupling and strike-position coefficients without
 //! allocating on the audio thread.
 
+use crate::dsp::utils::rate;
 use std::f32::consts::PI;
 
 use crate::dsp::resonators::{
@@ -260,6 +261,8 @@ pub struct ModalResonator {
     dyn_amplitude: f32,
     /// Smoothed low-frequency displacement driving the sheet-metal warp.
     dyn_lf_displacement: f32,
+    /// Cached (sample rate, amplitude pole, LF pole) for non-48 kHz rates.
+    dyn_rate: (u32, f32, f32),
     /// Multiplicative pitch-bend factor applied on top of mode base frequencies.
     /// `1.0` is neutral; written by `set_pitch_bend_factor` from MIDI pitch bend
     /// or poly tuning events. Layered with object dynamics in `apply_dynamics`.
@@ -291,6 +294,7 @@ impl ModalResonator {
             dynamics: Dynamics::None,
             dyn_amplitude: 0.0,
             dyn_lf_displacement: 0.0,
+            dyn_rate: (48_000, 0.99, 0.95),
             pitch_bend_factor: 1.0,
             raw_specs: Vec::with_capacity(MAX_MODES),
             transformed_specs: Vec::with_capacity(MAX_MODES),
@@ -485,6 +489,7 @@ impl ModalResonator {
             dynamics: Dynamics::None,
             dyn_amplitude: 0.0,
             dyn_lf_displacement: 0.0,
+            dyn_rate: (48_000, 0.99, 0.95),
             pitch_bend_factor: 1.0,
             raw_specs: Vec::with_capacity(MAX_MODES),
             transformed_specs: Vec::with_capacity(MAX_MODES),
@@ -853,9 +858,23 @@ impl ModalResonator {
     /// Update the smoothed amplitude / low-frequency estimates that drive the
     /// dynamic hooks. `lf_sum` is the summed displacement of the lowest modes.
     #[inline]
-    fn track_dynamic_state(&mut self, amp_sum: f32, lf_sum: f32) {
-        self.dyn_amplitude = self.dyn_amplitude * 0.99 + amp_sum * 0.01;
-        self.dyn_lf_displacement = self.dyn_lf_displacement * 0.95 + lf_sum * 0.05;
+    fn track_dynamic_state(&mut self, amp_sum: f32, lf_sum: f32, sample_rate: u32) {
+        // One-pole trackers tuned per 48 kHz sample (poles 0.99 and 0.95),
+        // converted for other rates; the 48 kHz path keeps the exact
+        // literals so its output is unchanged.
+        if sample_rate == 48_000 {
+            self.dyn_amplitude = self.dyn_amplitude * 0.99 + amp_sum * 0.01;
+            self.dyn_lf_displacement = self.dyn_lf_displacement * 0.95 + lf_sum * 0.05;
+        } else {
+            if self.dyn_rate.0 != sample_rate {
+                let r = rate::ratio(sample_rate as f32);
+                self.dyn_rate = (sample_rate, rate::decay(0.99, r), rate::decay(0.95, r));
+            }
+            let (_, amp_pole, lf_pole) = self.dyn_rate;
+            self.dyn_amplitude = self.dyn_amplitude * amp_pole + amp_sum * (1.0 - amp_pole);
+            self.dyn_lf_displacement =
+                self.dyn_lf_displacement * lf_pole + lf_sum * (1.0 - lf_pole);
+        }
     }
 
     /// Return the current summed displacement.
@@ -910,11 +929,14 @@ impl ResonatorCore for ModalResonator {
         }
 
         if dynamic {
-            self.track_dynamic_state(amp_sum, lf_sum);
+            self.track_dynamic_state(amp_sum, lf_sum, sample_rate);
         }
 
-        self.interaction_bus.state.resonator_velocity =
-            interaction_displacement - self.interaction_bus.state.resonator_displacement;
+        // Velocity in displacement per 48 kHz sample, the unit the exciters'
+        // own velocities use (exactly the plain difference at 48 kHz).
+        self.interaction_bus.state.resonator_velocity = (interaction_displacement
+            - self.interaction_bus.state.resonator_displacement)
+            * (sample_rate as f32 / REFERENCE_SAMPLE_RATE);
         self.interaction_bus.state.resonator_displacement = interaction_displacement;
 
         match self.profile {
@@ -989,11 +1011,14 @@ impl ResonatorCore for ModalResonator {
         }
 
         if dynamic {
-            self.track_dynamic_state(amp_sum, lf_sum);
+            self.track_dynamic_state(amp_sum, lf_sum, sample_rate);
         }
 
-        self.interaction_bus.state.resonator_velocity =
-            interaction_displacement - self.interaction_bus.state.resonator_displacement;
+        // Velocity in displacement per 48 kHz sample, the unit the exciters'
+        // own velocities use (exactly the plain difference at 48 kHz).
+        self.interaction_bus.state.resonator_velocity = (interaction_displacement
+            - self.interaction_bus.state.resonator_displacement)
+            * (sample_rate as f32 / REFERENCE_SAMPLE_RATE);
         self.interaction_bus.state.resonator_displacement = interaction_displacement;
         (left_sum, right_sum)
     }

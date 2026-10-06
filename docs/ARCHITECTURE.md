@@ -256,6 +256,44 @@ The per-exciter DSP models implement the formulas in
 `docs/detailed-specs/exciter-algorithms.md` (Kelvin–Voigt, Hertzian contact,
 micro-bouncing, Poisson impulse clusters, Stribeck friction, etc.).
 
+### Sample-rate rule
+
+Per-sample constants in the exciters, the voice (output high-pass, peak decay,
+tail frame count), the resonator's velocity and dynamics trackers and the FEM
+body are **48 kHz references**. Each is converted to the host rate through
+`dsp::utils::rate`, with `ratio = 48 000 / fs`:
+
+| Constant | Conversion |
+|---|---|
+| decay or one-pole pole `c` | `c^ratio` (`rate::decay`) |
+| smoother step `x += (t − x)·k` | `1 − (1 − k)^ratio` (`rate::smoother`) |
+| integration step, acceleration, rate | `× ratio` (`rate::step`) |
+| frame count | `/ ratio` (`rate::frames`) |
+| one-sample force spike | amplitude `/ ratio`, so it keeps its area (`rate::impulse`) |
+| per-sample white noise | amplitude `/ √ratio` (`rate::white_noise`) |
+
+Every conversion is exactly the identity at 48 kHz, so 48 kHz output is
+bit-identical to the unconverted code. Exciters cache their converted
+constants in `set_sample_rate`, which the voice calls when the rate changes.
+The resonator reports velocity in 48 kHz-sample units, which is what the
+exciters' contact laws assume. New per-sample code should follow the same
+rule.
+
+Levels match 48 kHz within 1.5 dB at 44.1 and 96 kHz, except where sample-grid
+rounding or chaotic contact dominates, which needs sub-sample timing to fix.
+The voice test `every_exciter_has_the_same_level_at_any_sample_rate` widens
+the tolerance for these exciters:
+
+- HandStrike, 3 dB: a ~0.1 ms strike on the envelope's attack ramp;
+- Drumstick, 3 dB: chatter after its bounce limit;
+- WireBrush, 2.5 dB: impulse times rounded to the grid;
+- MetalChain, 3 dB: near-silent rattle and hash noise;
+- TensionRise, 3 dB: clipped stick-slip;
+- ParticleRain, 8 dB: its grid-rounded spawn train aliases onto the modes.
+
+The measurements behind each are in the archived `fix-sample-rate-time-constants`
+design ("Implementation findings").
+
 ---
 
 ## 7. Interaction Bus
@@ -393,6 +431,10 @@ bundle/validator flow uses `x86_64-unknown-linux-gnu`.
 - **Oversampled clipper is effectively a soft clipper.** Until the no-op is fixed,
   nonlinear-stage aliasing is unmitigated (and is exactly what the aliasing
   harness measures).
+- **MetalChain's rattle filter keeps no state.** `apply_hpf` runs after
+  `noise_state` is written back, so the "high-pass" is a plain gain of about
+  `(1000/fs)/cutoff`, now evaluated at 48 kHz. That is why the chain is nearly
+  silent (about −80 dBFS on a Pipe). Fixing it changes the 48 kHz sound.
 - **Single algorithmic resonator path.** The former dual path was retired
   (implemented 2026-05-27, see §5 and `docs/backlog.md`): `complex_algo` is gone,
   the per-object algorithmic generators are the sole engine, 14 per-object

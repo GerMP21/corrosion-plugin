@@ -4,6 +4,7 @@
 //! to approximate stick-slip motion. The output is a force signal that can be
 //! fed into the resonator each sample.
 
+use crate::dsp::utils::rate;
 use std::f32::consts::PI;
 
 /// Smooth stick-slip bow model with a moving contact state.
@@ -25,6 +26,10 @@ pub struct BowExciter {
     stick_state: f32,
     /// Smoothed target speed derived from trigger velocity.
     target_speed: f32,
+    /// `48 kHz / fs` and per-sample constants derived from it
+    /// (`fix-sample-rate-time-constants`); exact 48 kHz values at 48 kHz.
+    ratio: f32,
+    speed_smoothing: f32,
 }
 
 impl BowExciter {
@@ -39,7 +44,15 @@ impl BowExciter {
             bow_velocity: 0.0,
             stick_state: 0.0,
             target_speed: 0.0,
+            ratio: 1.0,
+            speed_smoothing: 0.001,
         }
+    }
+
+    /// Re-derives the per-sample constants for `sample_rate`.
+    pub fn set_sample_rate(&mut self, sample_rate: f32) {
+        self.ratio = rate::ratio(sample_rate);
+        self.speed_smoothing = rate::smoother(0.001, self.ratio);
     }
 
     /// Sets the physical driving parameters.
@@ -85,8 +98,8 @@ impl BowExciter {
 
         let force = self.pressure * mu * v_rel.signum();
 
-        self.bow_velocity += (self.target_speed - self.bow_velocity) * 0.001;
-        self.bow_position += self.bow_velocity;
+        self.bow_velocity += (self.target_speed - self.bow_velocity) * self.speed_smoothing;
+        self.bow_position += rate::step(self.bow_velocity, self.ratio);
 
         if self.bow_position > 1.0 {
             self.bow_position -= 1.0;

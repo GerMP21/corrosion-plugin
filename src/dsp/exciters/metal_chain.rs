@@ -6,6 +6,7 @@
 //! mallet hits.
 //! Use it for dropped chain, rattling hardware, or clustered metallic impacts.
 
+use crate::dsp::utils::rate;
 /// Multi-link impact exciter with stochastic rattle.
 #[derive(Clone, Debug)]
 pub struct MetalChain {
@@ -20,6 +21,8 @@ pub struct MetalChain {
     active: bool,
     time_ms: f32,
     sample_rate: f32,
+    /// `48 kHz / fs` (`fix-sample-rate-time-constants`).
+    ratio: f32,
     noise_state: f32,
     rng_phase: f32,
 }
@@ -51,6 +54,7 @@ impl MetalChain {
             active: false,
             time_ms: 0.0,
             sample_rate: 48000.0,
+            ratio: 1.0,
             noise_state: 0.0,
             rng_phase: 0.0,
         }
@@ -75,6 +79,7 @@ impl MetalChain {
     /// Updates the sample rate used for time stepping and resonator decay.
     pub fn set_sample_rate(&mut self, rate: f32) {
         self.sample_rate = rate;
+        self.ratio = rate::ratio(rate);
     }
 
     /// Starts the staggered link-drop sequence.
@@ -128,14 +133,23 @@ impl MetalChain {
 
         for link in self.links.iter_mut() {
             if self.time_ms >= link.impact_time_ms && !link.impacted {
-                link.position += link.velocity * 0.0005;
-                link.velocity += 0.03;
+                link.position += link.velocity * rate::step(0.0005, self.ratio);
+                link.velocity += rate::step(0.03, self.ratio);
 
                 let penetration = (link.position - resonator_displacement).max(0.0);
                 if penetration > 0.0 {
                     let stiffness = 2.0;
+                    // The first contact sample's penetration grows with the
+                    // step size, so express it in reference-sample units;
+                    // the impact is then a one-sample spike whose area must
+                    // stay the same at any rate.
+                    let penetration = if self.ratio == 1.0 {
+                        penetration
+                    } else {
+                        penetration / self.ratio
+                    };
                     let impact_force = stiffness * penetration.powf(1.5) * link.mass;
-                    total_force += impact_force;
+                    total_force += rate::impulse(impact_force, self.ratio);
 
                     link.velocity *= -0.4;
                     link.impacted = true;
@@ -150,7 +164,10 @@ impl MetalChain {
         self.noise_state = filter_state;
 
         if self.time_ms > self.drop_spread_ms * 0.3 {
-            let grind_noise = self.generate_noise() * self.internal_rattle * 0.1;
+            let grind_noise = rate::white_noise(
+                self.generate_noise() * self.internal_rattle * 0.1,
+                self.ratio,
+            );
             total_force += Self::apply_hpf(grind_noise, alpha, &mut filter_state);
         }
 
@@ -174,7 +191,10 @@ impl MetalChain {
 
     fn hpf_params(&self) -> (f32, f32) {
         let cutoff = 200.0 + self.rattle_color * 3000.0;
-        let alpha = cutoff / (cutoff + 1000.0 / self.sample_rate);
+        // The reference rate, not the host rate: `apply_hpf` never keeps its
+        // state, so `1 − alpha` is a plain gain on the noise, and it must
+        // not change with the rate.
+        let alpha = cutoff / (cutoff + 1000.0 / rate::REFERENCE_RATE);
         (cutoff, alpha)
     }
 

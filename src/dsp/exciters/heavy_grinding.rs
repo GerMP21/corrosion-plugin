@@ -6,6 +6,7 @@
 //! contact inside the `dsp/exciters` friction family.
 //! Use it for abrasive drag, metal-on-stone grinding, or harsh industrial wear.
 
+use crate::dsp::utils::rate;
 /// Scratchy friction exciter with tearing-noise modulation.
 #[derive(Clone, Debug)]
 pub struct HeavyGrinding {
@@ -19,6 +20,12 @@ pub struct HeavyGrinding {
     noise_state: f32,
     noise_filter_state: f32,
     rng_phase: f32,
+    /// `48 kHz / fs` (`fix-sample-rate-time-constants`).
+    ratio: f32,
+    noise_leak: f32,
+    /// Last (cutoff, converted filter coefficient), so the per-sample filter
+    /// only re-derives its coefficient when the cutoff changes.
+    filter_cache: (f32, f32),
 }
 
 impl HeavyGrinding {
@@ -33,7 +40,17 @@ impl HeavyGrinding {
             noise_state: 0.0,
             noise_filter_state: 0.0,
             rng_phase: 0.0,
+            ratio: 1.0,
+            noise_leak: 0.99,
+            filter_cache: (f32::NAN, 0.0),
         }
+    }
+
+    /// Re-derives the per-sample constants for `sample_rate`.
+    pub fn set_sample_rate(&mut self, sample_rate: f32) {
+        self.ratio = rate::ratio(sample_rate);
+        self.noise_leak = rate::decay(0.99, self.ratio);
+        self.filter_cache = (f32::NAN, 0.0);
     }
 
     /// Sets grind speed, pressure, grit amount, and noise color.
@@ -105,13 +122,17 @@ impl HeavyGrinding {
         self.rng_phase += 0.1;
         let step = (self.rng_phase.sin() * 43_758.547).fract() * 2.0 - 1.0;
         self.noise_state += step * 0.1;
-        self.noise_state *= 0.99; // Leak
+        self.noise_state *= self.noise_leak; // Leak
         self.noise_state.clamp(-1.0, 1.0)
     }
 
     fn filter_noise(&mut self, input: f32, cutoff_hz: f32) -> f32 {
         // Simple first-order filter
-        let alpha = (cutoff_hz / 10000.0).clamp(0.01, 0.99);
+        if self.filter_cache.0 != cutoff_hz {
+            let alpha_48k = (cutoff_hz / 10000.0).clamp(0.01, 0.99);
+            self.filter_cache = (cutoff_hz, rate::smoother(alpha_48k, self.ratio));
+        }
+        let alpha = self.filter_cache.1;
         self.noise_filter_state += alpha * (input - self.noise_filter_state);
         self.noise_filter_state
     }
