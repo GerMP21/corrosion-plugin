@@ -46,3 +46,11 @@
   - `c5_verify_revoiced_presets` (single-note preset levels must be unchanged).
 
   Verify all green.
+
+## 5. Verification follow-up
+
+- [x] 5.1 Correct the `Voice::is_active()` and `VoiceManager::active_notes()` docs: both are held-only, and stealing relies on that. Add `VoiceManager::sounding_notes()` (held or tailing).
+- [x] 5.2 Make the `tests/no_alloc.rs` note-off test real. It now counts sounding voices: 4 right after release, then renders until all are idle (30 s cap). The old `active_notes()` check passed at once. Switch it from bowed Tank to bowed and struck Pipe, because a bowed Tank tail rings for over 30 s (see design findings). Verify it passes in debug.
+- [x] 5.3 Add `free_slot_is_used_before_any_tail_in_a_nearly_full_pool` and `quietest_tail_is_stolen_first`, and make `steals_quietest_voice_when_all_active` assert the exact quietest note; verify they pass
+- [x] 5.4 Make `note_off` release the oldest held voice on a repeated pitch, and add `note_off_releases_the_oldest_voice_on_a_repeated_pitch`. Verify it fails on the old slot-order lookup.
+- [x] 5.5 Reword the protection-window scenario to match its test, and design Decision 5 to match how the tests observe voices. Update the NaN-stealing notes (README, ARCHITECTURE), the 8-voice benchmark doc and the `docs/master-prompt.md` pool note.

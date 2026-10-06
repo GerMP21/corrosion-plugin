@@ -21,7 +21,7 @@ fn bench_single_voice_manager(c: &mut Criterion) {
     });
 }
 
-/// Benchmark the eight-voice worst-case polyphonic manager path.
+/// Benchmark eight active voices (half the 16-voice pool).
 fn bench_eight_voice_manager(c: &mut Criterion) {
     c.bench_function("voice_manager_eight_voices", |b| {
         b.iter(|| {

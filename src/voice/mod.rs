@@ -1074,14 +1074,15 @@ impl Voice {
         self.particle_rain.release();
     }
 
-    /// Report whether the voice is still eligible for scheduling.
+    /// Report whether the voice's note is held (not yet released).
     ///
-    /// A voice can remain audible briefly after `note_off` while its tail
-    /// decays below the deactivation threshold.
+    /// `note_off` clears this at once; the voice can keep sounding afterwards
+    /// while its tail decays (see `is_rendering`). Voice stealing relies on
+    /// this held-only meaning to tell held notes from released tails.
     ///
     /// # Returns
     ///
-    /// `true` when the voice is active or still tailing; otherwise `false`.
+    /// `true` while the note is held; `false` once released or idle.
     pub fn is_active(&self) -> bool {
         self.active
     }

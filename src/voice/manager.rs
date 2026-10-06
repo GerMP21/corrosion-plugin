@@ -60,7 +60,7 @@ impl VoiceManager {
         }
     }
 
-    /// MIDI notes of the active (held or tailing) voices, in slot order.
+    /// MIDI notes of the held (not yet released) voices, in slot order.
     /// Allocation-free.
     pub fn active_notes(&self) -> impl Iterator<Item = u8> + '_ {
         self.voices
@@ -225,6 +225,15 @@ impl VoiceManager {
             .map(|(idx, _)| idx)
     }
 
+    /// MIDI notes of every sounding voice, held or tailing, in slot order.
+    /// Allocation-free.
+    pub fn sounding_notes(&self) -> impl Iterator<Item = u8> + '_ {
+        self.voices
+            .iter()
+            .filter(|voice| voice.is_rendering())
+            .map(|voice| voice.note())
+    }
+
     /// Seed a freshly-claimed slot with the current channel expression state
     /// so a pitch-bent / pressed / mod-wheeled context isn't lost when a new
     /// note starts. Channel pressure and mod wheel are persistent on the
@@ -328,11 +337,16 @@ impl VoiceManager {
         }
     }
 
+    /// Release the oldest held voice playing `note`, so a pitch started
+    /// twice releases first-in, first-out.
     pub fn note_off(&mut self, note: u8) {
         if let Some(idx) = self
             .voices
             .iter()
-            .position(|v| v.is_active() && v.note() == note)
+            .enumerate()
+            .filter(|(_, v)| v.is_active() && v.note() == note)
+            .min_by_key(|(_, v)| v.start_frame())
+            .map(|(idx, _)| idx)
         {
             self.voices[idx].note_off();
         }
@@ -609,13 +623,20 @@ mod tests {
         for _ in 0..48_000 {
             manager.process_sample(sample_rate);
         }
-        // Record which notes were active before the extra note
+        // Record which notes were active before the extra note, and which
+        // is quietest (all are held and well past the protection window).
         let active_notes_before: Vec<u8> = manager
             .voices
             .iter()
             .filter(|v| v.is_active())
             .map(|v| v.note())
             .collect();
+        let quietest = manager
+            .voices
+            .iter()
+            .min_by(|a, b| a.peak_hold().total_cmp(&b.peak_hold()))
+            .map(|v| v.note())
+            .unwrap();
 
         // Send one note more than the pool holds — should steal the quietest (most decayed) voice
         manager.note_on(
@@ -653,9 +674,10 @@ mod tests {
             .into_iter()
             .filter(|n| !active_notes_after.contains(n))
             .collect();
-        assert!(
-            !stolen.is_empty(),
-            "at least one original voice should have been stolen"
+        assert_eq!(
+            stolen,
+            vec![quietest],
+            "the quietest voice should be stolen"
         );
     }
 
@@ -961,5 +983,78 @@ mod tests {
                 "{sample_rate} Hz: quietest note kept after the 100 ms window"
             );
         }
+    }
+
+    #[test]
+    fn free_slot_is_used_before_any_tail_in_a_nearly_full_pool() {
+        let mut manager = VoiceManager::new();
+        for i in 0..MAX_VOICES as u8 - 1 {
+            start(&mut manager, 40 + i, 100.0, HAND_STRIKE);
+        }
+        run_seconds(&mut manager, 48_000, 0.05);
+        for i in 0..MAX_VOICES as u8 - 1 {
+            manager.note_off(40 + i);
+        }
+        run_seconds(&mut manager, 48_000, 0.01);
+        assert_eq!(
+            sounding(&manager).len(),
+            MAX_VOICES - 1,
+            "setup: tails ringing"
+        );
+        start(&mut manager, 110, 100.0, HAND_STRIKE);
+        let notes = sounding(&manager);
+        assert_eq!(notes.len(), MAX_VOICES, "the free slot should be used");
+        for i in 0..MAX_VOICES as u8 - 1 {
+            assert!(notes.contains(&(40 + i)), "tail {} was cut", 40 + i);
+        }
+    }
+
+    #[test]
+    fn quietest_tail_is_stolen_first() {
+        let mut manager = VoiceManager::new();
+        for i in 0..MAX_VOICES as u8 - 2 {
+            start(&mut manager, 40 + i, 127.0, BOW);
+        }
+        start(&mut manager, 100, 127.0, HAND_STRIKE);
+        start(&mut manager, 101, 15.0, HAND_STRIKE);
+        run_seconds(&mut manager, 48_000, 0.2);
+        manager.note_off(100);
+        manager.note_off(101);
+        run_seconds(&mut manager, 48_000, 0.001);
+        let (loud, quiet) = (peak_of(&manager, 100), peak_of(&manager, 101));
+        assert!(
+            quiet < loud,
+            "setup: tail 101 ({quiet}) should be quieter than 100 ({loud})"
+        );
+
+        start(&mut manager, 110, 100.0, HAND_STRIKE);
+        let notes = sounding(&manager);
+        assert!(!notes.contains(&101), "the quieter tail should be stolen");
+        assert!(notes.contains(&100), "the louder tail should keep sounding");
+        assert_eq!(notes.len(), MAX_VOICES);
+    }
+
+    #[test]
+    fn note_off_releases_the_oldest_voice_on_a_repeated_pitch() {
+        // Put the newer note in an earlier slot than the older one, so slot
+        // order and age disagree: free slot 0 after the first note-on.
+        let mut manager = VoiceManager::new();
+        start(&mut manager, 50, 100.0, HAND_STRIKE);
+        start(&mut manager, 60, 100.0, HAND_STRIKE);
+        run_seconds(&mut manager, 48_000, 0.01);
+        manager.voices[0].reset();
+        start(&mut manager, 60, 100.0, HAND_STRIKE);
+        assert_eq!(manager.voices[0].note(), 60, "setup: newer note in slot 0");
+        run_seconds(&mut manager, 48_000, 0.01);
+        manager.note_off(60);
+        let mut voices: Vec<_> = manager
+            .voices
+            .iter()
+            .filter(|v| v.is_rendering() && v.note() == 60)
+            .collect();
+        voices.sort_by_key(|v| v.start_frame());
+        assert_eq!(voices.len(), 2);
+        assert!(!voices[0].is_active(), "the older voice should be released");
+        assert!(voices[1].is_active(), "the newer voice should stay held");
     }
 }

@@ -153,8 +153,10 @@ The audio callback guarantees:
   resonator coefficients clamp `decay_seconds` to `f32::EPSILON`.
 - **NaN/Inf guards** — every voice output is checked with `is_finite()` and
   flushed to zero before leaving the voice.
-- **NaN-safe stealing** — non-finite `peak_hold` sorts as the quietest voice
-  (`comparable_peak_hold`), so a corrupted voice is reclaimed rather than panicking.
+- **NaN-safe stealing** — within its stealing tier (released tails, then held
+  notes past the 100 ms protection window), a non-finite `peak_hold` sorts as the
+  quietest voice (`comparable_peak_hold`), so a corrupted voice is reclaimed rather
+  than panicking. Young held notes are ordered by age only.
 
 > Caveat: parameter *application* is not control-rate. `lib.rs` calls every
 > `post_chain.set_*` setter once per sample, which recomputes coefficients at

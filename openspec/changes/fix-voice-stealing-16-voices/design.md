@@ -59,9 +59,9 @@
    - `from_fn` avoids a 16-line literal, and the array is about 16 KB inline, which is fine on any host's construction stack.
    - The voice sum is not normalized, so a single note keeps its level. The output limiter (already ≈ −0.3 dBFS) handles dense 16-voice peaks.
 
-5. **Tests drive the manager through its public API, plus `voices_for_test`.** The stealing scenarios from the spec become unit tests in `manager.rs`.
+5. **Tests drive the manager through its public API.** The stealing scenarios from the spec become unit tests in `manager.rs`.
    - They use `note_on_with_controls`, `process_sample` to advance time and set `peak_hold` naturally, and `note_off`.
-   - They observe through `active_notes()` (added in C3) and `voices_for_test()`.
+   - Being inside the module, they observe the voice pool directly (held vs. sounding, level, age). The integration tests use `active_notes()` (held) and `sounding_notes()` (held or tailing).
    - The "quiet young note" scenario needs a held note that is quieter than the rest: a quiet exciter at low velocity, measured, not assumed.
 
 ## Implementation findings
@@ -79,6 +79,11 @@
 The worst case lands where the design estimated (about 40 %). Idle voices are skipped, so the cost scales with the voices actually sounding.
 
 **Stealing-test setup:** a struck Pipe note decays below a young bowed note within about 100 ms. The protection-window test therefore holds its old notes with a loud bow, so the young note stays the quietest at both 90 ms and 110 ms. Each test asserts this level ordering as a precondition instead of assuming it.
+
+**Verification follow-up:**
+- **The note-off allocation test (C3) never checked deactivation.** It counted held voices, which drop to zero at `note_off`. It now counts sounding voices.
+- **A bowed Tank's tail is extremely long.** It stays at full scale (clipped to 1.0) for about 18 s after note-off, then decays over more than 10 s. A struck Tank stops after about 21 s, and a bowed Pipe after about 15 s. Tail deactivation itself works, but the bowed-Tank level suggests the resonator keeps self-sustaining after the bow is released. That is a separate DSP question, outside this change, and is noted here for follow-up.
+- **`note_off` now releases the oldest held voice on a repeated pitch (FIFO)**, not the first matching slot. This only matters when the same pitch is held twice.
 
 ## Risks / Trade-offs
 

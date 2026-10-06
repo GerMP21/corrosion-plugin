@@ -47,5 +47,5 @@ When the pool is full and every voice is held, a held note started less than 100
 - **THEN** the oldest held note is stolen
 
 #### Scenario: Protection is measured in time
-- **WHEN** the same rapid-note scenario runs at 44.1 kHz and 96 kHz
-- **THEN** the protection window is 100 ms at each sample rate
+- **WHEN** at 44.1 kHz and at 96 kHz, a full pool holds loud old notes and one quiet held note, and a new note starts when the quiet note is 90 ms old, and again (from the same setup) when it is 110 ms old
+- **THEN** the quiet note survives at 90 ms and is stolen at 110 ms, at both sample rates

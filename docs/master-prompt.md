@@ -8,7 +8,8 @@ Below is a **ready-to-use master system prompt** for an autonomous coding agent 
 > - 16 exciters, 9 modal objects, bidirectional interaction bus, 6 transforms,
 >   AR/ADSR/MSEG envelope families — all faithful to `docs/detailed-specs/`.
 > - Real-time safety: `tests/no_alloc.rs`, `assert_process_allocs` (non-Windows),
->   denormal flush, NaN guards, NaN-safe voice stealing, fixed 8-voice pool.
+>   denormal flush, NaN guards, NaN-safe voice stealing, fixed 8-voice pool
+>   (16 voices since 2026-10, change `fix-voice-stealing-16-voices`).
 > - Quality modes (Eco/Normal/High/Render) with Eco stage-bypass.
 > - Idle-CPU optimization (`Voice::rendering` / `is_rendering()` gating).
 > - Aliasing measurement harness (`offline::analyze_post_chain_aliasing`,

@@ -151,7 +151,7 @@ Benchmark coverage is local/manual for now. Use `cargo bench --no-default-featur
 - **No heap allocation** in `process()` — including note-on for every object, quality mode and exciter, voice stealing, live MIDI expression, and `reset()`. Each voice preallocates its worst-case modal bank (`MAX_MODES`) and rebuilds it in place at note-on. Verified by `tests/no_alloc.rs`, which must run in a **debug** build (`cargo test --no-default-features --test no_alloc`): the checking allocator only exists under `debug_assertions`, and a release run passes vacuously. The non-Windows build enables nih_plug's `assert_process_allocs` feature. The Windows lane is intentionally disabled (`assert_no_alloc`'s thread-local allocator hook conflicts with the Windows CRT during nih-plug test setup); document is in `docs/BACKLOG.md` → P4.
 - **No locks / blocking / I/O / logging** in the audio callback.
 - **Fixed voice array** — 8 `Voice` instances, each owning all 16 exciter structs (allocation-free dispatch).
-- **Denormal + NaN/Inf guards** at every voice boundary; non-finite peak holds sort as quietest so a corrupted voice is reclaimed.
+- **Denormal + NaN/Inf guards** at every voice boundary; non-finite peak holds sort as quietest within their stealing tier, so a corrupted voice is reclaimed.
 - **Per-buffer parameter setters.** Following the P0 fix, post-chain parameters update once per buffer (not per sample), with audio-rate one-pole smoothers (~20 ms tau, first-call snap) inside `WdfLadderFilter`, `LorenzDrive`, and the master drive / output gain paths.
 
 ## Docs
