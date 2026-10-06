@@ -425,6 +425,9 @@ pub struct Voice {
     particle_rain: ParticleRain,
 
     peak_hold: f32,
+    /// Largest |sample| fed to the output clamp since note-on. Lets tests
+    /// check that default notes don't overdrive (`normalize-object-loudness`).
+    pre_clamp_peak: f32,
     frames_below_threshold: u32,
     start_frame: u64,
     excitation_value: f32,
@@ -470,6 +473,17 @@ const PEAK_DECAY: f32 = 0.999;
 /// Pole and input gain of the voice's one-pole high-pass boost, at 48 kHz.
 /// (The gain is kept as its own literal: `1.0 − 0.8` isn't exactly `0.2` in
 /// f32.)
+/// Fixed force trim per exciter ID (index 0 unused), so a default-control
+/// note at full velocity stays under full scale before the voice clamp on
+/// every object from C2 to C6 (`normalize-object-loudness`). Banks are
+/// normalized to one strike level, so what remains is each exciter's own
+/// drive level. Each trim is `0.9 / worst pre-clamp peak` from
+/// `print_exciter_overdrive`, applied only where that peak exceeded 1.0.
+const EXCITER_DRIVE_TRIM: [f32; 17] = [
+    1.0, 3.1929e-03, 1.0, 7.5118e-02, 1.5827e-03, 1.3839e-01, 3.0468e-01, 1.0735e-01, 1.0,
+    1.1755e-03, 1.8014e-03, 1.9514e-03, 4.2822e-02, 9.9174e-04, 7.8856e-04, 2.3966e-01, 4.7378e-03,
+];
+
 const HIGHPASS_POLE: f32 = 0.8;
 const HIGHPASS_GAIN: f32 = 0.2;
 
@@ -537,6 +551,7 @@ impl Voice {
             particle_rain: ParticleRain::new(),
 
             peak_hold: 0.0,
+            pre_clamp_peak: 0.0,
             frames_below_threshold: 0,
             start_frame: 0,
             excitation_value: 0.0,
@@ -815,6 +830,7 @@ impl Voice {
         self.exciter_type = exciter_type;
         self.excitation_sent = false;
         self.peak_hold = 0.0;
+        self.pre_clamp_peak = 0.0;
         self.frames_below_threshold = 0;
         self.start_frame = start_frame;
         let velocity_norm = (velocity / 127.0).clamp(0.0, 1.0);
@@ -1280,7 +1296,7 @@ impl Voice {
             _ => 0.0,
         };
 
-        excitation * envelope
+        excitation * envelope * EXCITER_DRIVE_TRIM[self.exciter_type.clamp(0, 16) as usize]
     }
 
     /// Render one mono sample from the voice.
@@ -1323,6 +1339,7 @@ impl Voice {
         let boost_amount = velocity_norm * 1.5;
         let boosted_sample = sample_with_rattle + (highpass * boost_amount);
 
+        self.pre_clamp_peak = self.pre_clamp_peak.max(boosted_sample.abs());
         let clamped = boosted_sample.clamp(-1.0, 1.0);
         // Expression (pressure + mod wheel) scales the post-clamp signal so
         // it can swell past unity without distorting the resonator path. The
@@ -1406,6 +1423,10 @@ impl Voice {
         let boosted_left = left_with_rattle + (highpass * boost_amount);
         let boosted_right = right_with_rattle + (highpass * boost_amount);
 
+        self.pre_clamp_peak = self
+            .pre_clamp_peak
+            .max(boosted_left.abs())
+            .max(boosted_right.abs());
         let clamped_left = boosted_left.clamp(-1.0, 1.0);
         let clamped_right = boosted_right.clamp(-1.0, 1.0);
         // Apply expression gain to both channels equally. Mirror of the mono
@@ -2106,6 +2127,9 @@ mod tests {
     /// ("Implementation findings").
     fn level_tolerance_db(exciter: i32) -> f32 {
         match exciter {
+            // Stick-slip limit cycle (clipped, so hidden, before
+            // normalize-object-loudness trimmed it under full scale).
+            1 => 2.0,
             // ~5-sample strike on the envelope's attack ramp.
             2 => 3.0,
             // Chaotic chatter after the bounce limit.
@@ -2116,6 +2140,9 @@ mod tests {
             8 => 3.0,
             // Clipped stick-slip.
             12 => 3.0,
+            // Hash noise whose f32 phase coarsens faster at higher rates
+            // (also hidden by clipping before normalize-object-loudness).
+            13 => 3.0,
             // Grid-rounded spawn train aliasing onto the modes.
             16 => 8.0,
             _ => 1.5,
@@ -2149,7 +2176,9 @@ mod tests {
             // The drumstick keeps chattering on the resonator after its
             // bounce limit, and its loudest peak lands somewhere in that
             // chaotic chatter. Time its strike instead: the first 20 ms.
-            if exciter == 5 {
+            // The hard mallet's rebounds do the same once its drive trim
+            // keeps it from clipping (normalize-object-loudness).
+            if exciter == 4 || exciter == 5 {
                 out.truncate(sample_rate as usize / 50);
             }
             let peak = out
@@ -2227,6 +2256,93 @@ mod tests {
                 }
             }
             println!("HASH exciter {exciter:2}: {hash:#018x}");
+        }
+    }
+
+    // --- Overdrive (normalize-object-loudness) ---
+
+    const ALL_PROFILES: [ModalProfileId; 9] = [
+        ModalProfileId::Pipe,
+        ModalProfileId::Plate,
+        ModalProfileId::Tank,
+        ModalProfileId::Chain,
+        ModalProfileId::IBeam,
+        ModalProfileId::TautCable,
+        ModalProfileId::CoilSpring,
+        ModalProfileId::SheetMetal,
+        ModalProfileId::IndustrialCog,
+    ];
+
+    /// The largest value fed to the voice clamp for one note at velocity 127
+    /// with default controls: one second held, one second released, 48 kHz.
+    fn pre_clamp_peak(profile: ModalProfileId, exciter: i32, note: u8) -> f32 {
+        let mut voice = Voice::new();
+        voice.note_on_with_controls(
+            note,
+            127.0,
+            profile,
+            0,
+            1.0,
+            0.0,
+            0.0,
+            exciter,
+            VoiceControls::default(),
+        );
+        for i in 0..96_000 {
+            if i == 48_000 {
+                voice.note_off();
+            }
+            voice.process_sample(48_000);
+        }
+        voice.pre_clamp_peak
+    }
+
+    #[test]
+    fn default_notes_do_not_overdrive_the_voice() {
+        let mut failures = Vec::new();
+        for profile in ALL_PROFILES {
+            // HandStrike (struck), Bow (friction), PneumaticJet (specialty).
+            for exciter in [2, 1, 13] {
+                for note in [36, 60, 84] {
+                    let peak = pre_clamp_peak(profile, exciter, note);
+                    if peak > 1.0 || !peak.is_finite() {
+                        failures.push(format!(
+                            "{profile:?} exciter {exciter} note {note}: {peak:.2}"
+                        ));
+                    }
+                }
+            }
+        }
+        assert!(
+            failures.is_empty(),
+            "pre-clamp peak over 1.0:\n{}",
+            failures.join("\n")
+        );
+    }
+
+    /// Worst and median pre-clamp peak per exciter over every object at
+    /// C2/C4/C6 (velocity 127, default controls). Used to set
+    /// `EXCITER_DRIVE_TRIM`.
+    #[test]
+    #[ignore]
+    fn print_exciter_overdrive() {
+        for exciter in 1..=16 {
+            let mut peaks: Vec<(f32, String)> = Vec::new();
+            for profile in ALL_PROFILES {
+                for note in [36, 60, 84] {
+                    peaks.push((
+                        pre_clamp_peak(profile, exciter, note),
+                        format!("{profile:?} {note}"),
+                    ));
+                }
+            }
+            peaks.sort_by(|a, b| a.0.total_cmp(&b.0));
+            let (worst, at) = peaks.last().unwrap();
+            println!(
+                "OVERDRIVE exciter {exciter:2}: worst {worst:10.3} ({at}), median {:8.3}, trim {:.3e}",
+                peaks[peaks.len() / 2].0,
+                (0.9 / worst).min(1.0) * super::EXCITER_DRIVE_TRIM[exciter as usize]
+            );
         }
     }
 }

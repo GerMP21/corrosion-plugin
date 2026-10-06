@@ -474,7 +474,10 @@ mod tests {
         }
         assert_eq!(sounding(&manager).len(), MAX_VOICES);
         for (i, peak) in peaks.iter().enumerate() {
-            assert!(*peak > 0.01, "voice {i} is silent (peak {peak})");
+            // Bowed notes peak around 0.008 once their drive trim keeps them
+            // under full scale (normalize-object-loudness); silence is far
+            // lower (the tail threshold is 1e-4).
+            assert!(*peak > 1e-3, "voice {i} is silent (peak {peak})");
         }
     }
 
