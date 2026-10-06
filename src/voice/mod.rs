@@ -1049,8 +1049,8 @@ impl Voice {
     /// Per-sample output gain shaped by expression. Pressure raises gain up
     /// to ~+3.5 dB; mod wheel adds ~+2 dB so CC1 sweeps stay distinct from
     /// pressure on hosts that only send one of the two. The cap keeps a
-    /// single voice's expressioned output ≲ 1.8 so the global limiter still
-    /// has headroom across an 8-voice pool.
+    /// single voice's expressioned output ≲ 1.8; the voice sum is not
+    /// normalized, so the output limiter absorbs dense 16-voice peaks.
     #[inline]
     fn expression_gain(&self) -> f32 {
         1.0 + self.effective_pressure() * 0.5 + self.mod_wheel * 0.3

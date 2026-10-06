@@ -64,6 +64,22 @@
    - They observe through `active_notes()` (added in C3) and `voices_for_test()`.
    - The "quiet young note" scenario needs a held note that is quieter than the rest: a quiet exciter at low velocity, measured, not assumed.
 
+## Implementation findings
+
+**Benchmarks** (`cargo bench --no-default-features --bench performance -- voice_manager`, development machine, release). Each iteration builds a manager, starts the notes and renders 4,096 samples (85.3 ms of audio at 48 kHz), so the figures include note-on cost.
+
+| benchmark | time / iteration | share of one core in real time |
+|---|---|---|
+| `voice_manager_single_voice` (mono, Pipe) | 0.66 ms | 0.8 % |
+| `voice_manager_eight_voices` (mono, Pipe) | 5.38 ms | 6.3 % |
+| `voice_manager_sixteen_voices` (stereo, Normal, Pipe) | 11.57 ms | 13.6 % |
+| `voice_manager_sixteen_voices_render` (stereo, Render 2× modes, damaged Plate) | 30.53 ms | 35.8 % |
+| `voice_manager_idle` (no notes) | 0.32 ms | 0.4 % |
+
+The worst case lands where the design estimated (about 40 %). Idle voices are skipped, so the cost scales with the voices actually sounding.
+
+**Stealing-test setup:** a struck Pipe note decays below a young bowed note within about 100 ms. The protection-window test therefore holds its old notes with a loud bow, so the young note stays the quietest at both 90 ms and 110 ms. Each test asserts this level ordering as a precondition instead of assuming it.
+
 ## Risks / Trade-offs
 
 - [Worst-case CPU doubles (≈ 40 % of one core for 16 Render-quality Plate voices on the development machine)] → Only when 16 voices are actually sounding, since idle voices are skipped. Eco and Normal are lighter. Record 16-voice benchmark numbers (Normal and Render) in this change, and mention the cost in the README polyphony line.

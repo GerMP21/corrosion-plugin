@@ -25,8 +25,8 @@ MIDI Note Event
       │
       ▼
 ┌──────────────────┐
-│  VoiceManager     │  8 fixed voices; quietest-peak + oldest stealing
-│  (MAX_VOICES = 8) │  only voices with `is_rendering()` are summed
+│  VoiceManager     │  16 fixed voices; steal tails, then held notes ≥100 ms
+│ (MAX_VOICES = 16) │  only voices with `is_rendering()` are summed
 └────────┬──────────┘
          │  per active voice:
          ▼
@@ -93,7 +93,7 @@ src/
   voice/
     mod.rs            Voice: 16 exciter slots + ModalResonator + 3 envelope models,
                       VoiceControls snapshot, midi_to_hz, tail/rendering lifecycle
-    manager.rs        VoiceManager: 8-voice pool, quietest+oldest stealing, idle gating
+    manager.rs        VoiceManager: 16-voice pool, tiered stealing (tails → held ≥100 ms → oldest), idle gating
   dsp/
     mod.rs            Re-exports
     interaction.rs    BidirectionalInteractionBus, InteractionState,
@@ -370,7 +370,7 @@ bundle/validator flow uses `x86_64-unknown-linux-gnu`.
 - **Per-sample everything.** The exciter↔resonator loop must be per-sample
   (bidirectional coupling). The post chain is also per-sample today, including
   parameter setters — block processing remains a future optimization.
-- **All exciters resident per voice.** Trades memory (~all 16 structs × 8 voices)
+- **All exciters resident per voice.** Trades memory (~all 16 structs × 16 voices)
   for allocation-free, branch-only dispatch.
 - **Resonator mode count scales with QualityMode.** Each profile reports a base
   mode count (roughly 6–12); the active QualityMode multiplies that at note-on
