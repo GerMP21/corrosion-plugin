@@ -474,3 +474,18 @@ above the block. Minor, but the doc and tests promise symmetric behavior.
 4. **H1–H4** (parameter ranges, defaults, and preset loading — cheap, high-impact),
 5. **H5** (GUI gaps) and the remaining H items,
 6. Medium items opportunistically, alongside regression tests for each fix.
+
+## Later finding: voice overdrive and clipping
+
+Found during the voice-stealing work (`fix-voice-stealing-16-voices`):
+- A bowed Tank's raw resonator output reached about 280× full scale. The voice's hard clamp hid this as clipping, which lasted about 18 s after release.
+- Loudness also varied 34 dB across objects and +6 dB per octave down.
+
+> **Status: FIXED** (2026-10-06, branch `claude/eloquent-dirac-fc0sqm`) — OpenSpec change [`normalize-object-loudness`](openspec/changes/normalize-object-loudness/proposal.md). What changed:
+> - Mode banks are normalized to one strike level at note-on.
+> - Modes run in coupled form, which also fixed SheetMetal diverging under its warp.
+> - Modes above 20 kHz aren't driven.
+> - Each exciter has a drive trim.
+>
+> Every default-control note on every object, C2–C6 at full velocity, now stays under full scale before the clamp.
+

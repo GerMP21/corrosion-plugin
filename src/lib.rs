@@ -1874,106 +1874,6 @@ mod c5_measurements {
             .collect()
     }
 
-    /// Baseline (pre-C5) (RMS, limiter hits) per preset name, from
-    /// `tests/fixtures/c5_preset_baseline.md`.
-    fn baseline() -> std::collections::HashMap<String, (f32, usize)> {
-        include_str!("../tests/fixtures/c5_preset_baseline.md")
-            .lines()
-            .filter(|l| l.starts_with("| ") && !l.starts_with("| preset"))
-            .filter_map(|l| {
-                let cols: Vec<&str> = l.split('|').map(str::trim).collect();
-                Some((
-                    cols[1].to_string(),
-                    (cols[3].parse().ok()?, cols[4].parse().ok()?),
-                ))
-            })
-            .collect()
-    }
-
-    /// Per preset: the BODY amount (0–1) whose output RMS matches the
-    /// pre-C5 baseline, by bisection (RMS rises with BODY).
-    #[test]
-    #[ignore]
-    fn c5_loudness_matched_body() {
-        let baseline = baseline();
-        println!(
-            "| preset | baseline rms | BODY 0 rms | matched BODY | rms | peak | limiter hits |"
-        );
-        println!("|---|---|---|---|---|---|---|");
-        for path in factory_preset_paths() {
-            let name = Preset::load(&path).unwrap().name;
-            let target = baseline[&name].0;
-            let (_, rms0, _) = render_preset(&path, 0.0, 1.0);
-            let amount = if rms0 >= target {
-                0.0
-            } else if render_preset(&path, 1.0, 1.0).1 <= target {
-                1.0
-            } else {
-                let (mut lo, mut hi) = (0.0_f32, 1.0_f32);
-                for _ in 0..14 {
-                    let mid = 0.5 * (lo + hi);
-                    if render_preset(&path, mid, 1.0).1 < target {
-                        lo = mid;
-                    } else {
-                        hi = mid;
-                    }
-                }
-                0.5 * (lo + hi)
-            };
-            let (peak, rms, hits) = render_preset(&path, amount, 1.0);
-            println!(
-                "| {name} | {target:.5} | {rms0:.5} | {:.2} | {rms:.5} | {peak:.4} | {hits} |",
-                amount * 5.0
-            );
-        }
-    }
-
-    /// Per preset: (BODY 0–5, output scale) re-voicing for the C5 routing.
-    /// BODY is bisected so output RMS matches the pre-C5 baseline; if the
-    /// preset is already louder at BODY 0, BODY stays 0 and output is trimmed
-    /// to the baseline RMS. Output is then trimmed in 5 % steps until limiter
-    /// hits are no more than the baseline count. Prints the seeder table.
-    #[test]
-    #[ignore]
-    fn c5_revoice_table() {
-        let baseline = baseline();
-        println!("REVOICE // (name, body, output, rms, baseline rms, peak, hits, baseline hits)");
-        for path in factory_preset_paths() {
-            let name = Preset::load(&path).unwrap().name;
-            let (target, old_hits) = baseline[&name];
-            let (_, rms0, _) = render_preset(&path, 0.0, 1.0);
-            let (amount, mut out) = if rms0 >= target {
-                (0.0, target / rms0)
-            } else if render_preset(&path, 1.0, 1.0).1 <= target {
-                (1.0, 1.0)
-            } else {
-                let (mut lo, mut hi) = (0.0_f32, 1.0_f32);
-                for _ in 0..14 {
-                    let mid = 0.5 * (lo + hi);
-                    if render_preset(&path, mid, 1.0).1 < target {
-                        lo = mid;
-                    } else {
-                        hi = mid;
-                    }
-                }
-                (0.5 * (lo + hi), 1.0)
-            };
-            let mut result = render_preset(&path, amount, out);
-            let mut steps = 0;
-            while result.2 > old_hits && steps < 60 {
-                out *= 0.95;
-                result = render_preset(&path, amount, out);
-                steps += 1;
-            }
-            let body = (amount * 5.0 * 100.0).round() / 100.0;
-            let out = (out * 1000.0).round() / 1000.0;
-            println!(
-                "REVOICE (\"{name}\", {body:.2}, {out:.3}), // rms {:.5} (baseline {target:.5}), peak {:.4}, hits {} (baseline {old_hits})",
-                result.1, result.0, result.2
-            );
-        }
-    }
-
     /// The default patch: BODY whose default-note peak (the
     /// `hosted_normalized_note_velocity_reaches_output_chain` setup: note 60,
     /// velocity 1, 4096 samples) matches the pre-C5 peak of 0.118.
@@ -2027,29 +1927,82 @@ mod c5_measurements {
         );
     }
 
-    /// Each factory preset, rendered with its own stored BODY and output,
-    /// stays within 0.5 dB of its pre-C5 RMS and hits the limiter no more
-    /// often than before.
+    /// Each factory preset rendered with its stored BODY and output:
+    /// (name, BODY 0–5, stored output, peak, rms, limiter hits).
+    fn preset_levels() -> Vec<(String, f32, f32, f32, f32, usize)> {
+        factory_preset_paths()
+            .into_iter()
+            .map(|path| {
+                let preset = Preset::load(&path).unwrap();
+                let (peak, rms, hits) = render_preset(&path, preset.body / 5.0, 1.0);
+                (preset.name, preset.body, preset.output, peak, rms, hits)
+            })
+            .collect()
+    }
+
+    fn median(mut xs: Vec<f32>) -> f32 {
+        xs.sort_by(f32::total_cmp);
+        xs[xs.len() / 2]
+    }
+
+    /// The light level pass for the placeholder presets
+    /// (`normalize-object-loudness`, design Decision 4). Keeps each preset's
+    /// output unless it hits the limiter (trimmed in 5 % steps until it
+    /// doesn't) or its RMS is more than 12 dB below the median (raised to
+    /// 12 dB below). Prints the seeder's `PRESET_LEVELS` table.
     #[test]
     #[ignore]
-    fn c5_verify_revoiced_presets() {
-        let baseline = baseline();
-        for path in factory_preset_paths() {
-            let preset = Preset::load(&path).unwrap();
-            let (name, amount) = (preset.name.clone(), preset.body / 5.0);
-            let (target, old_hits) = baseline[&name];
-            let (peak, rms, hits) = render_preset(&path, amount, 1.0);
-            let diff_db = 20.0 * (rms / target).log10();
-            println!("VERIFY {name}: rms {rms:.5} ({diff_db:+.2} dB), peak {peak:.4}, hits {hits} (was {old_hits})");
-            assert!(
-                diff_db.abs() <= 0.5,
-                "{name}: {diff_db:+.2} dB from baseline"
-            );
-            assert!(
-                hits <= old_hits,
-                "{name}: {hits} limiter hits, baseline {old_hits}"
+    fn preset_levels_table() {
+        let levels = preset_levels();
+        let floor = median(levels.iter().map(|l| l.4).collect()) * 10f32.powf(-12.0 / 20.0);
+        println!("LEVELS // median floor {floor:.5}");
+        for (name, body, output, peak0, rms0, hits0) in levels {
+            let path = factory_preset_paths()
+                .into_iter()
+                .find(|p| Preset::load(p).unwrap().name == name)
+                .unwrap();
+            let mut scale = 1.0_f32;
+            if rms0 < floor {
+                scale = floor / rms0.max(1e-9);
+            }
+            let mut result = render_preset(&path, body / 5.0, scale);
+            let mut steps = 0;
+            while result.2 > 0 && steps < 200 {
+                scale *= 0.95;
+                result = render_preset(&path, body / 5.0, scale);
+                steps += 1;
+            }
+            let out = ((output * scale) * 1000.0).round() / 1000.0;
+            println!(
+                "LEVELS (\"{name}\", {body:.2}, {out:.3}), // rms {:.5} (was {rms0:.5}), peak {:.4} (was {peak0:.4}), hits {} (was {hits0})",
+                result.1, result.0, result.2
             );
         }
+    }
+
+    /// The factory presets' levels are sane (design Decision 4): none hits
+    /// the limiter, and none sits more than 12 dB below the median RMS.
+    /// (Replaces the C5 check that pinned every preset within 0.5 dB of its
+    /// pre-C5 level, a level that included heavy clipping.)
+    #[test]
+    #[ignore]
+    fn preset_levels_are_sane() {
+        let levels = preset_levels();
+        let median_rms = median(levels.iter().map(|l| l.4).collect());
+        let mut failures = Vec::new();
+        for (name, _, _, peak, rms, hits) in &levels {
+            let below = 20.0 * (rms / median_rms).log10();
+            println!(
+                "SANE {name}: rms {rms:.5} ({below:+.1} dB vs median), peak {peak:.4}, hits {hits}"
+            );
+            if *hits > 0 {
+                failures.push(format!("{name}: {hits} limiter hits"));
+            }
+            if below < -12.0 - 0.1 {
+                failures.push(format!("{name}: {below:+.1} dB below the median"));
+            }
+        }
+        assert!(failures.is_empty(), "{}", failures.join("\n"));
     }
 
     pub(crate) fn factory_preset_paths() -> Vec<std::path::PathBuf> {

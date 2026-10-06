@@ -189,23 +189,49 @@ Idle ──note_on──▶ Active(rendering) ──note_off──▶ Tail(rende
 
 ## 5. Resonator Model
 
-`ModalResonator` holds `Vec<SecondOrderMode>`. Each mode is the canonical biquad
-resonator:
+`ModalResonator` holds `Vec<SecondOrderMode>`. Each mode is a damped
+two-pole resonator, run in coupled (complex one-pole) form:
 
 ```text
-y[n] = b0·x[n] − a1·y[n-1] − a2·y[n-2]
+z[n] = p·z[n-1] + g·x[n],   y[n] = Im z[n]
+p = r·e^{iω},   g = b0·(cot ω + i)
 ω = 2π·f / sample_rate
 r = exp(−1 / (decay_seconds · sample_rate))
-a1 = −2r·cos(ω),  a2 = r²,  b0 = gain · (48 000 / sample_rate)²
+b0 = gain · (48 000 / sample_rate)²
 ```
+
+Its impulse response, `b0·rⁿ·sin(ω(n+1)) / sin ω`, is the direct-form biquad's
+(`ResonatorCoefficients`: `a1 = −2r·cos ω`, `a2 = r²`). The coupled form is
+used for two reasons:
+- Retuning a mode (sheet warp, cable drop, pitch bend) rotates its state
+  without changing its magnitude, so it can't pump energy in. In direct form
+  the sheet warp diverged.
+- The frequency comes from `r·sin ω`, not `−2r·cos ω ≈ −2`, so low,
+  long-ringing modes stay accurate in f32 up to 192 kHz. The coefficients are
+  computed in f64.
 
 The `(48 000 / fs)²` input scale keeps the level independent of the host
 sample rate: the mode stands in for a force-driven oscillator, whose
 discretized force term scales with `dt²`. Without it, a force lasting a fixed
 time rang the mode at a level ∝ fs² (+12 dB at 96 kHz). At 48 kHz the factor
-is exactly 1. `decay_seconds` is a 1/e time constant (T60 ≈ 6.9·τ). Caveat:
-at 192 kHz, f32 rounding in this direct-form recursion costs very low,
-long-ringing modes up to ~1.5 dB under sustained drive.
+is exactly 1. `decay_seconds` is a 1/e time constant (T60 ≈ 6.9·τ).
+
+Modes at or above `min(20 kHz, 0.45·fs)` (`MODE_CEILING_HZ`) get no input.
+A mode's gain grows as `1 / sin ω`, so modes next to Nyquist blew up through
+contact feedback, and above it they only alias.
+
+**Bank normalization.** At note-on, after the material transforms, every bank
+is scaled to one strike level (`STRIKE_LEVEL_REF`, the default Pipe C4
+patch's), whatever the object, pitch, quality mode, damage or character
+settings. Relative mode gains, and so the timbre, are kept.
+- The level is estimated as `‖A‖_1.3`, with `A_i = |w_i · b0_i / sin ω_i|`:
+  mode i's ring amplitude under a one-sample impulse, weighted by the
+  strike-position coefficient `w_i` that `process_sample` applies.
+- The p = 1.3 norm sits between the incoherent (p = 2) and the coherent (p = 1)
+  sum of the modes, and tracks the measured peak within about 4 dB.
+- It is O(modes) and allocation-free (`normalize_strike_level`).
+- Live damping and brightness, and a non-default strike position, act after
+  normalization, so they still change the level as they should.
 
 The resonator is built by a single path (algorithmic), then transformed:
 
@@ -255,6 +281,20 @@ force-envelope choice:
 The per-exciter DSP models implement the formulas in
 `docs/detailed-specs/exciter-algorithms.md` (Kelvin–Voigt, Hertzian contact,
 micro-bouncing, Poisson impulse clusters, Stribeck friction, etc.).
+
+### Drive trims
+
+Each exciter's force is scaled by a fixed trim (`EXCITER_DRIVE_TRIM` in
+`voice/mod.rs`), so a default-control note at full velocity stays under full
+scale before the voice clamp, on every object from C2 to C6. The trims were
+measured with `print_exciter_overdrive`, and `default_notes_do_not_overdrive_the_voice`
+checks the struck, bowed and jet cases.
+
+The trims leave continuous exciters (bow, scrapes, jet, hum) much quieter than
+before, when they were mostly hard-clipped inside the voice. HardMallet and
+HeavyGrinding are effectively silent (about −47 dBFS median): above a small
+drive their contact loop runs away, so their trim sits at half of that
+threshold. Making them usable needs their contact models fixed.
 
 ### Sample-rate rule
 

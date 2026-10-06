@@ -1006,76 +1006,77 @@ fn presets() -> Vec<Preset> {
     ]
 }
 
-// --- C5 re-voicing (OpenSpec change `fix-post-chain-body-routing`) ---------
+// --- Preset levels ------------------------------------------------------
 //
-// The post chain now adds the body resonance in parallel at the BODY amount,
-// instead of always mixing it ~70 % wet in series. Each preset's BODY was
-// re-measured so its output RMS matches its pre-C5 level. Where the preset was
-// already louder with no body, BODY is 0 and `output` is trimmed instead.
-// `output` was also trimmed in 5 % steps until limiter hits were no more than
-// before. Values come from `cargo test --release --no-default-features --lib
-// c5_revoice_table -- --ignored --nocapture`; the per-preset numbers are in
-// `openspec/changes/archive/2026-10-05-fix-post-chain-body-routing/baseline.md`.
+// BODY (0–5) and output gain per preset. These presets are placeholders, to
+// be replaced by real ones, so the levels follow a light rule rather than a
+// careful re-voice (OpenSpec change `normalize-object-loudness`, design
+// Decision 4):
+// - BODY is as C5 left it (`fix-post-chain-body-routing`).
+// - `output` is kept unless the preset hits the limiter (trimmed in 5 %
+//   steps until it doesn't) or its RMS is more than 12 dB below the bank's
+//   median (raised to 12 dB below).
+// Values and the per-preset levels come from `cargo test --release
+// --no-default-features --lib preset_levels_table -- --ignored --nocapture`.
 // (name, body, output)
-const C5_REVOICE: [(&str, f32, f32); 50] = [
-    ("Beam Drag", 0.48, 1.000), // rms 0.52363 (baseline 0.52362), peak 0.9121, hits 0 (baseline 0)
-    ("Beam Grind", 0.92, 1.000), // rms 0.11008 (baseline 0.11008), peak 0.8593, hits 0 (baseline 0)
-    ("Beam Strike Industrial", 0.97, 1.000), // rms 0.58629 (baseline 0.58627), peak 0.6918, hits 0 (baseline 0)
-    ("Boiler Pipe Tap", 2.57, 1.000), // rms 0.12902 (baseline 0.12901), peak 0.3867, hits 0 (baseline 0)
-    ("Boiler Tank Whoosh", 0.49, 1.000), // rms 0.53003 (baseline 0.53003), peak 0.5338, hits 0 (baseline 0)
-    ("Bow on Beam", 0.48, 1.000), // rms 0.52385 (baseline 0.52384), peak 0.8978, hits 0 (baseline 0)
-    ("Bowed Spring", 0.52, 1.000), // rms 0.50670 (baseline 0.50670), peak 0.5761, hits 0 (baseline 0)
-    ("Brine Tank Pulse", 0.48, 1.000), // rms 0.52687 (baseline 0.52689), peak 0.6810, hits 0 (baseline 0)
-    ("Brushed Beam", 1.90, 1.000), // rms 0.37032 (baseline 0.37030), peak 0.7115, hits 0 (baseline 0)
-    ("Cable Bow", 0.00, 0.952), // rms 0.42342 (baseline 0.42342), peak 0.4985, hits 0 (baseline 0)
-    ("Cable Scrape", 0.00, 0.676), // rms 0.28857 (baseline 0.28857), peak 0.3411, hits 0 (baseline 0)
-    ("Cable Tension Rise", 0.00, 0.913), // rms 0.37793 (baseline 0.37793), peak 0.5874, hits 0 (baseline 0)
-    ("Chain Bell Tower", 1.16, 0.950), // rms 0.52614 (baseline 0.55356), peak 0.9185, hits 0 (baseline 44943)
-    ("Chain Drag", 0.73, 1.000), // rms 0.45342 (baseline 0.45341), peak 0.9461, hits 0 (baseline 0)
-    ("Chain Whip Snap", 2.01, 0.950), // rms 0.14180 (baseline 0.14927), peak 0.9179, hits 0 (baseline 0)
-    ("Cog Hum", 0.49, 1.000), // rms 0.52852 (baseline 0.52854), peak 0.9148, hits 0 (baseline 0)
-    ("Cog Mesh Grind", 1.22, 1.000), // rms 0.10190 (baseline 0.10190), peak 0.6387, hits 0 (baseline 0)
-    ("Cog Scrape", 0.50, 1.000), // rms 0.52926 (baseline 0.52925), peak 0.9160, hits 0 (baseline 0)
-    ("Cog Tooth Pluck", 1.39, 1.000), // rms 0.42081 (baseline 0.42079), peak 0.6507, hits 0 (baseline 0)
-    ("Cog Tooth Strike", 0.94, 0.950), // rms 0.55769 (baseline 0.58704), peak 0.9178, hits 0 (baseline 0)
-    ("Cold Pipe Bow", 0.53, 1.000), // rms 0.50528 (baseline 0.50528), peak 0.5564, hits 0 (baseline 0)
-    ("Deep Tank Bell", 1.29, 1.000), // rms 0.40776 (baseline 0.40776), peak 0.6216, hits 0 (baseline 0)
-    ("Distant Plate Roll", 2.68, 1.000), // rms 0.04903 (baseline 0.04903), peak 0.2964, hits 0 (baseline 0)
-    ("Drum Beam", 1.57, 1.000), // rms 0.29371 (baseline 0.29372), peak 0.6743, hits 0 (baseline 0)
-    ("Empty Drum Cavern", 2.55, 1.000), // rms 0.30815 (baseline 0.30815), peak 0.3552, hits 0 (baseline 0)
-    ("Falling Chain Cluster", 2.62, 1.000), // rms 0.00181 (baseline 0.00181), peak 0.0126, hits 0 (baseline 0)
-    ("Hanging Chain Echo", 0.94, 1.000), // rms 0.33652 (baseline 0.33651), peak 0.8646, hits 0 (baseline 0)
-    ("Hollow Smokestack Hum", 0.47, 1.000), // rms 0.63572 (baseline 0.63571), peak 0.9661, hits 20006 at the unrounded BODY, 20060 as stored (baseline 20813)
-    ("Industrial Plate Bow", 2.40, 1.000), // rms 0.29549 (baseline 0.29549), peak 0.4395, hits 0 (baseline 0)
-    ("Ironforge Anvil Strike", 0.78, 1.000), // rms 0.59690 (baseline 0.59690), peak 0.7797, hits 0 (baseline 0)
-    ("Liquid Tank Drone", 0.50, 1.000), // rms 0.53198 (baseline 0.53198), peak 0.7306, hits 0 (baseline 0)
-    ("Pipe Bell Cluster", 2.06, 1.000), // rms 0.19267 (baseline 0.19268), peak 0.4722, hits 0 (baseline 0)
-    ("Plate Resonance Bath", 2.65, 1.000), // rms 0.28506 (baseline 0.28504), peak 0.8407, hits 0 (baseline 0)
-    ("Pneumatic Whistle", 0.41, 1.000), // rms 0.50800 (baseline 0.50800), peak 0.6180, hits 0 (baseline 0)
-    ("Rusted Plate Strike", 2.58, 1.000), // rms 0.11679 (baseline 0.11679), peak 0.3458, hits 0 (baseline 0)
-    ("Sheet Bend", 0.00, 0.570), // rms 0.23379 (baseline 0.23379), peak 0.4348, hits 0 (baseline 0)
-    ("Sheet Bow", 2.65, 1.000),  // rms 0.14182 (baseline 0.14181), peak 0.8099, hits 0 (baseline 0)
-    ("Sheet Brush", 2.67, 1.000), // rms 0.30111 (baseline 0.30110), peak 0.6026, hits 0 (baseline 0)
-    ("Sheet Lightning", 2.52, 1.000), // rms 0.07507 (baseline 0.07507), peak 0.4600, hits 0 (baseline 0)
-    ("Sheet Metal Thunder", 2.65, 1.000), // rms 0.01930 (baseline 0.01930), peak 0.2913, hits 0 (baseline 0)
-    ("Snapped Cable", 1.23, 1.000), // rms 0.41817 (baseline 0.41818), peak 0.6659, hits 0 (baseline 0)
-    ("Spring Drag", 0.52, 1.000), // rms 0.48682 (baseline 0.48683), peak 0.6571, hits 0 (baseline 0)
-    ("Spring Grind", 0.95, 0.950), // rms 0.11399 (baseline 0.11999), peak 0.9180, hits 0 (baseline 0)
-    ("Spring Pluck", 2.61, 1.000), // rms 0.02590 (baseline 0.02590), peak 0.0745, hits 0 (baseline 0)
-    // BODY re-matched after C6 (one spring per channel); was 1.60.
-    ("Spring Reverb Tap", 2.26, 0.950), // rms 0.56506 (baseline 0.56506), peak 0.9183, hits 0 (baseline 25758)
-    ("Steel Tank Rumble", 1.05, 1.000), // rms 0.60923 (baseline 0.60924), peak 0.9287, hits 0 (baseline 0)
-    ("Suspension Cable Pluck", 0.15, 1.000), // rms 0.46502 (baseline 0.46501), peak 0.4958, hits 0 (baseline 0)
-    ("Sympathetic Chain", 2.48, 1.000), // rms 0.17424 (baseline 0.17425), peak 0.5217, hits 0 (baseline 0)
-    ("Thin Sheet Roll", 0.00, 0.627), // rms 0.20547 (baseline 0.20547), peak 0.3847, hits 0 (baseline 0)
-    ("Workshop Plate Scrape", 0.00, 0.665), // rms 0.28057 (baseline 0.28057), peak 0.3182, hits 0 (baseline 0)
+const PRESET_LEVELS: [(&str, f32, f32); 50] = [
+    ("Beam Drag", 0.48, 1.000), // rms 0.06563 (was 0.06563), peak 0.0875 (was 0.0875), hits 0 (was 0)
+    ("Beam Grind", 0.92, 1.000), // rms 0.42549 (was 0.42549), peak 0.6389 (was 0.6389), hits 0 (was 0)
+    ("Beam Strike Industrial", 0.97, 1.000), // rms 0.05628 (was 0.05628), peak 0.1431 (was 0.1431), hits 0 (was 0)
+    ("Boiler Pipe Tap", 2.57, 1.000), // rms 0.10110 (was 0.10110), peak 0.3527 (was 0.3527), hits 0 (was 0)
+    ("Boiler Tank Whoosh", 0.49, 1.000), // rms 0.05261 (was 0.05261), peak 0.0794 (was 0.0794), hits 0 (was 0)
+    ("Bow on Beam", 0.48, 1.000), // rms 0.06952 (was 0.06952), peak 0.0924 (was 0.0924), hits 0 (was 0)
+    ("Bowed Spring", 0.52, 1.000), // rms 0.04996 (was 0.04996), peak 0.0768 (was 0.0768), hits 0 (was 0)
+    ("Brine Tank Pulse", 0.48, 1.000), // rms 0.07783 (was 0.07783), peak 0.1084 (was 0.1084), hits 0 (was 0)
+    ("Brushed Beam", 1.90, 1.000), // rms 0.24653 (was 0.24653), peak 0.3192 (was 0.3192), hits 0 (was 0)
+    ("Cable Bow", 0.00, 2.960), // rms 0.01701 (was 0.00547), peak 0.0397 (was 0.0128), hits 0 (was 0)
+    ("Cable Scrape", 0.00, 2.260), // rms 0.01701 (was 0.00509), peak 0.0496 (was 0.0148), hits 0 (was 0)
+    ("Cable Tension Rise", 0.00, 0.913), // rms 0.06772 (was 0.06772), peak 0.1595 (was 0.1595), hits 0 (was 0)
+    ("Chain Bell Tower", 1.16, 2.751), // rms 0.01701 (was 0.00587), peak 0.1050 (was 0.0362), hits 0 (was 0)
+    ("Chain Drag", 0.73, 1.000), // rms 0.02651 (was 0.02651), peak 0.1000 (was 0.1000), hits 0 (was 0)
+    ("Chain Whip Snap", 2.01, 0.950), // rms 0.06938 (was 0.06938), peak 0.6064 (was 0.6064), hits 0 (was 0)
+    ("Cog Hum", 0.49, 1.000), // rms 0.07717 (was 0.07717), peak 0.1109 (was 0.1109), hits 0 (was 0)
+    ("Cog Mesh Grind", 1.22, 1.000), // rms 0.43688 (was 0.43688), peak 0.6538 (was 0.6538), hits 0 (was 0)
+    ("Cog Scrape", 0.50, 1.000), // rms 0.06898 (was 0.06898), peak 0.0971 (was 0.0971), hits 0 (was 0)
+    ("Cog Tooth Pluck", 1.39, 1.000), // rms 0.07944 (was 0.07944), peak 0.3086 (was 0.3086), hits 0 (was 0)
+    ("Cog Tooth Strike", 0.94, 0.950), // rms 0.03915 (was 0.03915), peak 0.1251 (was 0.1251), hits 0 (was 0)
+    ("Cold Pipe Bow", 0.53, 1.000), // rms 0.05263 (was 0.05263), peak 0.0816 (was 0.0816), hits 0 (was 0)
+    ("Deep Tank Bell", 1.29, 1.000), // rms 0.11738 (was 0.11738), peak 0.2849 (was 0.2849), hits 0 (was 0)
+    ("Distant Plate Roll", 2.68, 1.000), // rms 0.11416 (was 0.11416), peak 0.3884 (was 0.3884), hits 0 (was 0)
+    ("Drum Beam", 1.57, 1.000), // rms 0.07661 (was 0.07661), peak 0.2696 (was 0.2696), hits 0 (was 0)
+    ("Empty Drum Cavern", 2.55, 1.000), // rms 0.06290 (was 0.06290), peak 0.1154 (was 0.1154), hits 0 (was 0)
+    ("Falling Chain Cluster", 2.62, 35.986), // rms 0.01701 (was 0.00047), peak 0.1205 (was 0.0033), hits 0 (was 0)
+    ("Hanging Chain Echo", 0.94, 1.000), // rms 0.07665 (was 0.07665), peak 0.2339 (was 0.2339), hits 0 (was 0)
+    ("Hollow Smokestack Hum", 0.47, 1.000), // rms 0.13163 (was 0.13163), peak 0.2755 (was 0.2755), hits 0 (was 0)
+    ("Industrial Plate Bow", 2.40, 1.000), // rms 0.06152 (was 0.06152), peak 0.1255 (was 0.1255), hits 0 (was 0)
+    ("Ironforge Anvil Strike", 0.78, 1.000), // rms 0.04927 (was 0.04927), peak 0.1227 (was 0.1227), hits 0 (was 0)
+    ("Liquid Tank Drone", 0.50, 1.000), // rms 0.09632 (was 0.09632), peak 0.1394 (was 0.1394), hits 0 (was 0)
+    ("Pipe Bell Cluster", 2.06, 1.000), // rms 0.10719 (was 0.10719), peak 0.2855 (was 0.2855), hits 0 (was 0)
+    ("Plate Resonance Bath", 2.65, 1.000), // rms 0.11956 (was 0.11956), peak 0.4574 (was 0.4574), hits 0 (was 0)
+    ("Pneumatic Whistle", 0.41, 1.000), // rms 0.06277 (was 0.06277), peak 0.1021 (was 0.1021), hits 0 (was 0)
+    ("Rusted Plate Strike", 2.58, 1.000), // rms 0.12087 (was 0.12087), peak 0.3465 (was 0.3465), hits 0 (was 0)
+    ("Sheet Bend", 0.00, 2.739), // rms 0.01701 (was 0.00354), peak 0.0555 (was 0.0115), hits 0 (was 0)
+    ("Sheet Bow", 2.65, 1.000), // rms 0.20952 (was 0.20952), peak 0.3517 (was 0.3517), hits 0 (was 0)
+    ("Sheet Brush", 2.67, 1.000), // rms 0.25367 (was 0.25367), peak 0.3776 (was 0.3776), hits 0 (was 0)
+    ("Sheet Lightning", 2.52, 1.000), // rms 0.06116 (was 0.06116), peak 0.4148 (was 0.4148), hits 0 (was 0)
+    ("Sheet Metal Thunder", 2.65, 1.000), // rms 0.05340 (was 0.05340), peak 0.3704 (was 0.3704), hits 0 (was 0)
+    ("Snapped Cable", 1.23, 1.000), // rms 0.26471 (was 0.26471), peak 0.6420 (was 0.6420), hits 0 (was 0)
+    ("Spring Drag", 0.52, 1.000), // rms 0.03225 (was 0.03225), peak 0.0755 (was 0.0755), hits 0 (was 0)
+    ("Spring Grind", 0.95, 0.950), // rms 0.36125 (was 0.36125), peak 0.6215 (was 0.6215), hits 0 (was 0)
+    ("Spring Pluck", 2.61, 1.000), // rms 0.04672 (was 0.04672), peak 0.1345 (was 0.1345), hits 0 (was 0)
+    ("Spring Reverb Tap", 2.26, 0.950), // rms 0.02409 (was 0.02409), peak 0.0861 (was 0.0861), hits 0 (was 0)
+    ("Steel Tank Rumble", 1.05, 1.000), // rms 0.13034 (was 0.13034), peak 0.2148 (was 0.2148), hits 0 (was 0)
+    ("Suspension Cable Pluck", 0.15, 6.833), // rms 0.01701 (was 0.00249), peak 0.0592 (was 0.0087), hits 0 (was 0)
+    ("Sympathetic Chain", 2.48, 1.000), // rms 0.05663 (was 0.05663), peak 0.3398 (was 0.3398), hits 0 (was 0)
+    ("Thin Sheet Roll", 0.00, 1.666), // rms 0.01701 (was 0.00640), peak 0.0712 (was 0.0268), hits 0 (was 0)
+    ("Workshop Plate Scrape", 0.00, 4.448), // rms 0.01701 (was 0.00254), peak 0.0662 (was 0.0099), hits 0 (was 0)
 ];
 
-fn apply_c5_revoice(preset: &mut Preset) {
-    let (_, body, output) = C5_REVOICE
+fn apply_preset_levels(preset: &mut Preset) {
+    let (_, body, output) = PRESET_LEVELS
         .iter()
         .find(|(name, _, _)| *name == preset.name)
-        .unwrap_or_else(|| panic!("no C5 re-voicing entry for preset {}", preset.name));
+        .unwrap_or_else(|| panic!("no level entry for preset {}", preset.name));
     preset.body = *body;
     preset.output = *output;
 }
@@ -1086,7 +1087,7 @@ fn main() -> std::io::Result<()> {
 
     let mut written = 0usize;
     for mut preset in presets() {
-        apply_c5_revoice(&mut preset);
+        apply_preset_levels(&mut preset);
         let filename = format!("{}.corrosion-preset", slug(&preset.name));
         let path = dir.join(filename);
         preset.save(&path)?;

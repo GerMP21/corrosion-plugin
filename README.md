@@ -55,6 +55,13 @@ Each object is driven by an algorithmic resonator generator (the single resonato
 
 Each anchors on a distinct Object × Exciter pair and tunes the relevant character params, exciter parameters, macros, and post-chain choices. Several use `PlayMode::Drone` for sustained drones, one uses `sync_rate` for tempo-synced echo. Regenerate with `cargo run --bin seed_presets`.
 
+The factory presets are placeholders, to be replaced by real ones. Their levels follow a light rule: none hits the limiter, and none is more than 12 dB below the bank's median (`preset_levels_are_sane`; per-preset numbers in `openspec/changes/normalize-object-loudness/levels.md`).
+
+**Loudness.**
+- Every object's mode bank is normalized at note-on to one strike level, so objects, registers (C2–C6), quality modes and damage settings land within a few dB of each other.
+- Each exciter has a fixed drive trim, so no default-control note overdrives the voice before its safety clamp.
+- Continuously driven exciters (bow, scrapes, jet, hum) are therefore much quieter than struck ones, and no longer hard-clip.
+
 ## Repository Layout
 
 ```text

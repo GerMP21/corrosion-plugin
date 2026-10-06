@@ -155,19 +155,6 @@ impl ResonatorCoefficients {
     }
 }
 
-/// Coefficients of one mode in coupled (complex one-pole) form:
-/// `z[n] = p·z[n−1] + g·x[n]`, output `Im z[n]`, with `p = r·e^{iω}` and
-/// `g = b0·(cot ω + i)`.
-///
-/// Its impulse response, `b0·rⁿ·sin(ω(n+1)) / sin ω`, is the direct-form
-/// biquad's (`ResonatorCoefficients`). Two reasons to run it this way
-/// instead (`normalize-object-loudness`):
-/// - A frequency change rotates the state without changing its magnitude,
-///   so per-sample retuning (sheet warp, cable drop, pitch bend) doesn't
-///   pump energy into the mode. In direct form the sheet warp diverged.
-/// - The frequency is set by `r·sin ω` rather than `−2r·cos ω ≈ −2`, which
-///   keeps low, long-ringing modes accurate in f32 at high sample rates.
-///   The coefficients are computed in f64 and rounded once.
 /// Highest mode frequency that is driven, in Hz, at any sample rate: modes
 /// at or above `min(MODE_CEILING_HZ, MODE_CEILING_NYQUIST · fs)` get no input.
 /// A mode's gain grows as `1 / sin ω`, so a mode near Nyquist (SheetMetal's
@@ -182,6 +169,19 @@ fn mode_is_audible(frequency_hz: f32, sample_rate: f32) -> bool {
     frequency_hz < MODE_CEILING_HZ.min(MODE_CEILING_NYQUIST * sample_rate)
 }
 
+/// Coefficients of one mode in coupled (complex one-pole) form:
+/// `z[n] = p·z[n−1] + g·x[n]`, output `Im z[n]`, with `p = r·e^{iω}` and
+/// `g = b0·(cot ω + i)`.
+///
+/// Its impulse response, `b0·rⁿ·sin(ω(n+1)) / sin ω`, is the direct-form
+/// biquad's (`ResonatorCoefficients`). Two reasons to run it this way
+/// instead (`normalize-object-loudness`):
+/// - A frequency change rotates the state without changing its magnitude,
+///   so per-sample retuning (sheet warp, cable drop, pitch bend) doesn't
+///   pump energy into the mode. In direct form the sheet warp diverged.
+/// - The frequency is set by `r·sin ω` rather than `−2r·cos ω ≈ −2`, which
+///   keeps low, long-ringing modes accurate in f32 at high sample rates.
+///   The coefficients are computed in f64 and rounded once.
 #[derive(Clone, Copy, Debug)]
 struct CoupledCoefficients {
     pole_re: f32,

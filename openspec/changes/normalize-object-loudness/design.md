@@ -154,3 +154,17 @@ These are strike peaks at 48 kHz, with default controls and the default strike p
   - PneumaticJet: +2.87 dB at 96 kHz. Its force RMS matches at every rate, but its hash noise (`sin(phase)·43758`, with an f32 phase growing 1.618 per sample) coarsens faster at higher rates. The tolerance goes to 3 dB.
 - `struck_attack_timing_does_not_depend_on_sample_rate`: HardMallet's loudest peak now lands in its rebounds (53 ms at 96 kHz against 108 ms at 48 kHz), so it is timed on its first 20 ms, like the drumstick.
 - `hosted_normalized_note_velocity_reaches_output_chain` passes unchanged.
+
+### Presets (tasks 3.1–3.2)
+
+- **Level pass:** eight presets were raised to the −12 dB floor: Cable Bow, Cable Scrape, Chain Bell Tower, Falling Chain Cluster (36×; MetalChain is near-silent), Sheet Bend, Suspension Cable Pluck, Thin Sheet Roll and Workshop Plate Scrape. None needed a trim, because none hits the limiter now. The per-preset numbers are in `levels.md`.
+- **Median level:** the median preset RMS fell by 15 dB (0.374 → 0.067). Before, much of the bank's level was clipping inside the voice, and the continuous exciters are now trimmed. The default patch is unchanged.
+- **Retired C5 machinery:** `c5_verify_revoiced_presets`, `c5_revoice_table`, `c5_loudness_matched_body`, the baseline loader and `tests/fixtures/c5_preset_baseline.md` are removed.
+- **New checks:** `preset_levels_table` (prints the seeder's `PRESET_LEVELS`) and `preset_levels_are_sane`, both ignored.
+
+### Gate (task 4.2)
+
+- Debug and release test suites pass (musl), including `tests/no_alloc.rs` in debug. The gnu lib tests pass.
+- `cargo fmt --check` is clean. Clippy with `-D warnings` is clean on 1.99. On 1.97 it is clean with `-A unknown_lints`, for the `#[allow]` already on `main`, as in `fix-sample-rate-time-constants`. `cargo doc` gives no new warnings.
+- The family render smoke test passes `scripts/check_wav.py`, and `preset_levels_are_sane` passes.
+- **CPU:** the 16-voice benchmarks (4 096 samples = 85 ms at 48 kHz, gnu, release) went from 10.7 to 12.9 ms at Normal quality (12.6 % → 15.1 % of one core) and from 25.4 to 27.3 ms at Render quality (29.8 % → 32.0 %). The coupled form costs a little more per mode than the biquad.
