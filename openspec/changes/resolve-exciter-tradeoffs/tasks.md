@@ -24,17 +24,17 @@
 
   Re-capture `tests/fixtures/mode_bank_hashes.txt` with the reason in its comment, and confirm it matches on musl and gnu.
 - [ ] 2.3 Cache the interaction bus's strike-position weights. Recompute only when the effective position changes, and precompute the per-mode blend. Verify `rebuilding_a_reused_resonator_matches_a_fresh_one` and the interaction tests pass, `tests/no_alloc.rs` passes in debug, and the 16-voice benchmark is recorded in the findings.
-- [ ] 2.4 Add the resonator's instantaneous compliance (`Σ w_i·Im g_i` including the fade) and a unit test. The test checks that one sample's response to a unit force equals the reported compliance.
+- [ ] 2.4 Extend `stabilize-mallet-and-grinding-contact`'s `contact_prediction()` to include the high-band fade weights. Verify its prediction test still passes.
 
 ## 3. Exciters
 
-- [ ] 3.1 Add the shared contact helper (closed form for linear springs, two Newton steps for Hertzian), with unit tests against a direct solve. Pass the compliance through `process_sample` for the position- or velocity-dependent exciters (design Decision 2; confirm the list by reading each exciter). Convert:
-  - HandStrike, FeltMallet, HardMallet, Drumstick, MetalPipe and MetalChain;
-  - ParticleRain, HeavyGrinding, StiffPoint, CorrugatedDrag, TensionRise and TensionSnap;
+- [ ] 3.1 Reuse `stabilize-mallet-and-grinding-contact`'s `dsp::utils::contact` solver. HardMallet and HeavyGrinding are already done there. Pass the compliance through `process_sample` for the position- or velocity-dependent exciters (design Decision 2; confirm the list by reading each exciter). Convert:
+  - HandStrike, FeltMallet, Drumstick, MetalPipe and MetalChain;
+  - ParticleRain, StiffPoint, CorrugatedDrag, TensionRise and TensionSnap;
   - Bow and PneumaticJet where they read velocity.
 
   Verify the stability sweep passes.
-- [ ] 3.2 Strikes come to rest: Drumstick and HardMallet go inactive at the bounce limit or below the rest velocity. Verify the rest scenario passes and both are timed on the whole-note peak.
+- [ ] 3.2 Strikes come to rest (HardMallet already leaves after its strike, from `stabilize-mallet-and-grinding-contact`): Drumstick goes inactive at the bounce limit or below the rest velocity. Verify the rest scenario passes and Drumstick and HardMallet are both timed on the whole-note peak.
 - [ ] 3.3 Sub-sample events (design Decision 5):
   - ParticleRain spawns;
   - WireBrush impulses;

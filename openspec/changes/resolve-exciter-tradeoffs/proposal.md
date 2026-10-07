@@ -43,9 +43,10 @@
 ## Capabilities
 
 ### New Capabilities
-- `exciter-drive`: how loud each exciter plays relative to the others, that a voice never overdrives, and that exciter↔resonator contact stays stable at any drive.
+<!-- none: `exciter-drive` is introduced by `stabilize-mallet-and-grinding-contact` -->
 
 ### Modified Capabilities
+- `exciter-drive`: extends its HardMallet/HeavyGrinding requirements to every exciter (common level, no overdrive, stable contact, strikes come to rest).
 - `sample-rate-independence`: every exciter meets the level and attack-timing tolerances with no per-exciter exceptions.
 - `resonator-level`: the no-overdrive requirement covers all 16 exciters. High modes keep a sample-rate-independent level, and fade, rather than cut, at the top of the audible band.
 
@@ -63,4 +64,5 @@ These capabilities are introduced by `fix-sample-rate-time-constants`, `fix-reso
   - `src/bin/seed_presets.rs` and `presets/factory/*`.
 - **Sound:** every exciter's sound changes at 48 kHz. The golden mode-bank fixture is re-captured.
 - **Docs:** `docs/ARCHITECTURE.md` (exciter system, resonator model, sample-rate rule); `README.md` (loudness).
-- **Supersedes** the two suggested follow-up tasks: the MetalChain rattle filter and the HardMallet/HeavyGrinding runaway.
+- **Builds on `stabilize-mallet-and-grinding-contact`, which must be applied and archived first.** That change provides the resonator's contact prediction and the shared contact solver, and it already fixes HardMallet and HeavyGrinding.
+- **Supersedes** the suggested MetalChain rattle-filter task.

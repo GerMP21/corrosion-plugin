@@ -1,9 +1,5 @@
 # Spec Delta
 
-## Purpose
-
-Sets how loud each exciter plays relative to the others, guarantees that no note overdrives its voice, and that the exciter-to-resonator contact stays stable whatever the drive.
-
 ## ADDED Requirements
 
 ### Requirement: Exciters play at a common level
