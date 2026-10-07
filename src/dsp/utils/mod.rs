@@ -14,6 +14,7 @@ pub mod body;
 pub const GOLDEN_STEP: f32 = 1.618_034;
 pub mod budget;
 pub mod deterministic_excitation;
+pub mod rate;
 
 pub use body::BodyResonator;
 pub use budget::{

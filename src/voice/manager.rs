@@ -1,19 +1,23 @@
 //! Fixed-size voice pool and scheduling logic for Corrosion.
 //!
-//! `VoiceManager` owns the polyphonic voice array, handles note-on
-//! and note-off dispatch, and performs quietest-voice stealing when
-//! all slots are occupied. `src/lib.rs` calls into this module from
+//! `VoiceManager` owns the polyphonic voice array and handles note-on and
+//! note-off dispatch. When every slot is sounding it steals a released tail
+//! first, then a held note at least 100 ms old, and only then the oldest
+//! held note (see `steal_index`). `src/lib.rs` calls into this module from
 //! the host audio callback.
 
 use super::{Voice, VoiceControls};
 
 /// Maximum number of simultaneously active voices.
-pub const MAX_VOICES: usize = 8;
+pub const MAX_VOICES: usize = 16;
 
 /// Fixed-size polyphonic voice pool with allocation-free scheduling.
 pub struct VoiceManager {
     voices: [Voice; MAX_VOICES],
     frame_counter: u64,
+    /// Sample rate of the most recent render call, used to express the
+    /// steal-protection window in time rather than samples.
+    sample_rate: u32,
     /// Channel-wide MIDI expression state. Stored here so a note-on after a
     /// pitch-bend / aftertouch / CC1 event still picks up the active channel
     /// values, not just notes that were already playing when the event arrived.
@@ -21,6 +25,10 @@ pub struct VoiceManager {
     channel_pressure: f32,
     mod_wheel: f32,
 }
+
+/// A held note younger than this is only stolen when every held note is.
+/// Covers a slow (friction) attack, with margin.
+const STEAL_PROTECTION_SECONDS: f32 = 0.1;
 
 /// Map a voice peak-hold value to a steal priority score.
 ///
@@ -43,24 +51,16 @@ impl VoiceManager {
     /// A manager ready to receive note events.
     pub fn new() -> Self {
         Self {
-            voices: [
-                Voice::new(),
-                Voice::new(),
-                Voice::new(),
-                Voice::new(),
-                Voice::new(),
-                Voice::new(),
-                Voice::new(),
-                Voice::new(),
-            ],
+            voices: std::array::from_fn(|_| Voice::new()),
             frame_counter: 0,
+            sample_rate: 48_000,
             pitch_bend_semitones: 0.0,
             channel_pressure: 0.0,
             mod_wheel: 0.0,
         }
     }
 
-    /// MIDI notes of the active (held or tailing) voices, in slot order.
+    /// MIDI notes of the held (not yet released) voices, in slot order.
     /// Allocation-free.
     pub fn active_notes(&self) -> impl Iterator<Item = u8> + '_ {
         self.voices
@@ -122,6 +122,10 @@ impl VoiceManager {
 
     /// Trigger a note with explicit voice controls.
     ///
+    /// Takes a silent slot when one exists; otherwise steals one (released
+    /// tails first, then held notes past the protection window, then the
+    /// oldest held note — see `steal_index`). Allocation-free.
+    ///
     /// # Arguments
     ///
     /// * `note` - MIDI note number for the new voice.
@@ -163,29 +167,8 @@ impl VoiceManager {
             return;
         }
 
-        // Steal the quietest voice when all slots are occupied. Peak hold is
-        // the primary score; older voices lose ties so long tails are preferred
-        // over recently triggered notes.
-        let steal_idx = self
-            .voices
-            .iter()
-            .enumerate()
-            .min_by(|(_, a), (_, b)| {
-                let peak_cmp = comparable_peak_hold(a.peak_hold())
-                    .partial_cmp(&comparable_peak_hold(b.peak_hold()))
-                    .unwrap_or(std::cmp::Ordering::Equal);
-                if peak_cmp != std::cmp::Ordering::Equal {
-                    return peak_cmp;
-                }
-                let age_cmp = a.start_frame().cmp(&b.start_frame());
-                if age_cmp != std::cmp::Ordering::Equal {
-                    return age_cmp;
-                }
-                std::cmp::Ordering::Equal
-            })
-            .map(|(idx, _)| idx);
-
-        if let Some(idx) = steal_idx {
+        // Every slot is sounding: steal one (see `steal_index`).
+        if let Some(idx) = self.steal_index() {
             self.apply_channel_expression_to(idx);
             self.voices[idx].note_on_with_controls(
                 note,
@@ -199,6 +182,56 @@ impl VoiceManager {
                 controls,
             );
         }
+    }
+
+    /// Choose the voice to steal when every slot is sounding.
+    ///
+    /// Voices fall into three tiers, lowest stolen first:
+    /// 0. released tails;
+    /// 1. held notes at least [`STEAL_PROTECTION_SECONDS`] old;
+    /// 2. younger held notes.
+    ///
+    /// Tiers 0 and 1 give up the quietest voice (`peak_hold`, NaN counting
+    /// as quietest), with the oldest losing ties. Tier 2 gives up the oldest:
+    /// a note that just started hasn't reached its peak yet, so its level
+    /// says nothing about how audible it will be.
+    fn steal_index(&self) -> Option<usize> {
+        let protect_frames = (STEAL_PROTECTION_SECONDS * self.sample_rate as f32) as u64;
+        let tier = |voice: &Voice| {
+            if !voice.is_active() {
+                0
+            } else if self.frame_counter.saturating_sub(voice.start_frame()) >= protect_frames {
+                1
+            } else {
+                2
+            }
+        };
+        self.voices
+            .iter()
+            .enumerate()
+            .min_by(|(_, a), (_, b)| {
+                let (tier_a, tier_b) = (tier(a), tier(b));
+                tier_a.cmp(&tier_b).then_with(|| {
+                    let by_level = if tier_a == 2 {
+                        std::cmp::Ordering::Equal
+                    } else {
+                        comparable_peak_hold(a.peak_hold())
+                            .partial_cmp(&comparable_peak_hold(b.peak_hold()))
+                            .unwrap_or(std::cmp::Ordering::Equal)
+                    };
+                    by_level.then_with(|| a.start_frame().cmp(&b.start_frame()))
+                })
+            })
+            .map(|(idx, _)| idx)
+    }
+
+    /// MIDI notes of every sounding voice, held or tailing, in slot order.
+    /// Allocation-free.
+    pub fn sounding_notes(&self) -> impl Iterator<Item = u8> + '_ {
+        self.voices
+            .iter()
+            .filter(|voice| voice.is_rendering())
+            .map(|voice| voice.note())
     }
 
     /// Seed a freshly-claimed slot with the current channel expression state
@@ -304,11 +337,16 @@ impl VoiceManager {
         }
     }
 
+    /// Release the oldest held voice playing `note`, so a pitch started
+    /// twice releases first-in, first-out.
     pub fn note_off(&mut self, note: u8) {
         if let Some(idx) = self
             .voices
             .iter()
-            .position(|v| v.is_active() && v.note() == note)
+            .enumerate()
+            .filter(|(_, v)| v.is_active() && v.note() == note)
+            .min_by_key(|(_, v)| v.start_frame())
+            .map(|(idx, _)| idx)
         {
             self.voices[idx].note_off();
         }
@@ -324,9 +362,9 @@ impl VoiceManager {
     ///
     /// The mixed mono output sample.
     pub fn process_sample(&mut self, sample_rate: u32) -> f32 {
-        // Advance the shared frame clock so note age can participate in
-        // tie-breaking during voice stealing.
+        // Advance the shared frame clock so note age can drive stealing.
         self.frame_counter += 1;
+        self.sample_rate = sample_rate;
         let mut sum = 0.0f32;
         for voice in &mut self.voices {
             if voice.is_rendering() {
@@ -347,9 +385,9 @@ impl VoiceManager {
     ///
     /// The mixed `(left, right)` output samples.
     pub fn process_sample_stereo(&mut self, sample_rate: u32, width: f32) -> (f32, f32) {
-        // Advance the shared frame clock so note age can participate in
-        // tie-breaking during voice stealing.
+        // Advance the shared frame clock so note age can drive stealing.
         self.frame_counter += 1;
+        self.sample_rate = sample_rate;
         let mut left_sum = 0.0f32;
         let mut right_sum = 0.0f32;
         for voice in &mut self.voices {
@@ -411,12 +449,12 @@ mod tests {
     }
 
     #[test]
-    fn eight_simultaneous_notes_audible() {
+    fn sixteen_simultaneous_notes_all_sound() {
+        assert_eq!(MAX_VOICES, 16);
         let mut manager = VoiceManager::new();
-        let notes = [48u8, 51, 55, 59, 62, 65, 69, 72];
-        for &note in &notes {
+        for i in 0..MAX_VOICES as u8 {
             manager.note_on(
-                note,
+                36 + 3 * i,
                 100.0,
                 crate::dsp::ModalProfileId::Pipe,
                 1.0,
@@ -425,26 +463,30 @@ mod tests {
                 1,
             );
         }
-
         let sample_rate = 48_000u32;
-        let mut peak = 0.0f32;
-        for _ in 0..48_000 {
+        let mut peaks = [0.0_f32; MAX_VOICES];
+        for _ in 0..24_000 {
             let sample = manager.process_sample(sample_rate);
-            peak = peak.max(sample.abs());
             assert!(sample.is_finite(), "non-finite output");
+            for (peak, voice) in peaks.iter_mut().zip(&manager.voices) {
+                *peak = peak.max(voice.peak_hold());
+            }
         }
-        assert!(
-            peak > 0.01,
-            "8 simultaneous notes should be audible, peak={peak}"
-        );
+        assert_eq!(sounding(&manager).len(), MAX_VOICES);
+        for (i, peak) in peaks.iter().enumerate() {
+            // Bowed notes peak around 0.008 once their drive trim keeps them
+            // under full scale (normalize-object-loudness); silence is far
+            // lower (the tail threshold is 1e-4).
+            assert!(*peak > 1e-3, "voice {i} is silent (peak {peak})");
+        }
     }
 
     #[test]
-    fn ninth_note_does_not_crash() {
+    fn seventeenth_note_steals_and_keeps_sixteen_sounding() {
         let mut manager = VoiceManager::new();
-        for note in 0..12u8 {
+        for i in 0..MAX_VOICES as u8 {
             manager.note_on(
-                48 + note,
+                40 + i,
                 100.0,
                 crate::dsp::ModalProfileId::Pipe,
                 1.0,
@@ -453,8 +495,9 @@ mod tests {
                 2,
             );
         }
+        run_seconds(&mut manager, 48_000, 0.01);
         manager.note_on(
-            72,
+            100,
             100.0,
             crate::dsp::ModalProfileId::Pipe,
             1.0,
@@ -462,9 +505,11 @@ mod tests {
             0.0,
             2,
         );
-        let sample_rate = 48_000u32;
-        let sample = manager.process_sample(sample_rate);
+        let sample = manager.process_sample(48_000);
         assert!(sample.is_finite());
+        let notes = sounding(&manager);
+        assert!(notes.contains(&100), "the seventeenth note should sound");
+        assert_eq!(notes.len(), MAX_VOICES);
     }
 
     #[test]
@@ -564,7 +609,7 @@ mod tests {
     #[test]
     fn steals_quietest_voice_when_all_active() {
         let mut manager = VoiceManager::new();
-        // Fill all 8 slots
+        // Fill every slot
         for note in 0..MAX_VOICES as u8 {
             manager.note_on(
                 48 + note,
@@ -581,15 +626,22 @@ mod tests {
         for _ in 0..48_000 {
             manager.process_sample(sample_rate);
         }
-        // Record which notes were active before the 9th note
+        // Record which notes were active before the extra note, and which
+        // is quietest (all are held and well past the protection window).
         let active_notes_before: Vec<u8> = manager
             .voices
             .iter()
             .filter(|v| v.is_active())
             .map(|v| v.note())
             .collect();
+        let quietest = manager
+            .voices
+            .iter()
+            .min_by(|a, b| a.peak_hold().total_cmp(&b.peak_hold()))
+            .map(|v| v.note())
+            .unwrap();
 
-        // Send a 9th note — should steal the quietest (most decayed) voice
+        // Send one note more than the pool holds — should steal the quietest (most decayed) voice
         manager.note_on(
             80,
             100.0,
@@ -605,11 +657,14 @@ mod tests {
             .voices
             .iter()
             .any(|v| v.is_active() && v.note() == 80);
-        assert!(has_new_note, "9th note should have stolen a voice slot");
+        assert!(
+            has_new_note,
+            "the extra note should have stolen a voice slot"
+        );
 
-        // Still only 8 active voices
+        // Still a full pool of active voices
         let active_count = manager.voices.iter().filter(|v| v.is_active()).count();
-        assert_eq!(active_count, 8, "should still have exactly 8 active voices");
+        assert_eq!(active_count, MAX_VOICES, "the pool should stay full");
 
         // At least one original note should have been stolen
         let active_notes_after: Vec<u8> = manager
@@ -622,9 +677,10 @@ mod tests {
             .into_iter()
             .filter(|n| !active_notes_after.contains(n))
             .collect();
-        assert!(
-            !stolen.is_empty(),
-            "at least one original voice should have been stolen"
+        assert_eq!(
+            stolen,
+            vec![quietest],
+            "the quietest voice should be stolen"
         );
     }
 
@@ -755,5 +811,253 @@ mod tests {
             target.expression_gain() > other.expression_gain() + 0.1,
             "poly pressure should only reach the matching note"
         );
+    }
+
+    // --- Stealing order (OpenSpec change fix-voice-stealing-16-voices) ---
+
+    use crate::dsp::ModalProfileId;
+    use crate::voice::VoiceControls;
+
+    const BOW: i32 = 1;
+    const HAND_STRIKE: i32 = 2;
+
+    /// Start a held note with an explicit exciter and MIDI velocity.
+    fn start(manager: &mut VoiceManager, note: u8, velocity: f32, exciter: i32) {
+        manager.note_on_with_controls(
+            note,
+            velocity,
+            ModalProfileId::Pipe,
+            1.0,
+            0.0,
+            0.0,
+            exciter,
+            VoiceControls::default(),
+        );
+    }
+
+    fn run_seconds(manager: &mut VoiceManager, sample_rate: u32, seconds: f32) {
+        for _ in 0..(sample_rate as f32 * seconds) as usize {
+            manager.process_sample(sample_rate);
+        }
+    }
+
+    /// Notes of every sounding (held or tailing) voice.
+    fn sounding(manager: &VoiceManager) -> Vec<u8> {
+        manager
+            .voices
+            .iter()
+            .filter(|voice| voice.is_rendering())
+            .map(|voice| voice.note())
+            .collect()
+    }
+
+    fn peak_of(manager: &VoiceManager, note: u8) -> f32 {
+        manager
+            .voices
+            .iter()
+            .find(|voice| voice.is_rendering() && voice.note() == note)
+            .map(|voice| voice.peak_hold())
+            .expect("note not sounding")
+    }
+
+    #[test]
+    fn released_tail_is_stolen_before_held_notes() {
+        // Quiet held notes and one loud note that is released just before
+        // the pool overflows: by level alone the held notes would go first.
+        let mut manager = VoiceManager::new();
+        for i in 0..MAX_VOICES as u8 - 1 {
+            start(&mut manager, 40 + i, 20.0, HAND_STRIKE);
+        }
+        start(&mut manager, 100, 127.0, HAND_STRIKE);
+        run_seconds(&mut manager, 48_000, 0.2);
+        manager.note_off(100);
+        run_seconds(&mut manager, 48_000, 0.001);
+        let tail = peak_of(&manager, 100);
+        let held_min = (0..MAX_VOICES as u8 - 1)
+            .map(|i| peak_of(&manager, 40 + i))
+            .fold(f32::INFINITY, f32::min);
+        assert!(
+            tail > held_min,
+            "setup: tail {tail} should be louder than a held note {held_min}"
+        );
+
+        start(&mut manager, 110, 100.0, HAND_STRIKE);
+        let notes = sounding(&manager);
+        assert!(
+            !notes.contains(&100),
+            "the released tail should have been stolen"
+        );
+        for i in 0..MAX_VOICES as u8 - 1 {
+            assert!(notes.contains(&(40 + i)), "held note {} was stolen", 40 + i);
+        }
+        assert!(notes.contains(&110));
+    }
+
+    #[test]
+    fn rapid_notes_over_a_full_pool_do_not_steal_each_other() {
+        // Review finding from C3: quiet, slow-attack new notes kept stealing
+        // the previous new note while the old notes rang on.
+        let mut manager = VoiceManager::new();
+        for i in 0..MAX_VOICES as u8 {
+            start(&mut manager, 30 + i, 100.0, HAND_STRIKE);
+        }
+        run_seconds(&mut manager, 48_000, 0.2);
+        for i in 0..MAX_VOICES as u8 {
+            start(&mut manager, 80 + i, 30.0, BOW);
+            for _ in 0..64 {
+                manager.process_sample(48_000);
+            }
+        }
+        let mut notes = sounding(&manager);
+        notes.sort_unstable();
+        let expected: Vec<u8> = (80..80 + MAX_VOICES as u8).collect();
+        assert_eq!(notes, expected, "every new note should still sound");
+    }
+
+    /// Fill the pool with loud bowed (sustaining) notes, aged `old_seconds`,
+    /// plus one quiet young bowed note aged `young_seconds`; return the
+    /// manager.
+    fn full_pool_with_quiet_young_note(
+        sample_rate: u32,
+        old_seconds: f32,
+        young_seconds: f32,
+    ) -> VoiceManager {
+        let mut manager = VoiceManager::new();
+        for i in 0..MAX_VOICES as u8 - 1 {
+            start(&mut manager, 40 + i, 127.0, BOW);
+        }
+        run_seconds(&mut manager, sample_rate, old_seconds);
+        start(&mut manager, 100, 10.0, BOW);
+        run_seconds(&mut manager, sample_rate, young_seconds);
+        let young = peak_of(&manager, 100);
+        for i in 0..MAX_VOICES as u8 - 1 {
+            let old = peak_of(&manager, 40 + i);
+            assert!(
+                young < old,
+                "setup: young note {young} should be quieter than {old}"
+            );
+        }
+        manager
+    }
+
+    #[test]
+    fn quiet_young_note_survives_stealing() {
+        let mut manager = full_pool_with_quiet_young_note(48_000, 0.2, 0.02);
+        start(&mut manager, 110, 100.0, HAND_STRIKE);
+        let notes = sounding(&manager);
+        assert!(notes.contains(&100), "the 20 ms old note was stolen");
+        assert!(notes.contains(&110));
+        assert_eq!(notes.len(), MAX_VOICES);
+    }
+
+    #[test]
+    fn oldest_held_note_is_stolen_when_every_note_is_young() {
+        let mut manager = VoiceManager::new();
+        for i in 0..MAX_VOICES as u8 {
+            start(&mut manager, 40 + i, 100.0, HAND_STRIKE);
+            run_seconds(&mut manager, 48_000, 0.002);
+        }
+        start(&mut manager, 110, 100.0, HAND_STRIKE);
+        let notes = sounding(&manager);
+        assert!(
+            !notes.contains(&40),
+            "the oldest note should have been stolen"
+        );
+        assert!(notes.contains(&110));
+        assert_eq!(notes.len(), MAX_VOICES);
+    }
+
+    #[test]
+    fn protection_window_is_one_hundred_milliseconds_at_any_rate() {
+        for sample_rate in [44_100, 96_000] {
+            // 90 ms old: still protected, so a loud old note goes instead.
+            let mut manager = full_pool_with_quiet_young_note(sample_rate, 0.2, 0.09);
+            start(&mut manager, 110, 100.0, HAND_STRIKE);
+            assert!(
+                sounding(&manager).contains(&100),
+                "{sample_rate} Hz: note stolen inside the 100 ms window"
+            );
+
+            // 110 ms old: no longer protected, and it is the quietest.
+            let mut manager = full_pool_with_quiet_young_note(sample_rate, 0.2, 0.11);
+            start(&mut manager, 110, 100.0, HAND_STRIKE);
+            assert!(
+                !sounding(&manager).contains(&100),
+                "{sample_rate} Hz: quietest note kept after the 100 ms window"
+            );
+        }
+    }
+
+    #[test]
+    fn free_slot_is_used_before_any_tail_in_a_nearly_full_pool() {
+        let mut manager = VoiceManager::new();
+        for i in 0..MAX_VOICES as u8 - 1 {
+            start(&mut manager, 40 + i, 100.0, HAND_STRIKE);
+        }
+        run_seconds(&mut manager, 48_000, 0.05);
+        for i in 0..MAX_VOICES as u8 - 1 {
+            manager.note_off(40 + i);
+        }
+        run_seconds(&mut manager, 48_000, 0.01);
+        assert_eq!(
+            sounding(&manager).len(),
+            MAX_VOICES - 1,
+            "setup: tails ringing"
+        );
+        start(&mut manager, 110, 100.0, HAND_STRIKE);
+        let notes = sounding(&manager);
+        assert_eq!(notes.len(), MAX_VOICES, "the free slot should be used");
+        for i in 0..MAX_VOICES as u8 - 1 {
+            assert!(notes.contains(&(40 + i)), "tail {} was cut", 40 + i);
+        }
+    }
+
+    #[test]
+    fn quietest_tail_is_stolen_first() {
+        let mut manager = VoiceManager::new();
+        for i in 0..MAX_VOICES as u8 - 2 {
+            start(&mut manager, 40 + i, 127.0, BOW);
+        }
+        start(&mut manager, 100, 127.0, HAND_STRIKE);
+        start(&mut manager, 101, 15.0, HAND_STRIKE);
+        run_seconds(&mut manager, 48_000, 0.2);
+        manager.note_off(100);
+        manager.note_off(101);
+        run_seconds(&mut manager, 48_000, 0.001);
+        let (loud, quiet) = (peak_of(&manager, 100), peak_of(&manager, 101));
+        assert!(
+            quiet < loud,
+            "setup: tail 101 ({quiet}) should be quieter than 100 ({loud})"
+        );
+
+        start(&mut manager, 110, 100.0, HAND_STRIKE);
+        let notes = sounding(&manager);
+        assert!(!notes.contains(&101), "the quieter tail should be stolen");
+        assert!(notes.contains(&100), "the louder tail should keep sounding");
+        assert_eq!(notes.len(), MAX_VOICES);
+    }
+
+    #[test]
+    fn note_off_releases_the_oldest_voice_on_a_repeated_pitch() {
+        // Put the newer note in an earlier slot than the older one, so slot
+        // order and age disagree: free slot 0 after the first note-on.
+        let mut manager = VoiceManager::new();
+        start(&mut manager, 50, 100.0, HAND_STRIKE);
+        start(&mut manager, 60, 100.0, HAND_STRIKE);
+        run_seconds(&mut manager, 48_000, 0.01);
+        manager.voices[0].reset();
+        start(&mut manager, 60, 100.0, HAND_STRIKE);
+        assert_eq!(manager.voices[0].note(), 60, "setup: newer note in slot 0");
+        run_seconds(&mut manager, 48_000, 0.01);
+        manager.note_off(60);
+        let mut voices: Vec<_> = manager
+            .voices
+            .iter()
+            .filter(|v| v.is_rendering() && v.note() == 60)
+            .collect();
+        voices.sort_by_key(|v| v.start_frame());
+        assert_eq!(voices.len(), 2);
+        assert!(!voices[0].is_active(), "the older voice should be released");
+        assert!(voices[1].is_active(), "the newer voice should stay held");
     }
 }

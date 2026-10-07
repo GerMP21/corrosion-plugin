@@ -3,6 +3,8 @@
 //! Uses a polynomial contact curve where a soft linear term handles the body
 //! of the hit and a steeper power term models the core bottoming out.
 
+use crate::dsp::utils::rate;
+
 /// Soft mallet with a non-linear compression curve.
 #[derive(Clone, Debug)]
 pub struct FeltMallet {
@@ -20,6 +22,10 @@ pub struct FeltMallet {
     mallet_velocity: f32,
     /// Whether the mallet is still engaged with the surface.
     active: bool,
+    /// `48 kHz / fs` and per-sample constants derived from it
+    /// (`fix-sample-rate-time-constants`); exact 48 kHz values at 48 kHz.
+    ratio: f32,
+    velocity_decay: f32,
 }
 
 impl FeltMallet {
@@ -33,7 +39,15 @@ impl FeltMallet {
             mallet_position: 0.0,
             mallet_velocity: 0.0,
             active: false,
+            ratio: 1.0,
+            velocity_decay: 0.995,
         }
+    }
+
+    /// Re-derives the per-sample constants for `sample_rate`.
+    pub fn set_sample_rate(&mut self, sample_rate: f32) {
+        self.ratio = rate::ratio(sample_rate);
+        self.velocity_decay = rate::decay(0.995, self.ratio);
     }
 
     /// Sets mass and compression parameters.
@@ -57,7 +71,7 @@ impl FeltMallet {
             return 0.0;
         }
 
-        self.mallet_position += self.mallet_velocity * 0.001;
+        self.mallet_position += self.mallet_velocity * rate::step(0.001, self.ratio);
         let compression = (self.mallet_position - resonator_displacement).max(0.0);
 
         let soft_component = self.felt_softness * compression;
@@ -65,11 +79,11 @@ impl FeltMallet {
         let force = (soft_component + hard_component) * self.mallet_mass;
 
         if compression > 0.01 {
-            self.mallet_velocity -= compression * 0.5;
+            self.mallet_velocity -= compression * rate::step(0.5, self.ratio);
         }
 
-        self.mallet_velocity += 0.01;
-        self.mallet_velocity *= 0.995;
+        self.mallet_velocity += rate::step(0.01, self.ratio);
+        self.mallet_velocity *= self.velocity_decay;
 
         if self.mallet_position > 1.0 && self.mallet_velocity > 0.0 {
             self.active = false;

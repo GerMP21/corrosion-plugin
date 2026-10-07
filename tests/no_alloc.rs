@@ -51,7 +51,7 @@ fn process_callback_is_alloc_free() {
     let total_samples = 480_000; // 10 seconds at 48kHz
     let mut manager = VoiceManager::new();
 
-    // Trigger 8 voices before entering the no-alloc zone.
+    // Fill the voice pool before entering the no-alloc zone.
     // The process callback itself is what must stay allocation-free.
     for i in 0..MAX_VOICES {
         manager.note_on(60 + i as u8, 100.0, ModalProfileId::Pipe, 1.0, 0.0, 0.0, 2);
@@ -110,31 +110,42 @@ fn note_on_is_alloc_free_for_every_exciter() {
 
 #[test]
 fn note_off_and_tail_are_alloc_free() {
+    // Bowed (friction) and struck Pipe notes: both release paths, with
+    // tails short enough (≈15 s) to go idle within the cap below. A bowed
+    // Tank was used before, but its tail rings for well over 30 s.
     let mut manager = VoiceManager::new();
-    for i in 0..4 {
+    for (i, exciter) in [1, 1, 2, 2].into_iter().enumerate() {
         manager.note_on_with_controls(
-            60 + i,
+            60 + i as u8,
             100.0,
-            ModalProfileId::Tank,
+            ModalProfileId::Pipe,
             1.0,
             0.0,
             0.0,
-            1,
+            exciter,
             controls(1.0),
         );
     }
     run(&mut manager, 4_800);
+    let mut tails_after_release = 0;
+    let mut seconds_to_idle = 0;
     assert_no_alloc(|| {
         for i in 0..4 {
             manager.note_off(60 + i);
         }
-        // Long enough for the released voices to decay and go idle.
-        run(&mut manager, 480_000);
+        // Counting through the iterator doesn't allocate.
+        tails_after_release = manager.sounding_notes().count();
+        // Render until every tail has deactivated, up to 30 s.
+        while manager.sounding_notes().count() > 0 && seconds_to_idle < 30 {
+            run(&mut manager, SAMPLE_RATE as usize);
+            seconds_to_idle += 1;
+        }
     });
+    assert_eq!(tails_after_release, 4, "released notes should tail first");
     assert_eq!(
-        manager.active_notes().count(),
+        manager.sounding_notes().count(),
         0,
-        "released voices never went idle, so deactivation wasn't exercised"
+        "released voices still sounding after {seconds_to_idle} s, so deactivation wasn't exercised"
     );
 }
 

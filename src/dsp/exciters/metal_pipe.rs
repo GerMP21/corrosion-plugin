@@ -5,6 +5,7 @@
 //! ringing, making it a coupled impact/oscillator model inside `dsp/exciters`.
 //! Use it for pipe strikes, metallic boings, and resonant hollow-tube impacts.
 
+use crate::dsp::utils::rate;
 /// Coupled impact exciter with internal pipe modes.
 #[derive(Clone, Debug)]
 pub struct MetalPipe {
@@ -19,6 +20,10 @@ pub struct MetalPipe {
     pipe_modes: Vec<PipeMode>,
     active: bool,
     sample_rate: f32,
+    /// `48 kHz / fs` and the per-sample velocity decay derived from it
+    /// (`fix-sample-rate-time-constants`).
+    ratio: f32,
+    velocity_decay: f32,
 }
 
 #[derive(Clone, Debug)]
@@ -44,6 +49,8 @@ impl MetalPipe {
             pipe_modes: Vec::new(),
             active: false,
             sample_rate: 48000.0,
+            ratio: 1.0,
+            velocity_decay: 0.995,
         };
         exciter.init_pipe_modes();
         exciter
@@ -75,6 +82,8 @@ impl MetalPipe {
     /// Updates the sample rate used by the modal resonator bank.
     pub fn set_sample_rate(&mut self, rate: f32) {
         self.sample_rate = rate;
+        self.ratio = rate::ratio(rate);
+        self.velocity_decay = rate::decay(0.995, self.ratio);
     }
 
     /// Starts the pipe strike and resets modal state.
@@ -97,7 +106,7 @@ impl MetalPipe {
         }
 
         // Update pipe physics
-        self.pipe_position += self.pipe_velocity * 0.0005;
+        self.pipe_position += self.pipe_velocity * rate::step(0.0005, self.ratio);
 
         // Hertzian contact
         let penetration = (self.pipe_position - target_displacement).max(0.0);
@@ -107,17 +116,17 @@ impl MetalPipe {
         let pipe_output = self.process_pipe_modes(-contact_force);
 
         // Pipe ringing feeds back into pipe position (resonance)
-        self.pipe_velocity += pipe_output * 0.01;
+        self.pipe_velocity += pipe_output * rate::step(0.01, self.ratio);
 
         // Bounce physics
         if penetration > 0.0 {
-            self.pipe_velocity -= contact_force * 0.05 / self.pipe_mass;
+            self.pipe_velocity -= rate::step(contact_force * 0.05 / self.pipe_mass, self.ratio);
         } else {
-            self.pipe_velocity += 0.02; // Gravity
+            self.pipe_velocity += rate::step(0.02, self.ratio); // Gravity
         }
 
         // Damping
-        self.pipe_velocity *= 0.995;
+        self.pipe_velocity *= self.velocity_decay;
 
         // Deactivate when settled
         if self.pipe_position > 0.5 && self.pipe_velocity.abs() < 0.01 {

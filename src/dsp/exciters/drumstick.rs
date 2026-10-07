@@ -3,6 +3,8 @@
 //! A light rigid stick modeled with Hertzian contact and a separate bounce
 //! state so the resonator can throw the stick backward for micro-collisions.
 
+use crate::dsp::utils::rate;
+
 /// Light rigid stick with explicit micro-bounce tracking.
 #[derive(Clone, Debug)]
 pub struct Drumstick {
@@ -26,6 +28,10 @@ pub struct Drumstick {
     max_bounces: u32,
     /// Previous penetration depth used to detect reversal.
     last_penetration: f32,
+    /// `48 kHz / fs` and per-sample constants derived from it
+    /// (`fix-sample-rate-time-constants`); exact 48 kHz values at 48 kHz.
+    ratio: f32,
+    velocity_decay: f32,
 }
 
 impl Drumstick {
@@ -42,7 +48,15 @@ impl Drumstick {
             bounce_count: 0,
             max_bounces: 4,
             last_penetration: 0.0,
+            ratio: 1.0,
+            velocity_decay: 0.999,
         }
+    }
+
+    /// Re-derives the per-sample constants for `sample_rate`.
+    pub fn set_sample_rate(&mut self, sample_rate: f32) {
+        self.ratio = rate::ratio(sample_rate);
+        self.velocity_decay = rate::decay(0.999, self.ratio);
     }
 
     /// Sets the mass, stiffness, restitution, and bounce cap.
@@ -75,7 +89,7 @@ impl Drumstick {
             return 0.0;
         }
 
-        self.stick_position += self.stick_velocity * 0.0003;
+        self.stick_position += self.stick_velocity * rate::step(0.0003, self.ratio);
 
         let penetration = (self.stick_position - resonator_displacement).max(0.0);
         let hertzian_force = if penetration > 0.0 {
@@ -86,7 +100,7 @@ impl Drumstick {
 
         if penetration > 0.0 {
             let deceleration = hertzian_force / self.stick_mass.max(0.01);
-            self.stick_velocity -= deceleration * 0.1;
+            self.stick_velocity -= deceleration * rate::step(0.1, self.ratio);
 
             if penetration < self.last_penetration && self.stick_velocity < 0.0 {
                 self.bounce_count += 1;
@@ -99,7 +113,7 @@ impl Drumstick {
                 }
             }
         } else {
-            self.stick_velocity += 0.05;
+            self.stick_velocity += rate::step(0.05, self.ratio);
 
             if self.bounce_count >= self.max_bounces && self.stick_velocity < 0.0 {
                 self.active = false;
@@ -107,7 +121,7 @@ impl Drumstick {
         }
 
         self.last_penetration = penetration;
-        self.stick_velocity *= 0.999;
+        self.stick_velocity *= self.velocity_decay;
 
         hertzian_force * self.stick_mass
     }

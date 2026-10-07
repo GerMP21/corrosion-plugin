@@ -5,6 +5,7 @@
 //! a specialty `dsp/exciters` source for stored stress, slip, and release.
 //! Use it for beams loading up, cable groans, and delayed structural creaks.
 
+use crate::dsp::utils::rate;
 /// Integrate-and-fire tension exciter for slow stress build-up.
 #[derive(Clone, Debug)]
 pub struct TensionRise {
@@ -17,6 +18,10 @@ pub struct TensionRise {
     active: bool,
     rng_phase: f32,
     impulse_samples: u32,
+    /// `48 kHz / fs` (`fix-sample-rate-time-constants`).
+    ratio: f32,
+    /// Length of the release burst in host samples (50 at 48 kHz).
+    burst_frames: u32,
 }
 
 impl TensionRise {
@@ -31,7 +36,15 @@ impl TensionRise {
             active: false,
             rng_phase: 0.0,
             impulse_samples: 0,
+            ratio: 1.0,
+            burst_frames: 50,
         }
+    }
+
+    /// Re-derives the per-sample constants for `sample_rate`.
+    pub fn set_sample_rate(&mut self, sample_rate: f32) {
+        self.ratio = rate::ratio(sample_rate);
+        self.burst_frames = rate::frames(50, self.ratio);
     }
 
     /// Sets pull speed, break threshold, stochasticity, and creak sharpness.
@@ -66,22 +79,23 @@ impl TensionRise {
         if self.impulse_samples > 0 {
             // Decay the release burst over a short fixed window.
             self.impulse_samples -= 1;
-            let decay = self.impulse_samples as f32 / 50.0;
+            let decay = self.impulse_samples as f32 / self.burst_frames as f32;
             return self.tension * decay * self.creak_sharpness * 5.0;
         }
 
         // Relative pull is integrated into stored stress each sample.
         let v_rel = self.pull_speed - resonator_velocity;
-        self.tension += v_rel * 0.001;
+        self.tension += v_rel * rate::step(0.001, self.ratio);
 
         // Small random variation makes the break point feel less mechanical.
         let random_variation = (self.pseudo_random() - 0.5) * 2.0 * self.slip_stochasticity;
         let effective_threshold = self.break_threshold * (1.0 + random_variation * 0.3);
 
         if self.tension > effective_threshold {
-            let output = self.tension * self.creak_sharpness * 5.0;
+            // One-sample break spike: keep its area at any rate.
+            let output = self.tension * self.creak_sharpness * 5.0 / self.ratio;
             self.tension = 0.0;
-            self.impulse_samples = 50;
+            self.impulse_samples = self.burst_frames;
             return output;
         }
 

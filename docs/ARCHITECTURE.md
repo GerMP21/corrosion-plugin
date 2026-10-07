@@ -25,8 +25,8 @@ MIDI Note Event
       │
       ▼
 ┌──────────────────┐
-│  VoiceManager     │  8 fixed voices; quietest-peak + oldest stealing
-│  (MAX_VOICES = 8) │  only voices with `is_rendering()` are summed
+│  VoiceManager     │  16 fixed voices; steal tails, then held notes ≥100 ms
+│ (MAX_VOICES = 16) │  only voices with `is_rendering()` are summed
 └────────┬──────────┘
          │  per active voice:
          ▼
@@ -93,7 +93,7 @@ src/
   voice/
     mod.rs            Voice: 16 exciter slots + ModalResonator + 3 envelope models,
                       VoiceControls snapshot, midi_to_hz, tail/rendering lifecycle
-    manager.rs        VoiceManager: 8-voice pool, quietest+oldest stealing, idle gating
+    manager.rs        VoiceManager: 16-voice pool, tiered stealing (tails → held ≥100 ms → oldest), idle gating
   dsp/
     mod.rs            Re-exports
     interaction.rs    BidirectionalInteractionBus, InteractionState,
@@ -153,8 +153,10 @@ The audio callback guarantees:
   resonator coefficients clamp `decay_seconds` to `f32::EPSILON`.
 - **NaN/Inf guards** — every voice output is checked with `is_finite()` and
   flushed to zero before leaving the voice.
-- **NaN-safe stealing** — non-finite `peak_hold` sorts as the quietest voice
-  (`comparable_peak_hold`), so a corrupted voice is reclaimed rather than panicking.
+- **NaN-safe stealing** — within its stealing tier (released tails, then held
+  notes past the 100 ms protection window), a non-finite `peak_hold` sorts as the
+  quietest voice (`comparable_peak_hold`), so a corrupted voice is reclaimed rather
+  than panicking. Young held notes are ordered by age only.
 
 > Caveat: parameter *application* is not control-rate. `lib.rs` calls every
 > `post_chain.set_*` setter once per sample, which recomputes coefficients at
@@ -187,15 +189,49 @@ Idle ──note_on──▶ Active(rendering) ──note_off──▶ Tail(rende
 
 ## 5. Resonator Model
 
-`ModalResonator` holds `Vec<SecondOrderMode>`. Each mode is the canonical biquad
-resonator:
+`ModalResonator` holds `Vec<SecondOrderMode>`. Each mode is a damped
+two-pole resonator, run in coupled (complex one-pole) form:
 
 ```text
-y[n] = b0·x[n] − a1·y[n-1] − a2·y[n-2]
+z[n] = p·z[n-1] + g·x[n],   y[n] = Im z[n]
+p = r·e^{iω},   g = b0·(cot ω + i)
 ω = 2π·f / sample_rate
 r = exp(−1 / (decay_seconds · sample_rate))
-a1 = −2r·cos(ω),  a2 = r²,  b0 = gain
+b0 = gain · (48 000 / sample_rate)²
 ```
+
+Its impulse response, `b0·rⁿ·sin(ω(n+1)) / sin ω`, is the direct-form biquad's
+(`ResonatorCoefficients`: `a1 = −2r·cos ω`, `a2 = r²`). The coupled form is
+used for two reasons:
+- Retuning a mode (sheet warp, cable drop, pitch bend) rotates its state
+  without changing its magnitude, so it can't pump energy in. In direct form
+  the sheet warp diverged.
+- The frequency comes from `r·sin ω`, not `−2r·cos ω ≈ −2`, so low,
+  long-ringing modes stay accurate in f32 up to 192 kHz. The coefficients are
+  computed in f64.
+
+The `(48 000 / fs)²` input scale keeps the level independent of the host
+sample rate: the mode stands in for a force-driven oscillator, whose
+discretized force term scales with `dt²`. Without it, a force lasting a fixed
+time rang the mode at a level ∝ fs² (+12 dB at 96 kHz). At 48 kHz the factor
+is exactly 1. `decay_seconds` is a 1/e time constant (T60 ≈ 6.9·τ).
+
+Modes at or above `min(20 kHz, 0.45·fs)` (`MODE_CEILING_HZ`) get no input.
+A mode's gain grows as `1 / sin ω`, so modes next to Nyquist blew up through
+contact feedback, and above it they only alias.
+
+**Bank normalization.** At note-on, after the material transforms, every bank
+is scaled to one strike level (`STRIKE_LEVEL_REF`, the default Pipe C4
+patch's), whatever the object, pitch, quality mode, damage or character
+settings. Relative mode gains, and so the timbre, are kept.
+- The level is estimated as `‖A‖_1.3`, with `A_i = |w_i · b0_i / sin ω_i|`:
+  mode i's ring amplitude under a one-sample impulse, weighted by the
+  strike-position coefficient `w_i` that `process_sample` applies.
+- The p = 1.3 norm sits between the incoherent (p = 2) and the coherent (p = 1)
+  sum of the modes, and tracks the measured peak within about 4 dB.
+- It is O(modes) and allocation-free (`normalize_strike_level`).
+- Live damping and brightness, and a non-default strike position, act after
+  normalization, so they still change the level as they should.
 
 The resonator is built by a single path (algorithmic), then transformed:
 
@@ -245,6 +281,58 @@ force-envelope choice:
 The per-exciter DSP models implement the formulas in
 `docs/detailed-specs/exciter-algorithms.md` (Kelvin–Voigt, Hertzian contact,
 micro-bouncing, Poisson impulse clusters, Stribeck friction, etc.).
+
+### Drive trims
+
+Each exciter's force is scaled by a fixed trim (`EXCITER_DRIVE_TRIM` in
+`voice/mod.rs`), so a default-control note at full velocity stays under full
+scale before the voice clamp, on every object from C2 to C6. The trims were
+measured with `print_exciter_overdrive`, and `default_notes_do_not_overdrive_the_voice`
+checks the struck, bowed and jet cases.
+
+The trims leave continuous exciters (bow, scrapes, jet, hum) much quieter than
+before, when they were mostly hard-clipped inside the voice. HardMallet and
+HeavyGrinding are effectively silent (about −47 dBFS median): above a small
+drive their contact loop runs away, so their trim sits at half of that
+threshold. Making them usable needs their contact models fixed.
+
+### Sample-rate rule
+
+Per-sample constants in the exciters, the voice (output high-pass, peak decay,
+tail frame count), the resonator's velocity and dynamics trackers and the FEM
+body are **48 kHz references**. Each is converted to the host rate through
+`dsp::utils::rate`, with `ratio = 48 000 / fs`:
+
+| Constant | Conversion |
+|---|---|
+| decay or one-pole pole `c` | `c^ratio` (`rate::decay`) |
+| smoother step `x += (t − x)·k` | `1 − (1 − k)^ratio` (`rate::smoother`) |
+| integration step, acceleration, rate | `× ratio` (`rate::step`) |
+| frame count | `/ ratio` (`rate::frames`) |
+| one-sample force spike | amplitude `/ ratio`, so it keeps its area (`rate::impulse`) |
+| per-sample white noise | amplitude `/ √ratio` (`rate::white_noise`) |
+
+Every conversion is exactly the identity at 48 kHz, so 48 kHz output is
+bit-identical to the unconverted code. Exciters cache their converted
+constants in `set_sample_rate`, which the voice calls when the rate changes.
+The resonator reports velocity in 48 kHz-sample units, which is what the
+exciters' contact laws assume. New per-sample code should follow the same
+rule.
+
+Levels match 48 kHz within 1.5 dB at 44.1 and 96 kHz, except where sample-grid
+rounding or chaotic contact dominates, which needs sub-sample timing to fix.
+The voice test `every_exciter_has_the_same_level_at_any_sample_rate` widens
+the tolerance for these exciters:
+
+- HandStrike, 3 dB: a ~0.1 ms strike on the envelope's attack ramp;
+- Drumstick, 3 dB: chatter after its bounce limit;
+- WireBrush, 2.5 dB: impulse times rounded to the grid;
+- MetalChain, 3 dB: near-silent rattle and hash noise;
+- TensionRise, 3 dB: clipped stick-slip;
+- ParticleRain, 8 dB: its grid-rounded spawn train aliases onto the modes.
+
+The measurements behind each are in the archived `fix-sample-rate-time-constants`
+design ("Implementation findings").
 
 ---
 
@@ -370,7 +458,7 @@ bundle/validator flow uses `x86_64-unknown-linux-gnu`.
 - **Per-sample everything.** The exciter↔resonator loop must be per-sample
   (bidirectional coupling). The post chain is also per-sample today, including
   parameter setters — block processing remains a future optimization.
-- **All exciters resident per voice.** Trades memory (~all 16 structs × 8 voices)
+- **All exciters resident per voice.** Trades memory (~all 16 structs × 16 voices)
   for allocation-free, branch-only dispatch.
 - **Resonator mode count scales with QualityMode.** Each profile reports a base
   mode count (roughly 6–12); the active QualityMode multiplies that at note-on
@@ -383,6 +471,10 @@ bundle/validator flow uses `x86_64-unknown-linux-gnu`.
 - **Oversampled clipper is effectively a soft clipper.** Until the no-op is fixed,
   nonlinear-stage aliasing is unmitigated (and is exactly what the aliasing
   harness measures).
+- **MetalChain's rattle filter keeps no state.** `apply_hpf` runs after
+  `noise_state` is written back, so the "high-pass" is a plain gain of about
+  `(1000/fs)/cutoff`, now evaluated at 48 kHz. That is why the chain is nearly
+  silent (about −80 dBFS on a Pipe). Fixing it changes the 48 kHz sound.
 - **Single algorithmic resonator path.** The former dual path was retired
   (implemented 2026-05-27, see §5 and `docs/backlog.md`): `complex_algo` is gone,
   the per-object algorithmic generators are the sole engine, 14 per-object

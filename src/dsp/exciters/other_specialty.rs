@@ -7,6 +7,7 @@
 //! Use these models for air jets, electrical buzz, release clicks, and rain-like
 //! granular motion.
 
+use crate::dsp::utils::rate;
 /// Turbulent air-jet exciter with band-limited noise shaping.
 #[derive(Clone, Debug)]
 pub struct PneumaticJet {
@@ -16,6 +17,10 @@ pub struct PneumaticJet {
     active: bool,
     rng_phase: f32,
     filter_state: f32,
+    /// `48 kHz / fs` and the band filter's coefficient for it
+    /// (`fix-sample-rate-time-constants`).
+    ratio: f32,
+    filter_alpha: f32,
 }
 
 impl PneumaticJet {
@@ -28,7 +33,20 @@ impl PneumaticJet {
             active: false,
             rng_phase: 0.0,
             filter_state: 0.0,
+            ratio: 1.0,
+            filter_alpha: (500.0 + 0.5 * 2000.0) / 10000.0,
         }
+    }
+
+    /// Re-derives the per-sample constants for `sample_rate`.
+    pub fn set_sample_rate(&mut self, sample_rate: f32) {
+        self.ratio = rate::ratio(sample_rate);
+        self.update_filter_alpha();
+    }
+
+    fn update_filter_alpha(&mut self) {
+        let center_freq = 500.0 + self.nozzle_width * 2000.0;
+        self.filter_alpha = rate::smoother(center_freq / 10000.0, self.ratio);
     }
 
     /// Sets air pressure, nozzle width, and turbulence chaos.
@@ -36,6 +54,7 @@ impl PneumaticJet {
         self.air_pressure = pressure.clamp(0.0, 10.0);
         self.nozzle_width = width.clamp(0.01, 5.0);
         self.turbulence_chaos = chaos.clamp(0.0, 10.0);
+        self.update_filter_alpha();
     }
 
     /// Starts the airflow burst with an initial drive velocity.
@@ -55,9 +74,8 @@ impl PneumaticJet {
         // Non-linear jet saturation keeps the air burst from exploding in level.
         let saturated = v_rel * v_rel - self.turbulence_chaos * v_rel * v_rel * v_rel;
         let raw = noise * saturated.max(0.0);
-        let center_freq = 500.0 + self.nozzle_width * 2000.0;
         let q = 0.5 + self.nozzle_width * 4.0;
-        self.filter_state += (center_freq / 10000.0) * (raw - self.filter_state);
+        self.filter_state += self.filter_alpha * (raw - self.filter_state);
         (raw - self.filter_state * q).clamp(-2.0, 2.0) * self.air_pressure
     }
 
@@ -107,6 +125,13 @@ impl ElectromagneticHum {
         self.mains_frequency = freq.clamp(20.0, 200.0);
         self.coil_proximity = proximity.clamp(0.0, 10.0);
         self.voltage_sag = sag.clamp(0.0, 5.0);
+    }
+
+    /// Sets the host sample rate the hum's phase advances at. (The voice
+    /// never set this before `fix-sample-rate-time-constants`, so the hum's
+    /// pitch was only right at 48 kHz.)
+    pub fn set_sample_rate(&mut self, sample_rate: f32) {
+        self.sample_rate = sample_rate.max(1.0);
     }
 
     /// Starts the hum source with a stronger initial coupling.
@@ -159,6 +184,8 @@ pub struct TensionSnap {
     hooked: bool,
     pull_position: f32,
     tension: f32,
+    /// `48 kHz / fs` (`fix-sample-rate-time-constants`).
+    ratio: f32,
 }
 
 impl TensionSnap {
@@ -172,7 +199,13 @@ impl TensionSnap {
             hooked: false,
             pull_position: 0.0,
             tension: 0.0,
+            ratio: 1.0,
         }
+    }
+
+    /// Re-derives the per-sample constants for `sample_rate`.
+    pub fn set_sample_rate(&mut self, sample_rate: f32) {
+        self.ratio = rate::ratio(sample_rate);
     }
 
     /// Sets pull distance, hook stiffness, and snap threshold.
@@ -197,12 +230,13 @@ impl TensionSnap {
             return 0.0;
         }
         if self.hooked {
-            self.pull_position += 0.001;
+            self.pull_position += rate::step(0.001, self.ratio);
             let dx = self.pull_position - res_disp;
             self.tension = self.hook_stiffness * dx.max(0.0);
             if self.tension > self.snap_force || self.pull_position > self.pull_distance {
                 self.hooked = false;
-                return self.tension * 3.0;
+                // One-sample snap spike: keep its area at any rate.
+                return self.tension * 3.0 / self.ratio;
             }
             return self.tension * 0.1;
         }
@@ -236,6 +270,8 @@ pub struct ParticleRain {
     spawn_accumulator: f32,
     particles: Vec<Particle>,
     rng_phase: f32,
+    /// `48 kHz / fs` (`fix-sample-rate-time-constants`).
+    ratio: f32,
 }
 
 #[derive(Clone, Debug)]
@@ -262,7 +298,13 @@ impl ParticleRain {
             spawn_accumulator: 0.0,
             particles: Vec::with_capacity(Self::MAX_PARTICLES),
             rng_phase: 0.0,
+            ratio: 1.0,
         }
+    }
+
+    /// Re-derives the per-sample constants for `sample_rate`.
+    pub fn set_sample_rate(&mut self, sample_rate: f32) {
+        self.ratio = rate::ratio(sample_rate);
     }
 
     /// Sets flow rate, particle mass, and mass variance.
@@ -284,7 +326,7 @@ impl ParticleRain {
             return 0.0;
         }
 
-        self.spawn_accumulator += self.flow_rate * 0.1;
+        self.spawn_accumulator += rate::step(self.flow_rate * 0.1, self.ratio);
         while self.spawn_accumulator > 1.0 {
             self.spawn_accumulator -= 1.0;
             if self.particles.len() == Self::MAX_PARTICLES {
@@ -300,9 +342,11 @@ impl ParticleRain {
 
         let mut total_force = 0.0;
         let decay = 0.99;
+        let (velocity_step, age_step) =
+            (rate::step(0.05, self.ratio), rate::step(0.001, self.ratio));
         self.particles.retain_mut(|p| {
-            p.velocity += 0.05;
-            p.age += 0.001;
+            p.velocity += velocity_step;
+            p.age += age_step;
             let penetration = (p.velocity * 0.01 - res_disp).max(0.0);
             // Each particle contributes a tiny force spike when it penetrates.
             let force = if penetration > 0.0 {

@@ -2,6 +2,8 @@
 //!
 //! This is a compact modal approximation used to add material-specific body
 //! coloration after the drive stage.
+
+use crate::dsp::utils::rate;
 /// Modal body resonator with eight FEM-inspired modes.
 #[derive(Clone, Debug)]
 pub struct FemBodyResonator {
@@ -16,19 +18,30 @@ pub struct FemBodyResonator {
     base_freqs: [f32; 8],
 
     sample_rate: f32,
+
+    /// Per-mode decay and the input gain for `sample_rate`. Both are tuned
+    /// per 48 kHz sample and converted so the body rings for the same time
+    /// at the same level at any rate (`fix-sample-rate-time-constants`);
+    /// they are the original values at 48 kHz.
+    decay: [f32; 8],
+    force_gain: f32,
 }
 
 impl FemBodyResonator {
     /// Creates the body resonator with default material and volume.
     pub fn new() -> Self {
-        Self {
+        let mut body = Self {
             material: 0.5,
             volume: 0.5,
             y: [0.0; 8],
             y1: [0.0; 8],
             base_freqs: [220.0, 380.0, 550.0, 720.0, 890.0, 1060.0, 1230.0, 1400.0],
             sample_rate: 48000.0,
-        }
+            decay: [0.0; 8],
+            force_gain: 0.05,
+        };
+        body.update_decay();
+        body
     }
 
     /// Sets material and cavity volume controls. Volume sets the body's size:
@@ -38,12 +51,29 @@ impl FemBodyResonator {
         self.material = material.clamp(0.0, 1.0);
         self.volume = volume.clamp(0.0, 1.0);
         self.update_mode_frequencies();
+        self.update_decay();
     }
 
     /// Updates mode frequency calculations for the current sample rate.
     pub fn set_sample_rate(&mut self, sample_rate: f32) {
         self.sample_rate = sample_rate;
         self.update_mode_frequencies();
+        self.update_decay();
+    }
+
+    fn update_decay(&mut self) {
+        let ratio = rate::ratio(self.sample_rate);
+        for (i, decay) in self.decay.iter_mut().enumerate() {
+            // `1 − decay` is the squared pole radius per 48 kHz sample.
+            *decay = rate::smoother(0.01 + self.material * 0.005 + (i as f32) * 0.002, ratio);
+        }
+        // Each mode's gain grows as 1/ω², like the resonator's (see
+        // `dsp::resonators::core`).
+        self.force_gain = if ratio == 1.0 {
+            0.05
+        } else {
+            0.05 * ratio * ratio
+        };
     }
 
     fn update_mode_frequencies(&mut self) {
@@ -64,9 +94,9 @@ impl FemBodyResonator {
         for i in 0..8 {
             let f0 = self.base_freqs[i];
             let omega_norm = 2.0 * std::f32::consts::PI * f0 / self.sample_rate;
-            let decay = 0.01 + self.material * 0.005 + (i as f32) * 0.002;
+            let decay = self.decay[i];
 
-            let force = input * 0.05;
+            let force = input * self.force_gain;
             let new_y = force + (2.0 - omega_norm * omega_norm - decay) * self.y[i]
                 - (1.0 - decay) * self.y1[i];
 
@@ -170,5 +200,58 @@ mod tests {
             (energy1 - energy2).abs() > 0.01,
             "Different materials should produce different energy"
         );
+    }
+
+    /// Impulse response of the default body to a 1 ms unit pulse:
+    /// (peak, seconds until the envelope falls 40 dB below that peak).
+    fn pulse_response(sample_rate: f32) -> (f32, f32) {
+        let mut body = FemBodyResonator::new();
+        body.set_sample_rate(sample_rate);
+        body.set_parameters(0.5, 0.5);
+        let pulse = (sample_rate * 0.001).round() as usize;
+        let out: Vec<f32> = (0..sample_rate as usize * 4)
+            .map(|i| body.process(if i < pulse { 1.0 } else { 0.0 }))
+            .collect();
+        let peak = out.iter().fold(0.0_f32, |m, x| m.max(x.abs()));
+        let floor = peak * 0.01;
+        let last_loud = out.iter().rposition(|x| x.abs() > floor).unwrap_or(0);
+        (peak, last_loud as f32 / sample_rate)
+    }
+
+    #[test]
+    fn body_sounds_the_same_at_any_sample_rate() {
+        let (peak, ring) = pulse_response(48_000.0);
+        for sample_rate in [44_100.0, 96_000.0] {
+            let (p, r) = pulse_response(sample_rate);
+            let db = 20.0 * (p / peak).log10();
+            assert!(db.abs() <= 1.0, "{sample_rate}: peak {db:+.2} dB vs 48 kHz");
+            assert!(
+                (r / ring - 1.0).abs() <= 0.1,
+                "{sample_rate}: rings {r:.3} s vs {ring:.3} s at 48 kHz"
+            );
+        }
+    }
+
+    /// 48 kHz hash of `pulse_response`'s render, for the before/after check
+    /// in `fix-sample-rate-time-constants` (not asserted; libm differs
+    /// between CI targets).
+    #[test]
+    #[ignore]
+    fn print_48k_body_render_hash() {
+        let mut body = FemBodyResonator::new();
+        body.set_sample_rate(48_000.0);
+        body.set_parameters(0.5, 0.5);
+        let mut hash = 0xcbf2_9ce4_8422_2325_u64;
+        for i in 0..96_000 {
+            for byte in body
+                .process(if i < 48 { 1.0 } else { 0.0 })
+                .to_bits()
+                .to_le_bytes()
+            {
+                hash ^= byte as u64;
+                hash = hash.wrapping_mul(0x0100_0000_01b3);
+            }
+        }
+        println!("HASH body: {hash:#018x}");
     }
 }

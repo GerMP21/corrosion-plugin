@@ -4,6 +4,7 @@
 //! interaction bus updates coupling and strike-position coefficients without
 //! allocating on the audio thread.
 
+use crate::dsp::utils::rate;
 use std::f32::consts::PI;
 
 use crate::dsp::resonators::{
@@ -127,18 +128,93 @@ pub struct ResonatorCoefficients {
     pub a2: f32,
 }
 
+/// Sample rate at which mode gains are specified (and at which the input
+/// gain scaling below is exactly 1).
+pub const REFERENCE_SAMPLE_RATE: f32 = 48_000.0;
+
 impl ResonatorCoefficients {
     /// Compute resonator coefficients for a modal specification.
+    ///
+    /// The input gain is `gain · (48 kHz / fs)²`. Each mode stands in for an
+    /// oscillator driven by a force, whose discretized force term scales
+    /// with `dt²`; without this, a force lasting a fixed time rings the mode
+    /// with a level proportional to fs² (+12 dB at 96 kHz). At 48 kHz the
+    /// factor is exactly 1, so output there is unchanged.
     pub fn for_mode(mode: crate::dsp::ModalModeSpec, sample_rate: u32) -> Self {
         let safe_sample_rate = sample_rate.max(1) as f32;
         let decay_seconds = mode.decay_seconds.max(f32::EPSILON);
         let omega = 2.0 * PI * mode.frequency_hz / safe_sample_rate;
         let r = (-1.0 / (decay_seconds * safe_sample_rate)).exp();
+        let rate_ratio = REFERENCE_SAMPLE_RATE / safe_sample_rate;
 
         Self {
-            b0: mode.gain,
+            b0: mode.gain * (rate_ratio * rate_ratio),
             a1: -2.0 * r * omega.cos(),
             a2: r * r,
+        }
+    }
+}
+
+/// Highest mode frequency that is driven, in Hz, at any sample rate: modes
+/// at or above `min(MODE_CEILING_HZ, MODE_CEILING_NYQUIST · fs)` get no input.
+/// A mode's gain grows as `1 / sin ω`, so a mode near Nyquist (SheetMetal's
+/// `n²` partials, the sheet warp, CoilSpring at C6) blew up through contact
+/// feedback; above Nyquist it only aliases (`normalize-object-loudness`).
+pub const MODE_CEILING_HZ: f32 = 20_000.0;
+const MODE_CEILING_NYQUIST: f32 = 0.45;
+
+/// Whether a mode at `frequency_hz` is driven at `sample_rate`.
+#[inline]
+fn mode_is_audible(frequency_hz: f32, sample_rate: f32) -> bool {
+    frequency_hz < MODE_CEILING_HZ.min(MODE_CEILING_NYQUIST * sample_rate)
+}
+
+/// Coefficients of one mode in coupled (complex one-pole) form:
+/// `z[n] = p·z[n−1] + g·x[n]`, output `Im z[n]`, with `p = r·e^{iω}` and
+/// `g = b0·(cot ω + i)`.
+///
+/// Its impulse response, `b0·rⁿ·sin(ω(n+1)) / sin ω`, is the direct-form
+/// biquad's (`ResonatorCoefficients`). Two reasons to run it this way
+/// instead (`normalize-object-loudness`):
+/// - A frequency change rotates the state without changing its magnitude,
+///   so per-sample retuning (sheet warp, cable drop, pitch bend) doesn't
+///   pump energy into the mode. In direct form the sheet warp diverged.
+/// - The frequency is set by `r·sin ω` rather than `−2r·cos ω ≈ −2`, which
+///   keeps low, long-ringing modes accurate in f32 at high sample rates.
+///   The coefficients are computed in f64 and rounded once.
+#[derive(Clone, Copy, Debug)]
+struct CoupledCoefficients {
+    pole_re: f32,
+    pole_im: f32,
+    gain_re: f32,
+    gain_im: f32,
+}
+
+impl CoupledCoefficients {
+    fn for_mode(mode: crate::dsp::ModalModeSpec, sample_rate: u32) -> Self {
+        let fs = sample_rate.max(1) as f64;
+        let decay_seconds = (mode.decay_seconds.max(f32::EPSILON)) as f64;
+        let omega = std::f64::consts::TAU * mode.frequency_hz as f64 / fs;
+        let r = (-1.0 / (decay_seconds * fs)).exp();
+        let rate_ratio = REFERENCE_SAMPLE_RATE as f64 / fs;
+        let b0 = if mode_is_audible(mode.frequency_hz, fs as f32) {
+            mode.gain as f64 * rate_ratio * rate_ratio
+        } else {
+            0.0
+        };
+        let (sin, cos) = omega.sin_cos();
+        // A mode at 0 Hz or exactly at Nyquist has no resonance to scale by;
+        // keep the gain finite (the biquad's own gain diverges there too).
+        let sin_safe = if sin.abs() < 1e-9 {
+            1e-9_f64.copysign(sin)
+        } else {
+            sin
+        };
+        Self {
+            pole_re: (r * cos) as f32,
+            pole_im: (r * sin) as f32,
+            gain_re: (b0 * cos / sin_safe) as f32,
+            gain_im: b0 as f32,
         }
     }
 }
@@ -157,10 +233,11 @@ pub struct SecondOrderMode {
     /// Note-on gain before damping/brightness are applied; mirror of
     /// `base_decay_seconds` for brightness automation.
     base_gain: f32,
-    coefficients: ResonatorCoefficients,
+    coefficients: CoupledCoefficients,
     cached_sample_rate: Option<u32>,
-    y1: f32,
-    y2: f32,
+    /// Complex state `z`; the mode's output is its imaginary part.
+    z_re: f32,
+    z_im: f32,
 }
 
 impl SecondOrderMode {
@@ -171,10 +248,10 @@ impl SecondOrderMode {
             base_frequency_hz: spec.frequency_hz,
             base_decay_seconds: spec.decay_seconds,
             base_gain: spec.gain,
-            coefficients: ResonatorCoefficients::for_mode(spec, 48_000),
+            coefficients: CoupledCoefficients::for_mode(spec, 48_000),
             cached_sample_rate: None,
-            y1: 0.0,
-            y2: 0.0,
+            z_re: 0.0,
+            z_im: 0.0,
         }
     }
 
@@ -183,7 +260,7 @@ impl SecondOrderMode {
     /// Used by the per-sample dynamic hooks. Allocation-free.
     pub fn set_frequency(&mut self, frequency_hz: f32, sample_rate: u32) {
         self.spec.frequency_hz = frequency_hz;
-        self.coefficients = ResonatorCoefficients::for_mode(self.spec, sample_rate);
+        self.coefficients = CoupledCoefficients::for_mode(self.spec, sample_rate);
         self.cached_sample_rate = Some(sample_rate);
     }
 
@@ -204,24 +281,23 @@ impl SecondOrderMode {
         let brightness_tilt = 1.0 + (brightness.clamp(0.0, 1.0) - 0.5) * (0.5 + 1.0 * mode_weight);
         self.spec.decay_seconds = (self.base_decay_seconds * damping_scale).max(f32::EPSILON);
         self.spec.gain = (self.base_gain * brightness_tilt.max(0.1)).max(f32::EPSILON);
-        self.coefficients = ResonatorCoefficients::for_mode(self.spec, sample_rate);
+        self.coefficients = CoupledCoefficients::for_mode(self.spec, sample_rate);
         self.cached_sample_rate = Some(sample_rate);
     }
 
     /// Process one excitation sample through the resonator.
     pub fn process(&mut self, excitation: f32, sample_rate: u32) -> f32 {
         if self.cached_sample_rate != Some(sample_rate) {
-            self.coefficients = ResonatorCoefficients::for_mode(self.spec, sample_rate);
+            self.coefficients = CoupledCoefficients::for_mode(self.spec, sample_rate);
             self.cached_sample_rate = Some(sample_rate);
         }
 
-        let sample = self.coefficients.b0 * excitation
-            - self.coefficients.a1 * self.y1
-            - self.coefficients.a2 * self.y2;
-
-        self.y2 = self.y1;
-        self.y1 = sample;
-        sample
+        let c = self.coefficients;
+        let z_re = c.pole_re * self.z_re - c.pole_im * self.z_im + c.gain_re * excitation;
+        let z_im = c.pole_re * self.z_im + c.pole_im * self.z_re + c.gain_im * excitation;
+        self.z_re = z_re;
+        self.z_im = z_im;
+        z_im
     }
 }
 
@@ -249,6 +325,8 @@ pub struct ModalResonator {
     dyn_amplitude: f32,
     /// Smoothed low-frequency displacement driving the sheet-metal warp.
     dyn_lf_displacement: f32,
+    /// Cached (sample rate, amplitude pole, LF pole) for non-48 kHz rates.
+    dyn_rate: (u32, f32, f32),
     /// Multiplicative pitch-bend factor applied on top of mode base frequencies.
     /// `1.0` is neutral; written by `set_pitch_bend_factor` from MIDI pitch bend
     /// or poly tuning events. Layered with object dynamics in `apply_dynamics`.
@@ -261,8 +339,72 @@ pub struct ModalResonator {
     transformed_specs: Vec<crate::dsp::ModalModeSpec>,
 }
 
+/// Strike-level estimate of the default patch's bank (Pipe, C4, default
+/// controls, after the material transforms). Every note-on bank is scaled to
+/// this level; see `ModalResonator::normalize_strike_level`.
+pub const STRIKE_LEVEL_REF: f32 = 0.594_506_6;
+
 impl ModalResonator {
     const REFERENCE_PITCH_HZ: f32 = 220.0;
+
+    /// Estimated strike level of the bank: the peak response to a
+    /// one-sample unit impulse, with each mode's force weighted as
+    /// `process_sample` weights it (`force_weights`, from strike position
+    /// and coupling).
+    ///
+    /// Mode i rings at amplitude `A_i = |w_i · b0_i / sin ω_i|`. The peak of
+    /// the sum lies between the incoherent `‖A‖₂` and the fully coherent
+    /// `‖A‖₁` (reached when beating modes come into phase). The `‖A‖_p` norm
+    /// with p = 1.3 tracks the measured peak within about 4.3 dB over every
+    /// object, C2–C6, Eco–Render and damage 0–1 (design.md findings).
+    /// O(modes) and allocation-free.
+    fn strike_level_estimate(
+        modes: &[SecondOrderMode],
+        force_weights: impl Fn(usize) -> f32,
+    ) -> f32 {
+        const P: f32 = 1.3;
+        let sum: f32 = modes
+            .iter()
+            .enumerate()
+            .filter(|(_, mode)| mode_is_audible(mode.spec.frequency_hz, REFERENCE_SAMPLE_RATE))
+            .map(|(index, mode)| {
+                let omega = std::f32::consts::TAU * mode.spec.frequency_hz / REFERENCE_SAMPLE_RATE;
+                let sin = omega.sin().abs().max(1e-6);
+                (force_weights(index) * mode.spec.gain / sin).abs().powf(P)
+            })
+            .sum();
+        sum.powf(1.0 / P)
+    }
+
+    /// Scale the bank so its strike level is `STRIKE_LEVEL_REF`, whatever
+    /// the object, pitch, quality mode, damage or character settings.
+    /// Relative mode gains, and so the timbre, are kept
+    /// (`normalize-object-loudness`). Runs at note-on, before the live
+    /// damping/brightness controls and at the bus's note-on strike position
+    /// (the default; a later `set_interaction_params` moves it, which
+    /// changes level and timbre as a strike position should).
+    /// Allocation-free.
+    fn normalize_strike_level(&mut self) {
+        let coupling = self
+            .interaction_bus
+            .state
+            .coupling_stiffness
+            .clamp(0.0, 1.0);
+        let weights = &self.interaction_bus.mode_coefficients;
+        let weight = |index: usize| {
+            let coeff = weights.get(index).copied().unwrap_or(1.0);
+            (1.0 - coupling) + coeff * coupling
+        };
+        let level = Self::strike_level_estimate(&self.modes, weight);
+        if !(level.is_finite() && level > 0.0) {
+            return;
+        }
+        let scale = STRIKE_LEVEL_REF / level;
+        for mode in &mut self.modes {
+            mode.base_gain *= scale;
+            mode.spec.gain *= scale;
+        }
+    }
 
     /// An empty resonator whose mode, scratch, and interaction buffers are
     /// preallocated for the worst-case bank (`MAX_MODES`).
@@ -280,6 +422,7 @@ impl ModalResonator {
             dynamics: Dynamics::None,
             dyn_amplitude: 0.0,
             dyn_lf_displacement: 0.0,
+            dyn_rate: (48_000, 0.99, 0.95),
             pitch_bend_factor: 1.0,
             raw_specs: Vec::with_capacity(MAX_MODES),
             transformed_specs: Vec::with_capacity(MAX_MODES),
@@ -474,6 +617,7 @@ impl ModalResonator {
             dynamics: Dynamics::None,
             dyn_amplitude: 0.0,
             dyn_lf_displacement: 0.0,
+            dyn_rate: (48_000, 0.99, 0.95),
             pitch_bend_factor: 1.0,
             raw_specs: Vec::with_capacity(MAX_MODES),
             transformed_specs: Vec::with_capacity(MAX_MODES),
@@ -680,6 +824,7 @@ impl ModalResonator {
         self.heat_amount = crate::dsp::HeatAmount::default();
         self.sludge_amount = crate::dsp::SludgeAmount::default();
         self.interaction_bus.reset(self.modes.len());
+        self.normalize_strike_level();
         self.dynamics = dynamics;
         self.dyn_amplitude = 0.0;
         self.dyn_lf_displacement = 0.0;
@@ -728,8 +873,8 @@ impl ModalResonator {
     /// rebuilds it. Allocation-free.
     pub fn clear_state(&mut self) {
         for mode in &mut self.modes {
-            mode.y1 = 0.0;
-            mode.y2 = 0.0;
+            mode.z_re = 0.0;
+            mode.z_im = 0.0;
         }
         self.dyn_amplitude = 0.0;
         self.dyn_lf_displacement = 0.0;
@@ -842,9 +987,23 @@ impl ModalResonator {
     /// Update the smoothed amplitude / low-frequency estimates that drive the
     /// dynamic hooks. `lf_sum` is the summed displacement of the lowest modes.
     #[inline]
-    fn track_dynamic_state(&mut self, amp_sum: f32, lf_sum: f32) {
-        self.dyn_amplitude = self.dyn_amplitude * 0.99 + amp_sum * 0.01;
-        self.dyn_lf_displacement = self.dyn_lf_displacement * 0.95 + lf_sum * 0.05;
+    fn track_dynamic_state(&mut self, amp_sum: f32, lf_sum: f32, sample_rate: u32) {
+        // One-pole trackers tuned per 48 kHz sample (poles 0.99 and 0.95),
+        // converted for other rates; the 48 kHz path keeps the exact
+        // literals so its output is unchanged.
+        if sample_rate == 48_000 {
+            self.dyn_amplitude = self.dyn_amplitude * 0.99 + amp_sum * 0.01;
+            self.dyn_lf_displacement = self.dyn_lf_displacement * 0.95 + lf_sum * 0.05;
+        } else {
+            if self.dyn_rate.0 != sample_rate {
+                let r = rate::ratio(sample_rate as f32);
+                self.dyn_rate = (sample_rate, rate::decay(0.99, r), rate::decay(0.95, r));
+            }
+            let (_, amp_pole, lf_pole) = self.dyn_rate;
+            self.dyn_amplitude = self.dyn_amplitude * amp_pole + amp_sum * (1.0 - amp_pole);
+            self.dyn_lf_displacement =
+                self.dyn_lf_displacement * lf_pole + lf_sum * (1.0 - lf_pole);
+        }
     }
 
     /// Return the current summed displacement.
@@ -899,11 +1058,14 @@ impl ResonatorCore for ModalResonator {
         }
 
         if dynamic {
-            self.track_dynamic_state(amp_sum, lf_sum);
+            self.track_dynamic_state(amp_sum, lf_sum, sample_rate);
         }
 
-        self.interaction_bus.state.resonator_velocity =
-            interaction_displacement - self.interaction_bus.state.resonator_displacement;
+        // Velocity in displacement per 48 kHz sample, the unit the exciters'
+        // own velocities use (exactly the plain difference at 48 kHz).
+        self.interaction_bus.state.resonator_velocity = (interaction_displacement
+            - self.interaction_bus.state.resonator_displacement)
+            * (sample_rate as f32 / REFERENCE_SAMPLE_RATE);
         self.interaction_bus.state.resonator_displacement = interaction_displacement;
 
         match self.profile {
@@ -978,11 +1140,14 @@ impl ResonatorCore for ModalResonator {
         }
 
         if dynamic {
-            self.track_dynamic_state(amp_sum, lf_sum);
+            self.track_dynamic_state(amp_sum, lf_sum, sample_rate);
         }
 
-        self.interaction_bus.state.resonator_velocity =
-            interaction_displacement - self.interaction_bus.state.resonator_displacement;
+        // Velocity in displacement per 48 kHz sample, the unit the exciters'
+        // own velocities use (exactly the plain difference at 48 kHz).
+        self.interaction_bus.state.resonator_velocity = (interaction_displacement
+            - self.interaction_bus.state.resonator_displacement)
+            * (sample_rate as f32 / REFERENCE_SAMPLE_RATE);
         self.interaction_bus.state.resonator_displacement = interaction_displacement;
         (left_sum, right_sum)
     }
@@ -1170,6 +1335,9 @@ mod tests {
     /// note-on path (review C3). The fixture was captured from the allocating
     /// implementation; regenerate it only for an intended sound change with
     /// `CORROSION_UPDATE_GOLDEN=1 cargo test mode_banks_match_golden`.
+    /// Re-captured for `normalize-object-loudness`, which scales every bank's
+    /// gains to one strike level at note-on (the mode frequencies and decays
+    /// are unchanged).
     #[test]
     fn mode_banks_match_golden_fixture() {
         let current = current_fingerprints();
@@ -1186,5 +1354,221 @@ mod tests {
         for (expected, actual) in golden.iter().zip(&current) {
             assert_eq!(*expected, actual.as_str());
         }
+    }
+
+    // --- Sample-rate-independent level (fix-resonator-sample-rate-gain) ---
+
+    const LEVEL_PROFILES: [ModalProfileId; 4] = [
+        ModalProfileId::Tank,
+        ModalProfileId::Pipe,
+        ModalProfileId::Plate,
+        ModalProfileId::IndustrialCog,
+    ];
+
+    fn c4_bank(profile: ModalProfileId) -> ModalResonator {
+        ModalResonator::with_algorithm_controls_and_note(
+            profile,
+            crate::dsp::SizeScale::new(1.0),
+            crate::dsp::RustAmount::new(0.0),
+            crate::dsp::DamageAmount::new(0.0),
+            crate::dsp::ThicknessAmount::new(0.0),
+            crate::dsp::HeatAmount::new(0.0),
+            crate::dsp::SludgeAmount::new(0.0),
+            261.63,
+            0.5,
+            0.5,
+            CharacterParams::default(),
+            1.0,
+        )
+    }
+
+    /// Peak output of a 1 ms unit force pulse, over one second.
+    fn pulse_peak(profile: ModalProfileId, sample_rate: u32) -> f32 {
+        let mut bank = c4_bank(profile);
+        let pulse = (sample_rate as f32 * 0.001).round() as usize;
+        (0..sample_rate as usize)
+            .map(|i| {
+                bank.process_sample(if i < pulse { 1.0 } else { 0.0 }, sample_rate)
+                    .abs()
+            })
+            .fold(0.0, f32::max)
+    }
+
+    /// RMS over the second half of a one-second sine drive at the bank's
+    /// lowest mode, at the frequency its f32 coefficients actually resonate
+    /// at for this sample rate, so the test measures gain, not tuning.
+    fn sine_rms(profile: ModalProfileId, sample_rate: u32) -> f32 {
+        let mut bank = c4_bank(profile);
+        let lowest = bank
+            .modes
+            .iter()
+            .min_by(|a, b| a.spec.frequency_hz.total_cmp(&b.spec.frequency_hz))
+            .map(|m| m.spec)
+            .unwrap();
+        let c = CoupledCoefficients::for_mode(lowest, sample_rate);
+        let omega = (c.pole_im as f64).atan2(c.pole_re as f64);
+        let f = (omega * sample_rate as f64 / std::f64::consts::TAU) as f32;
+        let n = sample_rate as usize;
+        let sum: f64 = (0..n)
+            .map(|i| {
+                let x = 0.01 * (std::f32::consts::TAU * f * i as f32 / sample_rate as f32).sin();
+                let y = bank.process_sample(x, sample_rate);
+                if i >= n / 2 {
+                    (y * y) as f64
+                } else {
+                    0.0
+                }
+            })
+            .sum();
+        (sum / (n / 2) as f64).sqrt() as f32
+    }
+
+    fn db(ratio: f32) -> f32 {
+        20.0 * ratio.log10()
+    }
+
+    #[test]
+    fn short_strike_level_does_not_depend_on_sample_rate() {
+        for profile in LEVEL_PROFILES {
+            let reference = pulse_peak(profile, 48_000);
+            for sample_rate in [44_100, 96_000, 192_000] {
+                let diff = db(pulse_peak(profile, sample_rate) / reference);
+                assert!(
+                    diff.abs() <= 0.5,
+                    "{profile:?} at {sample_rate} Hz: {diff:+.2} dB vs 48 kHz"
+                );
+            }
+        }
+    }
+
+    /// Includes 192 kHz since `normalize-object-loudness` moved the modes to
+    /// the coupled form. In the direct form, f32 rounding (a1 ≈ −2, a2 ≈ 1)
+    /// cost Tank's low, long-ringing 87 Hz cavity about 1.5 dB at 192 kHz.
+    #[test]
+    fn sustained_level_does_not_depend_on_sample_rate() {
+        for profile in LEVEL_PROFILES {
+            let reference = sine_rms(profile, 48_000);
+            for sample_rate in [44_100, 96_000, 192_000] {
+                let diff = db(sine_rms(profile, sample_rate) / reference);
+                assert!(
+                    diff.abs() <= 0.5,
+                    "{profile:?} at {sample_rate} Hz: {diff:+.2} dB vs 48 kHz"
+                );
+            }
+        }
+    }
+
+    /// 48 kHz output must not change (fix-resonator-sample-rate-gain). Only
+    /// the input gain picked up a sample-rate factor, so it is enough that
+    /// `b0` equals the mode gain exactly at 48 kHz, for every mode of every
+    /// object. (A render hash would also prove it, but libm differs between
+    /// the musl and glibc targets CI runs, so a hash isn't portable.)
+    #[test]
+    fn input_gain_is_unchanged_at_48k() {
+        for profile in PROFILES {
+            for mode in &c4_bank(profile).modes {
+                let c = ResonatorCoefficients::for_mode(mode.spec, 48_000);
+                assert_eq!(c.b0.to_bits(), mode.spec.gain.to_bits(), "{profile:?}");
+            }
+        }
+    }
+
+    // --- Loudness across objects, pitch, quality and damage
+    // (normalize-object-loudness) ---
+
+    fn level_bank(
+        profile: ModalProfileId,
+        note_hz: f32,
+        scale: f32,
+        damage: f32,
+    ) -> ModalResonator {
+        ModalResonator::with_algorithm_controls_and_note(
+            profile,
+            crate::dsp::SizeScale::new(1.0),
+            crate::dsp::RustAmount::new(0.0),
+            crate::dsp::DamageAmount::new(damage),
+            crate::dsp::ThicknessAmount::new(0.0),
+            crate::dsp::HeatAmount::new(0.0),
+            crate::dsp::SludgeAmount::new(0.0),
+            note_hz,
+            0.5,
+            0.5,
+            CharacterParams::default(),
+            scale,
+        )
+    }
+
+    /// Peak of a bank's response to a one-sample unit impulse at 48 kHz,
+    /// over 1 s. (A 1 ms pulse would itself filter the strike: it nearly
+    /// cancels any mode near 1 kHz, the C6 fundamental.)
+    fn strike_peak(mut bank: ModalResonator) -> f32 {
+        (0..48_000)
+            .map(|i| {
+                bank.process_sample(if i == 0 { 1.0 } else { 0.0 }, 48_000)
+                    .abs()
+            })
+            .fold(0.0, f32::max)
+    }
+
+    const C2: f32 = 65.41;
+    const C4: f32 = 261.63;
+    const C6: f32 = 1046.5;
+
+    #[test]
+    fn loudness_does_not_depend_on_pitch() {
+        let mut failures = Vec::new();
+        for profile in PROFILES {
+            let c4 = strike_peak(level_bank(profile, C4, 1.0, 0.0));
+            for (name, hz) in [("C2", C2), ("C6", C6)] {
+                let diff = db(strike_peak(level_bank(profile, hz, 1.0, 0.0)) / c4);
+                if diff.abs() > 3.0 || !diff.is_finite() {
+                    failures.push(format!("{profile:?} {name}: {diff:+.2} dB vs C4"));
+                }
+            }
+        }
+        assert!(failures.is_empty(), "{}", failures.join("\n"));
+    }
+
+    #[test]
+    fn objects_are_comparably_loud() {
+        let peaks: Vec<(ModalProfileId, f32)> = PROFILES
+            .iter()
+            .map(|&p| (p, strike_peak(level_bank(p, C4, 1.0, 0.0))))
+            .collect();
+        let (loud, max) = peaks
+            .iter()
+            .copied()
+            .max_by(|a, b| a.1.total_cmp(&b.1))
+            .unwrap();
+        let (quiet, min) = peaks
+            .iter()
+            .copied()
+            .min_by(|a, b| a.1.total_cmp(&b.1))
+            .unwrap();
+        let spread = db(max / min);
+        assert!(
+            spread <= 6.0,
+            "{loud:?} {max:.3} vs {quiet:?} {min:.3}: {spread:.2} dB spread\n{peaks:?}"
+        );
+    }
+
+    #[test]
+    fn quality_mode_and_damage_do_not_change_loudness() {
+        let mut failures = Vec::new();
+        for profile in PROFILES {
+            let eco = strike_peak(level_bank(profile, C4, 0.5, 0.0));
+            let render = strike_peak(level_bank(profile, C4, 2.0, 0.0));
+            let diff = db(render / eco);
+            if diff.abs() > 2.0 || !diff.is_finite() {
+                failures.push(format!("{profile:?} Render vs Eco: {diff:+.2} dB"));
+            }
+            let clean = strike_peak(level_bank(profile, C4, 1.0, 0.0));
+            let damaged = strike_peak(level_bank(profile, C4, 1.0, 1.0));
+            let diff = db(damaged / clean);
+            if diff.abs() > 2.0 || !diff.is_finite() {
+                failures.push(format!("{profile:?} damage 1 vs 0: {diff:+.2} dB"));
+            }
+        }
+        assert!(failures.is_empty(), "{}", failures.join("\n"));
     }
 }

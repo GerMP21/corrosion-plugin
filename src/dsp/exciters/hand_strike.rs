@@ -4,6 +4,8 @@
 //! The hand mass and mute decay together shape whether the gesture reads as a
 //! slap, mute, or a heavier palm strike.
 
+use crate::dsp::utils::rate;
+
 /// Fleshy impact with strong damping and a simple release state.
 #[derive(Clone, Debug)]
 pub struct HandStrike {
@@ -23,6 +25,11 @@ pub struct HandStrike {
     active: bool,
     /// Linear decay state multiplied into the output each sample.
     decay_state: f32,
+    /// `48 kHz / fs` and per-sample constants derived from it
+    /// (`fix-sample-rate-time-constants`); exact 48 kHz values at 48 kHz.
+    ratio: f32,
+    velocity_decay: f32,
+    mute_decay_per_sample: f32,
 }
 
 impl HandStrike {
@@ -37,7 +44,17 @@ impl HandStrike {
             hand_velocity: 0.0,
             active: false,
             decay_state: 1.0,
+            ratio: 1.0,
+            velocity_decay: 0.99,
+            mute_decay_per_sample: 0.95,
         }
+    }
+
+    /// Re-derives the per-sample constants for `sample_rate`.
+    pub fn set_sample_rate(&mut self, sample_rate: f32) {
+        self.ratio = rate::ratio(sample_rate);
+        self.velocity_decay = rate::decay(0.99, self.ratio);
+        self.mute_decay_per_sample = rate::decay(self.mute_decay, self.ratio);
     }
 
     /// Sets the mass, stiffness, damping, and mute envelope.
@@ -46,6 +63,7 @@ impl HandStrike {
         self.flesh_stiffness = stiffness.clamp(0.001, 10.0);
         self.flesh_damping = damping.clamp(0.01, 2.0);
         self.mute_decay = mute.clamp(0.5, 0.9999);
+        self.mute_decay_per_sample = rate::decay(self.mute_decay, self.ratio);
     }
 
     /// Arms the hand with an initial strike velocity.
@@ -71,15 +89,15 @@ impl HandStrike {
 
         let force = total_force.max(0.0) * self.hand_mass * self.decay_state;
 
-        self.hand_velocity *= 0.99;
-        self.hand_position += self.hand_velocity * 0.01;
+        self.hand_velocity *= self.velocity_decay;
+        self.hand_position += self.hand_velocity * rate::step(0.01, self.ratio);
 
         if self.hand_position > resonator_displacement - 0.01 {
             self.hand_position = resonator_displacement;
             self.hand_velocity = resonator_velocity * 0.5;
         }
 
-        self.decay_state *= self.mute_decay;
+        self.decay_state *= self.mute_decay_per_sample;
         if self.decay_state < 0.001 {
             self.active = false;
         }

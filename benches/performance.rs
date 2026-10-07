@@ -1,6 +1,7 @@
 use corrosion::dsp::{ModalProfileId, ModalResonator, PostProcessingChain, SpaceMode, WireBrush};
 use corrosion::offline::{OfflineRenderer, RenderConfig};
 use corrosion::voice::manager::VoiceManager;
+use corrosion::voice::VoiceControls;
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 
 /// Benchmark one active voice through the mono voice manager path.
@@ -20,7 +21,7 @@ fn bench_single_voice_manager(c: &mut Criterion) {
     });
 }
 
-/// Benchmark the eight-voice worst-case polyphonic manager path.
+/// Benchmark eight active voices (half the 16-voice pool).
 fn bench_eight_voice_manager(c: &mut Criterion) {
     c.bench_function("voice_manager_eight_voices", |b| {
         b.iter(|| {
@@ -32,6 +33,58 @@ fn bench_eight_voice_manager(c: &mut Criterion) {
             let mut sum = 0.0_f32;
             for _ in 0..4_096 {
                 sum += manager.process_sample(48_000);
+            }
+
+            black_box(sum)
+        })
+    });
+}
+
+/// Benchmark a full 16-voice pool (Normal quality) through the stereo path.
+fn bench_sixteen_voice_manager(c: &mut Criterion) {
+    c.bench_function("voice_manager_sixteen_voices", |b| {
+        b.iter(|| {
+            let mut manager = VoiceManager::new();
+            for note in 52..68 {
+                manager.note_on(note, 110.0, ModalProfileId::Pipe, 1.0, 0.1, 0.1, 2);
+            }
+
+            let mut sum = 0.0_f32;
+            for _ in 0..4_096 {
+                let (left, right) = manager.process_sample_stereo(48_000, 0.5);
+                sum += left + right;
+            }
+
+            black_box(sum)
+        })
+    });
+}
+
+/// Worst case: 16 Render-quality (2x modes) damaged Plate voices, stereo.
+fn bench_sixteen_voice_manager_render(c: &mut Criterion) {
+    c.bench_function("voice_manager_sixteen_voices_render", |b| {
+        b.iter(|| {
+            let mut manager = VoiceManager::new();
+            for note in 52..68 {
+                manager.note_on_with_controls(
+                    note,
+                    110.0,
+                    ModalProfileId::Plate,
+                    1.0,
+                    0.3,
+                    1.0,
+                    2,
+                    VoiceControls {
+                        mode_count_scale: 2.0,
+                        ..VoiceControls::default()
+                    },
+                );
+            }
+
+            let mut sum = 0.0_f32;
+            for _ in 0..4_096 {
+                let (left, right) = manager.process_sample_stereo(48_000, 0.5);
+                sum += left + right;
             }
 
             black_box(sum)
@@ -169,6 +222,8 @@ criterion_group!(
     benches,
     bench_single_voice_manager,
     bench_eight_voice_manager,
+    bench_sixteen_voice_manager,
+    bench_sixteen_voice_manager_render,
     bench_wire_brush,
     bench_post_chain,
     bench_post_chain_eco,

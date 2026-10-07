@@ -9,7 +9,7 @@ Current package version: `0.1.0`. Preset schema version: `4` (with backwards-com
 - VST3 and CLAP plugin entrypoints via NIH-plug.
 - Stereo instrument layout (no audio input — audio-in "Effect mode" is on the roadmap, not shipped).
 - **Full MIDI expression**: notes, pitch bend (default ±2 semitones, ±24 safety clamp), channel + polyphonic pressure, and CC1 mod wheel. All routed live to active voices.
-- 8-voice polyphony with quietest-peak + oldest stealing.
+- 16-voice polyphony. When the pool is full, released tails are stolen first, then held notes at least 100 ms old (quietest first, oldest on ties); a note that just started is only stolen if every held note is that young. Idle voices cost nothing, while a full pool at Render quality measured about 36 % of one core on the development machine.
 - 130+ host parameters covering exciters, objects, transformations, post-processing, four high-level macros, and three play modes.
 - An egui editor with UI scaling (50/75/100/125/150%).
 - Offline renderers for comparison suites, preset batch renders, and aliasing analysis with asserted budgets.
@@ -55,6 +55,13 @@ Each object is driven by an algorithmic resonator generator (the single resonato
 
 Each anchors on a distinct Object × Exciter pair and tunes the relevant character params, exciter parameters, macros, and post-chain choices. Several use `PlayMode::Drone` for sustained drones, one uses `sync_rate` for tempo-synced echo. Regenerate with `cargo run --bin seed_presets`.
 
+The factory presets are placeholders, to be replaced by real ones. Their levels follow a light rule: none hits the limiter, and none is more than 12 dB below the bank's median (`preset_levels_are_sane`; per-preset numbers in `openspec/changes/normalize-object-loudness/levels.md`).
+
+**Loudness.**
+- Every object's mode bank is normalized at note-on to one strike level, so objects, registers (C2–C6), quality modes and damage settings land within a few dB of each other.
+- Each exciter has a fixed drive trim, so no default-control note overdrives the voice before its safety clamp.
+- Continuously driven exciters (bow, scrapes, jet, hum) are therefore much quieter than struck ones, and no longer hard-clip.
+
 ## Repository Layout
 
 ```text
@@ -71,7 +78,7 @@ Each anchors on a distinct Object × Exciter pair and tunes the relevant charact
 │   │                      play mode, lookahead wiring, drive/output smoothers
 │   ├── params.rs          130+ host parameters (ExciterType×16, Object×9,
 │   │                      QualityMode×4, PlayMode×3, character×14, macros×4 …)
-│   ├── voice/             Voice + VoiceManager (8-voice pool, expression state)
+│   ├── voice/             Voice + VoiceManager (16-voice pool, stealing, expression state)
 │   ├── dsp/               Resonators, exciters, interaction bus, transforms,
 │   │                      profiles, envelopes, post-processing
 │   ├── presets/           Versioned schema, JSON migration, sanitize-and-clamp
@@ -151,7 +158,7 @@ Benchmark coverage is local/manual for now. Use `cargo bench --no-default-featur
 - **No heap allocation** in `process()` — including note-on for every object, quality mode and exciter, voice stealing, live MIDI expression, and `reset()`. Each voice preallocates its worst-case modal bank (`MAX_MODES`) and rebuilds it in place at note-on. Verified by `tests/no_alloc.rs`, which must run in a **debug** build (`cargo test --no-default-features --test no_alloc`): the checking allocator only exists under `debug_assertions`, and a release run passes vacuously. The non-Windows build enables nih_plug's `assert_process_allocs` feature. The Windows lane is intentionally disabled (`assert_no_alloc`'s thread-local allocator hook conflicts with the Windows CRT during nih-plug test setup); document is in `docs/BACKLOG.md` → P4.
 - **No locks / blocking / I/O / logging** in the audio callback.
 - **Fixed voice array** — 8 `Voice` instances, each owning all 16 exciter structs (allocation-free dispatch).
-- **Denormal + NaN/Inf guards** at every voice boundary; non-finite peak holds sort as quietest so a corrupted voice is reclaimed.
+- **Denormal + NaN/Inf guards** at every voice boundary; non-finite peak holds sort as quietest within their stealing tier, so a corrupted voice is reclaimed.
 - **Per-buffer parameter setters.** Following the P0 fix, post-chain parameters update once per buffer (not per sample), with audio-rate one-pole smoothers (~20 ms tau, first-call snap) inside `WdfLadderFilter`, `LorenzDrive`, and the master drive / output gain paths.
 
 ## Docs
