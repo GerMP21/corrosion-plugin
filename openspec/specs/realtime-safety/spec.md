@@ -16,13 +16,6 @@ Handling note-on and note-off events on the audio thread SHALL NOT allocate or f
 - **WHEN** inside an allocation-checking zone, held notes are released and processed until their voices go idle
 - **THEN** no heap allocation or deallocation is recorded
 
-### Requirement: Voice stealing does not allocate
-Starting a note when all voices are busy SHALL NOT allocate or free heap memory.
-
-#### Scenario: Ninth note steals a voice
-- **WHEN** inside an allocation-checking zone, eight voices are playing and a ninth note-on arrives with a different object than the stolen voice
-- **THEN** a voice is stolen and no heap allocation or deallocation is recorded
-
 ### Requirement: Live expression does not allocate
 Pitch bend, channel and polyphonic pressure, mod wheel and live parameter automation applied to sounding voices SHALL NOT allocate or free heap memory.
 
@@ -43,3 +36,10 @@ The modal bank produced at note-on SHALL contain the same modes, in the same ord
 #### Scenario: Mode bank equivalence
 - **WHEN** a note-on is performed for each object at each quality mode with damage values 0, 0.5 and 1
 - **THEN** each resulting mode bank matches the bank produced by the previous implementation within 1e-6 relative error per value
+
+### Requirement: Stealing a voice does not allocate
+Starting a note when every voice in the pool is sounding SHALL NOT allocate or free heap memory.
+
+#### Scenario: Notes beyond a full pool steal voices
+- **WHEN** inside an allocation-checking zone, every voice in the pool is playing and further note-ons arrive with a different object than the voices they steal
+- **THEN** each note-on steals a voice and no heap allocation or deallocation is recorded
