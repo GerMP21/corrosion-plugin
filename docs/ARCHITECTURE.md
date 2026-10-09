@@ -291,10 +291,31 @@ measured with `print_exciter_overdrive`, and `default_notes_do_not_overdrive_the
 checks the struck, bowed and jet cases.
 
 The trims leave continuous exciters (bow, scrapes, jet, hum) much quieter than
-before, when they were mostly hard-clipped inside the voice. HardMallet and
-HeavyGrinding are effectively silent (about −47 dBFS median): above a small
-drive their contact loop runs away, so their trim sits at half of that
-threshold. Making them usable needs their contact models fixed.
+before, when they were mostly hard-clipped inside the voice. HeavyGrinding's
+median note sits about 19 dB under the struck exciters: its steady,
+low-frequency force moves a low bank (IndustrialCog C2) about 40× more than
+its median note, and one fixed trim must keep that note under full scale.
+
+### Implicit contact
+
+HardMallet and HeavyGrinding solve their contact together with the resonator's
+response to this sample's force, instead of reacting to the previous sample:
+- `ModalResonator::contact_prediction` gives this sample's contact
+  displacement as `free + compliance·F`;
+- `dsp::utils::contact::solve_force` finds the force that satisfies the
+  contact law.
+
+With the one-sample lag gone, neither can run away at any drive (tested at 16×
+default). The voice scales the compliance by everything it multiplies the
+force by (envelope, trim), so the exciter sees its force's real effect.
+
+- **HardMallet** pushes only while in contact, with a Hunt–Crossley force
+  `k·d^1.5·(1 + λ·v_rel)`, then rebounds and leaves.
+- **HeavyGrinding** uses a smooth `tanh` friction curve. Its tearing noise
+  follows the grinder's own speed, not the slip, so the resonator's motion
+  can't feed it.
+
+`resolve-exciter-tradeoffs` extends this to the other contact exciters.
 
 ### Sample-rate rule
 

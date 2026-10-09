@@ -428,6 +428,10 @@ pub struct Voice {
     /// Largest |sample| fed to the output clamp since note-on. Lets tests
     /// check that default notes don't overdrive (`normalize-object-loudness`).
     pre_clamp_peak: f32,
+    /// Extra multiplier on the exciter force, 1.0 in use. Tests raise it to
+    /// probe contact stability far above the default drive
+    /// (`stabilize-mallet-and-grinding-contact`).
+    pub(crate) drive_scale: f32,
     frames_below_threshold: u32,
     start_frame: u64,
     excitation_value: f32,
@@ -480,8 +484,8 @@ const PEAK_DECAY: f32 = 0.999;
 /// drive level. Each trim is `0.9 / worst pre-clamp peak` from
 /// `print_exciter_overdrive`, applied only where that peak exceeded 1.0.
 const EXCITER_DRIVE_TRIM: [f32; 17] = [
-    1.0, 3.1929e-03, 1.0, 7.5118e-02, 1.5827e-03, 1.3839e-01, 3.0468e-01, 1.0735e-01, 1.0,
-    1.1755e-03, 1.8014e-03, 1.9514e-03, 4.2822e-02, 9.9174e-04, 7.8856e-04, 2.3966e-01, 4.7378e-03,
+    1.0, 3.1929e-03, 1.0, 7.5118e-02, 1.2847e+00, 1.3839e-01, 3.0468e-01, 1.0735e-01, 1.0,
+    1.1755e-03, 7.2140e-03, 1.9514e-03, 4.2822e-02, 9.9174e-04, 7.8856e-04, 2.3966e-01, 4.7378e-03,
 ];
 
 const HIGHPASS_POLE: f32 = 0.8;
@@ -552,6 +556,7 @@ impl Voice {
 
             peak_hold: 0.0,
             pre_clamp_peak: 0.0,
+            drive_scale: 1.0,
             frames_below_threshold: 0,
             start_frame: 0,
             excitation_value: 0.0,
@@ -1259,6 +1264,18 @@ impl Voice {
         highpass_noise * rattle_amount
     }
 
+    /// The resonator's response to this sample's exciter force, as the
+    /// exciter sees it: scaled by everything the voice multiplies the force
+    /// by (`stabilize-mallet-and-grinding-contact`).
+    fn contact_prediction(&mut self, envelope: f32) -> crate::dsp::ContactPrediction {
+        let scale = envelope
+            * EXCITER_DRIVE_TRIM[self.exciter_type.clamp(0, 16) as usize]
+            * self.drive_scale;
+        self.resonator
+            .contact_prediction(self.sample_rate as u32)
+            .scaled(scale)
+    }
+
     fn process_exciter(&mut self) -> f32 {
         // If there is no active envelope, there is nothing left to excite.
         if !self.active
@@ -1280,13 +1297,19 @@ impl Voice {
             1 => self.bow_exciter.process_sample(res_vel),
             2 => self.hand_strike.process_sample(res_disp, res_vel),
             3 => self.felt_mallet.process_sample(res_disp, 0.0),
-            4 => self.hard_mallet.process_sample(res_disp, res_vel),
+            4 => {
+                let prediction = self.contact_prediction(envelope);
+                self.hard_mallet.process_sample(prediction)
+            }
             5 => self.drumstick.process_sample(res_disp, res_vel),
             6 => self.wire_brush.process_sample(res_disp, 0.0),
             7 => self.metal_pipe.process_sample(res_disp, 0.0),
             8 => self.metal_chain.process_sample(res_disp, 0.0),
             9 => self.stiff_point.process_sample(res_disp, res_vel),
-            10 => self.heavy_grinding.process_sample(res_disp, res_vel),
+            10 => {
+                let prediction = self.contact_prediction(envelope);
+                self.heavy_grinding.process_sample(prediction)
+            }
             11 => self.corrugated_drag.process_sample(res_disp, res_vel),
             12 => self.tension_rise.process_sample(res_disp, res_vel),
             13 => self.pneumatic_jet.process_sample(res_disp, res_vel),
@@ -1296,7 +1319,10 @@ impl Voice {
             _ => 0.0,
         };
 
-        excitation * envelope * EXCITER_DRIVE_TRIM[self.exciter_type.clamp(0, 16) as usize]
+        excitation
+            * envelope
+            * EXCITER_DRIVE_TRIM[self.exciter_type.clamp(0, 16) as usize]
+            * self.drive_scale
     }
 
     /// Render one mono sample from the voice.
@@ -2176,9 +2202,7 @@ mod tests {
             // The drumstick keeps chattering on the resonator after its
             // bounce limit, and its loudest peak lands somewhere in that
             // chaotic chatter. Time its strike instead: the first 20 ms.
-            // The hard mallet's rebounds do the same once its drive trim
-            // keeps it from clipping (normalize-object-loudness).
-            if exciter == 4 || exciter == 5 {
+            if exciter == 5 {
                 out.truncate(sample_rate as usize / 50);
             }
             let peak = out
@@ -2326,7 +2350,15 @@ mod tests {
     #[test]
     #[ignore]
     fn print_exciter_overdrive() {
-        for exciter in 1..=16 {
+        // `OVERDRIVE_EXCITERS=4,10` limits the sweep to those exciters.
+        let exciters: Vec<i32> = std::env::var("OVERDRIVE_EXCITERS")
+            .map(|list| {
+                list.split(',')
+                    .filter_map(|e| e.trim().parse().ok())
+                    .collect()
+            })
+            .unwrap_or_else(|_| (1..=16).collect());
+        for exciter in exciters {
             let mut peaks: Vec<(f32, String)> = Vec::new();
             for profile in ALL_PROFILES {
                 for note in [36, 60, 84] {
@@ -2344,5 +2376,133 @@ mod tests {
                 (0.9 / worst).min(1.0) * super::EXCITER_DRIVE_TRIM[exciter as usize]
             );
         }
+    }
+
+    // --- Mallet and grinder contact (stabilize-mallet-and-grinding-contact) ---
+
+    /// Pre-clamp peaks of `exciter` over every object at C2/C4/C6
+    /// (velocity 127, default controls), sorted.
+    fn sweep_peaks(exciter: i32) -> Vec<f32> {
+        let mut peaks: Vec<f32> = ALL_PROFILES
+            .iter()
+            .flat_map(|&profile| [36, 60, 84].map(|note| pre_clamp_peak(profile, exciter, note)))
+            .collect();
+        peaks.sort_by(f32::total_cmp);
+        peaks
+    }
+
+    #[test]
+    fn mallet_and_grinder_play_at_a_struck_exciter_level() {
+        let median = |peaks: &[f32]| peaks[peaks.len() / 2];
+        let target = 0.5 * (median(&sweep_peaks(5)) + median(&sweep_peaks(6)));
+        for exciter in [4, 10] {
+            let peaks = sweep_peaks(exciter);
+            let diff = 20.0 * (median(&peaks) / target).log10();
+            let worst = *peaks.last().unwrap();
+            assert!(
+                worst <= 0.9,
+                "exciter {exciter}: worst pre-clamp peak {worst:.3}"
+            );
+            // HeavyGrinding's steady, low-frequency force moves IndustrialCog
+            // C2's low modes ~40x more than its median note, so a single
+            // trim can't lift its median without overdriving that note. Its
+            // level is left to the per-voice drive governor
+            // (`resolve-exciter-tradeoffs`); only HardMallet is held to the
+            // struck target here.
+            if exciter == 10 {
+                continue;
+            }
+            assert!(
+                diff.abs() <= 6.0,
+                "exciter {exciter}: median {:.4} is {diff:+.1} dB from the struck target {target:.4}",
+                median(&peaks)
+            );
+        }
+    }
+
+    /// Largest |resonator output| for one note driven `drive` times harder
+    /// than default (velocity 127, 1 s held + 1 s released, 48 kHz).
+    fn resonator_peak_at_drive(profile: ModalProfileId, exciter: i32, note: u8, drive: f32) -> f32 {
+        use crate::dsp::ResonatorCore;
+        let mut voice = Voice::new();
+        voice.note_on_with_controls(
+            note,
+            127.0,
+            profile,
+            0,
+            1.0,
+            0.0,
+            0.0,
+            exciter,
+            VoiceControls::default(),
+        );
+        voice.drive_scale = drive;
+        voice.set_rate(48_000.0);
+        let mut peak = 0.0f32;
+        for i in 0..96_000 {
+            if i == 48_000 {
+                voice.note_off();
+            }
+            let excitation = voice.process_exciter();
+            let y = voice.resonator.process_sample(excitation, 48_000);
+            if !y.is_finite() {
+                return f32::INFINITY;
+            }
+            peak = peak.max(y.abs());
+        }
+        peak
+    }
+
+    #[test]
+    fn mallet_and_grinder_contact_is_stable_far_above_default_drive() {
+        let mut failures = Vec::new();
+        for exciter in [4, 10] {
+            for profile in ALL_PROFILES {
+                for note in [36, 60, 84] {
+                    let peak = resonator_peak_at_drive(profile, exciter, note, 16.0);
+                    if peak.is_nan() || peak >= 100.0 {
+                        failures.push(format!(
+                            "exciter {exciter} {profile:?} note {note}: {peak:.3e}"
+                        ));
+                    }
+                }
+            }
+        }
+        assert!(
+            failures.is_empty(),
+            "diverged at 16x drive:\n{}",
+            failures.join("\n")
+        );
+    }
+
+    #[test]
+    fn hard_mallet_leaves_after_its_strike() {
+        use crate::dsp::ResonatorCore;
+        let mut voice = Voice::new();
+        voice.note_on_with_controls(
+            60,
+            100.0,
+            ModalProfileId::Pipe,
+            0,
+            1.0,
+            0.0,
+            0.0,
+            4,
+            VoiceControls::default(),
+        );
+        voice.set_rate(48_000.0);
+        let mut last_force_at = 0;
+        for i in 0..96_000 {
+            let excitation = voice.process_exciter();
+            voice.resonator.process_sample(excitation, 48_000);
+            if excitation != 0.0 {
+                last_force_at = i;
+            }
+        }
+        assert!(
+            last_force_at < 24_000,
+            "hard mallet still applies force at {:.3} s",
+            last_force_at as f32 / 48_000.0
+        );
     }
 }

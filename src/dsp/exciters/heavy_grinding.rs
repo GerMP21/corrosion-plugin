@@ -6,7 +6,8 @@
 //! contact inside the `dsp/exciters` friction family.
 //! Use it for abrasive drag, metal-on-stone grinding, or harsh industrial wear.
 
-use crate::dsp::utils::rate;
+use crate::dsp::utils::{contact, rate};
+use crate::dsp::ContactPrediction;
 /// Scratchy friction exciter with tearing-noise modulation.
 #[derive(Clone, Debug)]
 pub struct HeavyGrinding {
@@ -68,22 +69,21 @@ impl HeavyGrinding {
         self.rng_phase = velocity * 100.0;
     }
 
-    /// Processes one sample of friction and tearing noise.
-    pub fn process_sample(&mut self, _resonator_displacement: f32, resonator_velocity: f32) -> f32 {
+    /// Processes one sample of friction and tearing noise, given how the
+    /// resonator's contact point responds to this sample's force (already
+    /// scaled by whatever the voice multiplies the force by).
+    ///
+    /// The friction is a smooth curve, `P·μ·tanh(v_rel / v_s)`, solved
+    /// together with the resonator's velocity response, so it can't flip
+    /// sign against a fast mode a sample late and pump it. The tearing noise
+    /// follows the grinder's own speed, so the resonator's motion can't feed
+    /// it (`stabilize-mallet-and-grinding-contact`).
+    pub fn process_sample(&mut self, resonator: ContactPrediction) -> f32 {
         if !self.active || self.grind_speed < 0.001 {
             return 0.0;
         }
-
-        let v_rel = self.grind_speed - resonator_velocity;
-        let v_abs = v_rel.abs();
-
-        if v_abs < 0.001 {
-            return 0.0;
-        }
-
-        // Coulomb friction baseline
-        let mu_dynamic = 0.4;
-        let f_base = self.grind_pressure * mu_dynamic * v_rel.signum();
+        let grind_speed = self.grind_speed;
+        let output_scale = grind_speed * 3.0;
 
         // Asperity tearing noise (Brownian/chaotic)
         let raw_noise = self.generate_noise();
@@ -95,16 +95,22 @@ impl HeavyGrinding {
         } else {
             1000.0 + (self.grit_color - 0.5) * 6000.0 // 1k-4kHz HPF-ish
         };
-
         let filtered_noise = self.filter_noise(raw_noise, cutoff);
 
-        // Tearing scales with velocity and grit amount
-        let f_tearing = filtered_noise * v_abs * self.surface_grit * 2.0;
+        // Tearing scales with the grinder's own speed, not the slip. That is
+        // the slip whenever the resonator is slow (the usual case). Taking it
+        // from the slip let the resonator's own motion modulate the noise
+        // force that drives it, which built a high-Q mode up to a large
+        // limit cycle (Plate C6).
+        let tearing = filtered_noise * grind_speed * self.surface_grit * 2.0 * output_scale;
 
-        let total = f_base + f_tearing;
-
-        // Amplitude scales with grind speed
-        total * self.grind_speed * 3.0
+        // Friction: more force speeds the resonator up, lowering the slip.
+        let mu_dynamic = 0.4;
+        let friction = self.grind_pressure * mu_dynamic * output_scale;
+        let slip_scale = (0.05 * grind_speed).max(1e-4);
+        contact::solve_force(|force| {
+            friction * ((grind_speed - resonator.velocity(force)) / slip_scale).tanh() + tearing
+        })
     }
 
     /// Returns whether the grinder is still engaged.

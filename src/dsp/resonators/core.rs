@@ -285,12 +285,18 @@ impl SecondOrderMode {
         self.cached_sample_rate = Some(sample_rate);
     }
 
-    /// Process one excitation sample through the resonator.
-    pub fn process(&mut self, excitation: f32, sample_rate: u32) -> f32 {
+    /// Rebuild the coefficients if they were derived for another rate.
+    #[inline]
+    fn ensure_rate(&mut self, sample_rate: u32) {
         if self.cached_sample_rate != Some(sample_rate) {
             self.coefficients = CoupledCoefficients::for_mode(self.spec, sample_rate);
             self.cached_sample_rate = Some(sample_rate);
         }
+    }
+
+    /// Process one excitation sample through the resonator.
+    pub fn process(&mut self, excitation: f32, sample_rate: u32) -> f32 {
+        self.ensure_rate(sample_rate);
 
         let c = self.coefficients;
         let z_re = c.pole_re * self.z_re - c.pole_im * self.z_im + c.gain_re * excitation;
@@ -298,6 +304,44 @@ impl SecondOrderMode {
         self.z_re = z_re;
         self.z_im = z_im;
         z_im
+    }
+}
+
+/// This sample's contact displacement as a function of this sample's force;
+/// see `ModalResonator::contact_prediction`.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct ContactPrediction {
+    /// Displacement with no force this sample.
+    pub free: f32,
+    /// Displacement per unit of force this sample.
+    pub compliance: f32,
+    /// Last sample's contact displacement.
+    pub previous: f32,
+    /// `fs / 48 kHz`: converts a per-sample displacement change into the
+    /// 48 kHz-sample velocity units the exciters use.
+    pub velocity_scale: f32,
+}
+
+impl ContactPrediction {
+    /// The prediction for a force scaled by `scale` after the exciter (force
+    /// envelope, drive trim), as the exciter sees it.
+    pub fn scaled(self, scale: f32) -> Self {
+        Self {
+            compliance: self.compliance * scale,
+            ..self
+        }
+    }
+
+    /// Contact displacement if the exciter applies `force` this sample.
+    #[inline]
+    pub fn displacement(&self, force: f32) -> f32 {
+        self.free + self.compliance * force
+    }
+
+    /// Contact velocity (48 kHz-sample units) if the exciter applies `force`.
+    #[inline]
+    pub fn velocity(&self, force: f32) -> f32 {
+        (self.displacement(force) - self.previous) * self.velocity_scale
     }
 }
 
@@ -331,6 +375,10 @@ pub struct ModalResonator {
     /// `1.0` is neutral; written by `set_pitch_bend_factor` from MIDI pitch bend
     /// or poly tuning events. Layered with object dynamics in `apply_dynamics`.
     pitch_bend_factor: f32,
+    /// Whether `contact_prediction` already ran this sample's preparation
+    /// (strike-position update and dynamic retune), so `process_sample`
+    /// must not run it again.
+    prepared: bool,
     /// Note-on scratch for raw generator output. Keeps `MAX_MODES` capacity
     /// so `rebuild_in_place` never allocates.
     raw_specs: Vec<crate::dsp::ModalModeSpec>,
@@ -424,6 +472,7 @@ impl ModalResonator {
             dyn_lf_displacement: 0.0,
             dyn_rate: (48_000, 0.99, 0.95),
             pitch_bend_factor: 1.0,
+            prepared: false,
             raw_specs: Vec::with_capacity(MAX_MODES),
             transformed_specs: Vec::with_capacity(MAX_MODES),
         }
@@ -619,6 +668,7 @@ impl ModalResonator {
             dyn_lf_displacement: 0.0,
             dyn_rate: (48_000, 0.99, 0.95),
             pitch_bend_factor: 1.0,
+            prepared: false,
             raw_specs: Vec::with_capacity(MAX_MODES),
             transformed_specs: Vec::with_capacity(MAX_MODES),
         }
@@ -829,6 +879,7 @@ impl ModalResonator {
         self.dyn_amplitude = 0.0;
         self.dyn_lf_displacement = 0.0;
         self.pitch_bend_factor = 1.0;
+        self.prepared = false;
 
         // Damping/brightness are kept off `base_decay_seconds`/`base_gain` so
         // held-note automation can re-derive them; apply them here at note-on.
@@ -927,6 +978,59 @@ impl ModalResonator {
         self.interaction_bus.update();
     }
 
+    /// This sample's preparation, before any force is applied: advance the
+    /// strike-position weights and apply the object's dynamic retune. Runs
+    /// once per sample, from `contact_prediction` or `process_sample`.
+    fn prepare_sample(&mut self, sample_rate: u32) {
+        self.interaction_bus.update();
+        if self.has_dynamics() {
+            self.apply_dynamics(sample_rate);
+        }
+    }
+
+    /// How this sample's contact displacement depends on this sample's
+    /// exciter force, so an exciter can solve its contact without the
+    /// one-sample lag (`stabilize-mallet-and-grinding-contact`).
+    ///
+    /// The displacement is affine in the force `F` fed to `process_sample`:
+    /// `D = free + compliance·F`. `free` is where the resonator goes on its
+    /// own (`Σ w_i·Im(p_i·z_i)`) and `compliance` is `Σ w_i·b_i·b0_i`, with
+    /// `w_i` the strike-position weight and `b_i` the coupling blend that
+    /// `process_sample` applies. Runs this sample's preparation, so call it
+    /// at most once per sample, right before `process_sample`.
+    /// Allocation-free.
+    pub fn contact_prediction(&mut self, sample_rate: u32) -> ContactPrediction {
+        if !self.prepared {
+            self.prepare_sample(sample_rate);
+            self.prepared = true;
+        }
+        let coupling = self
+            .interaction_bus
+            .state
+            .coupling_stiffness
+            .clamp(0.0, 1.0);
+        let (mut free, mut compliance) = (0.0f32, 0.0f32);
+        for (index, mode) in self.modes.iter_mut().enumerate() {
+            mode.ensure_rate(sample_rate);
+            let weight = self
+                .interaction_bus
+                .mode_coefficients
+                .get(index)
+                .copied()
+                .unwrap_or(1.0);
+            let blend = (1.0 - coupling) + weight * coupling;
+            let c = mode.coefficients;
+            free += weight * (c.pole_re * mode.z_im + c.pole_im * mode.z_re);
+            compliance += weight * blend * c.gain_im;
+        }
+        ContactPrediction {
+            free,
+            compliance,
+            previous: self.interaction_bus.state.resonator_displacement,
+            velocity_scale: sample_rate as f32 / REFERENCE_SAMPLE_RATE,
+        }
+    }
+
     /// Apply the object's per-sample dynamic pitch behavior, recomputing the
     /// affected mode coefficients from their immutable base frequency. Layers
     /// the current `pitch_bend_factor` on top so MIDI pitch bend tracks the
@@ -1019,18 +1123,16 @@ impl ModalResonator {
 
 impl ResonatorCore for ModalResonator {
     fn process_sample(&mut self, excitation: f32, sample_rate: u32) -> f32 {
-        self.interaction_bus.update();
+        let dynamic = self.has_dynamics();
+        if !std::mem::take(&mut self.prepared) {
+            self.prepare_sample(sample_rate);
+        }
         let coupling = self
             .interaction_bus
             .state
             .coupling_stiffness
             .clamp(0.0, 1.0);
         self.interaction_bus.state.set_exciter_force(excitation);
-
-        let dynamic = self.has_dynamics();
-        if dynamic {
-            self.apply_dynamics(sample_rate);
-        }
 
         let mut mode_sum = 0.0f32;
         let mut interaction_displacement = 0.0f32;
@@ -1089,21 +1191,20 @@ impl ResonatorCore for ModalResonator {
     ) -> (f32, f32) {
         let mode_count = self.modes.len();
         if mode_count == 0 {
+            self.prepared = false;
             return (0.0, 0.0);
         }
 
-        self.interaction_bus.update();
+        let dynamic = self.has_dynamics();
+        if !std::mem::take(&mut self.prepared) {
+            self.prepare_sample(sample_rate);
+        }
         let coupling = self
             .interaction_bus
             .state
             .coupling_stiffness
             .clamp(0.0, 1.0);
         self.interaction_bus.state.set_exciter_force(excitation);
-
-        let dynamic = self.has_dynamics();
-        if dynamic {
-            self.apply_dynamics(sample_rate);
-        }
 
         let mut left_sum = 0.0f32;
         let mut right_sum = 0.0f32;
@@ -1570,5 +1671,62 @@ mod tests {
             }
         }
         assert!(failures.is_empty(), "{}", failures.join("\n"));
+    }
+
+    // --- Contact prediction (stabilize-mallet-and-grinding-contact) ---
+
+    /// The displacement `contact_prediction` predicts for a force matches
+    /// what the next `process_sample` produces with that force, for a
+    /// coupled and an uncoupled strike position, on a static and a dynamic
+    /// (sheet-warp) object.
+    #[test]
+    fn contact_prediction_matches_the_next_sample() {
+        for profile in [ModalProfileId::Pipe, ModalProfileId::SheetMetal] {
+            for (position, coupling) in [(0.5, 1.0), (0.3, 0.6), (0.5, 0.0)] {
+                let mut bank = level_bank(profile, C4, 1.0, 0.0);
+                bank.set_interaction_params(position, coupling, 0.0, 0.0, 0.0, 48_000.0);
+                for n in 0..2_000 {
+                    let force = if n < 48 {
+                        0.3
+                    } else {
+                        ((n as f32) * 0.37).sin() * 0.01
+                    };
+                    let prediction = bank.contact_prediction(48_000);
+                    bank.process_sample(force, 48_000);
+                    let actual = bank.get_displacement();
+                    let predicted = prediction.displacement(force);
+                    // f32 rounding: the two paths sum the same terms in a different order.
+                    let tolerance = 1e-4 * actual.abs().max(1e-3);
+                    assert!(
+                        (predicted - actual).abs() <= tolerance,
+                        "{profile:?} position {position} coupling {coupling} sample {n}: predicted {predicted} actual {actual}"
+                    );
+                }
+            }
+        }
+    }
+
+    /// Calling `contact_prediction` before `process_sample` doesn't change
+    /// the output: the per-sample preparation still runs exactly once.
+    #[test]
+    fn contact_prediction_does_not_change_the_output() {
+        for profile in [
+            ModalProfileId::Pipe,
+            ModalProfileId::TautCable,
+            ModalProfileId::SheetMetal,
+        ] {
+            let mut plain = level_bank(profile, C4, 1.0, 0.0);
+            let mut predicted = level_bank(profile, C4, 1.0, 0.0);
+            for bank in [&mut plain, &mut predicted] {
+                bank.set_interaction_params(0.4, 0.8, 0.3, 0.5, 0.0, 48_000.0);
+            }
+            for n in 0..4_000 {
+                let force = if n < 48 { 0.5 } else { 0.0 };
+                let _ = predicted.contact_prediction(48_000);
+                let a = plain.process_sample(force, 48_000);
+                let b = predicted.process_sample(force, 48_000);
+                assert_eq!(a.to_bits(), b.to_bits(), "{profile:?} sample {n}");
+            }
+        }
     }
 }
