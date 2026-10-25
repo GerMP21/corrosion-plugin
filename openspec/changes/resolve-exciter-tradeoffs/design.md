@@ -23,7 +23,7 @@ See proposal.md for the trade-offs being removed. The relevant current state (af
 
 **Goals:**
 - Meet the specs with no per-exciter exceptions (see the spec deltas).
-- 16-voice benchmarks at or below the pre-normalization cost: Normal 10.7 ms, Render 25.4 ms per 4 096 samples on the development machine.
+- 16-voice benchmarks at or below the pre-normalization cost (`748d832`), measured on the same machine in the same session. See the findings.
 - Stay allocation-free on the audio thread (`tests/no_alloc.rs` in debug).
 
 **Non-Goals:**
@@ -97,3 +97,90 @@ Archive the four completed changes first (see proposal), so the deltas apply. Af
 - re-run the preset level pass;
 - update `levels.md` (in this change), ARCHITECTURE and README.
 There's no data migration; presets keep their parameters.
+
+## Implementation findings
+
+### Baseline (task 1.1)
+
+`openspec list --specs` shows `resonator-level` (5 requirements) and `sample-rate-independence` (3), both archived on 2026-10-07.
+
+The 16-voice benchmarks (4 096 samples = 85 ms at 48 kHz, gnu release) ran in this session's container, which is a different machine from the one the original figures came from:
+
+| | Pre-normalization (`748d832`) | Current (`d6a01b7`, two runs) |
+|---|---|---|
+| Normal (Pipe) | 8.57 ms | 10.03 / 10.97 ms |
+| Render (damaged Plate, 2× modes) | 21.10 ms | 22.51 / 22.73 ms |
+
+The old absolute targets (10.7 and 25.4 ms) came from another machine, so the CPU goal is now relative: the pre-normalization commit measured on the same machine in the same session. Runs vary by about ±5 %.
+
+### Failing tests on the current code (task 1.2)
+
+The per-exciter tolerances, the drumstick's 20 ms timing window and the 1e-3 "silent" threshold are removed, so the existing tests state the spec again. The new tests and the restored ones, on `d6a01b7`:
+
+- **`exciters_play_at_a_common_level`.** The common median is 0.076, and 8 exciters are out of the ±6 dB band:
+
+  | Exciter | Median vs common |
+  |---|---|
+  | HandStrike | −19.0 dB |
+  | Drumstick | +6.0 dB |
+  | WireBrush | +8.3 dB |
+  | MetalChain | −47.9 dB |
+  | HeavyGrinding | −11.5 dB |
+  | CorrugatedDrag | −9.0 dB |
+  | TensionSnap | +6.7 dB |
+  | ParticleRain | −11.6 dB |
+- **`default_notes_do_not_overdrive_the_voice`**, now covering all 16 exciters: **passes**, because the current trims are sized for the worst case.
+- **`excess_drive_is_reduced_not_clipped`:** fails for all 16.
+  - Each exciter's loudest note gets +1.8 to +14.3 dB louder at 12 dB of extra drive, with pre-clamp peaks up to 5.8.
+  - The exception is ParticleRain (−3.1 dB): its feedback changes regime.
+- **`contact_is_stable_without_the_governor`** (12 dB of extra drive, governor off): only ParticleRain diverges, on SheetMetal C6 (209). Every other exciter stays bounded.
+- **`strikes_come_to_rest`:** the drumstick still applies force at 0.55 s.
+- **`struck_attack_timing_does_not_depend_on_sample_rate`**, whole-note peak: the drumstick at 44.1 kHz peaks at 63 ms against 343 ms at 48 kHz.
+- **`every_exciter_has_the_same_level_at_any_sample_rate`** at 1.5 dB, with no exceptions:
+
+  | Exciter | 44.1 kHz | 96 kHz |
+  |---|---|---|
+  | Bow | +1.56 | — |
+  | HandStrike | — | −2.48 |
+  | WireBrush | +1.97 | — |
+  | MetalChain | −2.09 | −1.87 |
+  | TensionRise | +2.71 | — |
+  | PneumaticJet | — | +2.87 |
+- **`sixteen_simultaneous_notes_all_sound`** at the 0.01 threshold: a bowed voice peaks at 0.0084.
+- **`a_high_mode_keeps_its_level_at_every_sample_rate`:** +1.51 dB at 44.1 kHz. The test stops at the first failure, and by the formula 96 kHz is about −5 dB.
+- **`a_mode_swept_through_the_top_of_the_band_does_not_click`:** **passes on the current code.**
+  - The coupled form already retunes without a step, and the 20 kHz cut gates only a mode's input, not its ringing, so sweeping a ringing mode across it doesn't click.
+  - It stays as a guard for the output fade (Decision 6).
+
+### Foundations (tasks 2.1–2.4)
+
+- **Noise (2.1).** `dsp::utils::noise::Noise` (xorshift32) replaces all nine hash generators, and `grep 43_758 src` is empty. Its sites:
+  - the jet;
+  - the MetalChain rattle and link draws;
+  - the WireBrush impulse draws;
+  - the ParticleRain mass draws;
+  - the TensionRise slip jitter;
+  - HeavyGrinding's Brownian walk;
+  - the voice's damage rattle;
+  - the ladder filter's component-tolerance jitter.
+
+  How each kind of noise is handled:
+  - **White noise forces and output noise** (jet, rattles) go through `rate::white_noise`.
+  - **The Brownian walk's step** grows as √ratio, since a leaky walk's variance is `step²/(2·ratio·(1 − leak))`.
+  - **Seeding:** the voice reseeds every consumer at note-on from `note_seed(note, velocity, start_frame)`, salted per consumer.
+
+  Two notes on the tests and the effect:
+  - **Spectrum test:** a 64-bin spectrum estimate scattered by ±0.5 dB, so the test averages the periodograms of 32 blocks (Welch).
+  - **Exciter levels:** clean noise changes several exciters' sample-rate figures. WireBrush passes now. MetalChain, ParticleRain, TensionRise and HeavyGrinding move, and are re-measured after the event-timing and level work (3.3, 4.2).
+- **Mode amplitude and fade (2.2).**
+  - The gain is now `b0·(sin ω/ω)·(cot ω + i)`, so the ring amplitude is `b0/ω`.
+  - The output is weighted by `band_fade`, raised-cosine from 0.9·top to the top, where the top is `min(20 kHz, 0.45·fs)`: 18–20 kHz at 44.1 kHz and above.
+  - **Deviation from Decision 6:** the fade weights the output only, not the input as well. Weighting both would square it, and the output fade alone already silences a mode and keeps retuning smooth.
+  - `STRIKE_LEVEL_REF` 0.594507 → 0.594266 (−0.04 %). Pipe C4's modes are low, where `sin ω ≈ ω`.
+  - The 15 kHz test passes, and so do the pitch, object, quality and damage loudness tests and the sustained-level test up to 192 kHz.
+  - The mode-bank fixture is re-captured and matches on musl and gnu.
+- **Cached strike weights (2.3).**
+  - The bus skips recomputing its coefficients when (position, lock, lock minimum, mode count) is unchanged; the wander phase still advances.
+  - The 16-voice benchmark went from 10.0 to **5.5 ms** at Normal and from 22.5 to **12.8 ms** at Render, well under the same-machine pre-normalization figures (8.6 and 21.1 ms). The per-mode blend precompute and the struct-of-arrays fallback aren't needed.
+  - The interaction, reuse and prediction tests pass, and so does `no_alloc` in debug.
+- **Prediction fade (2.4).** `contact_prediction` weights each mode's free response and compliance by its fade, and the prediction test passes.

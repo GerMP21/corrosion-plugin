@@ -155,27 +155,39 @@ impl ResonatorCoefficients {
     }
 }
 
-/// Highest mode frequency that is driven, in Hz, at any sample rate: modes
-/// at or above `min(MODE_CEILING_HZ, MODE_CEILING_NYQUIST · fs)` get no input.
-/// A mode's gain grows as `1 / sin ω`, so a mode near Nyquist (SheetMetal's
-/// `n²` partials, the sheet warp, CoilSpring at C6) blew up through contact
-/// feedback; above Nyquist it only aliases (`normalize-object-loudness`).
-pub const MODE_CEILING_HZ: f32 = 20_000.0;
-const MODE_CEILING_NYQUIST: f32 = 0.45;
+/// Top of the audible band, in Hz: modes fade out below it and are silent
+/// at and above it (`resolve-exciter-tradeoffs`).
+pub const BAND_TOP_HZ: f32 = 20_000.0;
 
-/// Whether a mode at `frequency_hz` is driven at `sample_rate`.
+/// Output weight of a mode at `frequency_hz` and `sample_rate`: 1 below the
+/// fade, 0 at or above `min(BAND_TOP_HZ, 0.45·fs)`, raised-cosine over the
+/// top 10 % (18–20 kHz at 44.1 kHz and above). A mode retuned across it
+/// fades rather than switching off, and nothing near or above Nyquist is
+/// heard as an alias.
 #[inline]
-fn mode_is_audible(frequency_hz: f32, sample_rate: f32) -> bool {
-    frequency_hz < MODE_CEILING_HZ.min(MODE_CEILING_NYQUIST * sample_rate)
+fn band_fade(frequency_hz: f32, sample_rate: f32) -> f32 {
+    let end = BAND_TOP_HZ.min(0.45 * sample_rate);
+    let start = 0.9 * end;
+    if frequency_hz <= start {
+        1.0
+    } else if frequency_hz >= end {
+        0.0
+    } else {
+        0.5 * (1.0 + (std::f32::consts::PI * (frequency_hz - start) / (end - start)).cos())
+    }
 }
 
 /// Coefficients of one mode in coupled (complex one-pole) form:
-/// `z[n] = p·z[n−1] + g·x[n]`, output `Im z[n]`, with `p = r·e^{iω}` and
-/// `g = b0·(cot ω + i)`.
+/// `z[n] = p·z[n−1] + g·x[n]`, output `fade·Im z[n]`, with `p = r·e^{iω}`
+/// and `g = b0·(sin ω / ω)·(cot ω + i)`.
 ///
-/// Its impulse response, `b0·rⁿ·sin(ω(n+1)) / sin ω`, is the direct-form
-/// biquad's (`ResonatorCoefficients`). Two reasons to run it this way
-/// instead (`normalize-object-loudness`):
+/// Its impulse response is `b0·rⁿ·sin(ω(n+1)) / ω`: the direct-form
+/// biquad's (`ResonatorCoefficients`) times `sin ω / ω`. That makes the ring
+/// amplitude `b0/ω`, the continuous oscillator's and the same at every rate,
+/// where the discrete `b0/sin ω` grew without bound near Nyquist
+/// (`resolve-exciter-tradeoffs`). `fade` is `band_fade` at the mode's
+/// current frequency. Two reasons to run it in coupled form
+/// (`normalize-object-loudness`):
 /// - A frequency change rotates the state without changing its magnitude,
 ///   so per-sample retuning (sheet warp, cable drop, pitch bend) doesn't
 ///   pump energy into the mode. In direct form the sheet warp diverged.
@@ -188,6 +200,8 @@ struct CoupledCoefficients {
     pole_im: f32,
     gain_re: f32,
     gain_im: f32,
+    /// Output weight at the top of the band (`band_fade`).
+    fade: f32,
 }
 
 impl CoupledCoefficients {
@@ -197,24 +211,16 @@ impl CoupledCoefficients {
         let omega = std::f64::consts::TAU * mode.frequency_hz as f64 / fs;
         let r = (-1.0 / (decay_seconds * fs)).exp();
         let rate_ratio = REFERENCE_SAMPLE_RATE as f64 / fs;
-        let b0 = if mode_is_audible(mode.frequency_hz, fs as f32) {
-            mode.gain as f64 * rate_ratio * rate_ratio
-        } else {
-            0.0
-        };
+        let b0 = mode.gain as f64 * rate_ratio * rate_ratio;
         let (sin, cos) = omega.sin_cos();
-        // A mode at 0 Hz or exactly at Nyquist has no resonance to scale by;
-        // keep the gain finite (the biquad's own gain diverges there too).
-        let sin_safe = if sin.abs() < 1e-9 {
-            1e-9_f64.copysign(sin)
-        } else {
-            sin
-        };
+        // b0·(sin ω / ω)·(cot ω + i); a 0 Hz mode keeps a finite gain.
+        let scale = b0 / omega.max(1e-9);
         Self {
             pole_re: (r * cos) as f32,
             pole_im: (r * sin) as f32,
-            gain_re: (b0 * cos / sin_safe) as f32,
-            gain_im: b0 as f32,
+            gain_re: (scale * cos) as f32,
+            gain_im: (scale * sin) as f32,
+            fade: band_fade(mode.frequency_hz, fs as f32),
         }
     }
 }
@@ -303,7 +309,7 @@ impl SecondOrderMode {
         let z_im = c.pole_re * self.z_im + c.pole_im * self.z_re + c.gain_im * excitation;
         self.z_re = z_re;
         self.z_im = z_im;
-        z_im
+        z_im * c.fade
     }
 }
 
@@ -390,7 +396,7 @@ pub struct ModalResonator {
 /// Strike-level estimate of the default patch's bank (Pipe, C4, default
 /// controls, after the material transforms). Every note-on bank is scaled to
 /// this level; see `ModalResonator::normalize_strike_level`.
-pub const STRIKE_LEVEL_REF: f32 = 0.594_506_6;
+pub const STRIKE_LEVEL_REF: f32 = 0.594_266_06;
 
 impl ModalResonator {
     const REFERENCE_PITCH_HZ: f32 = 220.0;
@@ -400,7 +406,7 @@ impl ModalResonator {
     /// `process_sample` weights it (`force_weights`, from strike position
     /// and coupling).
     ///
-    /// Mode i rings at amplitude `A_i = |w_i · b0_i / sin ω_i|`. The peak of
+    /// Mode i rings at amplitude `A_i = |w_i · fade_i · b0_i / ω_i|`. The peak of
     /// the sum lies between the incoherent `‖A‖₂` and the fully coherent
     /// `‖A‖₁` (reached when beating modes come into phase). The `‖A‖_p` norm
     /// with p = 1.3 tracks the measured peak within about 4.3 dB over every
@@ -414,11 +420,12 @@ impl ModalResonator {
         let sum: f32 = modes
             .iter()
             .enumerate()
-            .filter(|(_, mode)| mode_is_audible(mode.spec.frequency_hz, REFERENCE_SAMPLE_RATE))
             .map(|(index, mode)| {
                 let omega = std::f32::consts::TAU * mode.spec.frequency_hz / REFERENCE_SAMPLE_RATE;
-                let sin = omega.sin().abs().max(1e-6);
-                (force_weights(index) * mode.spec.gain / sin).abs().powf(P)
+                let fade = band_fade(mode.spec.frequency_hz, REFERENCE_SAMPLE_RATE);
+                (force_weights(index) * fade * mode.spec.gain / omega.max(1e-6))
+                    .abs()
+                    .powf(P)
             })
             .sum();
         sum.powf(1.0 / P)
@@ -1020,8 +1027,8 @@ impl ModalResonator {
                 .unwrap_or(1.0);
             let blend = (1.0 - coupling) + weight * coupling;
             let c = mode.coefficients;
-            free += weight * (c.pole_re * mode.z_im + c.pole_im * mode.z_re);
-            compliance += weight * blend * c.gain_im;
+            free += weight * c.fade * (c.pole_re * mode.z_im + c.pole_im * mode.z_re);
+            compliance += weight * blend * c.fade * c.gain_im;
         }
         ContactPrediction {
             free,
@@ -1439,6 +1446,9 @@ mod tests {
     /// Re-captured for `normalize-object-loudness`, which scales every bank's
     /// gains to one strike level at note-on (the mode frequencies and decays
     /// are unchanged).
+    /// Re-captured again for `resolve-exciter-tradeoffs`: the note-on level
+    /// estimate uses the modes' true `b0/ω` amplitude and the top-of-band
+    /// fade, so the normalized gains moved slightly.
     #[test]
     fn mode_banks_match_golden_fixture() {
         let current = current_fingerprints();
@@ -1728,5 +1738,71 @@ mod tests {
                 assert_eq!(a.to_bits(), b.to_bits(), "{profile:?} sample {n}");
             }
         }
+    }
+
+    // --- Top of the band (resolve-exciter-tradeoffs) ---
+
+    /// A resonator holding one mode, with uncoupled (unit) strike weights.
+    fn single_mode_bank(frequency_hz: f32) -> ModalResonator {
+        let mut bank = ModalResonator::default();
+        bank.modes.clear();
+        bank.modes
+            .push(SecondOrderMode::new(crate::dsp::ModalModeSpec::new(
+                frequency_hz,
+                0.5,
+                1.0,
+            )));
+        bank.interaction_bus.reset(1);
+        bank.set_interaction_params(0.5, 0.0, 0.0, 0.0, 0.0, 48_000.0);
+        bank
+    }
+
+    #[test]
+    fn a_high_mode_keeps_its_level_at_every_sample_rate() {
+        let peak_at = |sample_rate: u32| {
+            let mut bank = single_mode_bank(15_000.0);
+            // One sample at the reference rate's force × time.
+            let impulse = sample_rate as f32 / 48_000.0;
+            (0..sample_rate as usize / 50)
+                .map(|n| {
+                    bank.process_sample(if n == 0 { impulse } else { 0.0 }, sample_rate)
+                        .abs()
+                })
+                .fold(0.0, f32::max)
+        };
+        let reference = peak_at(48_000);
+        for sample_rate in [44_100, 96_000] {
+            let diff = db(peak_at(sample_rate) / reference);
+            assert!(
+                diff.abs() <= 1.0,
+                "15 kHz mode at {sample_rate} Hz: {diff:+.2} dB vs 48 kHz"
+            );
+        }
+    }
+
+    /// A ringing mode bent from 16 kHz to 22 kHz over 100 ms fades without a
+    /// step: no sample-to-sample change exceeds twice the largest one in the
+    /// first 10 ms of the sweep.
+    #[test]
+    fn a_mode_swept_through_the_top_of_the_band_does_not_click() {
+        let mut bank = single_mode_bank(16_000.0);
+        bank.process_sample(1.0, 48_000);
+        let mut previous = bank.process_sample(0.0, 48_000);
+        let (mut early, mut largest) = (0.0f32, 0.0f32);
+        for n in 0..4_800 {
+            let factor = 1.0 + 0.375 * n as f32 / 4_800.0;
+            bank.set_pitch_bend_factor(factor, 48_000);
+            let y = bank.process_sample(0.0, 48_000);
+            let step = (y - previous).abs();
+            previous = y;
+            if n < 480 {
+                early = early.max(step);
+            }
+            largest = largest.max(step);
+        }
+        assert!(
+            largest <= 2.0 * early,
+            "largest step {largest:.4e} vs {early:.4e} in the first 10 ms"
+        );
     }
 }

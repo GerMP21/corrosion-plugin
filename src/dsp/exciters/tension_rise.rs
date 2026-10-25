@@ -5,6 +5,7 @@
 //! a specialty `dsp/exciters` source for stored stress, slip, and release.
 //! Use it for beams loading up, cable groans, and delayed structural creaks.
 
+use crate::dsp::utils::noise::Noise;
 use crate::dsp::utils::rate;
 /// Integrate-and-fire tension exciter for slow stress build-up.
 #[derive(Clone, Debug)]
@@ -16,7 +17,8 @@ pub struct TensionRise {
 
     tension: f32,
     active: bool,
-    rng_phase: f32,
+    /// Noise for this note (`resolve-exciter-tradeoffs`).
+    noise: Noise,
     impulse_samples: u32,
     /// `48 kHz / fs` (`fix-sample-rate-time-constants`).
     ratio: f32,
@@ -34,7 +36,7 @@ impl TensionRise {
             creak_sharpness: 0.5,
             tension: 0.0,
             active: false,
-            rng_phase: 0.0,
+            noise: Noise::default(),
             impulse_samples: 0,
             ratio: 1.0,
             burst_frames: 50,
@@ -61,13 +63,17 @@ impl TensionRise {
         self.creak_sharpness = sharpness.clamp(0.0, 10.0);
     }
 
+    /// Restart the noise for a new note (the voice seeds it per note).
+    pub fn reseed(&mut self, seed: u32) {
+        self.noise.reseed(seed);
+    }
+
     /// Arms the tension accumulator with an initial pull speed.
     pub fn trigger(&mut self, velocity: f32) {
         self.active = true;
         self.tension = 0.0;
         self.impulse_samples = 0;
         self.pull_speed *= 0.5 + velocity * 0.5;
-        self.rng_phase = velocity * 50.0;
     }
 
     /// Processes one sample of tension accumulation and burst decay.
@@ -88,7 +94,7 @@ impl TensionRise {
         self.tension += v_rel * rate::step(0.001, self.ratio);
 
         // Small random variation makes the break point feel less mechanical.
-        let random_variation = (self.pseudo_random() - 0.5) * 2.0 * self.slip_stochasticity;
+        let random_variation = self.noise.bipolar() * self.slip_stochasticity;
         let effective_threshold = self.break_threshold * (1.0 + random_variation * 0.3);
 
         if self.tension > effective_threshold {
@@ -110,11 +116,6 @@ impl TensionRise {
     /// Stops the tension model.
     pub fn release(&mut self) {
         self.active = false;
-    }
-
-    fn pseudo_random(&mut self) -> f32 {
-        self.rng_phase += crate::dsp::utils::GOLDEN_STEP;
-        ((self.rng_phase.sin() * 43_758.547).fract()).abs()
     }
 }
 

@@ -7,6 +7,7 @@
 //! Use these models for air jets, electrical buzz, release clicks, and rain-like
 //! granular motion.
 
+use crate::dsp::utils::noise::Noise;
 use crate::dsp::utils::rate;
 /// Turbulent air-jet exciter with band-limited noise shaping.
 #[derive(Clone, Debug)]
@@ -15,7 +16,8 @@ pub struct PneumaticJet {
     nozzle_width: f32,
     turbulence_chaos: f32,
     active: bool,
-    rng_phase: f32,
+    /// Noise for this note (`resolve-exciter-tradeoffs`).
+    noise: Noise,
     filter_state: f32,
     /// `48 kHz / fs` and the band filter's coefficient for it
     /// (`fix-sample-rate-time-constants`).
@@ -31,7 +33,7 @@ impl PneumaticJet {
             nozzle_width: 0.5,
             turbulence_chaos: 0.3,
             active: false,
-            rng_phase: 0.0,
+            noise: Noise::default(),
             filter_state: 0.0,
             ratio: 1.0,
             filter_alpha: (500.0 + 0.5 * 2000.0) / 10000.0,
@@ -57,6 +59,11 @@ impl PneumaticJet {
         self.update_filter_alpha();
     }
 
+    /// Restart the noise for a new note (the voice seeds it per note).
+    pub fn reseed(&mut self, seed: u32) {
+        self.noise.reseed(seed);
+    }
+
     /// Starts the airflow burst with an initial drive velocity.
     pub fn trigger(&mut self, velocity: f32) {
         self.active = true;
@@ -69,8 +76,7 @@ impl PneumaticJet {
             return 0.0;
         }
         let v_rel = self.air_pressure - res_vel;
-        self.rng_phase += 1.618;
-        let noise = (self.rng_phase.sin() * 43_758.547).fract() * 2.0 - 1.0;
+        let noise = rate::white_noise(self.noise.bipolar(), self.ratio);
         // Non-linear jet saturation keeps the air burst from exploding in level.
         let saturated = v_rel * v_rel - self.turbulence_chaos * v_rel * v_rel * v_rel;
         let raw = noise * saturated.max(0.0);
@@ -269,7 +275,8 @@ pub struct ParticleRain {
     active: bool,
     spawn_accumulator: f32,
     particles: Vec<Particle>,
-    rng_phase: f32,
+    /// Noise for this note (`resolve-exciter-tradeoffs`).
+    noise: Noise,
     /// `48 kHz / fs` (`fix-sample-rate-time-constants`).
     ratio: f32,
 }
@@ -297,7 +304,7 @@ impl ParticleRain {
             active: false,
             spawn_accumulator: 0.0,
             particles: Vec::with_capacity(Self::MAX_PARTICLES),
-            rng_phase: 0.0,
+            noise: Noise::default(),
             ratio: 1.0,
         }
     }
@@ -312,6 +319,11 @@ impl ParticleRain {
         self.flow_rate = flow.clamp(0.0, 20.0);
         self.particle_mass = mass.clamp(0.001, 10.0);
         self.mass_variance = variance.clamp(0.0, 5.0);
+    }
+
+    /// Restart the noise for a new note (the voice seeds it per note).
+    pub fn reseed(&mut self, seed: u32) {
+        self.noise.reseed(seed);
     }
 
     /// Starts particle emission with a velocity-scaled flow.
@@ -332,7 +344,7 @@ impl ParticleRain {
             if self.particles.len() == Self::MAX_PARTICLES {
                 continue;
             }
-            let variance = (self.pseudo_random() - 0.5) * 2.0 * self.mass_variance;
+            let variance = self.noise.bipolar() * self.mass_variance;
             self.particles.push(Particle {
                 age: 0.0,
                 mass: (self.particle_mass * (1.0 + variance)).max(0.01),
@@ -369,11 +381,6 @@ impl ParticleRain {
     /// Stops spawning new particles.
     pub fn release(&mut self) {
         self.active = false;
-    }
-
-    fn pseudo_random(&mut self) -> f32 {
-        self.rng_phase += 1.618;
-        ((self.rng_phase.sin() * 43_758.547).fract()).abs()
     }
 }
 

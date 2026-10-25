@@ -40,6 +40,8 @@ pub struct WdfLadderFilter {
 
     /// Trapezoidal integrator state, one per stage (linear, unsaturated).
     s: [f32; 4],
+    /// Noise for the component-tolerance jitter (`resolve-exciter-tradeoffs`).
+    tolerance_noise: crate::dsp::utils::noise::Noise,
 
     // Cached coefficients
     g: f32,
@@ -72,6 +74,7 @@ impl WdfLadderFilter {
             target_resonance: 0.0,
             component_tolerance: 0.0,
             s: [0.0; 4],
+            tolerance_noise: crate::dsp::utils::noise::Noise::default(),
             g: 0.0,
             g_comp: 0.0,
             sample_rate: 48000.0,
@@ -152,7 +155,7 @@ impl WdfLadderFilter {
         // Apply component tolerance as subtle noise/jitter. Gated on the
         // input so silence in stays silence out (and a reset stays silent).
         let tolerance_jitter = if self.component_tolerance > 0.0 && input != 0.0 {
-            let noise = (self.s[0] * 43_758.547).fract() * 2.0 - 1.0;
+            let noise = self.tolerance_noise.bipolar();
             noise * self.component_tolerance * 0.001
         } else {
             0.0
@@ -206,6 +209,7 @@ impl WdfLadderFilter {
     /// Clears the filter state history.
     pub fn reset(&mut self) {
         self.s = [0.0; 4];
+        self.tolerance_noise.reseed(0);
         // Re-prime so the next `set_parameters` snaps to the requested values.
         self.smoothing_primed = false;
     }

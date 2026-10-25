@@ -6,6 +6,7 @@
 //! mass/spring contact model.
 //! Use it for brushed metal, bristle sweeps, and dense granular swishes.
 
+use crate::dsp::utils::noise::Noise;
 use crate::dsp::utils::rate;
 /// Stochastic impulse-cluster exciter for wire-brush textures.
 #[derive(Clone, Debug)]
@@ -22,7 +23,8 @@ pub struct WireBrush {
     sample_rate: f32,
     total_impulses: u32,
     next_impulse_index: usize,
-    rng_phase: f32,
+    /// Noise for this note (`resolve-exciter-tradeoffs`).
+    noise: Noise,
     filter_input: f32,
     filter_output: f32,
 }
@@ -53,7 +55,7 @@ impl WireBrush {
             sample_rate: 48000.0,
             total_impulses: 50,
             next_impulse_index: 0,
-            rng_phase: 0.0,
+            noise: Noise::default(),
             filter_input: 0.0,
             filter_output: 0.0,
         }
@@ -79,23 +81,27 @@ impl WireBrush {
         self.sample_rate = rate;
     }
 
+    /// Restart the noise for a new note (the voice seeds it per note).
+    pub fn reseed(&mut self, seed: u32) {
+        self.noise.reseed(seed);
+    }
+
     /// Starts the impulse cluster and seeds the timing RNG.
     pub fn trigger(&mut self, velocity: f32) {
         self.active = true;
         self.time_ms = 0.0;
         self.impulses.clear();
         self.next_impulse_index = 0;
-        self.rng_phase = velocity * 100.0;
 
         // Pre-generate Poisson-distributed impulses
         let base_amplitude = 0.5 + velocity * 0.5;
         let mut current_time = 0.0;
 
         // Use simple pseudo-random for deterministic behavior
-        for i in 0..self.total_impulses {
+        for _ in 0..self.total_impulses {
             // Poisson process: inter-arrival times are exponential
             let lambda = self.total_impulses as f32 / self.spread_duration_ms;
-            let u = self.pseudo_random(i);
+            let u = self.noise.unit();
             let interval = -u.ln() / lambda;
 
             current_time += interval;
@@ -105,7 +111,7 @@ impl WireBrush {
 
             // Random amplitude with controlled variance
             let amp_variation =
-                1.0 + (self.pseudo_random(i + 1000) - 0.5) * 2.0 * self.amplitude_randomization;
+                1.0 + (self.noise.unit() - 0.5) * 2.0 * self.amplitude_randomization;
             let amplitude = base_amplitude * amp_variation.max(0.1);
 
             self.impulses.push(Impulse {
@@ -173,13 +179,6 @@ impl WireBrush {
     /// Returns whether the brush is still emitting impulses.
     pub fn is_active(&self) -> bool {
         self.active
-    }
-
-    /// Simple deterministic pseudo-random for reproducibility
-    fn pseudo_random(&mut self, seed: u32) -> f32 {
-        self.rng_phase += crate::dsp::utils::GOLDEN_STEP + seed as f32 * 0.1;
-        let hash = (self.rng_phase.sin() * 43_758.547).fract();
-        hash.abs()
     }
 }
 

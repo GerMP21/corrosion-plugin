@@ -2,8 +2,8 @@
 
 ## 1. Baseline and failing tests
 
-- [ ] 1.1 Confirm the four completed changes are archived and their specs are in `openspec/specs/` (`openspec list --specs` shows `resonator-level` and `sample-rate-independence`). Record the 16-voice benchmark baseline (Normal and Render, 4 096 samples, gnu release) in `design.md` under "Implementation findings". Verify the numbers are recorded.
-- [ ] 1.2 Write the spec scenarios as tests, all failing on the current code. Remove the per-exciter tolerances, the 20 ms timing windows and the 0.01 → 1e-3 threshold change, so the existing tests state the spec again.
+- [x] 1.1 Confirm the four completed changes are archived and their specs are in `openspec/specs/` (`openspec list --specs` shows `resonator-level` and `sample-rate-independence`). Record the 16-voice benchmark baseline (Normal and Render, 4 096 samples, gnu release) in `design.md` under "Implementation findings". Verify the numbers are recorded.
+- [x] 1.2 Write the spec scenarios as tests, all failing on the current code. Remove the per-exciter tolerances, the 20 ms timing windows and the 0.01 → 1e-3 threshold change, so the existing tests state the spec again.
   - `src/voice/mod.rs`:
     - the median-level sweep;
     - the all-16-exciter overdrive sweep;
@@ -16,15 +16,15 @@
 
 ## 2. Noise and resonator foundations
 
-- [ ] 2.1 Add `dsp::utils::noise::Noise` (xorshift32, seeded per voice and note, uniform in [−1, 1)), with unit tests for determinism and a flat spectrum (equal power in four octave bands, within 1 dB). Inventory every `sin(...)·43758` generator (`grep -rn 43758 src`) and replace them all; per-sample noise forces go through `rate::white_noise`. Verify the grep is empty and the noise tests pass.
-- [ ] 2.2 Mode amplitude `b0/ω` (gain × `sin ω / ω`) and the 18–20 kHz raised-cosine output fade, from each mode's current frequency, replacing `MODE_CEILING_HZ`. Update the note-on estimate to match and re-measure `STRIKE_LEVEL_REF` for the default patch. Verify:
+- [x] 2.1 Add `dsp::utils::noise::Noise` (xorshift32, seeded per voice and note, uniform in [−1, 1)), with unit tests for determinism and a flat spectrum (equal power in four octave bands, within 1 dB). Inventory every `sin(...)·43758` generator (`grep -rn 43758 src`) and replace them all; per-sample noise forces go through `rate::white_noise`. Verify the grep is empty and the noise tests pass.
+- [x] 2.2 Mode amplitude `b0/ω` (gain × `sin ω / ω`) and the 18–20 kHz raised-cosine output fade, from each mode's current frequency, replacing `MODE_CEILING_HZ`. Update the note-on estimate to match and re-measure `STRIKE_LEVEL_REF` for the default patch. Verify:
   - the 15 kHz and sweep tests pass;
   - `loudness_does_not_depend_on_pitch`, `objects_are_comparably_loud` and `quality_mode_and_damage_do_not_change_loudness` still pass;
   - the sustained-level test passes up to 192 kHz.
 
   Re-capture `tests/fixtures/mode_bank_hashes.txt` with the reason in its comment, and confirm it matches on musl and gnu.
-- [ ] 2.3 Cache the interaction bus's strike-position weights. Recompute only when the effective position changes, and precompute the per-mode blend. Verify `rebuilding_a_reused_resonator_matches_a_fresh_one` and the interaction tests pass, `tests/no_alloc.rs` passes in debug, and the 16-voice benchmark is recorded in the findings.
-- [ ] 2.4 Extend `stabilize-mallet-and-grinding-contact`'s `contact_prediction()` to include the high-band fade weights. Verify its prediction test still passes.
+- [x] 2.3 Cache the interaction bus's strike-position weights. Recompute only when the effective position changes, and precompute the per-mode blend. Verify `rebuilding_a_reused_resonator_matches_a_fresh_one` and the interaction tests pass, `tests/no_alloc.rs` passes in debug, and the 16-voice benchmark is recorded in the findings.
+- [x] 2.4 Extend `stabilize-mallet-and-grinding-contact`'s `contact_prediction()` to include the high-band fade weights. Verify its prediction test still passes.
 
 ## 3. Exciters
 
@@ -79,6 +79,6 @@
   - clippy on 1.99, and on 1.97 with `-A unknown_lints`;
   - the render smoke test with `scripts/check_wav.py`;
   - `preset_levels_are_sane`;
-  - the 16-voice benchmarks at or below the 1.1 baseline's pre-normalization figures (Normal 10.7 ms, Render 25.4 ms per 4 096 samples). If they aren't, apply the struct-of-arrays fallback and re-measure.
+  - the 16-voice benchmarks at or below the pre-normalization commit (`748d832`) measured on the same machine in the same session. In task 1.1 that was Normal 8.57 ms and Render 21.10 ms per 4 096 samples, with runs varying about ±5 %. If they aren't, apply the struct-of-arrays fallback and re-measure.
 
   Record everything in the findings. Verify all green.

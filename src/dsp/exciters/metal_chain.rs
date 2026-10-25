@@ -6,6 +6,7 @@
 //! mallet hits.
 //! Use it for dropped chain, rattling hardware, or clustered metallic impacts.
 
+use crate::dsp::utils::noise::Noise;
 use crate::dsp::utils::rate;
 /// Multi-link impact exciter with stochastic rattle.
 #[derive(Clone, Debug)]
@@ -24,7 +25,8 @@ pub struct MetalChain {
     /// `48 kHz / fs` (`fix-sample-rate-time-constants`).
     ratio: f32,
     noise_state: f32,
-    rng_phase: f32,
+    /// Noise for this note (`resolve-exciter-tradeoffs`).
+    noise: Noise,
 }
 
 #[derive(Clone, Debug)]
@@ -56,7 +58,7 @@ impl MetalChain {
             sample_rate: 48000.0,
             ratio: 1.0,
             noise_state: 0.0,
-            rng_phase: 0.0,
+            noise: Noise::default(),
         }
     }
 
@@ -82,12 +84,16 @@ impl MetalChain {
         self.ratio = rate::ratio(rate);
     }
 
+    /// Restart the noise for a new note (the voice seeds it per note).
+    pub fn reseed(&mut self, seed: u32) {
+        self.noise.reseed(seed);
+    }
+
     /// Starts the staggered link-drop sequence.
     pub fn trigger(&mut self, velocity: f32) {
         self.active = true;
         self.time_ms = 0.0;
         self.links.clear();
-        self.rng_phase = velocity * 50.0;
 
         // Pre-compute random values to avoid borrow issues
         let link_count = self.link_count;
@@ -98,10 +104,10 @@ impl MetalChain {
         for i in 0..link_count {
             let progress = i as f32 / link_count.max(1) as f32;
             // Randomize drop times slightly for organic feel
-            let rand1 = self.pseudo_random(i);
-            let rand2 = self.pseudo_random(i + 100);
-            let rand3 = self.pseudo_random(i + 200);
-            let rand4 = self.pseudo_random(i + 300);
+            let rand1 = self.noise.unit();
+            let rand2 = self.noise.unit();
+            let rand3 = self.noise.unit();
+            let rand4 = self.noise.unit();
 
             let random_offset = (rand1 - 0.5) * 0.2;
             let impact_time = progress * drop_spread * (1.0 + random_offset);
@@ -184,9 +190,7 @@ impl MetalChain {
     }
 
     fn generate_noise(&mut self) -> f32 {
-        self.rng_phase += crate::dsp::utils::GOLDEN_STEP;
-        let noise = (self.rng_phase.sin() * 43_758.547).fract();
-        noise * 2.0 - 1.0
+        self.noise.bipolar()
     }
 
     fn hpf_params(&self) -> (f32, f32) {
@@ -202,12 +206,6 @@ impl MetalChain {
         let output = alpha * (*state + input);
         *state = output;
         (input - output).max(0.0)
-    }
-
-    fn pseudo_random(&mut self, seed: u32) -> f32 {
-        let phase = self.rng_phase + seed as f32 * 0.12345;
-        let hash = (phase.sin() * 43_758.547).fract();
-        hash.abs()
     }
 }
 

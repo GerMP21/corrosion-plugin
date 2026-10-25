@@ -6,6 +6,7 @@
 //! contact inside the `dsp/exciters` friction family.
 //! Use it for abrasive drag, metal-on-stone grinding, or harsh industrial wear.
 
+use crate::dsp::utils::noise::Noise;
 use crate::dsp::utils::{contact, rate};
 use crate::dsp::ContactPrediction;
 /// Scratchy friction exciter with tearing-noise modulation.
@@ -20,7 +21,8 @@ pub struct HeavyGrinding {
     active: bool,
     noise_state: f32,
     noise_filter_state: f32,
-    rng_phase: f32,
+    /// Noise for this note (`resolve-exciter-tradeoffs`).
+    noise: Noise,
     /// `48 kHz / fs` (`fix-sample-rate-time-constants`).
     ratio: f32,
     noise_leak: f32,
@@ -40,7 +42,7 @@ impl HeavyGrinding {
             active: false,
             noise_state: 0.0,
             noise_filter_state: 0.0,
-            rng_phase: 0.0,
+            noise: Noise::default(),
             ratio: 1.0,
             noise_leak: 0.99,
             filter_cache: (f32::NAN, 0.0),
@@ -62,11 +64,15 @@ impl HeavyGrinding {
         self.grit_color = color.clamp(0.0, 5.0);
     }
 
+    /// Restart the noise for a new note (the voice seeds it per note).
+    pub fn reseed(&mut self, seed: u32) {
+        self.noise.reseed(seed);
+    }
+
     /// Starts the grinding motion with an initial scrape velocity.
     pub fn trigger(&mut self, velocity: f32) {
         self.active = true;
         self.grind_speed *= 0.3 + velocity * 0.7;
-        self.rng_phase = velocity * 100.0;
     }
 
     /// Processes one sample of friction and tearing noise, given how the
@@ -125,8 +131,9 @@ impl HeavyGrinding {
 
     fn generate_noise(&mut self) -> f32 {
         // Brownian noise approximation (accumulated random steps)
-        self.rng_phase += 0.1;
-        let step = (self.rng_phase.sin() * 43_758.547).fract() * 2.0 - 1.0;
+        // A leaky random walk keeps its level at any rate when its step grows
+        // as √ratio: its variance is step² / (1 − leak²) ≈ step² / (2·ratio·0.01).
+        let step = self.noise.bipolar() * self.ratio.sqrt();
         self.noise_state += step * 0.1;
         self.noise_state *= self.noise_leak; // Leak
         self.noise_state.clamp(-1.0, 1.0)
