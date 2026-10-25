@@ -20,6 +20,8 @@ pub struct TensionRise {
     /// Noise for this note (`resolve-exciter-tradeoffs`).
     noise: Noise,
     impulse_samples: u32,
+    /// Places the break spike between samples (`resolve-exciter-tradeoffs`).
+    events: rate::EventSplitter,
     /// `48 kHz / fs` (`fix-sample-rate-time-constants`).
     ratio: f32,
     /// Length of the release burst in host samples (50 at 48 kHz).
@@ -38,6 +40,7 @@ impl TensionRise {
             active: false,
             noise: Noise::default(),
             impulse_samples: 0,
+            events: rate::EventSplitter::default(),
             ratio: 1.0,
             burst_frames: 50,
         }
@@ -73,6 +76,7 @@ impl TensionRise {
         self.active = true;
         self.tension = 0.0;
         self.impulse_samples = 0;
+        self.events.clear();
         self.pull_speed *= 0.5 + velocity * 0.5;
     }
 
@@ -81,16 +85,26 @@ impl TensionRise {
         if !self.active {
             return 0.0;
         }
+        // Every output is delayed one sample, so the break spike can land
+        // between samples at its true time (`resolve-exciter-tradeoffs`).
+        let (output, early) = self.next_output(resonator_velocity);
+        self.events.add(output, early);
+        self.events.take()
+    }
 
+    /// This sample's output, and how far before the sample's end (0–1) it
+    /// happened: the break's threshold crossing, or the sample end.
+    fn next_output(&mut self, resonator_velocity: f32) -> (f32, f32) {
         if self.impulse_samples > 0 {
             // Decay the release burst over a short fixed window.
             self.impulse_samples -= 1;
             let decay = self.impulse_samples as f32 / self.burst_frames as f32;
-            return self.tension * decay * self.creak_sharpness * 5.0;
+            return (self.tension * decay * self.creak_sharpness * 5.0, 0.0);
         }
 
         // Relative pull is integrated into stored stress each sample.
         let v_rel = self.pull_speed - resonator_velocity;
+        let previous = self.tension;
         self.tension += v_rel * rate::step(0.001, self.ratio);
 
         // Small random variation makes the break point feel less mechanical.
@@ -100,12 +114,18 @@ impl TensionRise {
         if self.tension > effective_threshold {
             // One-sample break spike: keep its area at any rate.
             let output = self.tension * self.creak_sharpness * 5.0 / self.ratio;
+            let rise = self.tension - previous;
+            let early = if rise > 0.0 {
+                (self.tension - effective_threshold) / rise
+            } else {
+                0.0
+            };
             self.tension = 0.0;
             self.impulse_samples = self.burst_frames;
-            return output;
+            return (output, early);
         }
 
-        0.0
+        (0.0, 0.0)
     }
 
     /// Returns whether the tension source is active.

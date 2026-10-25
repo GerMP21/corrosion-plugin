@@ -184,3 +184,31 @@ The per-exciter tolerances, the drumstick's 20 ms timing window and the 1e-3 "si
   - The 16-voice benchmark went from 10.0 to **5.5 ms** at Normal and from 22.5 to **12.8 ms** at Render, well under the same-machine pre-normalization figures (8.6 and 21.1 ms). The per-mode blend precompute and the struct-of-arrays fallback aren't needed.
   - The interaction, reuse and prediction tests pass, and so does `no_alloc` in debug.
 - **Prediction fade (2.4).** `contact_prediction` weights each mode's free response and compliance by its fade, and the prediction test passes.
+
+### Exciters (tasks 3.1–3.4)
+
+- **Implicit contact (3.1).**
+  - HandStrike, FeltMallet, Drumstick, MetalPipe, MetalChain, ParticleRain and TensionSnap solve their force through `contact::solve_force` against the voice's `contact_prediction`. HardMallet and HeavyGrinding already did.
+  - **Deviation:** Bow, StiffPoint, CorrugatedDrag, TensionRise and PneumaticJet stay explicit. Their friction and flow laws are non-monotone in the resonator's velocity, which the monotone solver can't bracket, and none of them diverges at 12 dB of extra drive with the governor off. The stability sweep passes.
+  - `second_order_mode_obeys_difference_equation` now expects the first output `b0·sin ω/ω`, from 2.2's gain.
+- **Strikes come to rest (3.2).** Drumstick goes inactive at its bounce limit or below the rest velocity, and a 12 000-frame (48 kHz, rate-scaled) cap ends a strike that never rebounds. The rest scenario passes, and Drumstick and HardMallet are timed on the whole-note peak.
+- **Sub-sample events (3.3).** `rate::EventSplitter` places each event's area across two samples. The unit tests (`dsp::exciters::event_timing_tests`, `hit_attack_has_the_same_area_at_every_rate`) render one event at 44.1, 48 and 96 kHz and check its area within 2 % and its centre of mass within one 44.1 kHz sample plus 10 µs. Three exciters needed more than the splitter:
+  - **MetalChain:** a link's force came from its penetration on the first contact sample, which depends on where the grid falls (−24 % area at 44.1 kHz). The link now follows its exact fall trajectory, and the impact uses the penetration half a reference sample into the contact, less the resonator's push-back. The area then depends only on the link's speed.
+  - **ParticleRain:** a particle still pushed on the sample its velocity passed the rebound value, a one-sample tail worth `h/2` of the ramp (−4.8 % at 96 kHz). It is now removed before the solve.
+  - **HandStrike:** the approach force is evaluated at the middle of each step instead of its start (−2.1 % at 96 kHz before).
+- **MetalChain rattle (3.4).**
+  - The rattle runs through a one-pole high-pass with kept state and pole `exp(−2π·fc/fs)`.
+  - The `a·(y₋₁ + x − x₋₁)` form is −3.6 dB at 1 kHz on 44.1 kHz. The form used, `a·y₋₁ + (1+a)/2·(x − x₋₁)`, has unit gain at Nyquist and is −3 dB at the cutoff within 0.5 dB at 200 Hz and 1 kHz on every tested rate.
+  - The output is still rectified (a link only pushes).
+  - The §12 note is removed.
+- **Sample-rate figures after group 3** (lib run, before the governor and drive levels):
+
+  | Exciter | 44.1 kHz | 96 kHz |
+  |---|---|---|
+  | Bow | +1.56 | — |
+  | HeavyGrinding | −1.75 | −5.57 |
+  | TensionRise | +4.47 | — |
+  | PneumaticJet | +1.58 | +1.82 |
+  | ParticleRain | — | +1.63 |
+
+  "—" means the rate passes. MetalChain now passes. HeavyGrinding's worst pre-clamp peak is 5.2, so its output clamp distorts the comparison. All of these are re-measured in 4.2.

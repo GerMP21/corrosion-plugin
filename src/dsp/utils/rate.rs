@@ -74,6 +74,50 @@ pub fn white_noise(amplitude: f32, ratio: f32) -> f32 {
     }
 }
 
+/// Places short events between samples (`resolve-exciter-tradeoffs`).
+///
+/// An event of size `amount` that happened `early` (0–1) of a sample before
+/// the end of the current sample is emitted as `early·amount` now and
+/// `(1 − early)·amount` on the next sample. Its area is kept exactly, and its
+/// centre of mass sits one sample after the true time at every rate, so a
+/// train of events no longer rounds to the sample grid.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct EventSplitter {
+    now: f32,
+    next: f32,
+}
+
+impl EventSplitter {
+    /// Add an event that happened `early` (clamped to 0–1) of a sample before
+    /// the end of this sample.
+    #[inline]
+    pub fn add(&mut self, amount: f32, early: f32) {
+        let early = early.clamp(0.0, 1.0);
+        self.now += amount * early;
+        self.next += amount * (1.0 - early);
+    }
+
+    /// This sample's share of the events, then move on to the next sample.
+    #[inline]
+    pub fn take(&mut self) -> f32 {
+        let out = self.now;
+        self.now = self.next;
+        self.next = 0.0;
+        out
+    }
+
+    /// Whether anything is still waiting to be emitted.
+    #[inline]
+    pub fn is_pending(&self) -> bool {
+        self.now != 0.0 || self.next != 0.0
+    }
+
+    /// Drop anything pending.
+    pub fn clear(&mut self) {
+        *self = Self::default();
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -104,5 +148,17 @@ mod tests {
         assert_eq!(frames(4_800, r), 9_600);
         assert_eq!(impulse(1.0, r), 2.0);
         assert!((white_noise(1.0, r).powi(2) - 2.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn event_splitter_keeps_area_and_centre_of_mass() {
+        // An event 30 % of a sample early: 0.3 now, 0.7 next, centre one
+        // sample after the event.
+        let mut split = EventSplitter::default();
+        split.add(2.0, 0.3);
+        let (a, b, c) = (split.take(), split.take(), split.take());
+        assert!((a - 0.6).abs() < 1e-6 && (b - 1.4).abs() < 1e-6 && c == 0.0);
+        let centre = (0.0 * a + 1.0 * b) / (a + b);
+        assert!((centre - (1.0 - 0.3)).abs() < 1e-6);
     }
 }

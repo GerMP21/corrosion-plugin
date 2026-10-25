@@ -450,6 +450,8 @@ pub struct Voice {
     rate: VoiceRateConstants,
     exciter_family: ExciterFamily,
     one_shot_phase: OneShotEnvelopePhase,
+    /// Whether the next attack step is the first of the note.
+    one_shot_first_step: bool,
     one_shot_level: f32,
     one_shot_attack: f32,
     one_shot_release: f32,
@@ -575,6 +577,7 @@ impl Voice {
             rate: VoiceRateConstants::for_rate(48_000.0),
             exciter_family: ExciterFamily::Hit,
             one_shot_phase: OneShotEnvelopePhase::Idle,
+            one_shot_first_step: false,
             one_shot_level: 0.0,
             one_shot_attack: 0.05,
             one_shot_release: 0.5,
@@ -607,6 +610,7 @@ impl Voice {
             ExciterFamily::Hit => {
                 self.one_shot_phase = OneShotEnvelopePhase::Attack;
                 self.one_shot_level = 0.0;
+                self.one_shot_first_step = true;
                 self.one_shot_attack = controls.env_attack.max(0.001);
                 self.one_shot_release = controls.env_release.max(0.001);
                 self.mseg = MSEG::new();
@@ -676,8 +680,16 @@ impl Voice {
                 match self.one_shot_phase {
                     OneShotEnvelopePhase::Idle => 0.0,
                     OneShotEnvelopePhase::Attack => {
+                        // Sampled at sample centres: the first step is half
+                        // a step, so a short strike on the ramp has the same
+                        // area at every rate (`resolve-exciter-tradeoffs`).
+                        let step = if std::mem::take(&mut self.one_shot_first_step) {
+                            0.5
+                        } else {
+                            1.0
+                        };
                         self.one_shot_level =
-                            (self.one_shot_level + dt / self.one_shot_attack).min(1.0);
+                            (self.one_shot_level + step * dt / self.one_shot_attack).min(1.0);
                         if self.one_shot_level >= 1.0 {
                             self.one_shot_phase = OneShotEnvelopePhase::Release;
                         }
@@ -1314,16 +1326,31 @@ impl Voice {
 
         let excitation = match self.exciter_type {
             1 => self.bow_exciter.process_sample(res_vel),
-            2 => self.hand_strike.process_sample(res_disp, res_vel),
-            3 => self.felt_mallet.process_sample(res_disp, 0.0),
+            2 => {
+                let prediction = self.contact_prediction(envelope);
+                self.hand_strike.process_sample(prediction)
+            }
+            3 => {
+                let prediction = self.contact_prediction(envelope);
+                self.felt_mallet.process_sample(prediction)
+            }
             4 => {
                 let prediction = self.contact_prediction(envelope);
                 self.hard_mallet.process_sample(prediction)
             }
-            5 => self.drumstick.process_sample(res_disp, res_vel),
+            5 => {
+                let prediction = self.contact_prediction(envelope);
+                self.drumstick.process_sample(prediction)
+            }
             6 => self.wire_brush.process_sample(res_disp, 0.0),
-            7 => self.metal_pipe.process_sample(res_disp, 0.0),
-            8 => self.metal_chain.process_sample(res_disp, 0.0),
+            7 => {
+                let prediction = self.contact_prediction(envelope);
+                self.metal_pipe.process_sample(prediction)
+            }
+            8 => {
+                let prediction = self.contact_prediction(envelope);
+                self.metal_chain.process_sample(prediction)
+            }
             9 => self.stiff_point.process_sample(res_disp, res_vel),
             10 => {
                 let prediction = self.contact_prediction(envelope);
@@ -1333,8 +1360,14 @@ impl Voice {
             12 => self.tension_rise.process_sample(res_disp, res_vel),
             13 => self.pneumatic_jet.process_sample(res_disp, res_vel),
             14 => self.electromagnetic_hum.process_sample(res_disp, 0.0),
-            15 => self.tension_snap.process_sample(res_disp, 0.0),
-            16 => self.particle_rain.process_sample(res_disp, 0.0),
+            15 => {
+                let prediction = self.contact_prediction(envelope);
+                self.tension_snap.process_sample(prediction)
+            }
+            16 => {
+                let prediction = self.contact_prediction(envelope);
+                self.particle_rain.process_sample(prediction)
+            }
             _ => 0.0,
         };
 
@@ -1527,6 +1560,37 @@ mod tests {
     fn midi_60_is_c4() {
         let hz = midi_to_hz(60);
         assert!((hz - 261.626).abs() < 0.1);
+    }
+
+    #[test]
+    fn hit_attack_has_the_same_area_at_every_rate() {
+        // A short strike on the attack ramp: the envelope's area over its
+        // first millisecond matches the continuous ramp `t / attack` at every
+        // rate, because the ramp is sampled at sample centres
+        // (`resolve-exciter-tradeoffs`, design Decision 5).
+        let attack = 0.005;
+        let window = 0.001;
+        let exact = 0.5 * window * window / attack;
+        for sample_rate in [44_100.0f32, 48_000.0, 96_000.0] {
+            let mut voice = Voice::new();
+            voice.set_rate(sample_rate);
+            let controls = VoiceControls {
+                env_attack: attack,
+                ..VoiceControls::default()
+            };
+            voice.configure_envelope(0, 0.8, controls);
+            let samples = (window * sample_rate).round() as usize;
+            let area: f32 = (0..samples)
+                .map(|_| voice.process_force_envelope())
+                .sum::<f32>()
+                / sample_rate;
+            let duration = samples as f32 / sample_rate;
+            let expected = exact * (duration / window).powi(2);
+            assert!(
+                (area / expected - 1.0).abs() < 0.005,
+                "{sample_rate}: area {area:.4e}, continuous {expected:.4e}"
+            );
+        }
     }
 
     #[test]

@@ -8,7 +8,8 @@
 //! granular motion.
 
 use crate::dsp::utils::noise::Noise;
-use crate::dsp::utils::rate;
+use crate::dsp::utils::{contact, rate};
+use crate::dsp::ContactPrediction;
 /// Turbulent air-jet exciter with band-limited noise shaping.
 #[derive(Clone, Debug)]
 pub struct PneumaticJet {
@@ -190,6 +191,8 @@ pub struct TensionSnap {
     hooked: bool,
     pull_position: f32,
     tension: f32,
+    /// Places the snap spike between samples (`resolve-exciter-tradeoffs`).
+    events: rate::EventSplitter,
     /// `48 kHz / fs` (`fix-sample-rate-time-constants`).
     ratio: f32,
 }
@@ -205,6 +208,7 @@ impl TensionSnap {
             hooked: false,
             pull_position: 0.0,
             tension: 0.0,
+            events: rate::EventSplitter::default(),
             ratio: 1.0,
         }
     }
@@ -231,22 +235,50 @@ impl TensionSnap {
     }
 
     /// Processes one sample of tension build-up and release.
-    pub fn process_sample(&mut self, res_disp: f32, _res_vel: f32) -> f32 {
+    pub fn process_sample(&mut self, resonator: ContactPrediction) -> f32 {
         if !self.active {
             return 0.0;
         }
         if self.hooked {
             self.pull_position += rate::step(0.001, self.ratio);
-            let dx = self.pull_position - res_disp;
-            self.tension = self.hook_stiffness * dx.max(0.0);
-            if self.tension > self.snap_force || self.pull_position > self.pull_distance {
+            // The hook's tension and the force it applies, solved against
+            // this sample's resonator response (`resolve-exciter-tradeoffs`).
+            // Snapping lowers the output (0.1·T → 3·T/ratio only above the
+            // threshold), so the law stays non-increasing in the force.
+            let (pull, stiffness, snap_force, beyond) = (
+                self.pull_position,
+                self.hook_stiffness,
+                self.snap_force,
+                self.pull_position > self.pull_distance,
+            );
+            let ratio = self.ratio;
+            let tension_at = |f: f32| stiffness * (pull - resonator.displacement(f)).max(0.0);
+            let output_at = |tension: f32| {
+                if tension > snap_force || beyond {
+                    tension * 3.0 / ratio
+                } else {
+                    tension * 0.1
+                }
+            };
+            let previous = self.tension;
+            let force = contact::solve_force(|f| output_at(tension_at(f)));
+            self.tension = tension_at(force);
+            if self.tension > self.snap_force || beyond {
                 self.hooked = false;
-                // One-sample snap spike: keep its area at any rate.
-                return self.tension * 3.0 / self.ratio;
+                // The snap spike lands between samples at the tension's
+                // threshold crossing (`resolve-exciter-tradeoffs`).
+                let rise = self.tension - previous;
+                let early = if rise > 0.0 && self.tension > self.snap_force {
+                    (self.tension - self.snap_force) / rise
+                } else {
+                    0.0
+                };
+                self.events.add(force, early);
+                return self.events.take();
             }
-            return self.tension * 0.1;
+            return force + self.events.take();
         }
-        0.0
+        self.events.take()
     }
 
     /// Returns whether the hook is still engaged.
@@ -333,44 +365,55 @@ impl ParticleRain {
     }
 
     /// Processes one sample of particle spawning and impact decay.
-    pub fn process_sample(&mut self, res_disp: f32, _res_vel: f32) -> f32 {
+    pub fn process_sample(&mut self, resonator: ContactPrediction) -> f32 {
         if !self.active {
             return 0.0;
         }
 
-        self.spawn_accumulator += rate::step(self.flow_rate * 0.1, self.ratio);
+        let decay = 0.99;
+        let (velocity_step, age_step) =
+            (rate::step(0.05, self.ratio), rate::step(0.001, self.ratio));
+        let spawn_step = rate::step(self.flow_rate * 0.1, self.ratio);
+        self.spawn_accumulator += spawn_step;
         while self.spawn_accumulator > 1.0 {
             self.spawn_accumulator -= 1.0;
             if self.particles.len() == Self::MAX_PARTICLES {
                 continue;
             }
+            // The spawn fell `born` (0–1) of a sample before this sample's
+            // end: start the particle that much older, so spawns aren't
+            // rounded to the sample grid. The loop below then adds this
+            // sample's full step (`resolve-exciter-tradeoffs`).
+            let born = (self.spawn_accumulator / spawn_step).clamp(0.0, 1.0);
             let variance = self.noise.bipolar() * self.mass_variance;
             self.particles.push(Particle {
-                age: 0.0,
+                age: -age_step * (1.0 - born),
                 mass: (self.particle_mass * (1.0 + variance)).max(0.01),
-                velocity: -0.5,
+                velocity: -0.5 - velocity_step * (1.0 - born),
             });
         }
 
-        let mut total_force = 0.0;
-        let decay = 0.99;
-        let (velocity_step, age_step) =
-            (rate::step(0.05, self.ratio), rate::step(0.001, self.ratio));
-        self.particles.retain_mut(|p| {
+        for p in self.particles.iter_mut() {
             p.velocity += velocity_step;
             p.age += age_step;
-            let penetration = (p.velocity * 0.01 - res_disp).max(0.0);
-            // Each particle contributes a tiny force spike when it penetrates.
-            let force = if penetration > 0.0 {
-                p.mass * penetration * 10.0
-            } else {
-                0.0
-            };
-            total_force += force;
-            p.age < 0.1 && p.velocity < 1.0
+        }
+        // A particle stops pushing once it reaches the rebound velocity; drop
+        // it before the solve, so it doesn't add a sample-length tail whose
+        // size depends on the rate.
+        self.particles.retain(|p| p.age < 0.1 && p.velocity < 1.0);
+        // Each penetrating particle pushes with a small spring force; all of
+        // them are solved together with this sample's resonator response
+        // (`resolve-exciter-tradeoffs`).
+        let particles = &self.particles;
+        let force = contact::solve_force(|f| {
+            let surface = resonator.displacement(f);
+            particles
+                .iter()
+                .map(|p| p.mass * (p.velocity * 0.01 - surface).max(0.0) * 10.0)
+                .sum::<f32>()
+                * decay
         });
-
-        total_force * decay
+        force
     }
 
     /// Returns whether emission is still active or particles remain.

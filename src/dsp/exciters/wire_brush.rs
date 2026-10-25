@@ -27,6 +27,8 @@ pub struct WireBrush {
     noise: Noise,
     filter_input: f32,
     filter_output: f32,
+    /// Places impulses between samples (`resolve-exciter-tradeoffs`).
+    events: rate::EventSplitter,
 }
 
 #[derive(Clone, Debug)]
@@ -58,6 +60,7 @@ impl WireBrush {
             noise: Noise::default(),
             filter_input: 0.0,
             filter_output: 0.0,
+            events: rate::EventSplitter::default(),
         }
     }
 
@@ -92,6 +95,7 @@ impl WireBrush {
         self.time_ms = 0.0;
         self.impulses.clear();
         self.next_impulse_index = 0;
+        self.events.clear();
 
         // Pre-generate Poisson-distributed impulses
         let base_amplitude = 0.5 + velocity * 0.5;
@@ -139,7 +143,10 @@ impl WireBrush {
         // Trigger only the not-yet-fired prefix of the pre-sorted impulse list.
         // The impulses are generated in monotonically increasing time order,
         // so a cursor avoids rescanning the whole list every sample.
+        // `early` is how far before this sample's end, in samples, the
+        // impulses fell (amplitude-weighted when there are several).
         let mut output = 0.0;
+        let mut early_weighted = 0.0;
         while let Some(impulse) = self.impulses.get_mut(self.next_impulse_index) {
             if impulse.time_ms > self.time_ms {
                 break;
@@ -147,8 +154,14 @@ impl WireBrush {
 
             impulse.triggered = true;
             output += impulse.amplitude;
+            early_weighted += impulse.amplitude * ((self.time_ms - impulse.time_ms) / dt_ms);
             self.next_impulse_index += 1;
         }
+        let early = if output > 0.0 {
+            early_weighted / output
+        } else {
+            0.0
+        };
 
         // Apply high-pass filter based on wire_stiffness
         // Higher stiffness = higher cutoff = brighter, sharper sound
@@ -166,6 +179,10 @@ impl WireBrush {
         self.filter_input = output;
         self.filter_output = filtered;
         output = filtered.max(0.0) * (self.sample_rate / rate::REFERENCE_RATE);
+        // Each impulse lands between samples at its true time, one sample
+        // late; everything else is delayed by that same sample.
+        self.events.add(output, early);
+        output = self.events.take();
 
         // Deactivate when all impulses triggered and duration elapsed
         if self.time_ms > self.spread_duration_ms && self.next_impulse_index >= self.impulses.len()

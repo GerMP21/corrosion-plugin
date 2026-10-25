@@ -492,10 +492,6 @@ bundle/validator flow uses `x86_64-unknown-linux-gnu`.
 - **Oversampled clipper is effectively a soft clipper.** Until the no-op is fixed,
   nonlinear-stage aliasing is unmitigated (and is exactly what the aliasing
   harness measures).
-- **MetalChain's rattle filter keeps no state.** `apply_hpf` runs after
-  `noise_state` is written back, so the "high-pass" is a plain gain of about
-  `(1000/fs)/cutoff`, now evaluated at 48 kHz. That is why the chain is nearly
-  silent (about −80 dBFS on a Pipe). Fixing it changes the 48 kHz sound.
 - **Single algorithmic resonator path.** The former dual path was retired
   (implemented 2026-05-27, see §5 and `docs/backlog.md`): `complex_algo` is gone,
   the per-object algorithmic generators are the sole engine, 14 per-object

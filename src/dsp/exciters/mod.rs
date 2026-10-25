@@ -17,6 +17,9 @@ pub mod stiff_point;
 pub mod tension_rise;
 pub mod wire_brush;
 
+#[cfg(test)]
+mod event_timing_tests;
+
 pub use bow::BowExciter;
 pub use corrugated_drag::CorrugatedDrag;
 pub use drumstick::Drumstick;

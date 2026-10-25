@@ -7,7 +7,8 @@
 //! Use it for dropped chain, rattling hardware, or clustered metallic impacts.
 
 use crate::dsp::utils::noise::Noise;
-use crate::dsp::utils::rate;
+use crate::dsp::utils::{contact, rate};
+use crate::dsp::ContactPrediction;
 /// Multi-link impact exciter with stochastic rattle.
 #[derive(Clone, Debug)]
 pub struct MetalChain {
@@ -24,7 +25,10 @@ pub struct MetalChain {
     sample_rate: f32,
     /// `48 kHz / fs` (`fix-sample-rate-time-constants`).
     ratio: f32,
-    noise_state: f32,
+    /// The rattle's high-pass, kept across samples.
+    rattle_filter: OnePoleHighPass,
+    /// Places the impacts between samples (`resolve-exciter-tradeoffs`).
+    events: rate::EventSplitter,
     /// Noise for this note (`resolve-exciter-tradeoffs`).
     noise: Noise,
 }
@@ -32,10 +36,30 @@ pub struct MetalChain {
 #[derive(Clone, Debug)]
 struct ChainLink {
     impact_time_ms: f32,
+    /// Where the link starts its fall, and how fast.
     position: f32,
     velocity: f32,
     impacted: bool,
     mass: f32,
+}
+
+impl ChainLink {
+    /// Position and velocity `t` seconds into the note (at rest before the
+    /// link's drop time).
+    fn fall(&self, t: f32) -> (f32, f32) {
+        let t = (t - self.impact_time_ms / 1000.0).max(0.0);
+        let rate_hz = rate::REFERENCE_RATE;
+        let acceleration = 0.03 * rate_hz;
+        let velocity = self.velocity + acceleration * t;
+        let position =
+            self.position + 0.0005 * rate_hz * (self.velocity * t + 0.5 * acceleration * t * t);
+        (position, velocity)
+    }
+
+    /// How far the link moves in one 48 kHz sample at time `t`.
+    fn travel(&self, t: f32) -> f32 {
+        (self.fall(t).1 * 0.0005).abs()
+    }
 }
 
 impl MetalChain {
@@ -57,7 +81,8 @@ impl MetalChain {
             time_ms: 0.0,
             sample_rate: 48000.0,
             ratio: 1.0,
-            noise_state: 0.0,
+            rattle_filter: OnePoleHighPass::default(),
+            events: rate::EventSplitter::default(),
             noise: Noise::default(),
         }
     }
@@ -76,12 +101,14 @@ impl MetalChain {
         self.drop_spread_ms = spread_ms.clamp(50.0, 1000.0);
         self.internal_rattle = rattle.clamp(0.0, 1.0);
         self.rattle_color = color.clamp(0.0, 1.0);
+        self.update_rattle_filter();
     }
 
     /// Updates the sample rate used for time stepping and resonator decay.
     pub fn set_sample_rate(&mut self, rate: f32) {
         self.sample_rate = rate;
         self.ratio = rate::ratio(rate);
+        self.update_rattle_filter();
     }
 
     /// Restart the noise for a new note (the voice seeds it per note).
@@ -94,6 +121,8 @@ impl MetalChain {
         self.active = true;
         self.time_ms = 0.0;
         self.links.clear();
+        self.events.clear();
+        self.rattle_filter.reset();
 
         // Pre-compute random values to avoid borrow issues
         let link_count = self.link_count;
@@ -123,7 +152,7 @@ impl MetalChain {
     }
 
     /// Processes one sample of link impacts and rattle energy.
-    pub fn process_sample(&mut self, resonator_displacement: f32, _resonator_velocity: f32) -> f32 {
+    pub fn process_sample(&mut self, resonator: ContactPrediction) -> f32 {
         if !self.active {
             return 0.0;
         }
@@ -134,47 +163,68 @@ impl MetalChain {
         let mut total_force = 0.0;
         let mut all_settled = true;
 
-        let (_, alpha) = self.hpf_params();
-        let mut filter_state = self.noise_state;
-
-        for link in self.links.iter_mut() {
-            if self.time_ms >= link.impact_time_ms && !link.impacted {
-                link.position += link.velocity * rate::step(0.0005, self.ratio);
-                link.velocity += rate::step(0.03, self.ratio);
-
-                let penetration = (link.position - resonator_displacement).max(0.0);
-                if penetration > 0.0 {
-                    let stiffness = 2.0;
-                    // The first contact sample's penetration grows with the
-                    // step size, so express it in reference-sample units;
-                    // the impact is then a one-sample spike whose area must
-                    // stay the same at any rate.
-                    let penetration = if self.ratio == 1.0 {
-                        penetration
-                    } else {
-                        penetration / self.ratio
-                    };
-                    let impact_force = stiffness * penetration.powf(1.5) * link.mass;
-                    total_force += rate::impulse(impact_force, self.ratio);
-
-                    link.velocity *= -0.4;
-                    link.impacted = true;
-                }
-
-                all_settled = false;
-            } else if !link.impacted {
+        // Each falling link follows its exact trajectory from its drop time,
+        // the motion the old per-sample steps approximated (velocity rising
+        // 0.03 and position moving `0.0005 · velocity` per 48 kHz sample), so
+        // the moment it reaches the surface doesn't depend on the grid. Every
+        // link that strikes this sample is solved together with the
+        // resonator's response (`resolve-exciter-tradeoffs`).
+        for link in self.links.iter() {
+            if !link.impacted {
                 all_settled = false;
             }
         }
-
-        self.noise_state = filter_state;
+        let (time_ms, ratio, dt_s) = (self.time_ms, self.ratio, dt_ms / 1000.0);
+        let free_surface = resonator.displacement(0.0);
+        let striking =
+            |link: &ChainLink| !link.impacted && link.fall(time_ms / 1000.0).0 > free_surface;
+        let links = &self.links;
+        let impacts = |surface: f32| -> f32 {
+            // A link strikes on the sample its tip passes the unloaded
+            // surface. Its penetration on that sample depends on where the
+            // grid falls, so the impact uses the penetration half a reference
+            // sample into the contact: the event's area then depends only on
+            // the link's speed. The pushed-back surface reduces it.
+            let push = (surface - free_surface) / ratio;
+            links
+                .iter()
+                .filter(|link| striking(link))
+                .map(|link| {
+                    let penetration = (0.5 * link.travel(time_ms / 1000.0) - push).max(0.0);
+                    rate::impulse(2.0 * penetration.powf(1.5) * link.mass, ratio)
+                })
+                .sum()
+        };
+        let impact_force = contact::solve_force(|f| impacts(resonator.displacement(f)));
+        // How early in the sample each link reached the surface, weighted
+        // by impact.
+        let (mut early_weighted, mut weight) = (0.0f32, 0.0f32);
+        for link in self.links.iter_mut() {
+            if striking(link) {
+                let now = time_ms / 1000.0;
+                let (position, _) = link.fall(now);
+                let (before, _) = link.fall(now - dt_s);
+                let share = link.travel(now).powf(1.5) * link.mass;
+                let fraction = (position - free_surface) / (position - before).max(1e-9);
+                early_weighted += share * fraction.min(1.0);
+                weight += share;
+                link.impacted = true;
+            }
+        }
+        let early = if weight > 0.0 {
+            early_weighted / weight
+        } else {
+            0.0
+        };
+        self.events.add(impact_force, early);
+        total_force += self.events.take();
 
         if self.time_ms > self.drop_spread_ms * 0.3 {
             let grind_noise = rate::white_noise(
                 self.generate_noise() * self.internal_rattle * 0.1,
                 self.ratio,
             );
-            total_force += Self::apply_hpf(grind_noise, alpha, &mut filter_state);
+            total_force += self.rattle_filter.process(grind_noise).max(0.0);
         }
 
         if all_settled && self.time_ms > self.drop_spread_ms + 100.0 {
@@ -193,24 +243,86 @@ impl MetalChain {
         self.noise.bipolar()
     }
 
-    fn hpf_params(&self) -> (f32, f32) {
+    fn update_rattle_filter(&mut self) {
         let cutoff = 200.0 + self.rattle_color * 3000.0;
-        // The reference rate, not the host rate: `apply_hpf` never keeps its
-        // state, so `1 − alpha` is a plain gain on the noise, and it must
-        // not change with the rate.
-        let alpha = cutoff / (cutoff + 1000.0 / rate::REFERENCE_RATE);
-        (cutoff, alpha)
+        self.rattle_filter.set_cutoff(cutoff, self.sample_rate);
+    }
+}
+
+/// One-pole high-pass `y = a·y₋₁ + (1 + a)/2 · (x − x₋₁)`, `a = exp(−2π·fc/fs)`,
+/// unit gain at Nyquist and −3 dB at `fc`.
+#[derive(Clone, Debug, Default)]
+struct OnePoleHighPass {
+    coefficient: f32,
+    previous_input: f32,
+    previous_output: f32,
+}
+
+impl OnePoleHighPass {
+    fn set_cutoff(&mut self, cutoff_hz: f32, sample_rate: f32) {
+        self.coefficient = (-std::f32::consts::TAU * cutoff_hz / sample_rate.max(1.0)).exp();
     }
 
-    fn apply_hpf(input: f32, alpha: f32, state: &mut f32) -> f32 {
-        let output = alpha * (*state + input);
-        *state = output;
-        (input - output).max(0.0)
+    fn reset(&mut self) {
+        self.previous_input = 0.0;
+        self.previous_output = 0.0;
+    }
+
+    fn process(&mut self, input: f32) -> f32 {
+        let a = self.coefficient;
+        let output = a * self.previous_output + 0.5 * (1.0 + a) * (input - self.previous_input);
+        self.previous_input = input;
+        self.previous_output = output;
+        output
     }
 }
 
 impl Default for MetalChain {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::OnePoleHighPass;
+
+    /// Steady-state gain of the filter for a sine at `freq`.
+    fn gain(cutoff: f32, freq: f32, sample_rate: f32) -> f32 {
+        let mut filter = OnePoleHighPass::default();
+        filter.set_cutoff(cutoff, sample_rate);
+        let n = (sample_rate * 0.5) as usize;
+        let mut peak = 0.0f32;
+        for i in 0..n {
+            let x = (std::f32::consts::TAU * freq * i as f32 / sample_rate).sin();
+            let y = filter.process(x);
+            if i > n / 2 {
+                peak = peak.max(y.abs());
+            }
+        }
+        peak
+    }
+
+    #[test]
+    fn rattle_high_pass_is_3_db_down_at_its_cutoff() {
+        for sample_rate in [44_100.0, 48_000.0, 96_000.0] {
+            for cutoff in [200.0, 1_000.0] {
+                let db = 20.0 * gain(cutoff, cutoff, sample_rate).log10();
+                assert!(
+                    (db + 3.0).abs() < 0.5,
+                    "{cutoff} Hz @ {sample_rate}: {db:.2} dB at the cutoff"
+                );
+                let pass = 20.0 * gain(cutoff, cutoff * 10.0, sample_rate).log10();
+                assert!(
+                    pass > -0.5,
+                    "{cutoff} Hz @ {sample_rate}: {pass:.2} dB a decade up"
+                );
+                let stop = 20.0 * gain(cutoff, cutoff / 10.0, sample_rate).log10();
+                assert!(
+                    stop < -15.0,
+                    "{cutoff} Hz @ {sample_rate}: {stop:.2} dB a decade down"
+                );
+            }
+        }
     }
 }

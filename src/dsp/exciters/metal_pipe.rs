@@ -5,7 +5,8 @@
 //! ringing, making it a coupled impact/oscillator model inside `dsp/exciters`.
 //! Use it for pipe strikes, metallic boings, and resonant hollow-tube impacts.
 
-use crate::dsp::utils::rate;
+use crate::dsp::utils::{contact, rate};
+use crate::dsp::ContactPrediction;
 /// Coupled impact exciter with internal pipe modes.
 #[derive(Clone, Debug)]
 pub struct MetalPipe {
@@ -100,7 +101,7 @@ impl MetalPipe {
     }
 
     /// Processes one sample of coupled contact and pipe resonance.
-    pub fn process_sample(&mut self, target_displacement: f32, _target_velocity: f32) -> f32 {
+    pub fn process_sample(&mut self, target: ContactPrediction) -> f32 {
         if !self.active {
             return 0.0;
         }
@@ -108,9 +109,14 @@ impl MetalPipe {
         // Update pipe physics
         self.pipe_position += self.pipe_velocity * rate::step(0.0005, self.ratio);
 
-        // Hertzian contact
-        let penetration = (self.pipe_position - target_displacement).max(0.0);
-        let contact_force = self.metal_stiffness * penetration.powf(1.5) * self.pipe_mass;
+        // Hertzian contact, solved against this sample's resonator response
+        // (`resolve-exciter-tradeoffs`).
+        let (position, stiffness, mass) =
+            (self.pipe_position, self.metal_stiffness, self.pipe_mass);
+        let contact_force = contact::solve_force(|f| {
+            stiffness * (position - target.displacement(f)).max(0.0).powf(1.5) * mass
+        });
+        let penetration = (position - target.displacement(contact_force)).max(0.0);
 
         // Process pipe modes (the pipe rings from the collision)
         let pipe_output = self.process_pipe_modes(-contact_force);

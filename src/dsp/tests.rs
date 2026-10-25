@@ -930,11 +930,15 @@ fn second_order_mode_obeys_difference_equation() {
     let sample_rate = 48_000;
     let coefficients = ResonatorCoefficients::for_mode(spec, sample_rate);
 
+    // The mode is the biquad scaled by sin ω / ω, so it rings at the
+    // continuous oscillator's amplitude b0/ω (resolve-exciter-tradeoffs).
+    let omega = 2.0 * std::f32::consts::PI * spec.frequency_hz / sample_rate as f32;
+    let scale = omega.sin() / omega;
     let y0 = mode.process(1.0, sample_rate);
     let y1 = mode.process(0.0, sample_rate);
     let y2 = mode.process(0.0, sample_rate);
 
-    approx_eq(y0, coefficients.b0, 1.0e-6);
+    approx_eq(y0, coefficients.b0 * scale, 1.0e-6);
     approx_eq(y1, -coefficients.a1 * y0, 1.0e-5);
     approx_eq(y2, -coefficients.a1 * y1 - coefficients.a2 * y0, 1.0e-5);
 }

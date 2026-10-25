@@ -28,14 +28,14 @@
 
 ## 3. Exciters
 
-- [ ] 3.1 Reuse `stabilize-mallet-and-grinding-contact`'s `dsp::utils::contact` solver. HardMallet and HeavyGrinding are already done there. Pass the compliance through `process_sample` for the position- or velocity-dependent exciters (design Decision 2; confirm the list by reading each exciter). Convert:
+- [x] 3.1 Reuse `stabilize-mallet-and-grinding-contact`'s `dsp::utils::contact` solver. HardMallet and HeavyGrinding are already done there. Pass the compliance through `process_sample` for the position- or velocity-dependent exciters (design Decision 2; confirm the list by reading each exciter). Convert:
   - HandStrike, FeltMallet, Drumstick, MetalPipe and MetalChain;
   - ParticleRain, StiffPoint, CorrugatedDrag, TensionRise and TensionSnap;
   - Bow and PneumaticJet where they read velocity.
 
   Verify the stability sweep passes.
-- [ ] 3.2 Strikes come to rest (HardMallet already leaves after its strike, from `stabilize-mallet-and-grinding-contact`): Drumstick goes inactive at the bounce limit or below the rest velocity. Verify the rest scenario passes and Drumstick and HardMallet are both timed on the whole-note peak.
-- [ ] 3.3 Sub-sample events (design Decision 5):
+- [x] 3.2 Strikes come to rest (HardMallet already leaves after its strike, from `stabilize-mallet-and-grinding-contact`): Drumstick goes inactive at the bounce limit or below the rest velocity. Verify the rest scenario passes and Drumstick and HardMallet are both timed on the whole-note peak.
+- [x] 3.3 Sub-sample events (design Decision 5):
   - ParticleRain spawns;
   - WireBrush impulses;
   - TensionSnap and TensionRise spikes;
@@ -44,7 +44,7 @@
   - the Hit envelope's attack sampled at sample centres.
 
   Verify each with a unit test that one event's area and centre of mass match at 44.1, 48 and 96 kHz.
-- [ ] 3.4 MetalChain rattle: a one-pole high-pass with kept state and coefficient `exp(−2π·fc/fs)`, with a unit test of its −3 dB point. Remove the ARCHITECTURE §12 note about the bug. Verify the test passes.
+- [x] 3.4 MetalChain rattle: a one-pole high-pass with kept state and coefficient `exp(−2π·fc/fs)`, with a unit test of its −3 dB point. Remove the ARCHITECTURE §12 note about the bug. Verify the test passes.
 
 ## 4. Drive levels and governor
 
