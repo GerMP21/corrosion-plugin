@@ -299,3 +299,13 @@ The per-exciter tolerances, the drumstick's 20 ms timing window and the 1e-3 "si
   | Now | 8.26 ms | 18.15 ms |
 
   The machine is slower than at 2.3, so these figures aren't comparable with the earlier ones.
+
+### Spec decisions after task 4.2
+
+The user accepted both recommendations, and the delta specs are updated:
+
+- **Sample-rate level (`sample-rate-independence`).** The Pipe C4 scenario now compares mean power over velocities 40/70/100/127 × 32 note seeds, still within 1.5 dB.
+  - With 8 seeds, HeavyGrinding's mean scattered by up to 2.7 dB.
+  - With 64 seeds, every velocity was within 1.1 dB.
+  - The test passes for all 16 exciters.
+- **Excess drive (`exciter-drive`).** The scenario compares the note's peak at ×4 drive with its peak at default drive (within 3 dB), not its RMS, and still requires ≤ ±1.0 before the clamp. It passes for all 16 exciters.

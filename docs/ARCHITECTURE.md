@@ -194,15 +194,18 @@ two-pole resonator, run in coupled (complex one-pole) form:
 
 ```text
 z[n] = p·z[n-1] + g·x[n],   y[n] = Im z[n]
-p = r·e^{iω},   g = b0·(cot ω + i)
+p = r·e^{iω},   g = b0·(sin ω / ω)·(cot ω + i)
 ω = 2π·f / sample_rate
 r = exp(−1 / (decay_seconds · sample_rate))
 b0 = gain · (48 000 / sample_rate)²
 ```
 
-Its impulse response, `b0·rⁿ·sin(ω(n+1)) / sin ω`, is the direct-form biquad's
-(`ResonatorCoefficients`: `a1 = −2r·cos ω`, `a2 = r²`). The coupled form is
-used for two reasons:
+Its impulse response, `(b0/ω)·rⁿ·sin(ω(n+1))`, has the direct-form biquad's
+poles (`ResonatorCoefficients`: `a1 = −2r·cos ω`, `a2 = r²`). The ring
+amplitude is `b0/ω`, the continuous oscillator's, rather than the discrete
+`b0/sin ω`, so a mode's level doesn't depend on the rate and doesn't blow up
+next to Nyquist (`resolve-exciter-tradeoffs`). The coupled form is used for
+two reasons:
 - Retuning a mode (sheet warp, cable drop, pitch bend) rotates its state
   without changing its magnitude, so it can't pump energy in. In direct form
   the sheet warp diverged.
@@ -216,15 +219,18 @@ discretized force term scales with `dt²`. Without it, a force lasting a fixed
 time rang the mode at a level ∝ fs² (+12 dB at 96 kHz). At 48 kHz the factor
 is exactly 1. `decay_seconds` is a 1/e time constant (T60 ≈ 6.9·τ).
 
-Modes at or above `min(20 kHz, 0.45·fs)` (`MODE_CEILING_HZ`) get no input.
-A mode's gain grows as `1 / sin ω`, so modes next to Nyquist blew up through
-contact feedback, and above it they only alias.
+**Top of the band.** A mode's output is weighted by `band_fade`: 1 below
+0.9·top, 0 at or above the top, raised-cosine in between, where the top is
+`min(20 kHz, 0.45·fs)` (18–20 kHz at 44.1 kHz and above). It is evaluated
+from the mode's current frequency, so a mode retuned across it fades instead
+of switching on or off. (It replaced a hard cut at the top, which clicked on
+retune and hid the contact runaway that implicit contact now fixes.)
 
 **Bank normalization.** At note-on, after the material transforms, every bank
 is scaled to one strike level (`STRIKE_LEVEL_REF`, the default Pipe C4
 patch's), whatever the object, pitch, quality mode, damage or character
 settings. Relative mode gains, and so the timbre, are kept.
-- The level is estimated as `‖A‖_1.3`, with `A_i = |w_i · b0_i / sin ω_i|`:
+- The level is estimated as `‖A‖_1.3`, with `A_i = |w_i · fade_i · b0_i / ω_i|`:
   mode i's ring amplitude under a one-sample impulse, weighted by the
   strike-position coefficient `w_i` that `process_sample` applies.
 - The p = 1.3 norm sits between the incoherent (p = 2) and the coherent (p = 1)
@@ -282,40 +288,85 @@ The per-exciter DSP models implement the formulas in
 `docs/detailed-specs/exciter-algorithms.md` (Kelvin–Voigt, Hertzian contact,
 micro-bouncing, Poisson impulse clusters, Stribeck friction, etc.).
 
-### Drive trims
+### Drive levels and the drive governor
 
-Each exciter's force is scaled by a fixed trim (`EXCITER_DRIVE_TRIM` in
-`voice/mod.rs`), so a default-control note at full velocity stays under full
-scale before the voice clamp, on every object from C2 to C6. The trims were
-measured with `print_exciter_overdrive`, and `default_notes_do_not_overdrive_the_voice`
-checks the struck, bowed and jet cases.
+Each exciter's force is scaled by a drive level (`EXCITER_DRIVE_LEVEL` in
+`voice/mod.rs`), set so its median note over every object at C2/C4/C6
+(velocity 127, default controls) peaks at about 0.35 before the voice clamp.
+`print_exciter_overdrive` measures the medians and suggests the levels, and
+`exciters_play_at_a_common_level` keeps every median within 6 dB of the
+others. Louder notes are handled per voice by the drive governor, instead of
+turning an exciter down everywhere (`resolve-exciter-tradeoffs`).
 
-The trims leave continuous exciters (bow, scrapes, jet, hum) much quieter than
-before, when they were mostly hard-clipped inside the voice. HeavyGrinding's
-median note sits about 19 dB under the struck exciters: its steady,
-low-frequency force moves a low bank (IndustrialCog C2) about 40× more than
-its median note, and one fixed trim must keep that note under full scale.
+The governor scales the exciter force (never the output), so a note stays
+clean:
+
+- **Ring bound.** The resonator tracks `B = Σ w_i·|z_i|`, with
+  `w_i = fade_i·(1 + boost·|H_hp(ω_i)|)`, where `H_hp` is the voice's
+  brightness high-pass. With no more force, no later sample (either stereo
+  channel) can exceed `B`, so it is known on the strike sample itself, before
+  the output peaks. It also tracks `per_force`, how much one unit of force can
+  raise `B`. `B` is summed exactly on every 8th tracked sample; in between it
+  grows by `per_force·|f|`.
+- **Smooth gain.** A follower on `B` (1 ms attack, 200 ms release) gives a
+  gain of `(0.7 / level)^8` above 0.7. The gain depends only on the current
+  level, so a long ring can't wind it down.
+- **Ceiling.** Each sample's force is capped so that `B` stays under 0.9.
+  Contact exciters see the same cap in their prediction
+  (`ContactPrediction::limit`).
+
+`default_notes_do_not_overdrive_the_voice` checks all 16 exciters, and
+`excess_drive_is_reduced_not_clipped` drives each exciter's loudest note 12 dB
+over: its peak stays under 1.0 and within 3 dB of the default-drive peak.
 
 ### Implicit contact
 
-HardMallet and HeavyGrinding solve their contact together with the resonator's
-response to this sample's force, instead of reacting to the previous sample:
+Every exciter whose force depends on the resonator's position solves its
+contact together with the resonator's response to this sample's force,
+instead of reacting to the previous sample: HandStrike, FeltMallet,
+HardMallet, Drumstick, MetalPipe, MetalChain, HeavyGrinding, ParticleRain and
+TensionSnap.
 - `ModalResonator::contact_prediction` gives this sample's contact
   displacement as `free + compliance·F`;
 - `dsp::utils::contact::solve_force` finds the force that satisfies the
   contact law.
 
-With the one-sample lag gone, neither can run away at any drive (tested at 16×
-default). The voice scales the compliance by everything it multiplies the
-force by (envelope, trim), so the exciter sees its force's real effect.
+The voice scales the compliance by everything it multiplies the force by
+(envelope, drive level, governor gain) and passes the governor's force cap,
+so the exciter sees its force's real effect. `contact_is_stable_without_the_governor`
+plays every exciter 12 dB over its drive with the governor off.
 
-- **HardMallet** pushes only while in contact, with a Hunt–Crossley force
-  `k·d^1.5·(1 + λ·v_rel)`, then rebounds and leaves.
-- **HeavyGrinding** uses a smooth `tanh` friction curve. Its tearing noise
-  follows the grinder's own speed, not the slip, so the resonator's motion
-  can't feed it.
+- **Strikes come to rest.** HardMallet leaves after its rebound, and
+  Drumstick goes inactive at its bounce limit or below its rest velocity.
+- **Length units.** A position-driven exciter can't push the surface further
+  than its own travel. HandStrike, MetalPipe and ParticleRain see the
+  resonator in their own units (`ContactPrediction::in_units`; `HAND_SCALE`,
+  `PIPE_SCALE`, `RAIN_SCALE`), so at their drive levels their contact stays
+  force-limited and their output follows the drive.
+- Bow, StiffPoint, CorrugatedDrag, TensionRise and PneumaticJet read the
+  resonator's velocity explicitly: their friction and flow laws aren't
+  monotone, which the solver needs, and none of them runs away.
 
-`resolve-exciter-tradeoffs` extends this to the other contact exciters.
+### Noise
+
+Every random source uses `dsp::utils::noise::Noise`, a xorshift32 generator
+that is white and uniform in [−1, 1). The voice reseeds each consumer at
+note-on from `note_seed(note, velocity, start_frame)`, salted per consumer.
+Per-sample noise forces go through `rate::white_noise`. Random event
+parameters (impulse times, link drops, TensionRise's break threshold) are
+drawn once per event, so their statistics don't depend on the rate.
+
+### Sub-sample events
+
+Short events land between samples at their true time: a `rate::EventSplitter`
+puts `early·A` of an event's area on this sample and the rest on the next.
+The event's area and centre of mass then match continuous time (one sample
+late). This covers WireBrush impulses, MetalChain impacts (the links follow
+their exact fall), TensionSnap and TensionRise spikes, and ParticleRain
+spawns (aged by their fraction of the sample). HandStrike scales its landing
+sample by the part of the step it was still in contact, and takes its force
+at mid-step. The Hit envelope's attack is sampled at sample centres.
+`dsp::exciters::event_timing_tests` checks each at 44.1, 48 and 96 kHz.
 
 ### Sample-rate rule
 
@@ -333,27 +384,18 @@ body are **48 kHz references**. Each is converted to the host rate through
 | one-sample force spike | amplitude `/ ratio`, so it keeps its area (`rate::impulse`) |
 | per-sample white noise | amplitude `/ √ratio` (`rate::white_noise`) |
 
-Every conversion is exactly the identity at 48 kHz, so 48 kHz output is
-bit-identical to the unconverted code. Exciters cache their converted
+Every conversion is exactly the identity at 48 kHz. Exciters cache their converted
 constants in `set_sample_rate`, which the voice calls when the rate changes.
 The resonator reports velocity in 48 kHz-sample units, which is what the
 exciters' contact laws assume. New per-sample code should follow the same
 rule.
 
-Levels match 48 kHz within 1.5 dB at 44.1 and 96 kHz, except where sample-grid
-rounding or chaotic contact dominates, which needs sub-sample timing to fix.
-The voice test `every_exciter_has_the_same_level_at_any_sample_rate` widens
-the tolerance for these exciters:
-
-- HandStrike, 3 dB: a ~0.1 ms strike on the envelope's attack ramp;
-- Drumstick, 3 dB: chatter after its bounce limit;
-- WireBrush, 2.5 dB: impulse times rounded to the grid;
-- MetalChain, 3 dB: near-silent rattle and hash noise;
-- TensionRise, 3 dB: clipped stick-slip;
-- ParticleRain, 8 dB: its grid-rounded spawn train aliases onto the modes.
-
-The measurements behind each are in the archived `fix-sample-rate-time-constants`
-design ("Implementation findings").
+Levels match 48 kHz within 1.5 dB at 44.1 and 96 kHz for every exciter, with
+no exceptions (`every_exciter_has_the_same_level_at_any_sample_rate`). The test
+compares the expected level, mean power over four velocities and 32 note
+seeds each: a noise-driven exciter's single note varies by several dB from its
+seed alone. Struck attacks peak within 10 % of the 48 kHz time over the whole
+note.
 
 ---
 

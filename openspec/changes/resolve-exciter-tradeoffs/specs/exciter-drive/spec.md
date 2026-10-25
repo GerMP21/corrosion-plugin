@@ -18,7 +18,9 @@ A voice SHALL keep its signal within full scale before its safety clamp, whateve
 
 #### Scenario: Excess drive is reduced, not clipped
 - **WHEN** an exciter's drive is set 12 dB above its default on the object and note where it is loudest
-- **THEN** the voice's signal before its clamp still never exceeds ±1.0, and the note's level is within 3 dB of the same note at default drive
+- **THEN** the voice's signal before its clamp still never exceeds ±1.0, and the note's peak level is within 3 dB of the same note's peak at default drive
+
+  (The peak, not the RMS: a governor that acts above a threshold can only pull a driven note down to about that threshold, and capping a strike's force lengthens its contact, so a note quieter than the threshold at default drive ends up louder on average while its peak stays bounded.)
 
 ### Requirement: Contact stays stable at any drive
 An exciter whose force depends on the resonator's position or motion SHALL NOT diverge, whatever the drive.

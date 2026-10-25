@@ -59,8 +59,8 @@ The factory presets are placeholders, to be replaced by real ones. Their levels 
 
 **Loudness.**
 - Every object's mode bank is normalized at note-on to one strike level, so objects, registers (C2–C6), quality modes and damage settings land within a few dB of each other.
-- Each exciter has a fixed drive trim, so no default-control note overdrives the voice before its safety clamp.
-- Continuously driven exciters (bow, scrapes, jet, hum) are therefore much quieter than struck ones, and no longer hard-clip.
+- Each exciter has a drive level that puts its typical note at one common level, so struck, bowed, scraped and blown exciters play about equally loud.
+- A per-voice drive governor turns the exciter's force down when a note would near full scale, so no note overdrives the voice and none is clipped, whatever the drive.
 
 ## Repository Layout
 

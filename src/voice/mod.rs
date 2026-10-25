@@ -2384,19 +2384,70 @@ mod tests {
         println!("{}", rows.join("\n"));
     }
 
-    #[test]
-    fn every_exciter_has_the_same_level_at_any_sample_rate() {
-        let mut failures = Vec::new();
-        for exciter in 1..=16 {
-            let reference = rms(&render_pipe_note(exciter, 48_000, 1.0, 1.0));
-            for sample_rate in [44_100, 96_000] {
-                let level = rms(&render_pipe_note(exciter, sample_rate, 1.0, 1.0));
-                let diff = 20.0 * (level / reference).log10();
-                if diff.abs() > 1.5 || !diff.is_finite() {
-                    failures.push(format!("exciter {exciter} @ {sample_rate}: {diff:+.2} dB"));
-                }
+    /// Mean power of Pipe C4 with `exciter` at `sample_rate`, over
+    /// velocities 40/70/100/127 and 32 note seeds each: one second held,
+    /// one released. (8 seeds left HeavyGrinding's mean scattered by up to
+    /// 2.7 dB; 64 put every velocity within 1.1 dB.)
+    fn expected_pipe_power(exciter: i32, sample_rate: u32) -> f64 {
+        let mut total = 0.0f64;
+        for velocity in [40.0f32, 70.0, 100.0, 127.0] {
+            for seed in 0..32u64 {
+                let mut voice = Voice::new();
+                voice.note_on(
+                    60,
+                    velocity,
+                    crate::dsp::ModalProfileId::Pipe,
+                    seed * 7919,
+                    1.0,
+                    0.0,
+                    0.0,
+                    exciter,
+                );
+                let held = sample_rate as usize;
+                let out: Vec<f32> = (0..2 * held)
+                    .map(|i| {
+                        if i == held {
+                            voice.note_off();
+                        }
+                        voice.process_sample(sample_rate)
+                    })
+                    .collect();
+                total += (rms(&out) as f64).powi(2);
             }
         }
+        total / 128.0
+    }
+
+    #[test]
+    fn every_exciter_has_the_same_level_at_any_sample_rate() {
+        // The expected level, averaged over seeds and velocities: a single
+        // note can't resolve 1.5 dB for a noise-driven exciter (its level
+        // varies by several dB from the seed alone), and Bow's stick-slip
+        // locks into a different regime at velocity 100 on 44.1 kHz only
+        // (`resolve-exciter-tradeoffs` findings).
+        let failures: Vec<String> = std::thread::scope(|scope| {
+            let handles: Vec<_> = (1..=16)
+                .map(|exciter| {
+                    scope.spawn(move || {
+                        let reference = expected_pipe_power(exciter, 48_000);
+                        [44_100, 96_000]
+                            .into_iter()
+                            .filter_map(|sample_rate| {
+                                let power = expected_pipe_power(exciter, sample_rate);
+                                let diff = 10.0 * (power / reference).log10();
+                                (diff.abs() > 1.5 || !diff.is_finite()).then(|| {
+                                    format!("exciter {exciter} @ {sample_rate}: {diff:+.2} dB")
+                                })
+                            })
+                            .collect::<Vec<_>>()
+                    })
+                })
+                .collect();
+            handles
+                .into_iter()
+                .flat_map(|h| h.join().unwrap())
+                .collect()
+        });
         assert!(
             failures.is_empty(),
             "level differs from 48 kHz:\n{}",
@@ -2646,12 +2697,16 @@ mod tests {
                 .max_by(|a, b| a.1.total_cmp(b.1))
                 .unwrap();
             let (profile, note) = (ALL_PROFILES[loudest / 3], [36u8, 60, 84][loudest % 3]);
-            let (_, default_rms) = note_at_drive(profile, exciter as i32, note, 1.0);
-            let (peak, rms) = note_at_drive(profile, exciter as i32, note, 4.0);
-            let diff = 20.0 * (rms / default_rms).log10();
+            // Judged on the peak: a governor acting above a threshold can
+            // only pull a driven note down to about that threshold, so a
+            // note quieter than it at default drive ends up louder on
+            // average while its peak stays bounded (`resolve-exciter-tradeoffs`).
+            let (default_peak, _) = note_at_drive(profile, exciter as i32, note, 1.0);
+            let (peak, _) = note_at_drive(profile, exciter as i32, note, 4.0);
+            let diff = 20.0 * (peak / default_peak).log10();
             if peak > 1.0 || !peak.is_finite() || diff.abs() > 3.0 || !diff.is_finite() {
                 failures.push(format!(
-                    "exciter {exciter} {}: peak {peak:.2}, level {diff:+.1} dB vs default drive",
+                    "exciter {exciter} {}: peak {peak:.2}, {diff:+.1} dB vs default drive",
                     sweep_note_name(loudest)
                 ));
             }
