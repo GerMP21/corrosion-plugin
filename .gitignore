@@ -225,3 +225,6 @@ output/*.tmp
 .sisyphus/evidence/*.tmp
 __pycache__/
 *.pyc
+
+# Alternate cargo target dirs (toolchain or profile side builds)
+/target-*/
