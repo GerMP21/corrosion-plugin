@@ -10,7 +10,7 @@ pub use basic::{ChainResonator, PipeResonator, PlateResonator, ResonatorAlgorith
 pub use coil_spring::CoilSpringResonator;
 pub use core::{
     CharacterParams, ContactPrediction, ModalResonator, ResonatorCoefficients, ResonatorCore,
-    SecondOrderMode,
+    RingBound, SecondOrderMode,
 };
 pub use ibeam::IBeamResonator;
 pub use industrial_cog::IndustrialCogResonator;

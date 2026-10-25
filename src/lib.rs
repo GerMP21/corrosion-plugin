@@ -1302,11 +1302,14 @@ mod tests {
         }
 
         eprintln!("hosted normalized note peak={peak:.6}");
-        // C5 level guard: within ±6 dB of the 0.118 reference measured when
-        // the default BODY (2.62) was chosen to keep the pre-C5 level.
+        // Level guard: within ±6 dB of the 0.452 reference. It was 0.118
+        // (measured when the default BODY, 2.62, was chosen to keep the
+        // pre-C5 level); `resolve-exciter-tradeoffs` sets every exciter's
+        // drive for a common level instead of its worst note, which raised
+        // the default patch about 12 dB.
         assert!(
-            (0.059..=0.236).contains(&peak),
-            "default note peak {peak} is more than 6 dB from 0.118"
+            (0.226..=0.902).contains(&peak),
+            "default note peak {peak} is more than 6 dB from 0.452"
         );
     }
 

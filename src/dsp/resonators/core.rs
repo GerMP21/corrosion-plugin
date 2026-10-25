@@ -177,6 +177,20 @@ fn band_fade(frequency_hz: f32, sample_rate: f32) -> f32 {
     }
 }
 
+/// The voice's brightness high-pass, `s ← a·s + (1 − a)·x`, `hp = x − s`,
+/// with `a` this pole at 48 kHz (`crate::voice`). The ring bound weights each
+/// mode by its response, since the voice adds the high-passed signal to the
+/// output before its clamp.
+pub(crate) const OUTPUT_HIGHPASS_POLE: f32 = 0.8;
+
+/// `|H(e^{jω})| = 2a·|sin(ω/2)| / |1 − a·e^{−jω}|` of the voice's high-pass.
+fn highpass_response(omega: f64, sample_rate: u32) -> f32 {
+    let ratio = crate::dsp::utils::rate::ratio(sample_rate.max(1) as f32);
+    let a = crate::dsp::utils::rate::decay(OUTPUT_HIGHPASS_POLE, ratio) as f64;
+    let denominator = (1.0 - 2.0 * a * omega.cos() + a * a).max(1e-12).sqrt();
+    (2.0 * a * (0.5 * omega).sin().abs() / denominator) as f32
+}
+
 /// Coefficients of one mode in coupled (complex one-pole) form:
 /// `z[n] = p·z[n−1] + g·x[n]`, output `fade·Im z[n]`, with `p = r·e^{iω}`
 /// and `g = b0·(sin ω / ω)·(cot ω + i)`.
@@ -202,6 +216,11 @@ struct CoupledCoefficients {
     gain_im: f32,
     /// Output weight at the top of the band (`band_fade`).
     fade: f32,
+    /// `|g|`, how far one unit of force moves the mode's state.
+    gain_norm: f32,
+    /// `|H(ω)|` of the voice's brightness high-pass at this mode's
+    /// frequency (`OUTPUT_HIGHPASS_POLE`), for the ring bound.
+    highpass_response: f32,
 }
 
 impl CoupledCoefficients {
@@ -221,6 +240,8 @@ impl CoupledCoefficients {
             gain_re: (scale * cos) as f32,
             gain_im: (scale * sin) as f32,
             fade: band_fade(mode.frequency_hz, fs as f32),
+            gain_norm: scale.abs() as f32,
+            highpass_response: highpass_response(omega, sample_rate),
         }
     }
 }
@@ -315,7 +336,7 @@ impl SecondOrderMode {
 
 /// This sample's contact displacement as a function of this sample's force;
 /// see `ModalResonator::contact_prediction`.
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct ContactPrediction {
     /// Displacement with no force this sample.
     pub free: f32,
@@ -326,6 +347,11 @@ pub struct ContactPrediction {
     /// `fs / 48 kHz`: converts a per-sample displacement change into the
     /// 48 kHz-sample velocity units the exciters use.
     pub velocity_scale: f32,
+    /// The most force (either sign) that will actually reach the resonator
+    /// this sample: the voice's drive governor caps it (`f32::INFINITY` when
+    /// nothing does). The prediction saturates there, so a contact solve
+    /// sees the force that is really applied (`resolve-exciter-tradeoffs`).
+    pub limit: f32,
 }
 
 impl ContactPrediction {
@@ -334,6 +360,29 @@ impl ContactPrediction {
     pub fn scaled(self, scale: f32) -> Self {
         Self {
             compliance: self.compliance * scale,
+            limit: self.limit / scale.abs(),
+            ..self
+        }
+    }
+
+    /// The prediction in an exciter's own length units, `scale` resonator
+    /// displacement units each: an exciter that moves through larger
+    /// distances meets the same surface it met at a lower drive
+    /// (`resolve-exciter-tradeoffs`).
+    pub fn in_units(self, scale: f32) -> Self {
+        Self {
+            free: self.free / scale,
+            compliance: self.compliance / scale,
+            previous: self.previous / scale,
+            ..self
+        }
+    }
+
+    /// The prediction with the force capped at `limit` (in the units the
+    /// exciter sees, after `scaled`).
+    pub fn limited(self, limit: f32) -> Self {
+        Self {
+            limit: self.limit.min(limit),
             ..self
         }
     }
@@ -341,7 +390,7 @@ impl ContactPrediction {
     /// Contact displacement if the exciter applies `force` this sample.
     #[inline]
     pub fn displacement(&self, force: f32) -> f32 {
-        self.free + self.compliance * force
+        self.free + self.compliance * force.clamp(-self.limit, self.limit)
     }
 
     /// Contact velocity (48 kHz-sample units) if the exciter applies `force`.
@@ -350,6 +399,39 @@ impl ContactPrediction {
         (self.displacement(force) - self.previous) * self.velocity_scale
     }
 }
+
+/// A bound on the voice's signal before its clamp, from the modes' ring
+/// amplitudes (`resolve-exciter-tradeoffs`, drive governor).
+///
+/// Each mode rings at `|z_i|` and reaches the output through its band fade
+/// and the voice's brightness boost, so no later sample (without more force)
+/// can exceed `level = Σ w_i·|z_i|`, `w_i = fade_i·(1 + boost·|H(ω_i)|)`.
+/// That holds for each stereo channel too: a mode's pan gain is at most 1.
+/// `per_force` is how much one unit of force can raise it, `Σ w_i·|g_i|·|b_i|`
+/// (`b_i` the strike-position blend, negative past a node). Measured over the 27-note sweep, the
+/// bound is 1.0–1.5× the actual peak for most notes and at most about 3×.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct RingBound {
+    /// The bound after the last processed sample.
+    pub level: f32,
+    /// Its rise per unit of force.
+    pub per_force: f32,
+}
+
+#[derive(Clone, Copy, Debug, Default)]
+struct RingTracking {
+    enabled: bool,
+    boost: f32,
+    bound: RingBound,
+    /// Samples until the bound is next summed over the modes; in between it
+    /// grows by `per_force·|force|`, still an upper bound (the modes only
+    /// decay), so the square root per mode runs on one sample in
+    /// `RING_EXACT_INTERVAL`.
+    countdown: u32,
+}
+
+/// See `RingTracking::countdown`.
+const RING_EXACT_INTERVAL: u32 = 8;
 
 #[derive(Clone, Debug)]
 /// Modal resonator assembled from a profile and control transforms.
@@ -385,6 +467,8 @@ pub struct ModalResonator {
     /// (strike-position update and dynamic retune), so `process_sample`
     /// must not run it again.
     prepared: bool,
+    /// Ring-bound tracking for the voice's drive governor (`RingBound`).
+    ring: RingTracking,
     /// Note-on scratch for raw generator output. Keeps `MAX_MODES` capacity
     /// so `rebuild_in_place` never allocates.
     raw_specs: Vec<crate::dsp::ModalModeSpec>,
@@ -480,6 +564,7 @@ impl ModalResonator {
             dyn_rate: (48_000, 0.99, 0.95),
             pitch_bend_factor: 1.0,
             prepared: false,
+            ring: RingTracking::default(),
             raw_specs: Vec::with_capacity(MAX_MODES),
             transformed_specs: Vec::with_capacity(MAX_MODES),
         }
@@ -676,6 +761,7 @@ impl ModalResonator {
             dyn_rate: (48_000, 0.99, 0.95),
             pitch_bend_factor: 1.0,
             prepared: false,
+            ring: RingTracking::default(),
             raw_specs: Vec::with_capacity(MAX_MODES),
             transformed_specs: Vec::with_capacity(MAX_MODES),
         }
@@ -881,6 +967,8 @@ impl ModalResonator {
         self.heat_amount = crate::dsp::HeatAmount::default();
         self.sludge_amount = crate::dsp::SludgeAmount::default();
         self.interaction_bus.reset(self.modes.len());
+        // The modes start at rest.
+        self.ring = RingTracking::default();
         self.normalize_strike_level();
         self.dynamics = dynamics;
         self.dyn_amplitude = 0.0;
@@ -937,6 +1025,8 @@ impl ModalResonator {
         self.dyn_amplitude = 0.0;
         self.dyn_lf_displacement = 0.0;
         self.interaction_bus.reset(self.modes.len());
+        // The modes start at rest.
+        self.ring = RingTracking::default();
     }
 
     /// Apply live damping/brightness updates to every mode.
@@ -1035,7 +1125,52 @@ impl ModalResonator {
             compliance,
             previous: self.interaction_bus.state.resonator_displacement,
             velocity_scale: sample_rate as f32 / REFERENCE_SAMPLE_RATE,
+            limit: f32::INFINITY,
         }
+    }
+
+    /// Track the ring bound in `process_sample` (only while the voice's
+    /// governor needs it, since it costs a square root per mode), with the
+    /// voice's brightness boost amount. A stale bound only overestimates:
+    /// without force the modes only decay. Allocation-free.
+    pub fn set_ring_tracking(&mut self, enabled: bool, boost: f32) {
+        self.ring.enabled = enabled;
+        self.ring.boost = boost;
+    }
+
+    /// The ring bound after the last tracked sample. Before the first one
+    /// (a fresh note, or tracking just switched on) it is computed from the
+    /// current state, so the first sample's force is bounded too.
+    /// Allocation-free.
+    pub fn ring_bound(&mut self, sample_rate: u32) -> RingBound {
+        if self.ring.bound.per_force == 0.0 && !self.modes.is_empty() {
+            if !self.prepared {
+                self.prepare_sample(sample_rate);
+                self.prepared = true;
+            }
+            let coupling = self
+                .interaction_bus
+                .state
+                .coupling_stiffness
+                .clamp(0.0, 1.0);
+            let boost = self.ring.boost;
+            let (mut level, mut per_force) = (0.0f32, 0.0f32);
+            for (index, mode) in self.modes.iter_mut().enumerate() {
+                mode.ensure_rate(sample_rate);
+                let coeff = self
+                    .interaction_bus
+                    .mode_coefficients
+                    .get(index)
+                    .copied()
+                    .unwrap_or(1.0);
+                let c = &mode.coefficients;
+                let w = c.fade * (1.0 + boost * c.highpass_response);
+                level += w * (mode.z_re * mode.z_re + mode.z_im * mode.z_im).sqrt();
+                per_force += w * c.gain_norm * ((1.0 - coupling) + coeff * coupling).abs();
+            }
+            self.ring.bound = RingBound { level, per_force };
+        }
+        self.ring.bound
     }
 
     /// Apply the object's per-sample dynamic pitch behavior, recomputing the
@@ -1140,6 +1275,10 @@ impl ResonatorCore for ModalResonator {
             .coupling_stiffness
             .clamp(0.0, 1.0);
         self.interaction_bus.state.set_exciter_force(excitation);
+        let track_any = self.ring.enabled;
+        let track = track_any && self.ring.countdown == 0;
+        let boost = self.ring.boost;
+        let (mut level, mut per_force) = (0.0f32, 0.0f32);
 
         let mut mode_sum = 0.0f32;
         let mut interaction_displacement = 0.0f32;
@@ -1156,6 +1295,12 @@ impl ResonatorCore for ModalResonator {
             let weighted_force = excitation * coeff;
             let blended_force = excitation * (1.0 - coupling) + weighted_force * coupling;
             let mode_output = mode.process(blended_force, sample_rate);
+            if track {
+                let c = &mode.coefficients;
+                let w = c.fade * (1.0 + boost * c.highpass_response);
+                level += w * (mode.z_re * mode.z_re + mode.z_im * mode.z_im).sqrt();
+                per_force += w * c.gain_norm * ((1.0 - coupling) + coeff * coupling).abs();
+            }
             mode_sum += mode_output;
             interaction_displacement += mode_output * coeff;
             if dynamic {
@@ -1166,6 +1311,13 @@ impl ResonatorCore for ModalResonator {
             }
         }
 
+        if track {
+            self.ring.bound = RingBound { level, per_force };
+            self.ring.countdown = RING_EXACT_INTERVAL - 1;
+        } else if track_any {
+            self.ring.bound.level += self.ring.bound.per_force * excitation.abs();
+            self.ring.countdown -= 1;
+        }
         if dynamic {
             self.track_dynamic_state(amp_sum, lf_sum, sample_rate);
         }
@@ -1212,6 +1364,10 @@ impl ResonatorCore for ModalResonator {
             .coupling_stiffness
             .clamp(0.0, 1.0);
         self.interaction_bus.state.set_exciter_force(excitation);
+        let track_any = self.ring.enabled;
+        let track = track_any && self.ring.countdown == 0;
+        let boost = self.ring.boost;
+        let (mut level, mut per_force) = (0.0f32, 0.0f32);
 
         let mut left_sum = 0.0f32;
         let mut right_sum = 0.0f32;
@@ -1229,6 +1385,12 @@ impl ResonatorCore for ModalResonator {
             let weighted_force = excitation * coeff;
             let blended_force = excitation * (1.0 - coupling) + weighted_force * coupling;
             let sample = mode.process(blended_force, sample_rate);
+            if track {
+                let c = &mode.coefficients;
+                let w = c.fade * (1.0 + boost * c.highpass_response);
+                level += w * (mode.z_re * mode.z_re + mode.z_im * mode.z_im).sqrt();
+                per_force += w * c.gain_norm * ((1.0 - coupling) + coeff * coupling).abs();
+            }
             let mode_position = index as f32 / mode_count.max(1) as f32;
             let pan_spread = width * mode_position;
             let pan_direction = if index.is_multiple_of(2) { 1.0 } else { -1.0 };
@@ -1247,6 +1409,13 @@ impl ResonatorCore for ModalResonator {
             }
         }
 
+        if track {
+            self.ring.bound = RingBound { level, per_force };
+            self.ring.countdown = RING_EXACT_INTERVAL - 1;
+        } else if track_any {
+            self.ring.bound.level += self.ring.bound.per_force * excitation.abs();
+            self.ring.countdown -= 1;
+        }
         if dynamic {
             self.track_dynamic_state(amp_sum, lf_sum, sample_rate);
         }
@@ -1755,6 +1924,25 @@ mod tests {
         bank.interaction_bus.reset(1);
         bank.set_interaction_params(0.5, 0.0, 0.0, 0.0, 0.0, 48_000.0);
         bank
+    }
+
+    #[test]
+    fn ring_bound_rises_by_at_most_per_force() {
+        // The voice's drive governor relies on `per_force` bounding how far
+        // one sample's force can raise the ring bound.
+        for profile in PROFILES {
+            let mut bank = note_on_bank(profile, 1.0, 0.0);
+            bank.set_ring_tracking(true, 1.5);
+            for force in [1.0f32, -0.5, 0.25, 0.0, 2.0] {
+                let before = bank.ring_bound(48_000);
+                bank.process_sample(force, 48_000);
+                let after = bank.ring_bound(48_000);
+                assert!(
+                    after.level <= before.level + before.per_force * force.abs() + 1e-5,
+                    "{profile:?}: {before:?} + {force} -> {after:?}"
+                );
+            }
+        }
     }
 
     #[test]

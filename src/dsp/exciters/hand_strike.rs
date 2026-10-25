@@ -7,6 +7,14 @@
 use crate::dsp::utils::{contact, rate};
 use crate::dsp::ContactPrediction;
 
+/// How many resonator displacement units one unit of the hand's travel
+/// spans. The hand's drive level (`crate::voice`) multiplies its force, and
+/// with it how far the resonator yields to it; seen through this scale, the
+/// hand meets the surface it met at a drive of 1, so its strike keeps the
+/// shape it had there instead of collapsing into a displacement-limited
+/// sample or two (`resolve-exciter-tradeoffs`).
+pub const HAND_SCALE: f32 = 55.4;
+
 /// Fleshy impact with strong damping and a simple release state.
 #[derive(Clone, Debug)]
 pub struct HandStrike {
@@ -84,6 +92,7 @@ impl HandStrike {
         if !self.active {
             return 0.0;
         }
+        let resonator = resonator.in_units(HAND_SCALE);
 
         // Kelvin–Voigt contact, solved against this sample's resonator
         // response (`resolve-exciter-tradeoffs`).

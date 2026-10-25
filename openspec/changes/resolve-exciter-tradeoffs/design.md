@@ -212,3 +212,90 @@ The per-exciter tolerances, the drumstick's 20 ms timing window and the 1e-3 "si
   | ParticleRain | — | +1.63 |
 
   "—" means the rate passes. MetalChain now passes. HeavyGrinding's worst pre-clamp peak is 5.2, so its output clamp distorts the comparison. All of these are re-measured in 4.2.
+
+### Drive governor and levels (tasks 4.1–4.2)
+
+- **Governor (4.1), with three deviations from Decision 1:**
+  - **It follows a prediction, not the output.** A follower on the pre-clamp output can't catch a strike: the force pulse (0.1–2 ms) is over before the output peaks (about 4 ms later at C2).
+    - The resonator tracks a ring bound `B = Σ w_i·|z_i|`, with `w_i = fade_i·(1 + boost·|H_hp(ω_i)|)`, where `H_hp` is the voice's brightness high-pass.
+    - It also tracks `per_force = Σ w_i·|g_i|·|b_i|`.
+    - Without more force, no later sample can exceed `B`. Over the sweep it was 1.0–1.5× the actual peak for most notes, and at most about 3×.
+    - `ring_bound_rises_by_at_most_per_force` checks the bound on every object. It caught a first version that summed the signed strike-position blends.
+  - **A per-sample ceiling.** Each sample's force is capped so that `B + per_force·|f| ≤ 0.9`. Contact exciters see the cap in their prediction (`ContactPrediction::limit`), so their solve uses the force really applied.
+    - 0.9 keeps `stabilize-mallet-and-grinding-contact`'s HardMallet/HeavyGrinding margin, for every exciter.
+    - `B` is summed exactly on every 8th tracked sample. In between it grows by `per_force·|f|`, which is still an upper bound.
+  - **The gain law is `(0.7/env)^8`, not `0.7/env`.**
+    - `env` follows `B` (1 ms attack, 200 ms release, through `rate::smoother`).
+    - With `0.7/env`, a note driven `x` times over settles at `√(0.7·x)` of the threshold.
+    - Dividing the bound by the gain to follow the ungoverned level wound down to −60 dB, because a long ring keeps `B` up after the force drops.
+    - With order 8, 12 dB over settles about 1.3 dB above the threshold.
+  - The test-only off switch is `governor_enabled`. `no_alloc` passes in debug.
+- **Exciter fixes found while levelling (4.2).** Raising quiet exciters to a common level exposed faults that a low drive had hidden:
+  - **Displacement-limited contacts.** HandStrike, MetalPipe and ParticleRain:
+    - With the contact solved implicitly, an exciter can't push the surface further than its own travel. At the drive needed for 0.35, their output stopped following the drive, and their level followed the sample grid (HandStrike +8.4/−4.2 dB, MetalPipe −3.2 dB at 96 kHz, ParticleRain +2.5 dB at 96 kHz).
+    - Each now sees the resonator in its own length units (`ContactPrediction::in_units`): `HAND_SCALE` 55.4, `PIPE_SCALE` 5.06, `RAIN_SCALE` 1000. Their strikes keep the shape they had at their old, rate-matched drive, and their output scales linearly.
+  - **MetalPipe's internal ring** wasn't rate-converted. Its decay is now `rate::decay`, and its input gain is scaled by `ratio²`.
+  - **TensionRise drew its break threshold every sample**, so a faster rate broke earlier and softer (−2.0 dB at 96 kHz, averaged). It now draws once per break (Decision 4: per-event draws).
+  - **StiffPoint subtracted its damping term:** negative damping, which diverged at ×4 drive with the governor off. It is now `spring + damping`.
+  - **The MetalChain rattle is no longer rectified.** Rectified white noise has a DC part that grows with √fs.
+- **Drive levels (4.2).** `EXCITER_DRIVE_LEVEL` is set by `print_exciter_overdrive`. HandStrike, MetalPipe and TensionSnap were bracketed, since they respond non-linearly. Every exciter's median is 0.342–0.363 (target 0.35).
+
+  How often the governor engages at default drive (of 27 sweep notes), and its deepest reduction:
+
+  | Exciter | Notes | Deepest |
+  |---|---|---|
+  | Bow | 9 | −20.8 dB |
+  | HandStrike | 2 | −9.9 dB |
+  | FeltMallet | 11 | −17.5 dB |
+  | HardMallet | 9 | −17.4 dB |
+  | Drumstick | 8 | −17.5 dB |
+  | WireBrush | 0 | — |
+  | MetalPipe | 10 | −17.5 dB |
+  | MetalChain | 10 | −17.7 dB |
+  | StiffPoint | 12 | −23.1 dB |
+  | HeavyGrinding | 9 | −17.5 dB |
+  | CorrugatedDrag | 11 | −22.8 dB |
+  | TensionRise | 6 | −11.1 dB |
+  | PneumaticJet | 4 | −8.9 dB |
+  | ElectromagneticHum | 7 | −17.5 dB |
+  | TensionSnap | 2 | −17.4 dB |
+  | ParticleRain | 4 | −17.5 dB |
+
+  That is more than the "only outliers" the Risks expected: the ceiling of 0.9 is on the bound, which is above the actual peak.
+- **Passing:**
+  - `exciters_play_at_a_common_level`, `default_notes_do_not_overdrive_the_voice` (all 16), `contact_is_stable_without_the_governor`, `strikes_come_to_rest`;
+  - `struck_attack_timing_does_not_depend_on_sample_rate` with no exceptions;
+  - `mallet_and_grinder_play_at_a_struck_exciter_level`, `sixteen_simultaneous_notes_all_sound` at 0.01;
+  - `hosted_normalized_note_velocity_reaches_output_chain`. Its reference moved from 0.118 to 0.452, because the default patch is about 12 dB louder.
+- **Still failing (stopped here, per Risks):**
+  - **`every_exciter_has_the_same_level_at_any_sample_rate`** (Pipe C4, velocity 100, one note):
+
+    | Exciter | 44.1 kHz | 96 kHz |
+    |---|---|---|
+    | Bow | +1.56 | — |
+    | MetalChain | −7.91 | −1.81 |
+    | HeavyGrinding | −1.75 | −5.57 |
+    | PneumaticJet | +1.57 | +1.81 |
+
+    These aren't scaling faults:
+    - **Seed noise.** MetalChain, HeavyGrinding and PneumaticJet are noise-driven, and their 1-second level varies by −5.8…+3.9, −7.0…+6.5 and −5.5…+2.7 dB from the note seed alone at 48 kHz. Averaged over 128 seeds (`print_seed_averaged_rate_levels`), they are −0.56/−0.54, −0.30/−0.39 and +0.55/+0.40 dB, and every exciter is within ±0.56 dB at both rates, except Bow.
+    - **Bow** is deterministic. Its 44.1 kHz miss happens only at velocity 100, where it locks into a different stick-slip regime. Averaged over velocities 40–127 it is +0.20/−0.19 dB, and at 32, 40, 46, 50, 88.2, 96 and 192 kHz it is within 0.25 dB.
+  - **`excess_drive_is_reduced_not_clipped`:** every peak is ≤ 0.9, but four notes come out more than 3 dB louder than at default drive.
+
+    | Exciter | Note | Level vs default |
+    |---|---|---|
+    | Bow | IndustrialCog C2 | +4.0 dB |
+    | MetalPipe | Tank C2 | +7.2 dB |
+    | CorrugatedDrag | IndustrialCog C2 | +3.3 dB |
+    | TensionRise | SheetMetal C6 | +3.0 dB |
+
+    A governor that acts above a threshold can only pull a ×4 note down to about that threshold. When the note's level at default drive is well under it, that is more than 3 dB louder. For struck exciters, capping the force also lengthens the contact: MetalPipe Tank C2's 10–100 ms window is the same at both drives, but its 0.1–1 s tail is 7 dB louder.
+- **16-voice benchmark, same session:**
+
+  | Build | Normal | Render |
+  |---|---|---|
+  | `748d832` | 8.44 ms | 20.22 ms |
+  | Pre-governor commit | 9.05 ms | 18.06 ms |
+  | Now | 8.26 ms | 18.15 ms |
+
+  The machine is slower than at 2.3, so these figures aren't comparable with the earlier ones.

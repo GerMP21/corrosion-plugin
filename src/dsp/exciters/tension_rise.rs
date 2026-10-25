@@ -19,6 +19,10 @@ pub struct TensionRise {
     active: bool,
     /// Noise for this note (`resolve-exciter-tradeoffs`).
     noise: Noise,
+    /// This break's threshold, drawn once per break: drawing it every
+    /// sample let a faster rate meet more draws on the way up, so the line
+    /// broke earlier and softer (−2 dB at 96 kHz) (`resolve-exciter-tradeoffs`).
+    threshold: f32,
     impulse_samples: u32,
     /// Places the break spike between samples (`resolve-exciter-tradeoffs`).
     events: rate::EventSplitter,
@@ -39,6 +43,7 @@ impl TensionRise {
             tension: 0.0,
             active: false,
             noise: Noise::default(),
+            threshold: 0.5,
             impulse_samples: 0,
             events: rate::EventSplitter::default(),
             ratio: 1.0,
@@ -78,6 +83,12 @@ impl TensionRise {
         self.impulse_samples = 0;
         self.events.clear();
         self.pull_speed *= 0.5 + velocity * 0.5;
+        self.draw_threshold();
+    }
+
+    fn draw_threshold(&mut self) {
+        let random_variation = self.noise.bipolar() * self.slip_stochasticity;
+        self.threshold = self.break_threshold * (1.0 + random_variation * 0.3);
     }
 
     /// Processes one sample of tension accumulation and burst decay.
@@ -108,8 +119,7 @@ impl TensionRise {
         self.tension += v_rel * rate::step(0.001, self.ratio);
 
         // Small random variation makes the break point feel less mechanical.
-        let random_variation = self.noise.bipolar() * self.slip_stochasticity;
-        let effective_threshold = self.break_threshold * (1.0 + random_variation * 0.3);
+        let effective_threshold = self.threshold;
 
         if self.tension > effective_threshold {
             // One-sample break spike: keep its area at any rate.
@@ -122,6 +132,7 @@ impl TensionRise {
             };
             self.tension = 0.0;
             self.impulse_samples = self.burst_frames;
+            self.draw_threshold();
             return (output, early);
         }
 

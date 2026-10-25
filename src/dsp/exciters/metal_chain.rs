@@ -224,7 +224,7 @@ impl MetalChain {
                 self.generate_noise() * self.internal_rattle * 0.1,
                 self.ratio,
             );
-            total_force += self.rattle_filter.process(grind_noise).max(0.0);
+            total_force += self.rattle_filter.process(grind_noise);
         }
 
         if all_settled && self.time_ms > self.drop_spread_ms + 100.0 {

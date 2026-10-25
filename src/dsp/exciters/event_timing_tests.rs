@@ -20,6 +20,7 @@ fn rigid(sample_rate: f32) -> ContactPrediction {
         compliance: 0.0,
         previous: 0.0,
         velocity_scale: sample_rate / 48_000.0,
+        limit: f32::INFINITY,
     }
 }
 

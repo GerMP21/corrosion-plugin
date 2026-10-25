@@ -320,6 +320,18 @@ struct Particle {
     velocity: f32,
 }
 
+/// How deep a particle reaches into the surface per unit of its velocity.
+const PENETRATION: f32 = 0.01;
+/// How many resonator displacement units one unit of a particle's reach
+/// spans. A particle can't push the surface further than its reach, so at a
+/// drive that brings the rain up to the other exciters' level, a reach of
+/// one unit per displacement left it displacement-limited: about 21 dB
+/// under the others whatever its drive, and with a level that followed the
+/// sample grid. Through this scale the particles meet an effectively rigid
+/// surface and their force follows their own motion
+/// (`resolve-exciter-tradeoffs`).
+const RAIN_SCALE: f32 = 1000.0;
+
 impl ParticleRain {
     /// Most particles alive at once. Spawning is at most 2 per sample (flow is
     /// clamped to 20) and a particle lives at most 30 samples, so 60 is the
@@ -401,6 +413,7 @@ impl ParticleRain {
         // it before the solve, so it doesn't add a sample-length tail whose
         // size depends on the rate.
         self.particles.retain(|p| p.age < 0.1 && p.velocity < 1.0);
+        let resonator = resonator.in_units(RAIN_SCALE);
         // Each penetrating particle pushes with a small spring force; all of
         // them are solved together with this sample's resonator response
         // (`resolve-exciter-tradeoffs`).
@@ -409,7 +422,7 @@ impl ParticleRain {
             let surface = resonator.displacement(f);
             particles
                 .iter()
-                .map(|p| p.mass * (p.velocity * 0.01 - surface).max(0.0) * 10.0)
+                .map(|p| p.mass * (p.velocity * PENETRATION - surface).max(0.0) * 10.0)
                 .sum::<f32>()
                 * decay
         });

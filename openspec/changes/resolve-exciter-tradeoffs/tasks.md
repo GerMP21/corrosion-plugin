@@ -48,7 +48,7 @@
 
 ## 4. Drive levels and governor
 
-- [ ] 4.1 Add the per-voice drive governor (design Decision 1): follower 1 ms attack and 200 ms release through `rate::`, threshold 0.7, and a test-only off switch. Verify `tests/no_alloc.rs` passes in debug and the excess-drive scenario passes.
+- [x] 4.1 Add the per-voice drive governor (design Decision 1): follower 1 ms attack and 200 ms release through `rate::`, threshold 0.7, and a test-only off switch. Verify `tests/no_alloc.rs` passes in debug and the excess-drive scenario passes.
 - [ ] 4.2 Replace `EXCITER_DRIVE_TRIM` with `EXCITER_DRIVE_LEVEL`, set so each exciter's median pre-clamp peak over the sweep is about 0.35, with `print_exciter_overdrive` reporting the medians. This includes HeavyGrinding, whose level `stabilize-mallet-and-grinding-contact` deferred to the governor: its median sits about 19 dB under the struck exciters because IndustrialCog C2 responds about 40× more than its median note. Verify:
   - the median-level, overdrive and excess-drive scenarios pass;
   - `every_exciter_has_the_same_level_at_any_sample_rate` and `struck_attack_timing_does_not_depend_on_sample_rate` pass with no per-exciter exceptions;
