@@ -321,3 +321,29 @@ The user accepted both recommendations, and the delta specs are updated:
   - six presets are raised to the floor (RMS 0.04374);
   - Sheet Lightning and Sheet Metal Thunder are trimmed to 0.95.
 - Per-preset numbers are in `levels.md`. `preset_levels_are_sane` and `tests/preset_roundtrip.rs` pass.
+
+### Integration gate (task 6.1)
+
+All green:
+
+| Check | Result |
+|---|---|
+| Debug workspace tests (musl) | all pass; lib 239 passed in 139 s (the averaged sample-rate test is most of it); `tests/no_alloc.rs` 8 passed |
+| Release workspace tests (musl) | all pass; lib 239 passed |
+| gnu lib tests (default features) | 248 passed |
+| `cargo fmt --check` | clean |
+| clippy `-D warnings`, 1.99 and 1.97 (`-A unknown_lints`) | clean |
+| Render smoke (`render --suite family`, `scripts/check_wav.py`) | peak 0.702, RMS 0.304, no NaNs |
+| `preset_levels_are_sane`, `tests/preset_roundtrip.rs` | pass |
+| `cargo doc --no-deps --no-default-features` | no warnings |
+
+16-voice benchmark, gnu release, same session:
+
+| Build | Normal | Render |
+|---|---|---|
+| `748d832` | 8.44 ms | 20.22 ms |
+| This change | 8.26 ms | 18.15 ms |
+
+The struct-of-arrays fallback isn't needed.
+
+The default-feature build prints `f32`-fallback future-incompatibility warnings from `src/gui/editor.rs`. They predate this change, and the file isn't touched by it.

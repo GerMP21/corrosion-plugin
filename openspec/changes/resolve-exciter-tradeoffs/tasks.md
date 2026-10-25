@@ -72,7 +72,7 @@
 
 ## 6. Integration
 
-- [ ] 6.1 Run the full gate:
+- [x] 6.1 Run the full gate:
   - debug and release tests, and the gnu lib tests;
   - `tests/no_alloc.rs` in debug;
   - fmt;
