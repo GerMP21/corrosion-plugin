@@ -309,3 +309,15 @@ The user accepted both recommendations, and the delta specs are updated:
   - With 64 seeds, every velocity was within 1.1 dB.
   - The test passes for all 16 exciters.
 - **Excess drive (`exciter-drive`).** The scenario compares the note's peak at ×4 drive with its peak at default drive (within 3 dB), not its RMS, and still requires ≤ ±1.0 before the clamp. It passes for all 16 exciters.
+
+### Presets (task 5.1)
+
+- **Raises reset first.** `preset_levels_table` first resets outputs above 1 to 1. Those were the earlier pass's raises, up to ×40.7 on Falling Chain Cluster, and they compensated for exciters that are now at the common level. The floor rule then re-derives any raise.
+- **Before the pass**, on this engine:
+  - four presets hit the limiter: Falling Chain Cluster (57 848 samples), Suspension Cable Pluck, Sheet Lightning and Sheet Metal Thunder;
+  - Cable Tension Rise sat 15.5 dB under the median.
+- **After the pass:**
+  - no preset hits the limiter;
+  - six presets are raised to the floor (RMS 0.04374);
+  - Sheet Lightning and Sheet Metal Thunder are trimmed to 0.95.
+- Per-preset numbers are in `levels.md`. `preset_levels_are_sane` and `tests/preset_roundtrip.rs` pass.

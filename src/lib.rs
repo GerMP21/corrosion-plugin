@@ -1953,10 +1953,28 @@ mod c5_measurements {
     /// output unless it hits the limiter (trimmed in 5 % steps until it
     /// doesn't) or its RMS is more than 12 dB below the median (raised to
     /// 12 dB below). Prints the seeder's `PRESET_LEVELS` table.
+    ///
+    /// An output above 1 is a raise from an earlier pass, so it starts from
+    /// 1 again and the floor rule re-derives it (`resolve-exciter-tradeoffs`:
+    /// the raises compensated for exciters that are now at a common level).
     #[test]
     #[ignore]
     fn preset_levels_table() {
-        let levels = preset_levels();
+        let levels: Vec<_> = preset_levels()
+            .into_iter()
+            .map(|(name, body, output, peak, rms, hits)| {
+                if output > 1.0 {
+                    let path = factory_preset_paths()
+                        .into_iter()
+                        .find(|p| Preset::load(p).unwrap().name == name)
+                        .unwrap();
+                    let (peak, rms, hits) = render_preset(&path, body / 5.0, 1.0 / output);
+                    (name, body, 1.0, peak, rms, hits)
+                } else {
+                    (name, body, output, peak, rms, hits)
+                }
+            })
+            .collect();
         let floor = median(levels.iter().map(|l| l.4).collect()) * 10f32.powf(-12.0 / 20.0);
         println!("LEVELS // median floor {floor:.5}");
         for (name, body, output, peak0, rms0, hits0) in levels {
@@ -1964,9 +1982,11 @@ mod c5_measurements {
                 .into_iter()
                 .find(|p| Preset::load(p).unwrap().name == name)
                 .unwrap();
-            let mut scale = 1.0_f32;
+            let stored = Preset::load(&path).unwrap().output;
+            // `render_preset` scales the stored output; start from `output`.
+            let mut scale = output / stored;
             if rms0 < floor {
-                scale = floor / rms0.max(1e-9);
+                scale *= floor / rms0.max(1e-9);
             }
             let mut result = render_preset(&path, body / 5.0, scale);
             let mut steps = 0;
@@ -1975,7 +1995,7 @@ mod c5_measurements {
                 result = render_preset(&path, body / 5.0, scale);
                 steps += 1;
             }
-            let out = ((output * scale) * 1000.0).round() / 1000.0;
+            let out = ((stored * scale) * 1000.0).round() / 1000.0;
             println!(
                 "LEVELS (\"{name}\", {body:.2}, {out:.3}), // rms {:.5} (was {rms0:.5}), peak {:.4} (was {peak0:.4}), hits {} (was {hits0})",
                 result.1, result.0, result.2

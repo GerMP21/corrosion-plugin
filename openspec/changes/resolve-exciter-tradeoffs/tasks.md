@@ -68,7 +68,7 @@
 
 ## 5. Presets
 
-- [ ] 5.1 Re-run `preset_levels_table` and apply its table to `PRESET_LEVELS` (same rules: trim limiter hits, raise anything more than 12 dB below the median). Regenerate with `cargo run --bin seed_presets`, and write `openspec/changes/resolve-exciter-tradeoffs/levels.md` with before and after per preset. Verify `preset_levels_are_sane` and `tests/preset_roundtrip.rs` pass.
+- [x] 5.1 Re-run `preset_levels_table` and apply its table to `PRESET_LEVELS` (same rules: trim limiter hits, raise anything more than 12 dB below the median). Regenerate with `cargo run --bin seed_presets`, and write `openspec/changes/resolve-exciter-tradeoffs/levels.md` with before and after per preset. Verify `preset_levels_are_sane` and `tests/preset_roundtrip.rs` pass.
 
 ## 6. Integration
 
