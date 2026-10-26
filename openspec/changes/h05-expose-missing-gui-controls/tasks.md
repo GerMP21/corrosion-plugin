@@ -1,0 +1,24 @@
+# Tasks
+
+## 1. Missing controls
+
+- [ ] 1.1 Add the editor's host-only list constant, and a unit test comparing the editor's widget parameter IDs plus that list with `CorrosionParams::param_map()`. Verify it fails today and names the missing IDs.
+- [ ] 1.2 Add Brightness (Resonator column, by Damping) and Thickness (by Heat and Sludge). Verify they appear in the widget set and that the coverage test's missing list shrinks.
+- [ ] 1.3 Add the Sync control in the Space section, showing H3's "Off" or division text. Verify the displayed text matches the parameter's formatter.
+- [ ] 1.4 Add Play Mode and Limiter Mode combos in the header. Verify that selecting each value sets the parameter, and that a host automation change shows in the combo (manual check in a host or standalone; record which).
+- [ ] 1.5 Add the macro strip with Mass, Corrosion, Violence and Brightness knobs. Verify the coverage test passes. Update `docs/ARCHITECTURE.md`'s GUI section and verify it lists the new controls.
+
+## 2. User presets
+
+- [ ] 2.1 In `src/presets/mod.rs`, add `user_preset_dir()` (platform env vars, Decision 3), `sanitize_file_name()`, and `list_user_presets(dir)`, which skips unreadable files and counts them. Unit-test the sanitizing with separators, reserved names and empty names, and list a temp folder with one corrupt file. Verify the tests pass.
+- [ ] 2.2 Add the name field, Save, and the overwrite confirm/cancel in the preset loader, with inline errors. Unit-test a save → reload round trip into a temp folder (all parameters except `ui_scale` restored) and a declined overwrite (file bytes unchanged). Verify the tests pass.
+- [ ] 2.3 Show the user presets after the factory bank, refreshed after a save. Verify manually in the standalone or a host that a new save appears without reopening, or record that only the unit tests cover it.
+
+## 3. Randomizer
+
+- [ ] 3.1 Scale the randomizer's `body` ranges by 5. Add a seeded randomize function using `Noise` with redraw-then-clamp safety, and remove `mode_param()`. Unit-test the spec's Safe bounds (100 draws), Full-mode safety (1000 draws) and that two draws differ. Verify the tests pass.
+- [ ] 3.2 Add the Randomize button and mode combo, applying changes with begin/set/end per parameter. Verify only the seven parameters change (unit test on the applied list), and manually that host undo reverts a randomize (record the host used, or that it wasn't available).
+
+## 4. Close-out
+
+- [ ] 4.1 Update the README (user preset folder per platform, randomizer modes). Mark H5 FIXED in `FABLE-CODE-REVIEW-2026-07-07.md`, along with the "Missing features" items 1, 2 and 5. Run fmt, clippy (default features) and the full test suite, and verify all are green.
