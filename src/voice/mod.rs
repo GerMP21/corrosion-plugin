@@ -496,9 +496,28 @@ const PEAK_DECAY: f32 = 0.999;
 /// levels come from `print_exciter_overdrive`; HandStrike, TensionSnap and
 /// MetalPipe respond non-linearly to their drive (the contact solve), so
 /// theirs were found by bracketing rather than in one step.
+///
+/// HandStrike's level is its `HAND_SCALE` by construction: the hand sees the
+/// resonator in units of `HAND_SCALE` displacements, so with the two equal
+/// it meets the surface it met at a drive of 1 (median 0.0063) while its
+/// force, and so its output, is `HAND_SCALE` times larger (0.35).
 const EXCITER_DRIVE_LEVEL: [f32; 17] = [
-    1.0, 2.1664e-02, 5.5400e+01, 8.1953e-01, 5.7269e+00, 9.2944e-01, 5.3012e-01, 5.4100e-01,
-    1.4146e+00, 8.3877e-03, 2.6216e-03, 1.9438e-02, 9.0962e-02, 5.9898e-03, 3.2879e-03, 6.2745e-01,
+    1.0,
+    2.1664e-02,
+    crate::dsp::exciters::hand_strike::HAND_SCALE,
+    8.1953e-01,
+    5.7269e+00,
+    9.2944e-01,
+    5.3012e-01,
+    5.4100e-01,
+    1.4146e+00,
+    8.3877e-03,
+    2.6216e-03,
+    1.9438e-02,
+    9.0962e-02,
+    5.9898e-03,
+    3.2879e-03,
+    6.2745e-01,
     4.4103e-02,
 ];
 
@@ -2332,8 +2351,8 @@ mod tests {
         (xs.iter().map(|&x| (x * x) as f64).sum::<f64>() / xs.len().max(1) as f64).sqrt() as f32
     }
 
-    /// Pipe C4 level at 44.1 and 96 kHz against 48 kHz, as mean power over
-    /// 128 note seeds at velocity 100. Noise-driven exciters vary by several
+    /// Pipe C4 level at 44.1, 96 and 192 kHz against 48 kHz, as mean power
+    /// over 128 note seeds at velocity 100 (192 kHz is informational). Noise-driven exciters vary by several
     /// dB from seed to seed, so this is their expected level across rates.
     #[test]
     #[ignore]
@@ -2369,12 +2388,13 @@ mod tests {
                             }
                             total / 128.0
                         };
-                        let (low, reference, high) =
-                            (mean_power(44_100), mean_power(48_000), mean_power(96_000));
+                        let reference = mean_power(48_000);
+                        let db = |sample_rate| 10.0 * (mean_power(sample_rate) / reference).log10();
                         format!(
-                            "exciter {exciter:2}: 44.1 kHz {:+.2} dB, 96 kHz {:+.2} dB",
-                            10.0 * (low / reference).log10(),
-                            10.0 * (high / reference).log10()
+                            "exciter {exciter:2}: 44.1 kHz {:+.2} dB, 96 kHz {:+.2} dB, 192 kHz {:+.2} dB",
+                            db(44_100),
+                            db(96_000),
+                            db(192_000)
                         )
                     })
                 })

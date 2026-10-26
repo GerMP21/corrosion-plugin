@@ -36,25 +36,45 @@ See proposal.md for the trade-offs being removed. The relevant current state (af
 
 1. **Drive levels target the median, and a per-voice governor catches the rest.**
    - `EXCITER_DRIVE_TRIM` becomes `EXCITER_DRIVE_LEVEL`, set so each exciter's median pre-clamp peak over the 27-note sweep (9 objects × C2/C4/C6) is about 0.35. Levels above 1 are allowed: HandStrike and MetalChain are raised.
-   - The governor is a per-voice gain on the exciter force:
-     - Its envelope follower tracks the pre-clamp peak, with a 1 ms attack and 200 ms release, converted through `rate::`.
-     - Above 0.7, the gain falls as `0.7 / envelope`. Below it, the gain recovers.
-   - Because it scales the force rather than the output, the note stays clean. It also lowers the loop gain of any exciter↔resonator feedback.
-   - A test-only switch turns the governor off for the stability scenario.
-   - A fast strike can overshoot before the follower reacts, and the drive levels absorb that. If the sweep still shows overshoot, the follower gets a short look-ahead, at most 1 ms, on the force path.
+   - The governor is a per-voice gain on the exciter force. Because it scales the force rather than the output, the note stays clean, and it lowers the loop gain of any exciter↔resonator feedback.
+   - **It acts on a prediction, not on the output.**
+     - A follower on the output can't catch a strike. The force pulse (0.1–2 ms) is over before the output peaks: about 4 ms later at C2.
+     - The resonator tracks a ring bound `B = Σ w_i·|z_i|`, where `w_i = fade_i·(1 + boost·|H_hp(ω_i)|)` and `H_hp` is the voice's brightness high-pass.
+     - Without more force, no later sample (either stereo channel) can exceed `B`. So `B` is known on the strike sample itself.
+     - It also tracks `per_force = Σ w_i·|g_i|·|b_i|`: how far one unit of force can raise `B`.
+     - `B` is summed exactly on every 8th tracked sample. In between it grows by `per_force·|f|`, which is still an upper bound.
+   - **Smooth gain.** A follower on `B` (1 ms attack, 200 ms release, through `rate::smoother`) gives a gain of `(0.7 / level)^8` above 0.7, and 1 below it.
+     - The gain depends only on the current level, so a long ring that keeps `B` up after the force drops can't wind it down.
+     - A note driven 12 dB over settles about 1.3 dB above the threshold.
+   - **Ceiling.** Each sample's force is capped so that `B` stays at or under 0.9. This is the same margin `stabilize-mallet-and-grinding-contact` set for HardMallet and HeavyGrinding.
+     - The cap is what catches a strike faster than the follower.
+     - Contact exciters see it in their prediction (`ContactPrediction::limit`), so their solve uses the force that is really applied.
+   - A test-only switch (`governor_enabled`) turns the governor off for the stability scenario.
    - *Alternatives:*
+     - A follower on the pre-clamp output with gain `0.7 / envelope`. It can't catch a strike. Its steady state is a square-root compromise (a note 12 dB over settles 6 dB over). And dividing the output by the gain, to follow the ungoverned level, winds the gain down to nothing while a long ring holds the output up.
+     - A look-ahead of up to 1 ms on the force path. A strike's output peaks several milliseconds after its force, so it doesn't help.
      - Worst-case trims (the current state, rejected by the user).
      - Per-object × exciter level tables, which go stale, and still can't handle velocity and controls.
      - Output limiting, which colours the sound and leaves runaway loops running.
 
 2. **Contact is solved together with the resonator's immediate response.**
-   - The resonator exposes its instantaneous compliance `C = Σ_i w_i·Im(g_i)`: how far this sample's force moves this sample's contact displacement. That is `Σ w_i·b0_i`, plus the high-band fade weights.
-   - Each position-dependent exciter computes its contact force from the predicted displacement `x_r + C·F`, instead of the last sample's `x_r`, using a shared helper:
-     - a closed form for linear springs: `F = k·d / (1 + k·C)`;
-     - two Newton steps for Hertzian `k·d^1.5`.
-   - This is the zero-delay feedback pattern already used for the filter (C1). The loop can no longer gain energy from the one-sample lag, so the runaway thresholds go away.
-   - The exciters' `process_sample` takes the compliance as one more argument.
-   - Exciters covered: HandStrike, FeltMallet, HardMallet, Drumstick, MetalPipe, MetalChain, ParticleRain, HeavyGrinding, StiffPoint, CorrugatedDrag, TensionRise and TensionSnap. That is every exciter whose force reads the resonator's displacement or velocity; Bow and PneumaticJet use velocity, through the same helper. The inventory task confirms the list.
+   - **The prediction.** `ModalResonator::contact_prediction` gives this sample's contact displacement as `free + compliance·F`.
+     - `free` is where the resonator goes on its own.
+     - `compliance` is `Σ w_i·b_i·fade_i·Im(g_i)`, from the strike-position weights, the coupling blend and the band fade.
+     - The voice scales the compliance by everything it multiplies the force by (envelope, drive level, governor gain), and passes the governor's force cap.
+   - **The solve.** Each position-dependent exciter finds the force that satisfies its contact law at the predicted displacement, instead of reacting to the last sample's.
+     - The shared helper is `dsp::utils::contact::solve_force`: an Illinois regula falsi on `F − h(F)`, with a bisection step whenever the bracket doesn't halve. It handles springs, Hertz contacts and saturating laws alike, as long as they are monotone in the displacement.
+     - This is the zero-delay feedback pattern already used for the filter (C1). The loop can no longer gain energy from the one-sample lag, so the runaway thresholds go away.
+     - The exciters' `process_sample` takes the prediction instead of the last displacement.
+   - **Exciters covered:** HandStrike, FeltMallet, HardMallet, Drumstick, MetalPipe, MetalChain, ParticleRain, HeavyGrinding and TensionSnap.
+   - **Exciters left explicit:** Bow, StiffPoint, CorrugatedDrag, TensionRise and PneumaticJet keep reading the resonator's velocity.
+     - Their friction and flow laws aren't monotone, which the solver needs.
+     - None of them runs away at 12 dB over their drive with the governor off.
+     - StiffPoint did diverge, but from negative damping: its damping term had the wrong sign, and that is fixed.
+   - **Length units.**
+     - A position-driven exciter can't push the surface further than its own travel. At the drive needed for the common level, HandStrike, MetalPipe and ParticleRain became displacement-limited: their output stopped following the drive, and their level followed the sample grid.
+     - Each now sees the resonator in its own length units (`ContactPrediction::in_units`; `HAND_SCALE`, `PIPE_SCALE`, `RAIN_SCALE`).
+     - Their contact then behaves as it did at the drive where it was rate-matched, and their output scales linearly with the drive.
    - *Alternative:* oversampling the contact. That costs more CPU and only moves the threshold.
 
 3. **Struck exciters come to rest.** When a drumstick or hard mallet reaches its bounce limit, or its rebound velocity falls below a rest threshold, it becomes inactive. Today the stick is instead pinned to the resonator and pulled back in by "gravity" each sample. The timing test then uses the whole-note peak.
@@ -67,26 +87,40 @@ See proposal.md for the trade-offs being removed. The relevant current state (af
 
 5. **Short events are timed between samples.**
    - An event whose time falls at fraction `φ` into a sample adds `(1−φ)·A` to that sample and `φ·A` to the next. Its area and centre of mass then match continuous time. This covers ParticleRain spawns, WireBrush impulses, the tension-snap and tension-rise spikes, and MetalChain impacts.
-   - HandStrike's approach: the snap sample's force is scaled by the fraction of the step that was still in contact.
+   - HandStrike's approach: the snap sample's force is scaled by the fraction of the step that was still in contact, and the approach force is taken at mid-step.
+   - MetalChain's links follow their exact fall trajectory, so the moment they reach the surface doesn't depend on the grid. Each impact uses the penetration half a reference sample into the contact, so its area depends only on the link's speed.
    - The Hit envelope's attack is evaluated at sample centres, `level += dt/attack` starting from `0.5·dt/attack`, so a short strike on the ramp has the same area at every rate.
    - *Alternative:* oversample the exciters only. That costs more, and still rounds.
 
 6. **Mode amplitude, and a fade at the top of the band.**
    - Mode gain becomes `g = b0·(sin ω / ω)·(cot ω + i)`, so the ring amplitude is `b0/ω`: the continuous oscillator's, and the same at every rate. It no longer blows up near Nyquist.
-   - The modes' output is weighted by a fade that is 1 below 18 kHz and 0 at or above 20 kHz, raised-cosine in between, evaluated from the mode's current frequency. The weight is applied to the output, so a mode retuned upward fades out instead of switching off or ringing on as an alias. Its input is weighted the same way.
+   - The modes' output is weighted by a fade that is 1 below 0.9·top and 0 at or above the top, raised-cosine in between. The top is `min(20 kHz, 0.45·fs)`, so the fade runs from 18 to 20 kHz at 44.1 kHz and above. The fade is evaluated from the mode's current frequency.
+   - The weight is applied to the output only, so a mode retuned upward fades out instead of switching off or ringing on as an alias.
+     - Weighting the input as well would square the fade.
+     - The output fade alone already silences the mode and keeps retuning smooth.
+     - The contact prediction uses the same output weight, so exciters see the faded response.
    - The note-on estimate uses the same amplitude and fade.
    - The `MODE_CEILING_HZ` hard cut is removed. A generator still need not create modes above 20 kHz; that is a later clean-up, not required.
    - *Alternative:* keep the hard cut. It clicks on retune, and it masked the contact fault that Decision 2 fixes.
 
 7. **Strike-position weights are cached.** The bus recomputes `mode_coefficients` only when the effective position changes, that is, when wander or the position envelope is active, or a parameter is set. Otherwise it reuses the cached weights. The per-mode weighted force, `x·((1−c) + w·c)`, is computed once per mode with precomputed blend weights.
 
-8. **MetalChain rattle.** It becomes a one-pole high-pass with kept state and coefficient `exp(−2π·fc/fs)`, so it is rate-correct. The rattle level is then set by the chain's drive level (Decision 1).
+8. **MetalChain rattle.**
+   - It becomes a one-pole high-pass with kept state and pole `exp(−2π·fc/fs)`, so it is rate-correct.
+   - The form is `a·y₋₁ + (1+a)/2·(x − x₋₁)`, which has unit gain at Nyquist and is −3 dB at the cutoff. The `a·(y₋₁ + x − x₋₁)` form is −3.6 dB at 1 kHz on 44.1 kHz.
+   - The rattle is no longer rectified, since rectified white noise has a DC part that grows with √fs.
+   - The rattle level is then set by the chain's drive level (Decision 1).
 
 ## Risks / Trade-offs
 
-- **[The governor can audibly pump on sustained notes near the threshold]** → The 200 ms release and the 0.7 threshold leave the median note (about 0.35) about 6 dB below the threshold, so only outliers engage it. The excess-drive scenario bounds the level change to 3 dB. Record how many sweep notes engage the governor, and by how much.
+- **[The governor can audibly pump on sustained notes near the threshold]** → The 200 ms release and the 0.7 threshold leave the median note (about 0.35) about 6 dB below the threshold.
+  - The ring bound sits above the actual peak, so in practice the governor engages on 2–12 of the 27 sweep notes per exciter, by up to −23 dB (see the findings). That is more than outliers alone.
+  - The excess-drive scenario bounds the peak's change to 3 dB. It doesn't bound the RMS: a note quieter than the threshold at default drive can only be pulled down to about the threshold.
+  - Record how many sweep notes engage the governor, and by how much.
 - **[The implicit contact changes each struck exciter's tone]** → Expected. The non-goal on bit-identity covers it. Struck timing and level tests guard the behaviour.
 - **[Chaotic exciters (Bow stick-slip, TensionRise) may still miss 1.5 dB at some rate]** → Do not widen tolerances. Measure first at velocity 100 and averaged over velocities. If the miss is chaos, not a fault, stop and bring the numbers to the user.
+  - The outcome is in the findings. A noise-driven exciter's single note varies by several dB from its seed alone, and Bow locks into a different regime at velocity 100 on 44.1 kHz only.
+  - The user chose to compare the expected level (mean power over velocities and seeds), keeping 1.5 dB.
 - **[The `sin ω / ω` correction changes high-mode balance at 48 kHz]** → At 48 kHz it lowers a 5 kHz mode by 0.6 dB and a 15 kHz mode by 6.5 dB (more at 44.1 kHz, less at 96 kHz). That is intended: the discrete gain was that much too high, and differently so at each rate. The bank estimate uses the same amplitude, so normalization stays consistent.
 - **[CPU goal not met by caching alone]** → Fallback: store the mode state and coefficients as struct-of-arrays so the inner loop vectorizes. Record the numbers either way.
 
@@ -328,7 +362,7 @@ All green:
 
 | Check | Result |
 |---|---|
-| Debug workspace tests (musl) | all pass; lib 239 passed in 139 s (the averaged sample-rate test is most of it); `tests/no_alloc.rs` 8 passed |
+| Debug workspace tests (musl) | all pass; lib 239 passed in 139 s at first, 21 s with the test profile at `opt-level = 1` (see below); `tests/no_alloc.rs` 8 passed |
 | Release workspace tests (musl) | all pass; lib 239 passed |
 | gnu lib tests (default features) | 248 passed |
 | `cargo fmt --check` | clean |
@@ -347,3 +381,40 @@ All green:
 The struct-of-arrays fallback isn't needed.
 
 The default-feature build prints `f32`-fallback future-incompatibility warnings from `src/gui/editor.rs`. They predate this change, and the file isn't touched by it.
+
+### Verification follow-ups
+
+`/opsx:verify` found no critical issues. Its warnings and suggestions are addressed:
+
+- **Design text.** Decisions 1, 2, 5, 6 and 8 and two Risks bullets now describe what was built. The deviations were previously only in these findings:
+  - the predictive governor;
+  - the solver, and which exciters stay explicit;
+  - the length scales;
+  - the output-only band fade;
+  - the high-pass form.
+- **Spec wording.** The sample-rate requirement now says "expected level", to match its averaged scenario.
+- **192 kHz (informational).** Seed-averaged over 128 notes at velocity 100 (`print_seed_averaged_rate_levels`), every exciter is within 0.7 dB of 48 kHz:
+
+  | Exciter | 192 kHz |
+  |---|---|
+  | Bow | +0.01 dB |
+  | HandStrike | −0.39 dB |
+  | FeltMallet | −0.00 dB |
+  | HardMallet | +0.02 dB |
+  | Drumstick | +0.01 dB |
+  | WireBrush | +0.11 dB |
+  | MetalPipe | +0.68 dB |
+  | MetalChain | −0.44 dB |
+  | StiffPoint | −0.06 dB |
+  | HeavyGrinding | −0.13 dB |
+  | CorrugatedDrag | +0.05 dB |
+  | TensionRise | +0.10 dB |
+  | PneumaticJet | −0.02 dB |
+  | ElectromagneticHum | +0.03 dB |
+  | TensionSnap | +0.10 dB |
+  | ParticleRain | +0.45 dB |
+
+- **`HAND_SCALE` is HandStrike's drive level.** `EXCITER_DRIVE_LEVEL[2]` now refers to `HAND_SCALE`, so the two can't drift apart. The searched level was 55.44, against 55.4.
+- **TensionRise's "release burst" removed.** It was scaled by the tension the break had just zeroed, so it was always silent. The pause after a break remains, so the output is unchanged.
+- **Debug test time.** `[profile.test] opt-level = 1` keeps debug assertions and overflow checks, and IEEE results don't depend on the opt level. The debug lib suite went from 139 s to 21 s. The debug workspace tests, the gnu lib tests (248), fmt and clippy pass.
+- **Not addressed here:** the build-directory binaries from commit `aa9bff0` are still in the branch history. Squash-merging the branch keeps them out of `main`.

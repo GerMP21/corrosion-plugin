@@ -12,7 +12,9 @@ use crate::dsp::ContactPrediction;
 /// with it how far the resonator yields to it; seen through this scale, the
 /// hand meets the surface it met at a drive of 1, so its strike keeps the
 /// shape it had there instead of collapsing into a displacement-limited
-/// sample or two (`resolve-exciter-tradeoffs`).
+/// sample or two (`resolve-exciter-tradeoffs`). The voice uses this value as
+/// HandStrike's drive level (`EXCITER_DRIVE_LEVEL`), which is what makes the
+/// two cancel.
 pub const HAND_SCALE: f32 = 55.4;
 
 /// Fleshy impact with strong damping and a simple release state.

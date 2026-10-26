@@ -23,13 +23,17 @@ pub struct TensionRise {
     /// sample let a faster rate meet more draws on the way up, so the line
     /// broke earlier and softer (−2 dB at 96 kHz) (`resolve-exciter-tradeoffs`).
     threshold: f32,
-    impulse_samples: u32,
+    /// Samples left before the line starts re-tensioning after a break.
+    recovery_samples: u32,
     /// Places the break spike between samples (`resolve-exciter-tradeoffs`).
     events: rate::EventSplitter,
     /// `48 kHz / fs` (`fix-sample-rate-time-constants`).
     ratio: f32,
-    /// Length of the release burst in host samples (50 at 48 kHz).
-    burst_frames: u32,
+    /// The pause after a break, in host samples (50 at 48 kHz). (It used to
+    /// carry a decaying "release burst", but that was scaled by the tension
+    /// the break had just zeroed, so it was always silent; only the pause
+    /// remains, `resolve-exciter-tradeoffs`.)
+    recovery_frames: u32,
 }
 
 impl TensionRise {
@@ -44,17 +48,17 @@ impl TensionRise {
             active: false,
             noise: Noise::default(),
             threshold: 0.5,
-            impulse_samples: 0,
+            recovery_samples: 0,
             events: rate::EventSplitter::default(),
             ratio: 1.0,
-            burst_frames: 50,
+            recovery_frames: 50,
         }
     }
 
     /// Re-derives the per-sample constants for `sample_rate`.
     pub fn set_sample_rate(&mut self, sample_rate: f32) {
         self.ratio = rate::ratio(sample_rate);
-        self.burst_frames = rate::frames(50, self.ratio);
+        self.recovery_frames = rate::frames(50, self.ratio);
     }
 
     /// Sets pull speed, break threshold, stochasticity, and creak sharpness.
@@ -80,7 +84,7 @@ impl TensionRise {
     pub fn trigger(&mut self, velocity: f32) {
         self.active = true;
         self.tension = 0.0;
-        self.impulse_samples = 0;
+        self.recovery_samples = 0;
         self.events.clear();
         self.pull_speed *= 0.5 + velocity * 0.5;
         self.draw_threshold();
@@ -91,7 +95,7 @@ impl TensionRise {
         self.threshold = self.break_threshold * (1.0 + random_variation * 0.3);
     }
 
-    /// Processes one sample of tension accumulation and burst decay.
+    /// Processes one sample of tension accumulation and break spikes.
     pub fn process_sample(&mut self, _resonator_displacement: f32, resonator_velocity: f32) -> f32 {
         if !self.active {
             return 0.0;
@@ -106,11 +110,10 @@ impl TensionRise {
     /// This sample's output, and how far before the sample's end (0–1) it
     /// happened: the break's threshold crossing, or the sample end.
     fn next_output(&mut self, resonator_velocity: f32) -> (f32, f32) {
-        if self.impulse_samples > 0 {
-            // Decay the release burst over a short fixed window.
-            self.impulse_samples -= 1;
-            let decay = self.impulse_samples as f32 / self.burst_frames as f32;
-            return (self.tension * decay * self.creak_sharpness * 5.0, 0.0);
+        if self.recovery_samples > 0 {
+            // The line pauses briefly after a break before it re-tensions.
+            self.recovery_samples -= 1;
+            return (0.0, 0.0);
         }
 
         // Relative pull is integrated into stored stress each sample.
@@ -131,7 +134,7 @@ impl TensionRise {
                 0.0
             };
             self.tension = 0.0;
-            self.impulse_samples = self.burst_frames;
+            self.recovery_samples = self.recovery_frames;
             self.draw_threshold();
             return (output, early);
         }

@@ -3,7 +3,7 @@
 ## MODIFIED Requirements
 
 ### Requirement: Notes sound the same at every sample rate
-For every exciter, a note SHALL render at 44.1 and 96 kHz with the same level as at 48 kHz, with no exciter exempted and no part of the note excluded.
+For every exciter, a note's expected level SHALL be the same at 44.1 and 96 kHz as at 48 kHz, with no exciter exempted and no part of the note excluded. The expected level is the note's mean power over velocities and note seeds.
 
 #### Scenario: Every exciter on a Pipe
 - **WHEN** each exciter (1–16) plays Pipe C4 with default controls for one second, then releases for one second, at 44.1, 48 and 96 kHz, at velocities 40, 70, 100 and 127, each with 32 note seeds

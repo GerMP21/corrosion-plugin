@@ -40,3 +40,9 @@ criterion = "0.5"
 [[bench]]
 name = "performance"
 harness = false
+
+# Debug test runs render many seconds of audio (the averaged sample-rate test
+# alone is about 6 000 two-second notes). opt-level 1 keeps debug assertions and
+# overflow checks while cutting the run several-fold (resolve-exciter-tradeoffs).
+[profile.test]
+opt-level = 1
