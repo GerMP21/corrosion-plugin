@@ -111,26 +111,13 @@ fn sync_rate_to_delay_time(
     free_running_delay_time: f32,
 ) -> f32 {
     // Off region: passthrough.
-    if sync_rate < 0.05 {
+    let Some(division) = params::sync_division(sync_rate) else {
         return free_running_delay_time;
-    }
+    };
     let Some(tempo) = tempo_bpm.filter(|t| t.is_finite() && *t > 0.0) else {
         return free_running_delay_time;
     };
-
-    // 6 discrete musical divisions in BEATS (1/4 note = 1 beat). Ascending
-    // so a higher sync_rate yields a longer delay.
-    const DIVISIONS: [f32; 6] = [
-        0.25, // 1/16 note (0.25 beats)
-        0.5,  // 1/8 note
-        1.0,  // 1/4 note (quarter)
-        2.0,  // 1/2 note (half)
-        4.0,  // 1/1 note (whole)
-        8.0,  // 2/1 note (double whole)
-    ];
-    let normalized = ((sync_rate - 0.05) / 0.95).clamp(0.0, 1.0);
-    let idx = (normalized * DIVISIONS.len() as f32) as usize;
-    let beats = DIVISIONS[idx.min(DIVISIONS.len() - 1)];
+    let beats = params::SYNC_DIVISIONS[division].0;
     let beat_seconds = 60.0 / tempo;
     let target_seconds = beats * beat_seconds;
     // Echo maps delay_time 0..1 → (0.02 + t * 0.78) seconds.
@@ -1697,6 +1684,100 @@ mod tests {
             (synced - expected).abs() < 0.02,
             "1/4 note @ 120 BPM should give normalized delay ≈ {expected}, got {synced}"
         );
+    }
+
+    /// The sync parameter's displayed text at `value`.
+    fn sync_display(params: &crate::params::CorrosionParams, value: f32) -> String {
+        use nih_plug::prelude::Param;
+        let normalized = params.sync_rate.preview_normalized(value);
+        params
+            .sync_rate
+            .normalized_value_to_string(normalized, false)
+    }
+
+    /// The echo's delay in seconds for a normalized delay time.
+    fn echo_seconds(delay_time: f32) -> f32 {
+        0.02 + delay_time * 0.78
+    }
+
+    #[test]
+    fn fresh_instance_has_sync_off() {
+        // `h03-default-tempo-sync-off`: with the host reporting 120 BPM, the
+        // default sync leaves Delay Time in charge.
+        let plugin = Corrosion::default();
+        let default = plugin.params.sync_rate.value();
+        for knob in [0.1f32, 0.42, 0.9] {
+            assert_eq!(
+                super::sync_rate_to_delay_time(default, Some(120.0), knob),
+                knob,
+                "default sync_rate {default} should leave Delay Time {knob} free-running"
+            );
+        }
+    }
+
+    #[test]
+    fn sync_display_names_the_division() {
+        let plugin = Corrosion::default();
+        let params = &plugin.params;
+        for (value, text, seconds) in [
+            (0.0f32, "Off", None),
+            (0.3, "1/8", Some(0.25)),
+            (1.0, "2/1", Some(0.8)),
+        ] {
+            assert_eq!(sync_display(params, value), text, "display at {value}");
+            let delay = echo_seconds(super::sync_rate_to_delay_time(value, Some(120.0), 0.42));
+            match seconds {
+                None => assert!(
+                    (delay - echo_seconds(0.42)).abs() < 1e-6,
+                    "{value}: free-running"
+                ),
+                Some(s) => assert!(
+                    (delay - s).abs() < 1e-4,
+                    "{value}: delay {delay} s, expected {s} s"
+                ),
+            }
+        }
+    }
+
+    #[test]
+    fn typed_sync_division_round_trips() {
+        use nih_plug::prelude::Param;
+        let plugin = Corrosion::default();
+        let param = &plugin.params.sync_rate;
+        let names = std::iter::once("Off").chain(crate::params::SYNC_DIVISIONS.iter().map(|d| d.1));
+        for name in names {
+            let normalized = param
+                .string_to_normalized_value(name)
+                .unwrap_or_else(|| panic!("{name} should parse"));
+            assert_eq!(param.normalized_value_to_string(normalized, false), name);
+        }
+    }
+
+    #[test]
+    fn sync_display_matches_behaviour_across_the_range() {
+        let plugin = Corrosion::default();
+        let params = &plugin.params;
+        for step in 0..=100 {
+            let value = step as f32 / 100.0;
+            let shown = sync_display(params, value);
+            let expected = match crate::params::sync_division(value) {
+                None => "Off",
+                Some(i) => crate::params::SYNC_DIVISIONS[i].1,
+            };
+            assert_eq!(shown, expected, "display at {value}");
+            // The division the echo plays at 60 BPM, where one beat is 1 s.
+            let delay = echo_seconds(super::sync_rate_to_delay_time(value, Some(60.0), 0.5));
+            match crate::params::sync_division(value) {
+                None => assert!((delay - echo_seconds(0.5)).abs() < 1e-6),
+                Some(i) => {
+                    let beats = crate::params::SYNC_DIVISIONS[i].0;
+                    assert!(
+                        (delay - beats.min(0.8)).abs() < 1e-4,
+                        "{value}: {delay} s for {beats} beats"
+                    );
+                }
+            }
+        }
     }
 
     #[test]

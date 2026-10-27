@@ -246,7 +246,11 @@ At drive > 2 the dry coefficient goes **negative** (phase-inverted dry mixed wit
 clamp-dominated, phase-smeared regime rather than "more saturation". The weights
 also don't sum to 1 anywhere above drive ≈ 0.67, giving a built-in loudness jump.
 
-### H3. Tempo sync is ON by default and silently disables the Delay Time knob
+### ~~H3. Tempo sync is ON by default and silently disables the Delay Time knob~~ — FIXED
+> **Status: FIXED** (2026-10-27, branch `claude/eloquent-dirac-fc0sqm`): OpenSpec change [`h03-default-tempo-sync-off`](openspec/changes/h03-default-tempo-sync-off/proposal.md).
+> - **Default and display:** `sync_rate` defaults to 0.0 (Off), and the host shows "Off" or the division name ("1/16" … "2/1"). The name comes from the same band function the Echo uses (`params::sync_division`), so the display can't drift from the behaviour.
+> - **Presets:** the 49 factory presets that don't use sync now store 0.0. Hanging Chain Echo keeps its 0.5 (1/4).
+> - **Still open:** the editor control for sync is part of H5.
 `sync_rate` defaults to **0.25** (`src/params.rs:1423-1427`) while the documented
 "Off" region is `< 0.05` (lib.rs:108-138). In any host that reports tempo, Echo
 mode defaults to a 1/8-note sync and the `delay_time` knob does nothing, with no UI
@@ -480,7 +484,7 @@ above the block. Minor, but the doc and tests promise symmetric behavior.
 1. ~~**C1** (filter instability — plugin is broken at default settings in a DAW)~~ — FIXED,
 2. ~~**C2** (crash)~~ — FIXED, ~~**C3** (RT allocation; debug abort)~~ — FIXED,
 3. ~~**C4/C5/C6** (audible correctness of envelope, chain topology, spring reverb)~~ — FIXED,
-4. ~~**H1**~~, ~~**H2**~~ (FIXED), **H3–H4** (parameter ranges, defaults, and preset loading — cheap, high-impact),
+4. ~~**H1**~~, ~~**H2**~~, ~~**H3**~~ (FIXED), **H4** (parameter ranges, defaults, and preset loading — cheap, high-impact),
 5. **H5** (GUI gaps) and the remaining H items,
 6. Medium items opportunistically, alongside regression tests for each fix.
 

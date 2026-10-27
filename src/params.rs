@@ -947,6 +947,61 @@ impl ExciterType {
     }
 }
 
+/// The tempo-sync parameter: Off by default, so Delay Time works out of the
+/// box. Its value is shown as "Off" or the division the echo plays, from
+/// `sync_division`, and typing a division name selects the middle of its
+/// band (`h03-default-tempo-sync-off`).
+pub fn sync_rate_param(default: f32) -> FloatParam {
+    FloatParam::new(
+        "Sync Rate",
+        default,
+        FloatRange::Linear { min: 0.0, max: 1.0 },
+    )
+    .with_value_to_string(Arc::new(|value| match sync_division(value) {
+        None => "Off".to_string(),
+        Some(index) => SYNC_DIVISIONS[index].1.to_string(),
+    }))
+    .with_string_to_value(Arc::new(|string| {
+        let text = string.trim();
+        if text.eq_ignore_ascii_case("off") {
+            return Some(0.0);
+        }
+        let bands = SYNC_DIVISIONS.len() as f32;
+        SYNC_DIVISIONS
+            .iter()
+            .position(|(_, name)| name.eq_ignore_ascii_case(text))
+            .map(|index| SYNC_OFF_BELOW + (index as f32 + 0.5) / bands * (1.0 - SYNC_OFF_BELOW))
+    }))
+}
+
+/// `sync_rate` values below this are Off: the echo free-runs on Delay Time.
+pub const SYNC_OFF_BELOW: f32 = 0.05;
+
+/// Tempo-sync divisions in beats (1/4 note = 1 beat) and their display
+/// names, ascending, so a higher `sync_rate` picks a longer delay.
+pub const SYNC_DIVISIONS: [(f32, &str); 6] = [
+    (0.25, "1/16"),
+    (0.5, "1/8"),
+    (1.0, "1/4"),
+    (2.0, "1/2"),
+    (4.0, "1/1"),
+    (8.0, "2/1"),
+];
+
+/// The `SYNC_DIVISIONS` index `sync_rate` selects, or `None` when sync is
+/// Off. Above the Off region the range is split into six equal bands. The
+/// echo's tempo mapping and the parameter's display both use this, so the
+/// display always names the division the echo plays
+/// (`h03-default-tempo-sync-off`).
+pub fn sync_division(sync_rate: f32) -> Option<usize> {
+    if sync_rate < SYNC_OFF_BELOW {
+        return None;
+    }
+    let normalized = ((sync_rate - SYNC_OFF_BELOW) / (1.0 - SYNC_OFF_BELOW)).clamp(0.0, 1.0);
+    let index = (normalized * SYNC_DIVISIONS.len() as f32) as usize;
+    Some(index.min(SYNC_DIVISIONS.len() - 1))
+}
+
 /// Creates an IntParam for exciter selection with name display and parsing.
 ///
 /// # Arguments
@@ -1448,11 +1503,7 @@ impl Default for CorrosionParams {
             loop_end_stage: IntParam::new("Loop End Stage", 4, IntRange::Linear { min: 0, max: 5 }),
 
             // Timing and sync
-            sync_rate: FloatParam::new(
-                "Sync Rate",
-                0.25,
-                FloatRange::Linear { min: 0.0, max: 1.0 },
-            ),
+            sync_rate: sync_rate_param(0.0),
             global_time_scale: FloatParam::new(
                 "Global Time Scale",
                 1.0,
