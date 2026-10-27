@@ -235,7 +235,11 @@ two instances or true stereo state (like `FactoryEcho` has).
   mix is **0.2**. Either the clamp or the `/5` normalization is wrong; together
   they make the post drive nearly inaudible.
 
-### H2. `apply_drive` mix math assumes drive ∈ 0..1 but the param is 0..5
+### ~~H2. `apply_drive` mix math assumes drive ∈ 0..1 but the param is 0..5~~ — FIXED
+> **Status: FIXED** (2026-10-27, branch `claude/eloquent-dirac-fc0sqm`): OpenSpec change [`h02-normalize-master-drive-mix`](openspec/changes/h02-normalize-master-drive-mix/proposal.md).
+> - **Mix:** the master drive now crossfades, `shaped·m + dry·(1 − m)` with `m = min(drive, 1)`. The weights always sum to 1 and the dry weight is never negative. Above 1 only the shaper's input gain rises.
+> - **Correction to this finding:** the old negative dry weight never flipped the output's sign, because the shaped term always dominated. The cost was the loudness jump.
+> - **Presets:** the 11 presets that use Drive 1.0–1.6 are 0.3–1.6 dB quieter (`levels.md`) and needed no trims.
 `src/lib.rs:412-414`: `shaped·drive + sample·(1 − drive·0.5)`.
 At drive > 2 the dry coefficient goes **negative** (phase-inverted dry mixed with
 5×-scaled wet, then clamped at ±1.5) — the top half of the master Drive knob is a
@@ -476,7 +480,7 @@ above the block. Minor, but the doc and tests promise symmetric behavior.
 1. ~~**C1** (filter instability — plugin is broken at default settings in a DAW)~~ — FIXED,
 2. ~~**C2** (crash)~~ — FIXED, ~~**C3** (RT allocation; debug abort)~~ — FIXED,
 3. ~~**C4/C5/C6** (audible correctness of envelope, chain topology, spring reverb)~~ — FIXED,
-4. ~~**H1**~~ (FIXED), **H2–H4** (parameter ranges, defaults, and preset loading — cheap, high-impact),
+4. ~~**H1**~~, ~~**H2**~~ (FIXED), **H3–H4** (parameter ranges, defaults, and preset loading — cheap, high-impact),
 5. **H5** (GUI gaps) and the remaining H items,
 6. Medium items opportunistically, alongside regression tests for each fix.
 

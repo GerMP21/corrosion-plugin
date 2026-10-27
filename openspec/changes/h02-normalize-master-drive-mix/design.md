@@ -37,3 +37,9 @@
 
 - **[Drive below 1 sounds thinner than today]** → Intended: today's extra level came from the over-unity mix. Drive settings below 1 are only reachable by automation or a user patch; no factory preset uses one.
 - **[A held note's level jumps if Drive is automated across 1]** → None. The mix is continuous at 1: both sides give the shaped signal alone.
+
+## Implementation findings
+
+- `apply_drive` is split into `drive_shape` (gain and waveshaper) and the mix, so the tests compare against the shaped sample exactly.
+- **The old mix never actually flipped the output's sign.** Its dry weight goes negative above drive 2, but the shaped term (up to 1.2 × drive) always outweighs `|x|·(drive/2 − 1)`. So the sign and harmonic-share tests pass on both mixes and stay as guards. The crossfade and no-dry tests fail on the old mix.
+- **The 11 Drive presets drop 0.3–1.6 dB RMS** (`levels.md`): the extra dry signal the old mix added is gone. That's more than the design's "well under 1 dB" for three of them: Chain Whip Snap −1.60, Sheet Lightning −1.35 and Snapped Cable −1.04. Still, none hits the limiter and none falls under the 12 dB floor, so the level rules call for no trims. `tests/drive_dynamics.rs` passes unchanged.

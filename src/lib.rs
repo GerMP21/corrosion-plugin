@@ -338,8 +338,9 @@ const DRIVE_NEG_HARD_THRESHOLD: f32 = 0.7;
 /// Upper bound for the compressed negative output. Tighter than the positive
 /// side so the asymmetry is audible.
 const DRIVE_NEG_CEILING: f32 = 1.1;
-/// Outer clamp applied to the dry/wet mix; sized so downstream limiters
-/// still have headroom even at maximum drive.
+/// Outer clamp applied to the dry/wet mix. The crossfade itself stays
+/// within the shaper's ceilings (1.2 / 1.1) for inputs up to ±1, so this
+/// only guards larger inputs.
 const DRIVE_OUTPUT_CLAMP: f32 = 1.5;
 
 /// Applies asymmetric drive/saturation to a sample.
@@ -348,13 +349,17 @@ const DRIVE_OUTPUT_CLAMP: f32 = 1.5;
 /// - Linear pass-through for low amplitudes
 /// - Smooth knee transition using cubic Hermite interpolation
 /// - Asymmetric saturation (different curves for positive/negative)
-/// - Dry/wet mixing
+/// - A dry/shaped crossfade: shaped share `min(drive, 1)`, dry share
+///   `1 − min(drive, 1)`, so the weights always sum to 1. Above 1 only the
+///   shaper's input gain (`1 + 4·drive`) rises: more saturation, not more
+///   level (`h02-normalize-master-drive-mix`).
 ///
 /// The asymmetry creates harmonic complexity typical of industrial textures.
 ///
 /// # Arguments
 /// * `sample` - Input sample value
-/// * `drive` - Drive amount (0.0 = clean, higher = more saturation)
+/// * `drive` - Drive amount, 0–5 (0.0 = clean; 1.0 = fully shaped; higher =
+///   more saturation)
 ///
 /// # Returns
 /// Processed sample with applied drive and saturation
@@ -364,7 +369,21 @@ pub fn apply_drive(sample: f32, drive: f32) -> f32 {
     if drive <= 0.0 {
         return sample;
     }
+    let shaped = drive_shape(sample, drive);
 
+    // Crossfade over the first unit of the knob; above 1 the shaper's
+    // input gain keeps rising, so more drive is more saturation, not more
+    // level (`h02-normalize-master-drive-mix`).
+    let wet = drive.min(1.0);
+    let dry_wet = shaped * wet + sample * (1.0 - wet);
+    dry_wet.clamp(-DRIVE_OUTPUT_CLAMP, DRIVE_OUTPUT_CLAMP)
+}
+
+/// The master drive's waveshaper alone: the input scaled by
+/// `1 + drive · DRIVE_GAIN_SCALE`, then the asymmetric soft-knee curve.
+/// `apply_drive` mixes it with the dry signal.
+#[inline]
+pub(crate) fn drive_shape(sample: f32, drive: f32) -> f32 {
     // Drive gain scales the input before the saturation curve.
     let drive_gain = 1.0 + drive * DRIVE_GAIN_SCALE;
     let amplified = sample * drive_gain;
@@ -374,7 +393,7 @@ pub fn apply_drive(sample: f32, drive: f32) -> f32 {
     let sign = amplified.signum();
 
     // Apply asymmetric waveshaping based on signal polarity
-    let shaped = if sign > 0.0 {
+    if sign > 0.0 {
         // Positive half: gentler curve, more "tube-like"
         if abs_sample < DRIVE_POS_SOFT_THRESHOLD {
             // Linear region - preserve transients
@@ -412,11 +431,7 @@ pub fn apply_drive(sample: f32, drive: f32) -> f32 {
                 DRIVE_NEG_HARD_THRESHOLD + (1.0 - DRIVE_NEG_HARD_THRESHOLD) * (1.0 - (-t).exp());
             sign * compressed.min(DRIVE_NEG_CEILING)
         }
-    };
-
-    // Dry/wet mix: more drive = more wet signal
-    let dry_wet = shaped * drive + sample * (1.0 - drive * 0.5);
-    dry_wet.clamp(-DRIVE_OUTPUT_CLAMP, DRIVE_OUTPUT_CLAMP)
+    }
 }
 
 /// Handles incoming MIDI note events and routes them to voice management.
@@ -1461,6 +1476,76 @@ mod tests {
             sum += (l * l) as f64;
         }
         (sum / 4_800.0).sqrt() as f32
+    }
+
+    // --- Master drive mix (`h02-normalize-master-drive-mix`) ---
+
+    #[test]
+    fn master_drive_crossfades_below_one() {
+        for x in [-0.6f32, -0.05, 0.01, 0.3, 0.9] {
+            let expected = 0.5 * x + 0.5 * super::drive_shape(x, 0.5);
+            let out = super::apply_drive(x, 0.5);
+            assert!(
+                (out - expected).abs() < 1e-6,
+                "drive 0.5, input {x}: {out} vs crossfade {expected}"
+            );
+        }
+    }
+
+    #[test]
+    fn master_drive_has_no_dry_from_one_up() {
+        for drive in [1.0f32, 2.5, 5.0] {
+            for x in [-0.6f32, -0.05, 0.01, 0.3, 0.9] {
+                let (out, shaped) = (super::apply_drive(x, drive), super::drive_shape(x, drive));
+                assert!(
+                    (out - shaped).abs() < 1e-6,
+                    "drive {drive}, input {x}: {out} has a dry part (shaped {shaped})"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn master_drive_never_inverts() {
+        for drive in [0.0f32, 0.5, 1.0, 2.0, 3.0, 4.0, 5.0] {
+            for x in [-1.0f32, -0.3, -0.01, 0.0, 0.01, 0.3, 1.0] {
+                let out = super::apply_drive(x, drive);
+                assert!(
+                    out.signum() == x.signum() || (x == 0.0 && out == 0.0),
+                    "drive {drive}, input {x}: output {out} has the wrong sign"
+                );
+            }
+        }
+    }
+
+    /// Share of output power outside the 1 kHz fundamental for a
+    /// 0.25-amplitude 1 kHz sine through the master drive at 48 kHz.
+    fn master_drive_harmonic_share(drive: f32) -> f64 {
+        let n = 4_800; // 100 whole periods
+        let out: Vec<f64> = (0..n)
+            .map(|i| {
+                let x = 0.25 * (std::f32::consts::TAU * 1_000.0 * i as f32 / 48_000.0).sin();
+                super::apply_drive(x, drive) as f64
+            })
+            .collect();
+        let total: f64 = out.iter().map(|y| y * y).sum::<f64>() / n as f64;
+        let (mut re, mut im) = (0.0f64, 0.0f64);
+        for (i, y) in out.iter().enumerate() {
+            let phase = std::f64::consts::TAU * 1_000.0 * i as f64 / 48_000.0;
+            re += y * phase.cos();
+            im += y * phase.sin();
+        }
+        let fundamental = 2.0 * (re * re + im * im) / (n as f64 * n as f64);
+        1.0 - fundamental / total
+    }
+
+    #[test]
+    fn higher_master_drive_saturates_more() {
+        let shares = [1.0f32, 2.0, 5.0].map(master_drive_harmonic_share);
+        assert!(
+            shares[0] < shares[1] && shares[1] < shares[2],
+            "harmonic share at drive 1/2/5: {shares:?}"
+        );
     }
 
     #[test]
