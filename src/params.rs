@@ -656,7 +656,10 @@ pub struct CorrosionParams {
 
     // Drive/Post-Processing
     /// Drive amount in post-processing (0.0 to 5.0)
-    /// Separate from exciter drive - affects final output
+    /// Separate from exciter drive - affects final output. The drive
+    /// crossfades from dry to fully saturated across the range (wet share
+    /// `amount / 5`), and also raises its input gain (`1 + amount / 2`).
+    /// The Violence macro adds −0.2..+0.2 before the 0–5 clamp.
     #[id = "drive_amount"]
     pub drive_amount: FloatParam,
 

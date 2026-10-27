@@ -221,7 +221,12 @@ two instances or true stereo state (like `FactoryEcho` has).
 
 ## HIGH
 
-### H1. `drive_amount` knob: 80 % of its range is dead, and its maximum is ~20 % wet
+### ~~H1. `drive_amount` knob: 80 % of its range is dead, and its maximum is ~20 % wet~~ — FIXED
+> **Status: FIXED** (2026-10-27, branch `claude/eloquent-dirac-fc0sqm`): OpenSpec change [`h01-unclamp-post-drive-amount`](openspec/changes/h01-unclamp-post-drive-amount/proposal.md).
+> - **Range:** the host-side clamp of `drive_amount + Violence offset` is now the parameter's own 0–5, so the wet share (`amount / 5`) reaches 100 % at the top of the knob.
+> - **Mix:** the drive's mix is a crossfade (`dry·(1 − w)`, not `1 − w/2`), so it no longer adds up to +3.5 dB at full wet. The drive's input gain (`1 + amount/2`) is unchanged.
+> - **Correction to this finding:** the Violence offset is −0.2 to +0.2 around its neutral 0.5, not +0.4.
+> - **Presets:** the three that use the drive moved by −0.3 to −0.4 dB RMS, from the crossfade alone. Beam Grind went 0.567 → 0.540, Ironforge Anvil Strike 0.164 → 0.159, and Spring Grind 0.450 → 0.432. All of them still pass `preset_levels_are_sane`.
 - Param range is 0–5 (`src/params.rs:1663-1668`), but `process()` clamps
   `(drive_amount + violence_bias)` to **0..1** (`src/lib.rs:915-919`). Knob values
   1.0–5.0 are indistinguishable.
@@ -471,7 +476,7 @@ above the block. Minor, but the doc and tests promise symmetric behavior.
 1. ~~**C1** (filter instability — plugin is broken at default settings in a DAW)~~ — FIXED,
 2. ~~**C2** (crash)~~ — FIXED, ~~**C3** (RT allocation; debug abort)~~ — FIXED,
 3. ~~**C4/C5/C6** (audible correctness of envelope, chain topology, spring reverb)~~ — FIXED,
-4. **H1–H4** (parameter ranges, defaults, and preset loading — cheap, high-impact),
+4. ~~**H1**~~ (FIXED), **H2–H4** (parameter ranges, defaults, and preset loading — cheap, high-impact),
 5. **H5** (GUI gaps) and the remaining H items,
 6. Medium items opportunistically, alongside regression tests for each fix.
 

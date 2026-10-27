@@ -4,13 +4,13 @@
 
 - **Signal path:** `apply_post_chain_params` (`src/lib.rs`) clamps `drive_amount + drive_amount_offset` to 0..1 and passes it to `PostProcessingChain::set_drive_params`. `LorenzDrive::process` then mixes `wet·(amount/5) + input·(1 − amount/10)`.
 - **The same clamp is copied** in the test-only renderer (`render_frames` in `src/lib.rs`), so the two must change together.
-- **Saturator:** `tube_saturate` is the identity below |x| = 0.5. The drive's other stages (chaos modulation, starvation gate) scale the signal before it, so "linear region" in the spec means small inputs with chaos and starvation at 0.
+- **Saturator:** `tube_saturate` is the identity below |x| = 0.5. Before it, the drive scales its input by `g = 1 + amount/2`, and the chaos modulation and starvation gate scale it further. So "linear region" in the spec means small inputs with chaos and starvation at 0, where the saturated signal is exactly `g·input`.
 
 ## Goals / Non-Goals
 
 **Goals:**
 - Every knob position reaches the drive.
-- Mixing never changes the level of an unsaturated signal.
+- The mix is a crossfade: it adds no level beyond the drive's own gain.
 
 **Non-Goals:**
 - Re-voicing the drive's character: the saturator, chaos and starvation are unchanged.
@@ -29,4 +29,4 @@
 ## Risks / Trade-offs
 
 - **[Presets at 0.4–0.55 lose 0.4 dB of dry]** → `preset_levels_are_sane` (no limiter hits, none more than 12 dB under the median) and `tests/preset_roundtrip.rs` must still pass. The review's preset level rules apply if they don't.
-- **[The Violence macro now reaches further]** → Intended: its +0.4 offset was mostly clipped by the 0..1 clamp at high settings.
+- **[The Violence macro now reaches further]** → Intended. Its offset (−0.2 to +0.2 around its neutral 0.5) was clipped by the 0..1 clamp whenever Drive Amount was near or above 1.

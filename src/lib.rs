@@ -807,7 +807,7 @@ impl Corrosion {
             self.params.component_tolerance.value(),
         );
         self.post_chain.set_drive_params(
-            (self.params.drive_amount.value() + bias.drive_amount_offset).clamp(0.0, 1.0),
+            (self.params.drive_amount.value() + bias.drive_amount_offset).clamp(0.0, 5.0),
             self.params.bias_starvation.value(),
             (self.params.chaos_depth.value() + bias.chaos_depth_offset).clamp(0.0, 1.0),
         );
@@ -1441,6 +1441,54 @@ mod tests {
         assert!(bias.chaos_depth_offset > 0.15);
     }
 
+    /// RMS of a quiet 1 kHz tone through the post chain, set up the way
+    /// `process()` sets it, with `drive_amount` and the Violence macro
+    /// (neutral at 0.5).
+    fn post_chain_drive_rms(drive_amount: f32, violence: f32) -> f32 {
+        use crate::params::float_param_for_test;
+        let mut plugin = Corrosion::default();
+        {
+            let params = Arc::get_mut(&mut plugin.params).unwrap();
+            params.drive_amount = float_param_for_test("Drive Amount", drive_amount, 0.0, 5.0);
+            params.macro_violence = float_param_for_test("Violence", violence, 0.0, 1.0);
+        }
+        let bias = super::resolve_macro_bias(&plugin.params);
+        plugin.apply_post_chain_params(48_000, None, &bias, 0.0);
+        let mut sum = 0.0f64;
+        for i in 0..4_800 {
+            let x = 0.05 * (std::f32::consts::TAU * 1_000.0 * i as f32 / 48_000.0).sin();
+            let (l, _) = plugin.post_chain.process(x, x);
+            sum += (l * l) as f64;
+        }
+        (sum / 4_800.0).sqrt() as f32
+    }
+
+    #[test]
+    fn drive_amount_above_one_reaches_the_drive() {
+        // `h01-unclamp-post-drive-amount`: the whole 0–5 range is audible.
+        let (one, three, five) = (
+            post_chain_drive_rms(1.0, 0.5),
+            post_chain_drive_rms(3.0, 0.5),
+            post_chain_drive_rms(5.0, 0.5),
+        );
+        assert!(
+            three > one * 1.05 && five > three * 1.05,
+            "drive amounts 1/3/5 give RMS {one:.5}/{three:.5}/{five:.5}"
+        );
+    }
+
+    #[test]
+    fn violence_pushes_drive_amount_past_one() {
+        let (plain, violent) = (
+            post_chain_drive_rms(1.0, 0.5),
+            post_chain_drive_rms(1.0, 1.0),
+        );
+        assert!(
+            violent > plain * 1.02,
+            "Violence at drive amount 1: RMS {violent:.5} vs {plain:.5}"
+        );
+    }
+
     #[test]
     fn brightness_macro_opens_filter() {
         use crate::params::float_param_for_test;
@@ -1706,7 +1754,7 @@ mod c5_measurements {
         let mut drive = LorenzDrive::new();
         drive.set_sample_rate(sr);
         drive.set_parameters(
-            (params.drive_amount.value() + bias.drive_amount_offset).clamp(0.0, 1.0),
+            (params.drive_amount.value() + bias.drive_amount_offset).clamp(0.0, 5.0),
             params.bias_starvation.value(),
             (params.chaos_depth.value() + bias.chaos_depth_offset).clamp(0.0, 1.0),
         );

@@ -2,6 +2,10 @@
 //!
 //! The drive combines a Lorenz attractor modulation path with a soft tube
 //! saturation curve to introduce motion without breaking real-time safety.
+//!
+//! The amount (0–5) raises the input gain (`1 + amount / 2`) and crossfades
+//! from the dry input to the saturated signal: wet share `amount / 5`, dry
+//! share `1 − amount / 5`.
 /// Chaotic drive processor with Lorenz modulation and tube saturation.
 pub struct LorenzDrive {
     /// Smoothed drive amount; lags `target_drive_amount` to kill zipper noise.
@@ -110,8 +114,11 @@ impl LorenzDrive {
         let saturated = Self::tube_saturate(tube_in);
 
         let wet = saturated.clamp(-1.0, 1.0);
+        // A crossfade: the wet share runs from 0 to 1 across the 0–5 amount,
+        // and the weights sum to 1, so mixing adds no level of its own
+        // (`h01-unclamp-post-drive-amount`).
         let wet_amount = self.drive_amount / 5.0;
-        let dry_wet = wet * wet_amount + input * (1.0 - wet_amount * 0.5);
+        let dry_wet = wet * wet_amount + input * (1.0 - wet_amount);
 
         dry_wet.clamp(-1.0, 1.0)
     }
@@ -155,6 +162,42 @@ mod tests {
             let input = (i as f32 * 0.1).sin() * 0.5;
             let output = drive.process(input);
             assert!((output - input).abs() < 1e-3, "Zero drive should be unity");
+        }
+    }
+
+    /// Gain a small, unsaturated signal gets at `amount` (chaos and
+    /// starvation off): the mix crossfades dry and saturated, so it is
+    /// `(1 − w)·1 + w·g`, with `w = amount/5` and the drive's input gain
+    /// `g = 1 + amount/2` (`h01-unclamp-post-drive-amount`).
+    fn small_signal_gain(amount: f32) -> f32 {
+        let mut drive = LorenzDrive::new();
+        drive.set_sample_rate(48000.0);
+        drive.set_parameters(amount, 0.0, 0.0);
+        let input = 0.01;
+        drive.process(input) / input
+    }
+
+    #[test]
+    fn mix_is_a_crossfade() {
+        for (amount, expected) in [(2.5, 1.625), (5.0, 3.5)] {
+            let gain = small_signal_gain(amount);
+            assert!(
+                (gain - expected).abs() < 1e-4,
+                "amount {amount}: small-signal gain {gain}, crossfade gives {expected}"
+            );
+        }
+        assert_eq!(small_signal_gain(0.0), 1.0);
+    }
+
+    #[test]
+    fn wet_share_spans_the_whole_amount_range() {
+        // Wet shares 0.2, 0.6 and 1.0 give small-signal gains 1.1, 1.9, 3.5.
+        for (amount, expected) in [(1.0, 1.1), (3.0, 1.9), (5.0, 3.5)] {
+            let gain = small_signal_gain(amount);
+            assert!(
+                (gain - expected).abs() < 1e-4,
+                "amount {amount}: small-signal gain {gain}, expected {expected}"
+            );
         }
     }
 
