@@ -280,31 +280,37 @@ impl OnePoleSmoother {
     }
 }
 
-/// Output limiter threshold to prevent clipping and ensure headroom.
+/// The default output ceiling: the Analog Ceiling parameter's default.
 ///
-/// Set slightly below 1.0 (0.9661) to allow for inter-sample peaks
-/// and provide safety margin for downstream processing.
+/// Set slightly below 1.0 (0.9661, about −0.3 dBFS) to allow for inter-sample
+/// peaks and provide safety margin for downstream processing. Offline tools
+/// and tests that render without the parameter use it as their ceiling.
 pub const LIMITER_THRESHOLD: f32 = 0.9661;
 
-/// Applies a hard limiter to a single sample to prevent output clipping.
+/// Applies the Hard output limiter to a single sample: clamps it to
+/// `[-ceiling, ceiling]`.
 ///
-/// This function clamps the sample to the range [-LIMITER_THRESHOLD, LIMITER_THRESHOLD].
-/// It's applied as the final stage of the signal chain before output.
+/// The plugin passes the Analog Ceiling, the same threshold the Lookahead
+/// limiter uses, so both modes stop at one ceiling
+/// (`h07-hard-limiter-honors-analog-ceiling`). Tools without the parameter
+/// pass `LIMITER_THRESHOLD`.
 ///
 /// # Arguments
 /// * `sample` - Input sample value
+/// * `ceiling` - Largest output magnitude
 ///
 /// # Returns
-/// Limited sample value within safe output range
+/// Limited sample value within `±ceiling`
 ///
 /// # Example
 /// ```rust
-/// let limited = corrosion::apply_output_limiter(1.5);
+/// let limited = corrosion::apply_output_limiter(1.5, corrosion::LIMITER_THRESHOLD);
 /// assert_eq!(limited, corrosion::LIMITER_THRESHOLD);
+/// assert_eq!(corrosion::apply_output_limiter(-0.8, 0.5), -0.5);
 /// ```
 #[inline]
-pub fn apply_output_limiter(sample: f32) -> f32 {
-    sample.clamp(-LIMITER_THRESHOLD, LIMITER_THRESHOLD)
+pub fn apply_output_limiter(sample: f32, ceiling: f32) -> f32 {
+    sample.clamp(-ceiling, ceiling)
 }
 
 /// Maximum drive-amount-to-gain multiplier in `apply_drive`. A drive of `1.0`
@@ -730,7 +736,7 @@ pub struct Corrosion {
     output_gain_smoother: OnePoleSmoother,
     /// Optional lookahead peak limiter for the left output channel.
     /// Engaged only when `limiter_mode == 1`; otherwise the master path
-    /// falls through to `apply_output_limiter`.
+    /// falls through to `apply_output_limiter`. Both use the Analog Ceiling.
     lookahead_left: dsp::LookaheadLimiter,
     /// Optional lookahead peak limiter for the right output channel.
     lookahead_right: dsp::LookaheadLimiter,
@@ -790,6 +796,46 @@ impl Corrosion {
 }
 
 impl Corrosion {
+    /// Per-buffer setup of the output limiters: sample rate and threshold.
+    /// The threshold is the Analog Ceiling, which both limiter modes target.
+    /// Returns the limiter mode (0 Hard, 1 Lookahead) and that threshold.
+    fn configure_output_limiters(&mut self, sample_rate: u32) -> (i32, f32) {
+        let limiter_mode = self.params.limiter_mode.value();
+        let limiter_threshold = self.params.analog_ceiling.value().clamp(0.1, 1.0);
+        self.lookahead_left.set_sample_rate(sample_rate as f32);
+        self.lookahead_right.set_sample_rate(sample_rate as f32);
+        self.lookahead_left.set_threshold(limiter_threshold);
+        self.lookahead_right.set_threshold(limiter_threshold);
+        (limiter_mode, limiter_threshold)
+    }
+
+    /// The last stage of the signal: output gain, then the selected limiter.
+    /// Hard (default) clamps each sample; Lookahead introduces ~1 ms of delay
+    /// and pulls peaks back via the smoothed gain reduction in
+    /// `LookaheadLimiter`. Both stop at `limiter_threshold`, the Analog
+    /// Ceiling, so it is the output ceiling whatever the gain.
+    fn output_stage(
+        &mut self,
+        left: f32,
+        right: f32,
+        gain: f32,
+        limiter_mode: i32,
+        limiter_threshold: f32,
+    ) -> (f32, f32) {
+        let (left, right) = (left * gain, right * gain);
+        if limiter_mode == 1 {
+            (
+                self.lookahead_left.process(left),
+                self.lookahead_right.process(right),
+            )
+        } else {
+            (
+                apply_output_limiter(left, limiter_threshold),
+                apply_output_limiter(right, limiter_threshold),
+            )
+        }
+    }
+
     /// Push the current parameter values (plus macro biases) into the post
     /// chain. Called once per buffer from `process()`; shared with offline
     /// measurement tests so they configure the chain exactly as the plugin does.
@@ -976,16 +1022,7 @@ impl Plugin for Corrosion {
         self.output_gain_smoother
             .set_target(self.params.output.value());
 
-        // Per-buffer setup for the lookahead limiter (sample rate + threshold).
-        // Threshold tracks the analog ceiling so both limiter modes target the
-        // same effective peak. The choice between Hard and Lookahead happens
-        // per-sample below.
-        let limiter_mode = self.params.limiter_mode.value();
-        let limiter_threshold = self.params.analog_ceiling.value().clamp(0.1, 1.0);
-        self.lookahead_left.set_sample_rate(sample_rate as f32);
-        self.lookahead_right.set_sample_rate(sample_rate as f32);
-        self.lookahead_left.set_threshold(limiter_threshold);
-        self.lookahead_right.set_threshold(limiter_threshold);
+        let (limiter_mode, limiter_threshold) = self.configure_output_limiters(sample_rate);
 
         // Report plugin latency to the host. Only update when it changes —
         // hosts may re-negotiate buses on every set_latency_samples call.
@@ -1047,21 +1084,14 @@ impl Plugin for Corrosion {
             left = post_left;
             right = post_right;
 
-            // Apply output gain. The limiter choice is per-buffer: Hard
-            // (default) clamps each sample; Lookahead introduces ~1 ms of
-            // delay and pulls peaks back via the smoothed gain reduction in
-            // `LookaheadLimiter`. Either way the master signal stays bounded
-            // below the analog ceiling.
             let output_gain_smoothed = self.output_gain_smoother.next();
-            left *= output_gain_smoothed;
-            right *= output_gain_smoothed;
-            if limiter_mode == 1 {
-                left = self.lookahead_left.process(left);
-                right = self.lookahead_right.process(right);
-            } else {
-                left = apply_output_limiter(left);
-                right = apply_output_limiter(right);
-            }
+            (left, right) = self.output_stage(
+                left,
+                right,
+                output_gain_smoothed,
+                limiter_mode,
+                limiter_threshold,
+            );
 
             // Write output to buffer channels
             for (idx, channel_sample) in channel_samples.into_iter().enumerate() {
@@ -1299,8 +1329,9 @@ mod tests {
             let mut right = apply_drive(right_sample, plugin.params.drive.value());
 
             (left, right) = plugin.post_chain.process(left, right);
-            left = apply_output_limiter(left * plugin.params.output.value());
-            right = apply_output_limiter(right * plugin.params.output.value());
+            let ceiling = plugin.params.analog_ceiling.value();
+            left = apply_output_limiter(left * plugin.params.output.value(), ceiling);
+            right = apply_output_limiter(right * plugin.params.output.value(), ceiling);
             peak = peak.max(left.abs()).max(right.abs());
         }
 
@@ -2345,5 +2376,120 @@ mod c5_measurements {
                 preset.name
             );
         }
+    }
+}
+
+/// The output ceiling in both limiter modes (`h07-hard-limiter-honors-analog-ceiling`).
+#[cfg(test)]
+mod output_ceiling_tests {
+    use super::{apply_drive, handle_note_event, resolve_macro_bias, Corrosion, LIMITER_THRESHOLD};
+    use crate::params::{limiter_mode_param, CorrosionParams};
+    use nih_plug::prelude::{FloatParam, FloatRange, NoteEvent};
+    use std::sync::Arc;
+
+    const SAMPLE_RATE: u32 = 48_000;
+
+    /// A full-velocity C4 through the whole plugin path (voices, master
+    /// drive, post chain, output stage) at `ceiling`, output `gain` and
+    /// limiter `mode`: half a second, 48 kHz.
+    fn render(ceiling: f32, gain: f32, mode: i32) -> Vec<(f32, f32)> {
+        let params = CorrosionParams {
+            analog_ceiling: FloatParam::new(
+                "Analog Ceiling",
+                ceiling,
+                FloatRange::Linear { min: 0.5, max: 1.0 },
+            ),
+            limiter_mode: limiter_mode_param(mode),
+            ..CorrosionParams::default()
+        };
+        let mut plugin = Corrosion {
+            params: Arc::new(params),
+            ..Corrosion::default()
+        };
+        let params = plugin.params.clone();
+        let bias = resolve_macro_bias(&params);
+        let body = super::body_mix(params.body.value());
+        plugin.apply_post_chain_params(SAMPLE_RATE, None, &bias, body);
+        let (limiter_mode, threshold) = plugin.configure_output_limiters(SAMPLE_RATE);
+        handle_note_event(
+            &mut plugin,
+            NoteEvent::NoteOn {
+                timing: 0,
+                voice_id: None,
+                channel: 0,
+                note: 60,
+                velocity: 1.0,
+            },
+        );
+        let drive = (params.drive.value() + bias.drive_offset).clamp(0.0, 5.0);
+        let width = params.width.value();
+        (0..SAMPLE_RATE as usize / 2)
+            .map(|_| {
+                let (l, r) = plugin
+                    .voice_manager
+                    .process_sample_stereo(SAMPLE_RATE, width);
+                let (l, r) = plugin
+                    .post_chain
+                    .process(apply_drive(l, drive), apply_drive(r, drive));
+                plugin.output_stage(l, r, gain, limiter_mode, threshold)
+            })
+            .collect()
+    }
+
+    fn peak(frames: &[(f32, f32)]) -> f32 {
+        frames
+            .iter()
+            .fold(0.0f32, |m, &(l, r)| m.max(l.abs()).max(r.abs()))
+    }
+
+    #[test]
+    fn hard_mode_stays_under_a_low_ceiling() {
+        let peak = peak(&render(0.5, 4.0, 0));
+        assert!(peak <= 0.5, "Hard, ceiling 0.5, gain 4: peak {peak:.4}");
+    }
+
+    #[test]
+    fn both_limiter_modes_reach_the_same_ceiling() {
+        for (mode, name) in [(0, "Hard"), (1, "Lookahead")] {
+            let peak = peak(&render(0.7, 4.0, mode));
+            assert!(
+                (0.65..=0.7).contains(&peak),
+                "{name}, ceiling 0.7: peak {peak:.4}, expected 0.65..=0.7"
+            );
+        }
+    }
+
+    #[test]
+    fn factory_preset_is_bit_identical_at_the_default_ceiling() {
+        let path = &super::c5_measurements::factory_preset_paths()[0];
+        let preset = crate::presets::Preset::load(path).expect("load preset");
+        assert_eq!(preset.extra.analog_ceiling, LIMITER_THRESHOLD);
+        assert_eq!(preset.extra.limiter_mode, 0);
+        let mut plugin = Corrosion {
+            params: Arc::new(preset.into_params()),
+            ..Corrosion::default()
+        };
+        let (mode, threshold) = plugin.configure_output_limiters(SAMPLE_RATE);
+        // Frames after output gain, before the limiter. Output ×4 so the
+        // clamp is exercised, not just passed through.
+        let frames = super::c5_measurements::render_preset_frames(path, 0.5, 4.0);
+        let mut over = 0;
+        for &(l, r) in &frames {
+            let (ol, or) = plugin.output_stage(l, r, 1.0, mode, threshold);
+            let fixed = (
+                l.clamp(-LIMITER_THRESHOLD, LIMITER_THRESHOLD),
+                r.clamp(-LIMITER_THRESHOLD, LIMITER_THRESHOLD),
+            );
+            assert_eq!(
+                (ol.to_bits(), or.to_bits()),
+                (fixed.0.to_bits(), fixed.1.to_bits()),
+                "{}: output differs from a fixed {LIMITER_THRESHOLD} clamp",
+                path.display()
+            );
+            if l.abs() > LIMITER_THRESHOLD || r.abs() > LIMITER_THRESHOLD {
+                over += 1;
+            }
+        }
+        assert!(over > 0, "{}: no sample reached the clamp", path.display());
     }
 }

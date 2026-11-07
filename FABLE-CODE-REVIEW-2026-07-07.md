@@ -304,7 +304,12 @@ captured into `VoiceControls` (lib.rs:485-487) and then **never read** — no ex
 consumes them (each uses its dedicated params instead). They're automatable,
 documented ("Overall intensity of excitation"), shown in presets, and do nothing.
 
-### H7. The two limiter modes target different ceilings
+### ~~H7. The two limiter modes target different ceilings~~ — FIXED
+> **Status: FIXED** (2026-11-07, branch `claude/zen-dirac-vq38u4`): OpenSpec change [`h07-hard-limiter-honors-analog-ceiling`](openspec/changes/h07-hard-limiter-honors-analog-ceiling/proposal.md).
+> - **One ceiling:** `apply_output_limiter(sample, ceiling)` takes the ceiling, and `process` passes the same per-buffer Analog Ceiling the Lookahead limiter uses. Both modes now stop at it after output gain.
+> - **Tests:** `hard_mode_stays_under_a_low_ceiling` (ceiling 0.5, gain 4) and `both_limiter_modes_reach_the_same_ceiling` (ceiling 0.7: both peak in 0.65–0.7) run the real output stage. Both failed before the fix.
+> - **Defaults unchanged:** every factory preset stores 0.9661, and `factory_preset_is_bit_identical_at_the_default_ceiling` checks the output is bit-identical to the old fixed clamp. `LIMITER_THRESHOLD` stays as the default ceiling for offline tools.
+
 lib.rs:884-905 sets the lookahead limiter threshold to `analog_ceiling`
 ("Threshold tracks the analog ceiling so both limiter modes target the same
 effective peak") — but Hard mode uses `apply_output_limiter`, a fixed clamp at

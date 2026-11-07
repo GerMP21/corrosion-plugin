@@ -287,8 +287,10 @@ fn render_preset(
 
         left *= preset.output;
         right *= preset.output;
-        left = apply_output_limiter(left);
-        right = apply_output_limiter(right);
+        // The preset's Analog Ceiling, as the plugin's Hard limiter uses it.
+        let ceiling = preset.extra.analog_ceiling.clamp(0.1, 1.0);
+        left = apply_output_limiter(left, ceiling);
+        right = apply_output_limiter(right, ceiling);
 
         let mono = (left + right) * 0.5;
         output.push(mono.clamp(-1.0, 1.0));

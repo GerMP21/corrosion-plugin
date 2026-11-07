@@ -59,8 +59,8 @@ MIDI Note Event
 └─────────────────────────────────────────────────────────────────────┘
                                        │
                                        ▼
-                        × output_gain → apply_output_limiter()
-                                       │  hard clamp to ±0.9661  (≈ −0.3 dBFS)
+                        × output_gain → Hard clamp or Lookahead limiter
+                                       │  both at ±Analog Ceiling (default 0.9661 ≈ −0.3 dBFS)
                                        ▼
                                  Stereo Output
 ```
@@ -514,10 +514,16 @@ identical at the clipper. This is the top defect in `docs/code-review.md`.
 
 ### Output protection
 
-Final stage is `apply_output_limiter`: a hard clamp to `±LIMITER_THRESHOLD`
-where `LIMITER_THRESHOLD = 0.9661` (≈ **−0.3 dBFS**). The clipper's
-`analog_ceiling` parameter defaults to the same 0.9661 and is clamped to
-[0.5, 1.0].
+The **Analog Ceiling** parameter (0.5–1.0, default 0.9661 ≈ **−0.3 dBFS**) is
+the output ceiling. The post-chain clipper clips at it, and after output gain
+the selected limiter stops at it: **Hard** (default) is
+`apply_output_limiter(sample, ceiling)`, a clamp to `±ceiling`; **Lookahead**
+uses it as its threshold (`h07-hard-limiter-honors-analog-ceiling`). So no
+output sample exceeds the ceiling, whatever the gain or mode
+(`hard_mode_stays_under_a_low_ceiling`,
+`both_limiter_modes_reach_the_same_ceiling`). `LIMITER_THRESHOLD = 0.9661` is
+the ceiling's default, used by offline tools and tests that render without the
+parameter.
 
 ---
 
@@ -546,7 +552,7 @@ bundle/validator flow uses `x86_64-unknown-linux-gnu`.
 | Configurable oversampling 1/4/8/16 | Wired but **ineffective** | `oversampled_clipper.rs` factor is a no-op (see code review) |
 | Idle rendering optimization | Implemented | `Voice::rendering` flag + `is_rendering()` gating in `manager.rs` |
 | Aliasing measurement | Implemented (DFT proxy) | `offline/mod.rs::analyze_post_chain_aliasing`, `render --suite aliasing` |
-| Output ceiling −0.3 dBFS | Implemented | `LIMITER_THRESHOLD = 0.9661`, `analog_ceiling` default 0.9661 |
+| Output ceiling −0.3 dBFS | Implemented | `analog_ceiling` (default 0.9661 = `LIMITER_THRESHOLD`) is the ceiling in both limiter modes |
 
 ---
 

@@ -767,8 +767,10 @@ pub struct CorrosionParams {
     #[id = "high_frequency_damping"]
     pub high_frequency_damping: FloatParam,
 
-    /// Analog ceiling (0.5 to 1.0)
-    /// Clipper threshold for final output stage
+    /// Analog ceiling (0.5 to 1.0, default 0.9661 ≈ −0.3 dBFS): the output
+    /// ceiling. The post-chain clipper clips at it, and after output gain both
+    /// limiter modes (Hard and Lookahead) stop at it, so no output sample
+    /// exceeds it (`h07-hard-limiter-honors-analog-ceiling`).
     #[id = "analog_ceiling"]
     pub analog_ceiling: FloatParam,
 
