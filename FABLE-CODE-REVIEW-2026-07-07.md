@@ -319,7 +319,9 @@ clipper already clips at `analog_ceiling` *before* output gain — so output gai
 > 1 can push the clipped signal back above the ceiling into the final limiter,
 making the "analog ceiling" a soft suggestion in Hard mode.
 
-### H8. `get_state`/`load_state` are dead and dangerous
+### ~~H8. `get_state`/`load_state` are dead and dangerous~~ — FIXED
+> **Status: FIXED** (2026-11-07, branch `claude/zen-dirac-vq38u4`): OpenSpec change [`h08-remove-dead-state-functions`](openspec/changes/h08-remove-dead-state-functions/proposal.md). Both methods are deleted; nothing called them. Host state save and restore still go through nih-plug's `Params` derive, and the preset schema migration stays in `Preset::from_json_str`. The only remaining `get_state` is nih-plug's `GuiContext` trait method on the editor tests' `NullGui`.
+
 lib.rs:761-783. Nothing calls them (nih-plug persists params via the `Params`
 derive). If anything ever did call `load_state`, the `self.params = Arc::new(...)`
 swap would disconnect the host and GUI (which hold the original Arc from

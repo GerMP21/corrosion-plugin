@@ -767,35 +767,6 @@ impl Default for Corrosion {
 }
 
 impl Corrosion {
-    /// Serializes current parameter state to bytes for host state save.
-    ///
-    /// # Returns
-    /// JSON-encoded preset bytes, or empty vector on serialization failure
-    pub fn get_state(&self) -> Vec<u8> {
-        serde_json::to_vec_pretty(&Preset::from_params(Self::NAME, &self.params))
-            .unwrap_or_default()
-    }
-
-    /// Restores parameter state from serialized bytes.
-    ///
-    /// # Arguments
-    /// * `state` - Serialized preset bytes from previous get_state() call
-    ///
-    /// The state goes through `Preset::from_json_str` so legacy versions get
-    /// migrated to the current schema before deserialization — same path as
-    /// `Preset::load`, ensuring host state-restore and on-disk presets behave
-    /// identically.
-    pub fn load_state(&mut self, state: &[u8]) {
-        let Ok(json) = std::str::from_utf8(state) else {
-            return;
-        };
-        if let Ok(preset) = Preset::from_json_str(json) {
-            self.params = Arc::new(preset.into_params());
-        }
-    }
-}
-
-impl Corrosion {
     /// Per-buffer setup of the output limiters: sample rate and threshold.
     /// The threshold is the Analog Ceiling, which both limiter modes target.
     /// Returns the limiter mode (0 Hard, 1 Lookahead) and that threshold.
