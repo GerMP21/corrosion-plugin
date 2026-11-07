@@ -257,7 +257,12 @@ mode defaults to a 1/8-note sync and the `delay_time` knob does nothing, with no
 indication. Default should be 0.0 (Off). (The GUI doesn't even expose `sync_rate`
 — see H5 — so a GUI user can't turn sync off at all.)
 
-### H4. GUI preset loading drops v4 fields
+### ~~H4. GUI preset loading drops v4 fields~~ — FIXED
+> **Status: FIXED** (2026-11-07, branch `claude/eloquent-dirac-fc0sqm`): OpenSpec change [`h04-load-every-preset-field-in-gui`](openspec/changes/h04-load-every-preset-field-in-gui/proposal.md).
+> - **Generic load:** the editor's `apply_preset` now walks the parameter map and applies `Preset::parameter_values` (every parameter except `ui_scale`), each as a begin/set/end gesture. The six skipped IDs (play mode, limiter mode, the four macros) load, and so will any parameter added later.
+> - **Values:** they are normalized against the live parameter, because `into_params` builds some parameters with other ranges.
+> - **UI Scale:** loading a preset no longer resizes the editor.
+> - **Tests:** `tests/preset_loading.rs`.
 `src/gui/editor.rs:1929-2085` (`apply_preset`) sets every parameter **except**
 `play_mode`, `limiter_mode`, `macro_mass`, `macro_corrosion`, `macro_violence`,
 `macro_brightness`. A factory/user preset that stores Kit/Drone mode, the lookahead
@@ -484,7 +489,7 @@ above the block. Minor, but the doc and tests promise symmetric behavior.
 1. ~~**C1** (filter instability — plugin is broken at default settings in a DAW)~~ — FIXED,
 2. ~~**C2** (crash)~~ — FIXED, ~~**C3** (RT allocation; debug abort)~~ — FIXED,
 3. ~~**C4/C5/C6** (audible correctness of envelope, chain topology, spring reverb)~~ — FIXED,
-4. ~~**H1**~~, ~~**H2**~~, ~~**H3**~~ (FIXED), **H4** (parameter ranges, defaults, and preset loading — cheap, high-impact),
+4. ~~**H1–H4**~~ (FIXED: parameter ranges, defaults, and preset loading),
 5. **H5** (GUI gaps) and the remaining H items,
 6. Medium items opportunistically, alongside regression tests for each fix.
 

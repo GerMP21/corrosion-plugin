@@ -601,6 +601,10 @@ fn default_play_mode() -> i32 {
     0 // Tonal
 }
 
+/// Parameter IDs that loading a preset leaves alone: editor preferences, not
+/// part of a sound. `ui_scale` sizes the editor window.
+pub const PRESET_SKIPPED_PARAMS: &[&str] = &["ui_scale"];
+
 impl Preset {
     pub fn from_params(name: impl Into<String>, params: &CorrosionParams) -> Self {
         Self {
@@ -636,6 +640,35 @@ impl Preset {
         params.play_mode = crate::params::play_mode_param(self.play_mode);
         self.extra.apply_to(&mut params);
         params
+    }
+
+    /// The parameter values loading this preset sets, as `(id, normalized
+    /// value against `live`'s own parameter)`, for every parameter in
+    /// `live`'s parameter map except the editor-only ones in
+    /// `PRESET_SKIPPED_PARAMS` (`h04-load-every-preset-field-in-gui`).
+    ///
+    /// Each value is taken as a plain value from `into_params()` and
+    /// normalized by the live parameter of the same ID, so a parameter that
+    /// `into_params` builds with a different range still lands on the right
+    /// value.
+    pub fn parameter_values(&self, live: &CorrosionParams) -> Vec<(String, f32)> {
+        use nih_plug::prelude::Params;
+        let loaded = self.clone().into_params();
+        let loaded_plain: std::collections::HashMap<String, f32> = loaded
+            .param_map()
+            .into_iter()
+            // SAFETY: the pointers come from `loaded`, alive for this call.
+            .map(|(id, ptr, _)| (id, unsafe { ptr.unmodulated_plain_value() }))
+            .collect();
+        live.param_map()
+            .into_iter()
+            .filter(|(id, _, _)| !PRESET_SKIPPED_PARAMS.contains(&id.as_str()))
+            .filter_map(|(id, ptr, _)| {
+                let plain = *loaded_plain.get(&id)?;
+                // SAFETY: the pointers come from `live`, borrowed for this call.
+                Some((id, unsafe { ptr.preview_normalized(plain) }))
+            })
+            .collect()
     }
 
     pub fn save(&self, path: impl AsRef<Path>) -> io::Result<()> {

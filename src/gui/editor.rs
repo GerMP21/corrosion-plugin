@@ -1926,162 +1926,26 @@ fn render_preset_loader(
     });
 }
 
+/// Load `preset` into the plugin: every parameter except the editor-only
+/// ones (`PRESET_SKIPPED_PARAMS`), each as one begin/set/end gesture so the
+/// host records it. Driven by the parameter map, so no parameter can be
+/// missed (`h04-load-every-preset-field-in-gui`).
 fn apply_preset(params: &CorrosionParams, setter: &ParamSetter, preset: &Preset) {
-    let loaded = preset.clone().into_params();
-
-    macro_rules! set_float {
-        ($field:ident) => {
-            setter.set_parameter(&params.$field, loaded.$field.value());
-        };
+    let values: std::collections::HashMap<String, f32> =
+        preset.parameter_values(params).into_iter().collect();
+    for (id, ptr, _) in params.param_map() {
+        if let Some(&normalized) = values.get(&id) {
+            // SAFETY: `ptr` comes from the plugin's own parameter map, which
+            // outlives the editor.
+            unsafe {
+                setter.raw_context.raw_begin_set_parameter(ptr);
+                setter
+                    .raw_context
+                    .raw_set_parameter_normalized(ptr, normalized);
+                setter.raw_context.raw_end_set_parameter(ptr);
+            }
+        }
     }
-
-    macro_rules! set_int {
-        ($field:ident) => {
-            setter.set_parameter(&params.$field, loaded.$field.value());
-        };
-    }
-
-    set_int!(object);
-    set_int!(exciter);
-    set_int!(quality_mode);
-    set_int!(ui_scale);
-    set_int!(loop_mode);
-    set_int!(loop_start_stage);
-    set_int!(loop_end_stage);
-    set_int!(space_mode);
-
-    set_float!(size);
-    set_float!(rust);
-    set_float!(damage);
-    set_float!(drive);
-    set_float!(output);
-    set_float!(width);
-    set_float!(body);
-    set_float!(env_attack);
-    set_float!(env_decay);
-    set_float!(env_sustain);
-    set_float!(env_release);
-    set_float!(mseg_onset);
-    set_float!(mseg_attack);
-    set_float!(mseg_hold);
-    set_float!(mseg_decay);
-    set_float!(mseg_sustain);
-    set_float!(mseg_release);
-    set_float!(env_amount);
-    set_float!(velocity_to_peak);
-    set_float!(sync_rate);
-    set_float!(global_time_scale);
-    set_float!(velocity_to_level);
-    set_float!(velocity_to_time);
-    set_float!(curve_tension);
-    set_float!(exciter_pressure);
-    set_float!(exciter_speed);
-    set_float!(exciter_roughness);
-    set_float!(hand_mass);
-    set_float!(flesh_stiffness);
-    set_float!(flesh_damping);
-    set_float!(mute_decay);
-    set_float!(mallet_mass);
-    set_float!(felt_softness);
-    set_float!(core_hardness);
-    set_float!(compression_curve);
-    set_float!(material_stiffness);
-    set_float!(impact_damping);
-    set_float!(stick_mass);
-    set_float!(tip_stiffness);
-    set_float!(restitution_bounciness);
-    set_float!(micro_bounce_limit);
-    set_float!(wire_density);
-    set_float!(spread_duration);
-    set_float!(brush_wire_stiffness);
-    set_float!(amplitude_randomization);
-    set_float!(pipe_mass);
-    set_float!(metal_stiffness);
-    set_float!(pipe_pitch);
-    set_float!(pipe_ring_decay);
-    set_float!(link_count);
-    set_float!(chain_mass);
-    set_float!(drop_envelope_spread);
-    set_float!(internal_rattle);
-    set_float!(rattle_color);
-    set_float!(bow_pressure);
-    set_float!(bow_speed);
-    set_float!(rosin_grip);
-    set_float!(slip_curve);
-    set_float!(scrape_speed);
-    set_float!(point_pressure);
-    set_float!(chatter_pitch);
-    set_float!(chatter_damping);
-    set_float!(grind_speed);
-    set_float!(grind_pressure);
-    set_float!(surface_grit);
-    set_float!(grit_color);
-    set_float!(drag_speed);
-    set_float!(ridge_spacing);
-    set_float!(ridge_depth);
-    set_float!(drag_exciter_mass);
-    set_float!(pull_speed);
-    set_float!(break_threshold);
-    set_float!(slip_stochasticity);
-    set_float!(creak_sharpness);
-    set_float!(air_pressure);
-    set_float!(nozzle_width);
-    set_float!(turbulence_chaos);
-    set_float!(mains_frequency);
-    set_float!(coil_proximity);
-    set_float!(voltage_sag);
-    set_float!(pull_distance);
-    set_float!(hook_stiffness);
-    set_float!(snap_force);
-    set_float!(flow_rate);
-    set_float!(particle_mass);
-    set_float!(mass_variance);
-    set_float!(strike_position);
-    set_float!(coupling_stiffness);
-    set_float!(position_wander);
-    set_float!(position_envelope);
-    set_float!(fundamental_anchor);
-    set_float!(res_damping);
-    set_float!(res_brightness);
-    set_float!(thickness);
-    set_float!(heat);
-    set_float!(sludge);
-    set_float!(pipe_diameter);
-    set_float!(plate_aspect);
-    set_float!(plate_stiffness);
-    set_float!(tank_volume);
-    set_float!(tank_cavity_mix);
-    set_float!(chain_link_mass);
-    set_float!(chain_instability);
-    set_float!(beam_shear);
-    set_float!(cable_braid);
-    set_float!(cable_tension_drop);
-    set_float!(spring_dispersion);
-    set_float!(spring_slosh);
-    set_float!(sheet_thinness);
-    set_float!(cog_dissonance);
-    set_float!(filter_cutoff);
-    set_float!(filter_resonance);
-    set_float!(component_tolerance);
-    set_float!(drive_amount);
-    set_float!(bias_starvation);
-    set_float!(chaos_depth);
-    set_float!(spread_width);
-    set_float!(listener_proximity);
-    set_float!(chassis_material);
-    set_float!(chassis_volume);
-    set_float!(space_amount);
-    set_float!(factory_size);
-    set_float!(machinery_clutter);
-    set_float!(wall_impedance);
-    set_float!(spring_tension);
-    set_float!(wire_stiffness);
-    set_float!(spring_tank_size);
-    set_float!(delay_time);
-    set_float!(machinery_movement);
-    set_float!(high_frequency_damping);
-    set_float!(analog_ceiling);
-    set_float!(diode_softness);
 }
 
 fn load_factory_presets() -> Vec<FactoryPresetEntry> {
