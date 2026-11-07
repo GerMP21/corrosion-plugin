@@ -26,19 +26,36 @@
    - The factor is 0.25× at 0 (−12 dB), 1× at 0.5 and 4× at 1 (+12 dB). It is exactly 1.0 at 0.5 in f32, so the default stays bit-identical.
    - Because it's part of `force_scale`, contact exciters see it in their prediction, and the governor follows.
    - It's pushed live through `update_live_controls`, smoothed with a one-pole of about 10 ms (through `rate::smoother`) to avoid zipper noise.
-2. **Speed: multiplier `2^((s − 0.5)·2)`, ×0.5 to ×2, on motion-speed parameters at note-on:**
-   - bow speed;
-   - `scrape_speed`, `grind_speed`, `drag_speed`, `pull_speed`;
-   - ParticleRain flow.
+2. **Speed: multiplier `2^((s − 0.5)·2)`, ×0.5 to ×2, on motion-speed parameters at note-on.** Spreads and durations take the inverse, since faster motion means a shorter spread. Each scaled value is clamped to its host parameter's range (`src/params.rs`). Inventory (task 1.1, from each exciter's `set_parameters`):
 
-   Spreads and durations (WireBrush spread, MetalChain drop spread) take the inverse, since faster motion means a shorter spread. Each scaled value is clamped to its parameter's range. The implementation's first task confirms the list by reading each exciter.
-3. **Roughness: multiplier `r / 0.3`, from 0 to ×3.33, on grit and randomness parameters at note-on:**
-   - bow roughness, `surface_grit`, `slip_stochasticity`, `turbulence_chaos`;
-   - `amplitude_randomization`, `internal_rattle`;
-   - ParticleRain mass variance.
+   | Exciter | Parameter | Range | Scaling |
+   |---|---|---|---|
+   | Bow (1) | `bow_speed` | 0.1–2.0 | × |
+   | WireBrush (6) | `spread_duration` (ms) | 10–250 | ÷ |
+   | MetalChain (8) | `drop_envelope_spread` (ms) | 40–400 | ÷ |
+   | StiffPoint (9) | `scrape_speed` | 0.1–2.5 | × |
+   | HeavyGrinding (10) | `grind_speed` | 0.1–2.5 | × |
+   | CorrugatedDrag (11) | `drag_speed` | 0.1–2.5 | × |
+   | TensionRise (12) | `pull_speed` | 0.05–1.55 | × |
+   | ParticleRain (16) | `flow_rate` | 0.1–3.1 | × |
 
-   A linear factor keeps 0 meaning "no grit", which is musically useful, and 1.0 at 0.3 exactly. Values are clamped to each parameter's range.
-4. **Apply the multipliers in one place.** A helper scales the dedicated controls in a copy of `VoiceControls` before the per-exciter `set_parameters` dispatch, so the 16 call sites don't change.
+   **Inert:** HandStrike, FeltMallet, HardMallet, Drumstick and MetalPipe (one strike, no motion parameter); PneumaticJet (`air_pressure` is a force); ElectromagneticHum (`mains_frequency` is a pitch); TensionSnap (`pull_distance` is a distance, with no rate).
+3. **Roughness: multiplier `r / 0.3`, from 0 to ×3.33, on grit and randomness parameters at note-on.** A linear factor keeps 0 meaning "no grit", which is musically useful, and 1.0 at 0.3 exactly. Values are clamped to each host parameter's range. Inventory (task 1.1):
+
+   | Exciter | Parameter | Range |
+   |---|---|---|
+   | Bow (1) | `rosin_grip` (the bow's `roughness`: friction curve and ripple) | 0.05–1.5 |
+   | WireBrush (6) | `amplitude_randomization` | 0–1 |
+   | MetalChain (8) | `internal_rattle` | 0–1 |
+   | HeavyGrinding (10) | `surface_grit` | 0–1 |
+   | TensionRise (12) | `slip_stochasticity` | 0–1 |
+   | PneumaticJet (13) | `turbulence_chaos` | 0–2 |
+   | ParticleRain (16) | `mass_variance` | 0–2 |
+
+   **Inert:** HandStrike, FeltMallet, HardMallet, Drumstick and MetalPipe (no grit parameter); StiffPoint (its chatter is a deterministic stick-slip); CorrugatedDrag (its ridges are regular geometry, not grit); ElectromagneticHum; TensionSnap.
+
+   Bow's `rosin_grip` has a floor of 0.05, so Roughness 0 leaves the bow at its minimum grip rather than at zero.
+4. **Apply the multipliers in one place.** A helper scales the dedicated controls in a copy of `VoiceControls` before the per-exciter `set_parameters` dispatch, so the 16 call sites don't change. When a factor is exactly 1 the helper leaves the values untouched (no clamp), so the defaults are bit-identical even for a value outside its host range.
    - *Alternative:* scale inside each exciter. That's 16 edits, and each exciter would need to know about globals.
 
 ## Risks / Trade-offs

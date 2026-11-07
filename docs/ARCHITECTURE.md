@@ -59,8 +59,8 @@ MIDI Note Event
 └─────────────────────────────────────────────────────────────────────┘
                                        │
                                        ▼
-                        × output_gain → apply_output_limiter()
-                                       │  hard clamp to ±0.9661  (≈ −0.3 dBFS)
+                        × output_gain → Hard clamp or Lookahead limiter
+                                       │  both at ±Analog Ceiling (default 0.9661 ≈ −0.3 dBFS)
                                        ▼
                                  Stereo Output
 ```
@@ -295,6 +295,33 @@ The per-exciter DSP models implement the formulas in
 `docs/detailed-specs/exciter-algorithms.md` (Kelvin–Voigt, Hertzian contact,
 micro-bouncing, Poisson impulse clusters, Stribeck friction, etc.).
 
+### Global exciter controls
+
+Three host parameters act on every exciter on top of its dedicated controls
+(`h06-wire-global-exciter-controls`). Each is neutral at its default, where a
+note renders bit-identically to one that ignores it
+(`default_global_controls_are_bit_identical`).
+
+| Control | Default | Factor | Applies | Acts on |
+|---|---|---|---|---|
+| Pressure | 0.5 | `2^((p − 0.5)·4)`: −12 dB to +12 dB | live, smoothed ~10 ms | every exciter's force, through `Voice::force_scale` |
+| Speed | 0.5 | `2^((s − 0.5)·2)`: ×0.5 to ×2 | note-on | motion speeds: Bow Speed, Scrape/Grind/Drag/Pull Speed, ParticleRain Flow Rate; WireBrush and MetalChain spreads are divided by it |
+| Roughness | 0.3 | `r / 0.3`: ×0 to ×3.33 | note-on | grit and randomness: Bow Rosin Grip, WireBrush Amplitude Randomization, MetalChain Internal Rattle, HeavyGrinding Surface Grit, TensionRise Slip Stochasticity, PneumaticJet Turbulence Chaos, ParticleRain Mass Variance |
+
+- **Pressure** is part of `force_scale`, so contact exciters see it in their
+  prediction and the drive governor still bounds the voice. It reaches held
+  notes through `update_live_controls`.
+- **Speed and Roughness** scale a copy of `VoiceControls` before the
+  per-exciter dispatch (`apply_global_exciter_controls`). Each scaled value is
+  clamped to its host parameter's range. Exciters with no motion or grit
+  parameter are inert to them: HandStrike, FeltMallet, HardMallet, Drumstick
+  and MetalPipe for both;
+  PneumaticJet, ElectromagneticHum and TensionSnap for Speed; StiffPoint,
+  CorrugatedDrag, ElectromagneticHum and TensionSnap for Roughness.
+- `maximum_global_controls_do_not_overdrive_the_voice` plays every exciter on
+  every object at C2/C4/C6, velocity 127, with all three at 1: no pre-clamp
+  sample exceeds 1.0.
+
 ### Drive levels and the drive governor
 
 Each exciter's force is scaled by a drive level (`EXCITER_DRIVE_LEVEL` in
@@ -414,7 +441,22 @@ note.
 - Per-mode 1D strike coefficients `c_n(P) = sin((n+1)·π·P)`.
 - `fundamental_anchor` clamps `c_0` to a minimum so the pitch never fully nulls.
 - `coupling_stiffness` blends feed-forward (`0`) ↔ position-weighted (`1`) force.
-- `position_wander` adds a bounded sinusoidal drift to the strike position.
+- **Effective strike position**, every sample:
+  `clamp(strike_position + position_envelope · envelope · 0.5 + wander, 0, 1)`
+  (`h09-route-envelope-to-strike-position`).
+  - **Position Envelope** moves the strike point with the note's force envelope
+    (0..1, set by the voice each sample before the resonator prepares the
+    sample), so a strike or a bow swell sweeps the contact point and the
+    timbre. At 0 the voice never touches the offset, and the output is
+    bit-identical to before the routing existed.
+  - **Wander** (`position_wander`) adds a bounded sine drift at **Wander Rate**
+    (`position_wander_rate`, 0.1–5 Hz, default 0.1), independent of Position
+    Envelope. Presets and saved host state (DAW projects, through
+    `Plugin::filter_state`) that predate Wander Rate load the rate their
+    Position Envelope used to set (`0.1 + position_envelope · 4.9`), with
+    Position Envelope 0.
+  - The strike weights are cached on the effective position, so they are
+    recomputed only while it moves.
 - The resonator reports summed displacement and a first-difference velocity back
   to the exciter each sample.
 
@@ -487,10 +529,16 @@ identical at the clipper. This is the top defect in `docs/code-review.md`.
 
 ### Output protection
 
-Final stage is `apply_output_limiter`: a hard clamp to `±LIMITER_THRESHOLD`
-where `LIMITER_THRESHOLD = 0.9661` (≈ **−0.3 dBFS**). The clipper's
-`analog_ceiling` parameter defaults to the same 0.9661 and is clamped to
-[0.5, 1.0].
+The **Analog Ceiling** parameter (0.5–1.0, default 0.9661 ≈ **−0.3 dBFS**) is
+the output ceiling. The post-chain clipper clips at it, and after output gain
+the selected limiter stops at it: **Hard** (default) is
+`apply_output_limiter(sample, ceiling)`, a clamp to `±ceiling`; **Lookahead**
+uses it as its threshold (`h07-hard-limiter-honors-analog-ceiling`). So no
+output sample exceeds the ceiling, whatever the gain or mode
+(`hard_mode_stays_under_a_low_ceiling`,
+`both_limiter_modes_reach_the_same_ceiling`). `LIMITER_THRESHOLD = 0.9661` is
+the ceiling's default, used by offline tools and tests that render without the
+parameter.
 
 ---
 
@@ -519,7 +567,7 @@ bundle/validator flow uses `x86_64-unknown-linux-gnu`.
 | Configurable oversampling 1/4/8/16 | Wired but **ineffective** | `oversampled_clipper.rs` factor is a no-op (see code review) |
 | Idle rendering optimization | Implemented | `Voice::rendering` flag + `is_rendering()` gating in `manager.rs` |
 | Aliasing measurement | Implemented (DFT proxy) | `offline/mod.rs::analyze_post_chain_aliasing`, `render --suite aliasing` |
-| Output ceiling −0.3 dBFS | Implemented | `LIMITER_THRESHOLD = 0.9661`, `analog_ceiling` default 0.9661 |
+| Output ceiling −0.3 dBFS | Implemented | `analog_ceiling` (default 0.9661 = `LIMITER_THRESHOLD`) is the ceiling in both limiter modes |
 
 ---
 

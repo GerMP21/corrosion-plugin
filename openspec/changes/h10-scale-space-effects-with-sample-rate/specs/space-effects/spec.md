@@ -27,3 +27,14 @@ Every position of the Space section's size, tank and delay controls SHALL produc
 #### Scenario: Factory combs stay distinct
 - **WHEN** the Factory reverb's size is set to 0, 0.25, 0.5, 0.75 and 1 at 48 kHz
 - **THEN** its four comb delays are all different at every size
+
+### Requirement: A synced echo stays on the beat
+When tempo sync picks a division longer than the echo's 0.8 s maximum, the echo SHALL play that division halved as many times as it takes to fit, so it stays on the beat instead of stopping at an off-tempo 0.8 s.
+
+#### Scenario: Long division at 120 BPM
+- **WHEN** Sync is 1/1 (4 beats, 2 s) and the host tempo is 120 BPM
+- **THEN** the echo delay is 0.5 s (one beat)
+
+#### Scenario: Divisions that fit are unchanged
+- **WHEN** Sync is 1/8 at 120 BPM
+- **THEN** the echo delay is 0.25 s

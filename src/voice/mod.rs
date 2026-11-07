@@ -245,8 +245,11 @@ pub struct VoiceControls {
     pub coupling_stiffness: f32,
     /// Randomized movement around the strike position.
     pub position_wander: f32,
-    /// Envelope-driven movement around the strike position.
+    /// How far the note's force envelope moves the strike position:
+    /// `position_envelope · envelope · 0.5` is added to it, every sample.
     pub position_envelope: f32,
+    /// Rate of the position wander, in hertz (0.1–5).
+    pub position_wander_rate: f32,
     /// Pulls the resonator toward its fundamental mode.
     pub fundamental_anchor: f32,
     /// Resonator damping control; higher values shorten decay.
@@ -357,6 +360,7 @@ impl Default for VoiceControls {
             coupling_stiffness: 1.0,
             position_wander: 0.0,
             position_envelope: 0.0,
+            position_wander_rate: 0.1,
             fundamental_anchor: 0.3,
             res_damping: 0.5,
             res_brightness: 0.5,
@@ -366,6 +370,100 @@ impl Default for VoiceControls {
             character: CharacterParams::default(),
             mode_count_scale: 1.0,
         }
+    }
+}
+
+/// Roughness's default, where its factor is exactly 1.
+const ROUGHNESS_NEUTRAL: f32 = 0.3;
+
+/// Pressure's force factor: `2^((p − 0.5)·4)`, from 0.25× (−12 dB) at 0
+/// through exactly 1 at 0.5 to 4× (+12 dB) at 1
+/// (`h06-wire-global-exciter-controls`, design Decision 1).
+pub(crate) fn pressure_factor(pressure: f32) -> f32 {
+    2.0_f32.powf((pressure.clamp(0.0, 1.0) - 0.5) * 4.0)
+}
+
+/// Speed's factor on motion-speed parameters: `2^((s − 0.5)·2)`, ×0.5 at 0,
+/// exactly 1 at 0.5, ×2 at 1 (design Decision 2).
+pub(crate) fn speed_factor(speed: f32) -> f32 {
+    2.0_f32.powf((speed.clamp(0.0, 1.0) - 0.5) * 2.0)
+}
+
+/// Roughness's factor on grit and randomness parameters: `r / 0.3`, 0 at 0,
+/// exactly 1 at 0.3, ×3.33 at 1 (design Decision 3).
+pub(crate) fn roughness_factor(roughness: f32) -> f32 {
+    roughness.clamp(0.0, 1.0) / ROUGHNESS_NEUTRAL
+}
+
+/// Host ranges (`src/params.rs`) of the dedicated parameters Speed and
+/// Roughness scale. A scaled value is clamped to its parameter's range.
+pub(crate) mod global_control_ranges {
+    pub const BOW_SPEED: (f32, f32) = (0.1, 2.0);
+    pub const SPREAD_DURATION: (f32, f32) = (10.0, 250.0);
+    pub const DROP_ENVELOPE_SPREAD: (f32, f32) = (40.0, 400.0);
+    pub const SCRAPE_SPEED: (f32, f32) = (0.1, 2.5);
+    pub const GRIND_SPEED: (f32, f32) = (0.1, 2.5);
+    pub const DRAG_SPEED: (f32, f32) = (0.1, 2.5);
+    pub const PULL_SPEED: (f32, f32) = (0.05, 1.55);
+    pub const FLOW_RATE: (f32, f32) = (0.1, 3.1);
+    pub const ROSIN_GRIP: (f32, f32) = (0.05, 1.5);
+    pub const AMPLITUDE_RANDOMIZATION: (f32, f32) = (0.0, 1.0);
+    pub const INTERNAL_RATTLE: (f32, f32) = (0.0, 1.0);
+    pub const SURFACE_GRIT: (f32, f32) = (0.0, 1.0);
+    pub const SLIP_STOCHASTICITY: (f32, f32) = (0.0, 1.0);
+    pub const TURBULENCE_CHAOS: (f32, f32) = (0.0, 2.0);
+    pub const MASS_VARIANCE: (f32, f32) = (0.0, 2.0);
+}
+
+/// `value · factor`, clamped to `range`. A factor of exactly 1 leaves the
+/// value untouched (no clamp), so the defaults stay bit-identical.
+fn scale_in_range(value: f32, factor: f32, range: (f32, f32)) -> f32 {
+    if factor == 1.0 {
+        value
+    } else {
+        (value * factor).clamp(range.0, range.1)
+    }
+}
+
+/// Apply the global Speed and Roughness to a note's dedicated exciter
+/// controls (`h06-wire-global-exciter-controls`, design Decisions 2–4).
+/// Speed multiplies each motion speed and divides each spread (faster motion,
+/// shorter spread); Roughness multiplies each grit or randomness amount.
+/// Exciters with no such parameter are left as they are.
+pub(crate) fn apply_global_exciter_controls(controls: VoiceControls) -> VoiceControls {
+    use global_control_ranges as r;
+    let speed = speed_factor(controls.exciter_speed);
+    let spread = 1.0 / speed;
+    let rough = roughness_factor(controls.exciter_roughness);
+    VoiceControls {
+        bow_speed: scale_in_range(controls.bow_speed, speed, r::BOW_SPEED),
+        spread_duration: scale_in_range(controls.spread_duration, spread, r::SPREAD_DURATION),
+        drop_envelope_spread: scale_in_range(
+            controls.drop_envelope_spread,
+            spread,
+            r::DROP_ENVELOPE_SPREAD,
+        ),
+        scrape_speed: scale_in_range(controls.scrape_speed, speed, r::SCRAPE_SPEED),
+        grind_speed: scale_in_range(controls.grind_speed, speed, r::GRIND_SPEED),
+        drag_speed: scale_in_range(controls.drag_speed, speed, r::DRAG_SPEED),
+        pull_speed: scale_in_range(controls.pull_speed, speed, r::PULL_SPEED),
+        flow_rate: scale_in_range(controls.flow_rate, speed, r::FLOW_RATE),
+        rosin_grip: scale_in_range(controls.rosin_grip, rough, r::ROSIN_GRIP),
+        amplitude_randomization: scale_in_range(
+            controls.amplitude_randomization,
+            rough,
+            r::AMPLITUDE_RANDOMIZATION,
+        ),
+        internal_rattle: scale_in_range(controls.internal_rattle, rough, r::INTERNAL_RATTLE),
+        surface_grit: scale_in_range(controls.surface_grit, rough, r::SURFACE_GRIT),
+        slip_stochasticity: scale_in_range(
+            controls.slip_stochasticity,
+            rough,
+            r::SLIP_STOCHASTICITY,
+        ),
+        turbulence_chaos: scale_in_range(controls.turbulence_chaos, rough, r::TURBULENCE_CHAOS),
+        mass_variance: scale_in_range(controls.mass_variance, rough, r::MASS_VARIANCE),
+        ..controls
     }
 }
 
@@ -440,6 +538,17 @@ pub struct Voice {
     governor_level: f32,
     /// The governor's gain on the exciter force.
     governor_gain: f32,
+    /// Whether the global Pressure, Speed and Roughness controls apply.
+    /// Always on in use; tests turn it off to render a note as it was before
+    /// the controls were connected (`h06-wire-global-exciter-controls`).
+    pub(crate) global_controls_enabled: bool,
+    /// The force factor Pressure asks for (see `pressure_factor`).
+    pressure_target: f32,
+    /// The smoothed Pressure force factor, following `pressure_target`.
+    pressure_gain: f32,
+    /// How far the force envelope moves the strike position (Position
+    /// Envelope, 0..1; `h09-route-envelope-to-strike-position`).
+    position_envelope_amount: f32,
     /// Whether the resonator tracks its ring bound this sample.
     ring_tracking: bool,
     frames_below_threshold: u32,
@@ -545,6 +654,9 @@ const GOVERNOR_CEILING: f32 = 0.9;
 /// The follower's attack and release time constants, in seconds.
 const GOVERNOR_ATTACK_S: f32 = 0.001;
 const GOVERNOR_RELEASE_S: f32 = 0.2;
+/// Time constant of the smoother on live Pressure changes, in seconds: short
+/// enough to follow automation, long enough to avoid zipper noise.
+const PRESSURE_SMOOTHING_S: f32 = 0.010;
 
 /// The voice's per-sample constants for one sample rate. Each is exactly its
 /// 48 kHz value at 48 kHz (`fix-sample-rate-time-constants`).
@@ -557,6 +669,7 @@ struct VoiceRateConstants {
     tail_frames: u32,
     governor_attack: f32,
     governor_release: f32,
+    pressure_smoothing: f32,
 }
 
 /// One-pole follower coefficient for time constant `seconds`, at 48 kHz.
@@ -579,6 +692,7 @@ impl VoiceRateConstants {
             tail_frames: rate::frames(TAIL_DEACTIVATE_FRAMES, r),
             governor_attack: rate::smoother(follower_coefficient(GOVERNOR_ATTACK_S), r),
             governor_release: rate::smoother(follower_coefficient(GOVERNOR_RELEASE_S), r),
+            pressure_smoothing: rate::smoother(follower_coefficient(PRESSURE_SMOOTHING_S), r),
         }
     }
 }
@@ -624,6 +738,10 @@ impl Voice {
             governor_enabled: true,
             governor_level: 0.0,
             governor_gain: 1.0,
+            global_controls_enabled: true,
+            pressure_target: 1.0,
+            pressure_gain: 1.0,
+            position_envelope_amount: 0.0,
             ring_tracking: false,
             frames_below_threshold: 0,
             start_frame: 0,
@@ -916,6 +1034,13 @@ impl Voice {
         self.pre_clamp_peak = 0.0;
         self.governor_level = 0.0;
         self.governor_gain = 1.0;
+        // Pressure starts each note at its target, unsmoothed.
+        self.pressure_target = if self.global_controls_enabled {
+            pressure_factor(controls.exciter_pressure)
+        } else {
+            1.0
+        };
+        self.pressure_gain = self.pressure_target;
         self.frames_below_threshold = 0;
         self.start_frame = start_frame;
         // One seed per note (and so per voice), a separate stream for each
@@ -956,10 +1081,11 @@ impl Voice {
             controls.strike_position,
             controls.coupling_stiffness,
             controls.position_wander,
-            controls.position_envelope,
+            controls.position_wander_rate,
             controls.fundamental_anchor,
             self.sample_rate,
         );
+        self.set_position_envelope_amount(controls.position_envelope);
         // Carry the current channel pitch bend into the new note so a held
         // bend doesn't reset every time a fresh key is pressed. Channel
         // pressure and mod wheel persist for the same reason; poly pressure
@@ -970,6 +1096,13 @@ impl Voice {
             .set_pitch_bend_factor(bend_factor, self.sample_rate as u32);
         self.configure_envelope(exciter_type, velocity_norm, controls);
 
+        // The global Speed and Roughness scale the dedicated exciter controls
+        // the dispatch below reads.
+        let controls = if self.global_controls_enabled {
+            apply_global_exciter_controls(controls)
+        } else {
+            controls
+        };
         let v_norm = velocity_norm;
         // Dispatch the requested exciter family in place; each branch
         // configures the model and triggers it with the current velocity.
@@ -1144,11 +1277,17 @@ impl Voice {
         coupling_stiffness: f32,
         position_wander: f32,
         position_envelope: f32,
+        position_wander_rate: f32,
         fundamental_anchor: f32,
+        exciter_pressure: f32,
         sample_rate: u32,
     ) {
         if !self.active {
             return;
+        }
+        self.set_position_envelope_amount(position_envelope);
+        if self.global_controls_enabled {
+            self.pressure_target = pressure_factor(exciter_pressure);
         }
         self.resonator
             .set_live_resonator_controls(damping, brightness, sample_rate);
@@ -1156,10 +1295,20 @@ impl Voice {
             strike_position,
             coupling_stiffness,
             position_wander,
-            position_envelope,
+            position_wander_rate,
             fundamental_anchor,
             self.sample_rate,
         );
+    }
+
+    /// Set how far the force envelope moves the strike position. Turning it
+    /// to 0 clears the offset, so a voice at 0 never touches it per sample.
+    fn set_position_envelope_amount(&mut self, amount: f32) {
+        let amount = amount.clamp(0.0, 1.0);
+        if amount <= 0.0 {
+            self.resonator.set_envelope_offset(0.0, 0.0);
+        }
+        self.position_envelope_amount = amount;
     }
 
     /// Apply a channel pitch bend in semitones to this voice.
@@ -1373,14 +1522,18 @@ impl Voice {
     }
 
     /// Everything the voice multiplies the exciter's force by, after the
-    /// envelope: drive level, test drive and the governor's smooth gain.
+    /// envelope: drive level, test drive, the governor's smooth gain and the
+    /// global Pressure.
     fn force_scale(&self) -> f32 {
         let governor = if self.governor_enabled {
             self.governor_gain
         } else {
             1.0
         };
-        EXCITER_DRIVE_LEVEL[self.exciter_type.clamp(0, 16) as usize] * self.drive_scale * governor
+        EXCITER_DRIVE_LEVEL[self.exciter_type.clamp(0, 16) as usize]
+            * self.drive_scale
+            * governor
+            * self.pressure_gain
     }
 
     /// The governor's per-sample ceiling: cap `force` so it can't push the
@@ -1428,11 +1581,20 @@ impl Voice {
     }
 
     fn process_exciter(&mut self) -> f32 {
+        // Follow live Pressure changes. At rest (gain == target) this adds
+        // exactly zero, so a constant Pressure stays bit-exact.
+        self.pressure_gain +=
+            self.rate.pressure_smoothing * (self.pressure_target - self.pressure_gain);
+
         // If there is no active envelope, there is nothing left to excite.
         if !self.active
             && !self.mseg.is_active()
             && self.one_shot_phase == OneShotEnvelopePhase::Idle
         {
+            if self.position_envelope_amount > 0.0 {
+                self.resonator
+                    .set_envelope_offset(self.position_envelope_amount, 0.0);
+            }
             return 0.0;
         }
 
@@ -1440,6 +1602,13 @@ impl Voice {
         let res_vel = self.resonator.get_velocity();
 
         let envelope = self.process_force_envelope();
+        // The force envelope moves the strike position, before this sample
+        // is prepared (`h09-route-envelope-to-strike-position`). At amount 0
+        // the offset stays at the 0 `set_position_envelope_amount` left.
+        if self.position_envelope_amount > 0.0 {
+            self.resonator
+                .set_envelope_offset(self.position_envelope_amount, envelope);
+        }
         self.ring_tracking = self.governor_enabled && envelope > 0.0;
         self.resonator
             .set_ring_tracking(self.ring_tracking, HIGHPASS_BOOST * self.velocity / 127.0);
@@ -2083,7 +2252,9 @@ mod tests {
             1.0,
             0.0,
             0.0,
+            0.1,
             0.3,
+            0.5,
             sample_rate,
         );
 
@@ -2103,7 +2274,7 @@ mod tests {
         voice.note_off();
 
         let pre = voice.resonator.modes[0].spec.decay_seconds;
-        voice.update_live_controls(1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.3, 48_000);
+        voice.update_live_controls(1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.1, 0.3, 0.5, 48_000);
         let post = voice.resonator.modes[0].spec.decay_seconds;
 
         assert_eq!(pre, post, "tail voices should not receive live automation");
@@ -2966,6 +3137,532 @@ mod tests {
                 "exciter {exciter} still applies force at {:.3} s",
                 last_force_at as f32 / 48_000.0
             );
+        }
+    }
+
+    // --- Global exciter controls (h06-wire-global-exciter-controls) ---
+
+    fn with_globals(pressure: f32, speed: f32, roughness: f32) -> VoiceControls {
+        VoiceControls {
+            exciter_pressure: pressure,
+            exciter_speed: speed,
+            exciter_roughness: roughness,
+            ..VoiceControls::default()
+        }
+    }
+
+    /// A rendered note: its output, pre-clamp peak and the lowest gain the
+    /// drive governor applied.
+    struct GlobalsRender {
+        output: Vec<f32>,
+        peak: f32,
+        lowest_governor_gain: f32,
+    }
+
+    /// Render `note` on `profile` with `exciter` at `velocity`: one second
+    /// held, one released, 48 kHz. With `globals` off the voice ignores the
+    /// global Pressure, Speed and Roughness, as it did before they were
+    /// connected.
+    fn render_globals(
+        profile: ModalProfileId,
+        exciter: i32,
+        note: u8,
+        velocity: f32,
+        controls: VoiceControls,
+        globals: bool,
+    ) -> GlobalsRender {
+        let mut voice = Voice::new();
+        voice.global_controls_enabled = globals;
+        voice.note_on_with_controls(note, velocity, profile, 0, 1.0, 0.0, 0.0, exciter, controls);
+        let mut lowest_governor_gain = 1.0f32;
+        let output = (0..96_000)
+            .map(|i| {
+                if i == 48_000 {
+                    voice.note_off();
+                }
+                let y = voice.process_sample(48_000);
+                lowest_governor_gain = lowest_governor_gain.min(voice.governor_gain);
+                y
+            })
+            .collect();
+        GlobalsRender {
+            output,
+            peak: voice.pre_clamp_peak,
+            lowest_governor_gain,
+        }
+    }
+
+    fn render_pipe_c4(exciter: i32, controls: VoiceControls) -> GlobalsRender {
+        render_globals(ModalProfileId::Pipe, exciter, 60, 100.0, controls, true)
+    }
+
+    fn bits(xs: &[f32]) -> Vec<u32> {
+        xs.iter().map(|x| x.to_bits()).collect()
+    }
+
+    #[test]
+    fn default_global_controls_are_bit_identical() {
+        for exciter in 1..=16 {
+            let render = |globals| {
+                render_globals(
+                    ModalProfileId::Pipe,
+                    exciter,
+                    60,
+                    100.0,
+                    VoiceControls::default(),
+                    globals,
+                )
+                .output
+            };
+            assert!(
+                bits(&render(true)) == bits(&render(false)),
+                "exciter {exciter}: the default controls change the output"
+            );
+        }
+    }
+
+    #[test]
+    fn pressure_scales_the_exciter_force() {
+        for exciter in [2, 1] {
+            let renders: Vec<GlobalsRender> = [0.25, 0.5, 0.75]
+                .iter()
+                .map(|&p| render_pipe_c4(exciter, with_globals(p, 0.5, 0.3)))
+                .collect();
+            for pair in renders.windows(2) {
+                let (lower, higher) = (&pair[0], &pair[1]);
+                let rises = higher.peak > lower.peak * 1.1;
+                let governed = higher.lowest_governor_gain < 1.0;
+                assert!(
+                    rises || governed,
+                    "exciter {exciter}: peak {:.4} → {:.4} without the governor acting",
+                    lower.peak,
+                    higher.peak
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn pressure_automation_reaches_a_held_note() {
+        // A Bow note held at Pressure 0.5; at 0.5 s Pressure moves to 0.1 in
+        // one voice and is re-sent unchanged in the other. 50 ms later the
+        // first must be quieter.
+        let render = |pressure_after: f32| {
+            let mut voice = Voice::new();
+            voice.note_on_with_controls(
+                60,
+                100.0,
+                ModalProfileId::Pipe,
+                0,
+                1.0,
+                0.0,
+                0.0,
+                1,
+                VoiceControls::default(),
+            );
+            (0..48_000)
+                .map(|i| {
+                    if i == 24_000 {
+                        voice.update_live_controls(
+                            0.5,
+                            0.5,
+                            0.5,
+                            1.0,
+                            0.0,
+                            0.0,
+                            0.1,
+                            0.3,
+                            pressure_after,
+                            48_000,
+                        );
+                    }
+                    voice.process_sample(48_000)
+                })
+                .collect::<Vec<f32>>()
+        };
+        let unchanged = render(0.5);
+        let lowered = render(0.1);
+        // The 10 ms ending 50 ms after the change.
+        let window = 24_000 + 1_920..24_000 + 2_400;
+        let (before, after) = (rms(&unchanged[window.clone()]), rms(&lowered[window]));
+        assert!(
+            after < before * 0.9,
+            "50 ms after Pressure 0.5 → 0.1: RMS {after:.4e}, unchanged {before:.4e}"
+        );
+    }
+
+    #[test]
+    fn speed_changes_a_friction_exciter() {
+        let slow = render_pipe_c4(1, with_globals(0.5, 0.25, 0.3));
+        let fast = render_pipe_c4(1, with_globals(0.5, 0.75, 0.3));
+        assert!(
+            bits(&slow.output) != bits(&fast.output),
+            "Bow: Speed 0.25 and 0.75 render the same"
+        );
+    }
+
+    #[test]
+    fn roughness_changes_a_noisy_exciter() {
+        let smooth = render_pipe_c4(10, with_globals(0.5, 0.5, 0.0));
+        let rough = render_pipe_c4(10, with_globals(0.5, 0.5, 1.0));
+        assert!(
+            bits(&smooth.output) != bits(&rough.output),
+            "HeavyGrinding: Roughness 0 and 1 render the same"
+        );
+    }
+
+    #[test]
+    fn scaled_exciter_controls_stay_in_range() {
+        use super::{apply_global_exciter_controls, global_control_ranges as r};
+        use nih_plug::prelude::Param;
+        let params = crate::params::CorrosionParams::default();
+        type Field = fn(&VoiceControls) -> f32;
+        let fields: [(&str, Field, (f32, f32), &nih_plug::prelude::FloatParam); 15] = [
+            (
+                "bow_speed",
+                |c| c.bow_speed,
+                r::BOW_SPEED,
+                &params.bow_speed,
+            ),
+            (
+                "spread_duration",
+                |c| c.spread_duration,
+                r::SPREAD_DURATION,
+                &params.spread_duration,
+            ),
+            (
+                "drop_envelope_spread",
+                |c| c.drop_envelope_spread,
+                r::DROP_ENVELOPE_SPREAD,
+                &params.drop_envelope_spread,
+            ),
+            (
+                "scrape_speed",
+                |c| c.scrape_speed,
+                r::SCRAPE_SPEED,
+                &params.scrape_speed,
+            ),
+            (
+                "grind_speed",
+                |c| c.grind_speed,
+                r::GRIND_SPEED,
+                &params.grind_speed,
+            ),
+            (
+                "drag_speed",
+                |c| c.drag_speed,
+                r::DRAG_SPEED,
+                &params.drag_speed,
+            ),
+            (
+                "pull_speed",
+                |c| c.pull_speed,
+                r::PULL_SPEED,
+                &params.pull_speed,
+            ),
+            (
+                "flow_rate",
+                |c| c.flow_rate,
+                r::FLOW_RATE,
+                &params.flow_rate,
+            ),
+            (
+                "rosin_grip",
+                |c| c.rosin_grip,
+                r::ROSIN_GRIP,
+                &params.rosin_grip,
+            ),
+            (
+                "amplitude_randomization",
+                |c| c.amplitude_randomization,
+                r::AMPLITUDE_RANDOMIZATION,
+                &params.amplitude_randomization,
+            ),
+            (
+                "internal_rattle",
+                |c| c.internal_rattle,
+                r::INTERNAL_RATTLE,
+                &params.internal_rattle,
+            ),
+            (
+                "surface_grit",
+                |c| c.surface_grit,
+                r::SURFACE_GRIT,
+                &params.surface_grit,
+            ),
+            (
+                "slip_stochasticity",
+                |c| c.slip_stochasticity,
+                r::SLIP_STOCHASTICITY,
+                &params.slip_stochasticity,
+            ),
+            (
+                "turbulence_chaos",
+                |c| c.turbulence_chaos,
+                r::TURBULENCE_CHAOS,
+                &params.turbulence_chaos,
+            ),
+            (
+                "mass_variance",
+                |c| c.mass_variance,
+                r::MASS_VARIANCE,
+                &params.mass_variance,
+            ),
+        ];
+        for (name, _, range, param) in &fields {
+            let host = (param.preview_plain(0.0), param.preview_plain(1.0));
+            assert_eq!(
+                *range, host,
+                "{name}: range differs from its host parameter"
+            );
+        }
+        // Each field at its minimum, default and maximum, under every corner
+        // of Speed and Roughness.
+        for (name, get, (min, max), _) in &fields {
+            for start in [*min, get(&VoiceControls::default()), *max] {
+                for speed in [0.0, 1.0] {
+                    for roughness in [0.0, 1.0] {
+                        let mut controls = with_globals(0.5, speed, roughness);
+                        set_field(&mut controls, name, start);
+                        let scaled = get(&apply_global_exciter_controls(controls));
+                        assert!(
+                            (*min..=*max).contains(&scaled),
+                            "{name} from {start} at Speed {speed}, Roughness {roughness}: \
+                             {scaled} outside {min}..={max}"
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    fn set_field(controls: &mut VoiceControls, name: &str, value: f32) {
+        let field = match name {
+            "bow_speed" => &mut controls.bow_speed,
+            "spread_duration" => &mut controls.spread_duration,
+            "drop_envelope_spread" => &mut controls.drop_envelope_spread,
+            "scrape_speed" => &mut controls.scrape_speed,
+            "grind_speed" => &mut controls.grind_speed,
+            "drag_speed" => &mut controls.drag_speed,
+            "pull_speed" => &mut controls.pull_speed,
+            "flow_rate" => &mut controls.flow_rate,
+            "rosin_grip" => &mut controls.rosin_grip,
+            "amplitude_randomization" => &mut controls.amplitude_randomization,
+            "internal_rattle" => &mut controls.internal_rattle,
+            "surface_grit" => &mut controls.surface_grit,
+            "slip_stochasticity" => &mut controls.slip_stochasticity,
+            "turbulence_chaos" => &mut controls.turbulence_chaos,
+            "mass_variance" => &mut controls.mass_variance,
+            _ => unreachable!("{name}"),
+        };
+        *field = value;
+    }
+
+    #[test]
+    fn maximum_global_controls_do_not_overdrive_the_voice() {
+        let failures: Vec<String> = std::thread::scope(|scope| {
+            let handles: Vec<_> = (1..=16)
+                .map(|exciter| {
+                    scope.spawn(move || {
+                        let mut failures = Vec::new();
+                        for (index, &profile) in ALL_PROFILES.iter().enumerate() {
+                            for (n, note) in [36u8, 60, 84].into_iter().enumerate() {
+                                let peak = render_globals(
+                                    profile,
+                                    exciter,
+                                    note,
+                                    127.0,
+                                    with_globals(1.0, 1.0, 1.0),
+                                    true,
+                                )
+                                .peak;
+                                if peak > 1.0 || !peak.is_finite() {
+                                    failures.push(format!(
+                                        "exciter {exciter} {}: {peak:.3}",
+                                        sweep_note_name(index * 3 + n)
+                                    ));
+                                }
+                            }
+                        }
+                        failures
+                    })
+                })
+                .collect();
+            handles
+                .into_iter()
+                .flat_map(|h| h.join().unwrap())
+                .collect()
+        });
+        assert!(
+            failures.is_empty(),
+            "pre-clamp peak over 1.0 at Pressure, Speed and Roughness 1:\n{}",
+            failures.join("\n")
+        );
+    }
+
+    // --- Strike position (h09-route-envelope-to-strike-position) ---
+
+    /// A held Bow note on Pipe C4 at velocity 127, peak level 1: per sample,
+    /// (effective strike position, envelope offset, output) over `seconds`.
+    fn strike_track(controls: VoiceControls, seconds: f32) -> Vec<(f32, f32, f32)> {
+        let mut voice = Voice::new();
+        voice.note_on_with_controls(
+            60,
+            127.0,
+            ModalProfileId::Pipe,
+            0,
+            1.0,
+            0.0,
+            0.0,
+            1,
+            VoiceControls {
+                velocity_to_peak: 1.0,
+                ..controls
+            },
+        );
+        (0..(seconds * 48_000.0) as usize)
+            .map(|_| {
+                let y = voice.process_sample(48_000);
+                (
+                    voice.resonator.effective_strike_position(),
+                    voice.resonator.strike_envelope_offset(),
+                    y,
+                )
+            })
+            .collect()
+    }
+
+    #[test]
+    fn force_envelope_moves_the_strike_position() {
+        let track = strike_track(
+            VoiceControls {
+                strike_position: 0.2,
+                position_envelope: 1.0,
+                position_wander: 0.0,
+                ..VoiceControls::default()
+            },
+            1.0,
+        );
+        for (i, &(position, offset, _)) in track.iter().enumerate() {
+            let expected = (0.2 + offset).clamp(0.0, 1.0);
+            assert!(
+                (position - expected).abs() < 1e-6,
+                "sample {i}: position {position}, expected 0.2 + {offset}"
+            );
+        }
+        let (low, high) = track.iter().fold((1.0f32, 0.0f32), |(lo, hi), &(p, _, _)| {
+            (lo.min(p), hi.max(p))
+        });
+        assert!(low < 0.21, "the position starts at {low}, not 0.2");
+        assert!(
+            (high - 0.7).abs() < 0.01,
+            "at the envelope's peak the position is {high}, not 0.7"
+        );
+    }
+
+    #[test]
+    fn position_envelope_is_audible_without_wander() {
+        let render = |amount: f32| {
+            strike_track(
+                VoiceControls {
+                    strike_position: 0.2,
+                    position_envelope: amount,
+                    position_wander: 0.0,
+                    ..VoiceControls::default()
+                },
+                1.0,
+            )
+            .into_iter()
+            .map(|(_, _, y)| y.to_bits())
+            .collect::<Vec<u32>>()
+        };
+        assert!(
+            render(0.0) != render(1.0),
+            "Position Envelope 0 and 1 render the same at Wander 0"
+        );
+    }
+
+    #[test]
+    fn zero_position_envelope_leaves_the_position_alone() {
+        // At Position Envelope 0 the envelope offset is exactly 0 on every
+        // sample. The effective position is `clamp(base + offset + wander)`,
+        // and `base + 0.0` is `base` bit for bit, so the position and the
+        // output are what they were before the routing existed
+        // (`h09-route-envelope-to-strike-position`, "Zero is neutral").
+        // Checked for every envelope family, with and without wander, and
+        // after Position Envelope is automated up and back to 0 on a held
+        // note (the offset must be cleared, not left at its last value).
+        for exciter in [1, 2, 13] {
+            for wander in [0.0, 0.3] {
+                let mut voice = Voice::new();
+                voice.note_on_with_controls(
+                    60,
+                    127.0,
+                    ModalProfileId::Pipe,
+                    0,
+                    1.0,
+                    0.0,
+                    0.0,
+                    exciter,
+                    VoiceControls {
+                        strike_position: 0.3,
+                        position_wander: wander,
+                        position_envelope: 0.0,
+                        ..VoiceControls::default()
+                    },
+                );
+                let live = |voice: &mut Voice, amount: f32| {
+                    voice.update_live_controls(
+                        0.5, 0.5, 0.3, 1.0, wander, amount, 0.1, 0.3, 0.5, 48_000,
+                    );
+                };
+                for i in 0..48_000 {
+                    if i == 12_000 {
+                        live(&mut voice, 1.0);
+                        voice.process_sample(48_000);
+                        assert!(voice.resonator.strike_envelope_offset() > 0.0);
+                        live(&mut voice, 0.0);
+                    }
+                    voice.process_sample(48_000);
+                    assert_eq!(
+                        voice.resonator.strike_envelope_offset().to_bits(),
+                        0.0f32.to_bits(),
+                        "exciter {exciter}, wander {wander}, sample {i}"
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn wander_period_follows_wander_rate() {
+        // Wander 0.2 around 0.25 at 2 Hz: the wander component (position
+        // minus base and envelope offset) crosses zero upward every 0.5 s,
+        // with Position Envelope 0 and 1. The range stays inside 0..1, so no
+        // clamp distorts it.
+        for amount in [0.0, 1.0] {
+            let track = strike_track(
+                VoiceControls {
+                    strike_position: 0.25,
+                    position_wander: 0.2,
+                    position_wander_rate: 2.0,
+                    position_envelope: amount,
+                    ..VoiceControls::default()
+                },
+                2.0,
+            );
+            let wander: Vec<f32> = track.iter().map(|&(p, o, _)| p - 0.25 - o).collect();
+            let rises: Vec<usize> = (1..wander.len())
+                .filter(|&i| wander[i - 1] < 0.0 && wander[i] >= 0.0)
+                .collect();
+            assert!(rises.len() >= 3, "amount {amount}: {} rises", rises.len());
+            for pair in rises.windows(2) {
+                let period = (pair[1] - pair[0]) as f32 / 48_000.0;
+                assert!(
+                    (period - 0.5).abs() < 0.002,
+                    "Position Envelope {amount}: wander period {period:.4} s, expected 0.5 s"
+                );
+            }
         }
     }
 }

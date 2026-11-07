@@ -13,8 +13,10 @@ fn output_limiter_hard_clamps_to_threshold() {
     ];
 
     for sample in samples {
-        let limited = apply_output_limiter(sample);
+        let limited = apply_output_limiter(sample, LIMITER_THRESHOLD);
         assert!(limited.abs() <= LIMITER_THRESHOLD);
+        let low = apply_output_limiter(sample, 0.5);
+        assert!(low.abs() <= 0.5);
     }
 }
 

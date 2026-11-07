@@ -43,6 +43,13 @@ pub struct InteractionState {
     pub position_wander_rate: f32,
     /// Current wander phase.
     pub position_wander_phase: f32,
+    /// How far the note's force envelope moves the strike position this
+    /// sample (`position_envelope · envelope · 0.5`), set by the voice each
+    /// sample before the position is updated
+    /// (`h09-route-envelope-to-strike-position`).
+    pub envelope_offset: f32,
+    /// The effective strike position after the last update.
+    pub effective_position: f32,
 }
 
 impl InteractionState {
@@ -59,6 +66,8 @@ impl InteractionState {
             position_wander_amount: 0.0,
             position_wander_rate: 0.1,
             position_wander_phase: 0.0,
+            envelope_offset: 0.0,
+            effective_position: 0.5,
         }
     }
 
@@ -73,7 +82,16 @@ impl InteractionState {
         self.position_wander_rate = rate_hz / sample_rate * 2.0 * PI;
     }
 
-    /// Advance wander phase and return the current effective position.
+    /// Set how far the force envelope moves the strike position this
+    /// sample: `amount · envelope · 0.5`, with both clamped to 0..1. At
+    /// amount 0 the offset is exactly 0, so the position is unchanged.
+    pub fn set_envelope_offset(&mut self, amount: f32, envelope: f32) {
+        self.envelope_offset = amount.clamp(0.0, 1.0) * envelope.clamp(0.0, 1.0) * 0.5;
+    }
+
+    /// Advance wander phase and return the current effective position:
+    /// the strike position plus the envelope offset and the wander, clamped
+    /// to 0..1.
     pub fn update_position(&mut self) -> f32 {
         self.position_wander_phase += self.position_wander_rate;
         if self.position_wander_phase > 2.0 * PI {
@@ -81,7 +99,9 @@ impl InteractionState {
         }
 
         let wander = self.position_wander_phase.sin() * self.position_wander_amount;
-        (self.strike_position + wander).clamp(0.0, 1.0)
+        self.effective_position =
+            (self.strike_position + self.envelope_offset + wander).clamp(0.0, 1.0);
+        self.effective_position
     }
 
     /// Calculate per-mode excitation coefficients for the current position.

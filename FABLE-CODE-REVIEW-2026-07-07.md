@@ -291,13 +291,25 @@ Diffing widgets (`&params.<field>` occurrences in editor.rs) against `CorrosionP
   (modes, ranges, safety constraints, even a `mode_param()`) but **nothing
   references it** — no GUI button, no parameter. Dead feature.
 
-### H6. Three host-facing exciter params are dead
+### ~~H6. Three host-facing exciter params are dead~~ — FIXED
+> **Status: FIXED** (2026-11-07, branch `claude/zen-dirac-vq38u4`): OpenSpec change [`h06-wire-global-exciter-controls`](openspec/changes/h06-wire-global-exciter-controls/proposal.md).
+> - **Pressure** trims every exciter's force by −12 to +12 dB (neutral at 0.5) inside `Voice::force_scale`, so contact predictions and the drive governor follow it. It is live on held notes, smoothed over ~10 ms.
+> - **Speed** (×0.5 to ×2, neutral 0.5) and **Roughness** (×0 to ×3.33, neutral 0.3) scale each exciter's motion-speed and grit/randomness parameters at note-on, clamped to their host ranges. Exciters with no such parameter are documented as inert.
+> - **Defaults are bit-identical:** `default_global_controls_are_bit_identical` covers all 16 exciters, and the 48 kHz render hashes are unchanged. No factory preset changes.
+> - **Editor:** Pressure, Speed and Roughness knobs sit under the exciter selector, and `HOST_ONLY_PARAMS` is now empty. The values display as dB or ×factor.
+> - **Overdrive:** `maximum_global_controls_do_not_overdrive_the_voice` plays every exciter × object at C2/C4/C6, velocity 127, with all three at 1, and stays under 1.0 pre-clamp.
+
 `exciter_pressure`, `exciter_speed`, `exciter_roughness` (params.rs:258-272) are
 captured into `VoiceControls` (lib.rs:485-487) and then **never read** — no exciter
 consumes them (each uses its dedicated params instead). They're automatable,
 documented ("Overall intensity of excitation"), shown in presets, and do nothing.
 
-### H7. The two limiter modes target different ceilings
+### ~~H7. The two limiter modes target different ceilings~~ — FIXED
+> **Status: FIXED** (2026-11-07, branch `claude/zen-dirac-vq38u4`): OpenSpec change [`h07-hard-limiter-honors-analog-ceiling`](openspec/changes/h07-hard-limiter-honors-analog-ceiling/proposal.md).
+> - **One ceiling:** `apply_output_limiter(sample, ceiling)` takes the ceiling, and `process` passes the same per-buffer Analog Ceiling the Lookahead limiter uses. Both modes now stop at it after output gain.
+> - **Tests:** `hard_mode_stays_under_a_low_ceiling` (ceiling 0.5, gain 4) and `both_limiter_modes_reach_the_same_ceiling` (ceiling 0.7: both peak in 0.65–0.7) run the real output stage. Both failed before the fix.
+> - **Defaults unchanged:** every factory preset stores 0.9661, and `factory_preset_is_bit_identical_at_the_default_ceiling` checks the output is bit-identical to the old fixed clamp. `LIMITER_THRESHOLD` stays as the default ceiling for offline tools.
+
 lib.rs:884-905 sets the lookahead limiter threshold to `analog_ceiling`
 ("Threshold tracks the analog ceiling so both limiter modes target the same
 effective peak") — but Hard mode uses `apply_output_limiter`, a fixed clamp at
@@ -307,19 +319,35 @@ clipper already clips at `analog_ceiling` *before* output gain — so output gai
 > 1 can push the clipped signal back above the ceiling into the final limiter,
 making the "analog ceiling" a soft suggestion in Hard mode.
 
-### H8. `get_state`/`load_state` are dead and dangerous
+### ~~H8. `get_state`/`load_state` are dead and dangerous~~ — FIXED
+> **Status: FIXED** (2026-11-07, branch `claude/zen-dirac-vq38u4`): OpenSpec change [`h08-remove-dead-state-functions`](openspec/changes/h08-remove-dead-state-functions/proposal.md). Both methods are deleted; nothing called them. Host state save and restore still go through nih-plug's `Params` derive, and the preset schema migration stays in `Preset::from_json_str`. The only remaining `get_state` is nih-plug's `GuiContext` trait method on the editor tests' `NullGui`.
+
 lib.rs:761-783. Nothing calls them (nih-plug persists params via the `Params`
 derive). If anything ever did call `load_state`, the `self.params = Arc::new(...)`
 swap would disconnect the host and GUI (which hold the original Arc from
 `params()`) from the audio thread's parameter set. Delete or rewrite via setters.
 
-### H9. `position_envelope` doesn't do what it says
+### ~~H9. `position_envelope` doesn't do what it says~~ — FIXED
+> **Status: FIXED** (2026-11-07, branch `claude/zen-dirac-vq38u4`): OpenSpec change [`h09-route-envelope-to-strike-position`](openspec/changes/h09-route-envelope-to-strike-position/proposal.md).
+> - **Routing:** the effective strike position is `strike_position + position_envelope · envelope · 0.5` (plus wander), clamped to 0..1, every sample. The voice sets the offset from its force envelope before the resonator prepares the sample (`force_envelope_moves_the_strike_position`: 0.2 → 0.7 on a Bow swell; `position_envelope_is_audible_without_wander`).
+> - **Wander Rate:** a new `position_wander_rate` parameter (0.1–5 Hz, default 0.1, skewed) sets the wander's rate, independent of Position Envelope (`wander_period_follows_wander_rate`). The editor has a Wander Rate fader beside Wander.
+> - **Presets:** a preset without the field loads `0.1 + position_envelope · 4.9` Hz and Position Envelope 0, so it sounds as before (`preset_without_wander_rate_keeps_its_wander`). The 50 factory presets only gained the field at its default.
+> - **Neutral at 0:** at Position Envelope 0 the voice never touches the offset; 32 renders (16 exciters, with and without wander) are bit-identical to before, and the 16-voice benchmarks are within noise (numbers in the change's design).
+> - **Saved DAW projects:** `Plugin::filter_state` applies the same migration to host state that predates Wander Rate, since the host restores parameters by ID and never goes through the preset loader (`old_host_state_keeps_its_wander`).
+> - **BREAKING (host automation):** a session that automated Position Envelope to change the wander rate now moves the strike position instead. Automation can't be migrated.
+
 Documented as "How much envelope affects strike position" (params.rs:527-530).
 Actually (`core.rs:644-649`) it sets the **rate of the wander LFO**
 (`0.1 + position_envelope·4.9` Hz) — there is no envelope→position routing at all.
 With `position_wander = 0`, `position_envelope` does nothing.
 
-### H10. Sample-rate dependence throughout the space section
+### ~~H10. Sample-rate dependence throughout the space section~~ — FIXED
+> **Status: FIXED** (2026-11-07, branch `claude/zen-dirac-vq38u4`): OpenSpec change [`h10-scale-space-effects-with-sample-rate`](openspec/changes/h10-scale-space-effects-with-sample-rate/proposal.md).
+> - **Time-defined delays:** the Factory combs and allpasses, the spring tank, the echo and the HRTF delay are tuned at 48 kHz and scaled by `fs / 48 000`, so 48 kHz delays are the tuned values before any clamp.
+> - **Buffers for 192 kHz,** allocated in `new()` (about 1.8 MB per post chain), so no knob position clamps: the combs stay distinct at every size, Delay Time reaches 0.8 s at every rate, and the spring and HRTF keep their timing.
+> - **Tests:** Factory T30 is 0.616–0.617 s at 44.1/48/96/192 kHz (was 0.610/0.560/0.280/0.140 s); the 0.8 s echo arrives within a sample at every rate; the 96 kHz Delay Time sweep rises from 0.02 to 0.8 s; the spring's tank-1 echo is 0.120 s at 48 and 192 kHz; HRTF's 1 ms holds at 192 kHz.
+> - **Presets:** the five Factory-reverb presets lose the metallic collapsed-comb tail and stay within the bank's level rules with no trim. Hanging Chain Echo's echo comes one sample later (rounded instead of truncated). Numbers in the change's `levels.md`.
+
 - `FactoryReverb` comb delays are in raw samples (1553–1913 base, clamp 100–2000)
   with **no sample-rate scaling** despite `set_sample_rate` claiming to recompute
   them (space.rs:64-78). Room decay/size halves at 96 kHz.
@@ -436,8 +464,9 @@ above the block. Minor, but the doc and tests promise symmetric behavior.
   `Preset::into_params` (presets/mod.rs:555-557 uses a bare `int_param`), and
   `filter_cutoff` loses its formatter. Only affects the (dead) `load_state` path
   and `sanitized()` round-trips, but it's an asymmetry waiting to bite.
-- **M16. `FactoryReverb.diffusion_y` is dead state**; allpass delays are
-  hard-coded 200/300 samples (also not sample-rate scaled).
+- ~~**M16. `FactoryReverb.diffusion_y` is dead state**; allpass delays are
+  hard-coded 200/300 samples (also not sample-rate scaled).~~ — FIXED (H10:
+  `diffusion_y` removed; the allpass delays are sample-rate scaled).
 - **M17. `rattle_noise` "noise"** (`voice/mod.rs:1130-1148`) is
   `sin(φ)·43758.547` fract with φ stepping by the golden ratio — a deterministic
   chirpy pattern, identical in both stereo channels, gated by a threshold that
@@ -485,7 +514,7 @@ above the block. Minor, but the doc and tests promise symmetric behavior.
 4. Sustain pedal / CC64, all-sound-off, MPE per-note bend (M12/M13).
 5. ~~GUI exposure of brightness, thickness, sync rate, play mode, limiter mode,
    macros (H5).~~ — FIXED
-6. Envelope→strike-position routing promised by `position_envelope` (H9).
+6. ~~Envelope→strike-position routing promised by `position_envelope` (H9).~~ — FIXED
 7. ~~Post-chain wet/dry or bypass for the body stage; true stereo processing of
    filter/drive (C5).~~ — FIXED
 

@@ -381,7 +381,7 @@ pub fn render_behavior_metrics(output: &[f32]) -> RenderBehaviorMetrics {
 }
 
 fn float_sample_to_pcm_i16(sample: f32) -> i16 {
-    let clamped = crate::apply_output_limiter(sample);
+    let clamped = crate::apply_output_limiter(sample, crate::LIMITER_THRESHOLD);
     (clamped * i16::MAX as f32) as i16
 }
 

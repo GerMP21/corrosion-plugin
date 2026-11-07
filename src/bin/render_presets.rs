@@ -202,6 +202,7 @@ fn voice_controls_from_preset(preset: &Preset) -> VoiceControls {
         coupling_stiffness: extra.coupling_stiffness,
         position_wander: extra.position_wander,
         position_envelope: extra.position_envelope,
+        position_wander_rate: extra.position_wander_rate,
         fundamental_anchor: extra.fundamental_anchor,
         res_damping: extra.res_damping,
         res_brightness: extra.res_brightness,
@@ -287,8 +288,10 @@ fn render_preset(
 
         left *= preset.output;
         right *= preset.output;
-        left = apply_output_limiter(left);
-        right = apply_output_limiter(right);
+        // The preset's Analog Ceiling, as the plugin's Hard limiter uses it.
+        let ceiling = preset.extra.analog_ceiling.clamp(0.1, 1.0);
+        left = apply_output_limiter(left, ceiling);
+        right = apply_output_limiter(right, ceiling);
 
         let mono = (left + right) * 0.5;
         output.push(mono.clamp(-1.0, 1.0));

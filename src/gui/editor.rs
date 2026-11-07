@@ -18,20 +18,7 @@ use crate::Preset;
 /// editor doesn't draw (`h05-expose-missing-gui-controls`).
 // Read by the coverage test only.
 #[cfg_attr(not(test), allow(dead_code))]
-pub(crate) const HOST_ONLY_PARAMS: &[(&str, &str)] = &[
-    (
-        "exciter_pressure",
-        "no exciter reads it yet; it gets a knob once it is wired (h06)",
-    ),
-    (
-        "exciter_speed",
-        "no exciter reads it yet; it gets a knob once it is wired (h06)",
-    ),
-    (
-        "exciter_roughness",
-        "no exciter reads it yet; it gets a knob once it is wired (h06)",
-    ),
-];
+pub(crate) const HOST_ONLY_PARAMS: &[(&str, &str)] = &[];
 
 #[cfg(test)]
 thread_local! {
@@ -1104,6 +1091,27 @@ fn industrial_knob(
     scale: f32,
     large: bool,
 ) -> egui::Response {
+    industrial_knob_text(
+        ui, label, param, min, max, setter, accent, scale, large, false,
+    )
+}
+
+/// `industrial_knob`, showing the parameter's own display string (such as
+/// Pressure's "+6.0 dB" or Speed's "×1.41") when `param_text` is set
+/// (`h06-wire-global-exciter-controls`).
+#[allow(clippy::too_many_arguments)]
+fn industrial_knob_text(
+    ui: &mut egui::Ui,
+    label: &str,
+    param: &FloatParam,
+    min: f32,
+    max: f32,
+    setter: &ParamSetter,
+    accent: egui::Color32,
+    scale: f32,
+    large: bool,
+    param_text: bool,
+) -> egui::Response {
     note_drawn(param.as_ptr());
     let radius = if large {
         width_pct(scale, 0.023148149)
@@ -1225,7 +1233,11 @@ fn industrial_knob(
     );
 
     // Value below label
-    let value_text = format_value(display_value, min, max);
+    let value_text = if param_text {
+        param.normalized_value_to_string(param.preview_normalized(display_value), false)
+    } else {
+        format_value(display_value, min, max)
+    };
     painter.text(
         egui::pos2(center.x, label_y + label_height),
         egui::Align2::CENTER_TOP,
@@ -1259,22 +1271,46 @@ fn industrial_fader(
     accent: egui::Color32,
     scale: f32,
 ) -> egui::Response {
-    industrial_fader_text(ui, label, param, min, max, setter, accent, scale, false)
+    industrial_fader_text(
+        ui,
+        label,
+        param,
+        min,
+        max,
+        setter,
+        accent,
+        scale,
+        FaderText::Plain,
+    )
+}
+
+/// What a fader shows, and how its travel maps to the parameter.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum FaderText {
+    /// The plain number; travel is linear from `min` to `max`.
+    Plain,
+    /// The parameter's own display string (for values with names, such as
+    /// Sync's "Off" or "1/8"); travel is linear from `min` to `max`.
+    Param,
+    /// The parameter's own display string, and travel follows the
+    /// parameter's own range, skew included (Wander Rate;
+    /// `h09-route-envelope-to-strike-position`). `min` and `max` are ignored.
+    ParamRange,
 }
 
 /// The text a fader shows for `param`: its own display string (for
 /// parameters whose values have names, such as Sync's "Off" or "1/8"), or the
 /// plain number.
-fn fader_value_text(param: &FloatParam, min: f32, max: f32, param_text: bool) -> String {
-    if param_text {
+fn fader_value_text(param: &FloatParam, min: f32, max: f32, text: FaderText) -> String {
+    if text != FaderText::Plain {
         param.normalized_value_to_string(param.unmodulated_normalized_value(), false)
     } else {
         format_value(param.value(), min, max)
     }
 }
 
-/// `industrial_fader`, showing the parameter's own display string when
-/// `param_text` is set (`h05-expose-missing-gui-controls`).
+/// `industrial_fader`, showing the parameter's own display string unless
+/// `text` is `Plain` (`h05-expose-missing-gui-controls`).
 #[allow(clippy::too_many_arguments)]
 fn industrial_fader_text(
     ui: &mut egui::Ui,
@@ -1285,7 +1321,7 @@ fn industrial_fader_text(
     setter: &ParamSetter,
     accent: egui::Color32,
     scale: f32,
-    param_text: bool,
+    text: FaderText,
 ) -> egui::Response {
     note_drawn(param.as_ptr());
     let track_height = height_pct(scale, 0.0078125);
@@ -1303,10 +1339,20 @@ fn industrial_fader_text(
     let (rect, response) = ui.allocate_exact_size(desired_size, egui::Sense::click_and_drag());
 
     let value = param.value();
-    let normalized = if (max - min).abs() > f32::EPSILON {
+    let own_range = text == FaderText::ParamRange;
+    let normalized = if own_range {
+        param.unmodulated_normalized_value()
+    } else if (max - min).abs() > f32::EPSILON {
         ((value - min) / (max - min)).clamp(0.0, 1.0)
     } else {
         0.5
+    };
+    let value_at = |n: f32| {
+        if own_range {
+            param.preview_plain(n)
+        } else {
+            min + n * (max - min)
+        }
     };
 
     // Drag interaction
@@ -1320,7 +1366,7 @@ fn industrial_fader_text(
             let track_width = track_right - track_left;
             if track_width > 0.0 {
                 let new_normalized = ((pointer.x - track_left) / track_width).clamp(0.0, 1.0);
-                let new_value = min + new_normalized * (max - min);
+                let new_value = value_at(new_normalized);
                 if (new_value - value).abs() > f32::EPSILON {
                     setter.set_parameter(param, new_value);
                 }
@@ -1338,7 +1384,7 @@ fn industrial_fader_text(
             let track_width = track_right - track_left;
             if track_width > 0.0 {
                 let new_normalized = ((pointer.x - track_left) / track_width).clamp(0.0, 1.0);
-                let new_value = min + new_normalized * (max - min);
+                let new_value = value_at(new_normalized);
                 if (new_value - value).abs() > f32::EPSILON {
                     setter.set_parameter(param, new_value);
                 }
@@ -1351,7 +1397,7 @@ fn industrial_fader_text(
     let cy = rect.center().y;
 
     // Value display (left)
-    let value_text = fader_value_text(param, min, max, param_text);
+    let value_text = fader_value_text(param, min, max, text);
     painter.text(
         egui::pos2(rect.min.x + value_width * 0.5, cy),
         egui::Align2::CENTER_CENTER,
@@ -2307,6 +2353,29 @@ fn render_exciter_column(
         );
         ui.add_space(height_pct(scale, 0.0052083335));
 
+        // Global Pressure, Speed and Roughness: they act on every exciter
+        // model, so they sit with the selector rather than in a model's panel
+        // (`h06-wire-global-exciter-controls`).
+        let globals: [(&str, &FloatParam); 3] = [
+            ("Pressure", &params.exciter_pressure),
+            ("Speed", &params.exciter_speed),
+            ("Roughness", &params.exciter_roughness),
+        ];
+        let knob_width = width_pct(scale, 0.053703703);
+        let gap = ((ui.available_width() - globals.len() as f32 * knob_width)
+            / (globals.len() + 1) as f32)
+            .max(0.0);
+        ui.horizontal(|ui| {
+            ui.add_space(gap);
+            for (label, param) in globals {
+                industrial_knob_text(
+                    ui, label, param, 0.0, 1.0, setter, OFF_WHITE, scale, true, true,
+                );
+                ui.add_space(gap);
+            }
+        });
+        ui.add_space(height_pct(scale, 0.0052083335));
+
         if !panel_spec.controls.is_empty() {
             let recessed = recessed_panel(scale);
             recessed.show(ui, |ui| {
@@ -2872,6 +2941,17 @@ fn render_resonator_column(
                 OFF_WHITE,
                 scale,
             );
+            industrial_fader_text(
+                ui,
+                "Wander Rate",
+                &params.position_wander_rate,
+                0.1,
+                5.0,
+                setter,
+                OFF_WHITE,
+                scale,
+                FaderText::ParamRange,
+            );
             industrial_fader(
                 ui,
                 "Pos Env",
@@ -3176,7 +3256,7 @@ fn render_processing_column(
                         setter,
                         OFF_WHITE,
                         scale,
-                        true,
+                        FaderText::Param,
                     );
                     industrial_fader(
                         ui,
@@ -3788,7 +3868,10 @@ mod tests {
         use crate::params::sync_rate_param;
         for (value, text) in [(0.0, "Off"), (0.3, "1/8"), (1.0, "2/1")] {
             let param = sync_rate_param(value);
-            assert_eq!(super::fader_value_text(&param, 0.0, 1.0, true), text);
+            assert_eq!(
+                super::fader_value_text(&param, 0.0, 1.0, super::FaderText::Param),
+                text
+            );
         }
     }
 

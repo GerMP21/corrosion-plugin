@@ -296,8 +296,8 @@ allocation-free by `tests/no_alloc.rs`). All checks below pass.*
   value remaps that can't be expressed via `#[serde(default)]` have a place
   to live. Currently handles: unstamped legacy → `"1"`, `"1"`/`"2"` →
   `"3"` (inject empty `extra` object), `"3"` → `"4"` (additive macros /
-  play_mode / limiter_mode, no JSON rewrite). `Preset::from_json_str` and
-  `Corrosion::load_state` both route through the migration. Tests:
+  play_mode / limiter_mode, no JSON rewrite). `Preset::from_json_str` routes
+  through the migration; host state goes through nih-plug's `Params`. Tests:
   `unstamped_legacy_preset_migrates_to_current_schema`,
   `v3_preset_migrates_to_v4_without_dropping_fields`,
   `migration_idempotent_on_current_version`.

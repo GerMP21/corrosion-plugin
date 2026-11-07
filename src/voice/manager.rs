@@ -318,7 +318,9 @@ impl VoiceManager {
         coupling_stiffness: f32,
         position_wander: f32,
         position_envelope: f32,
+        position_wander_rate: f32,
         fundamental_anchor: f32,
+        exciter_pressure: f32,
         sample_rate: u32,
     ) {
         for voice in &mut self.voices {
@@ -330,7 +332,9 @@ impl VoiceManager {
                     coupling_stiffness,
                     position_wander,
                     position_envelope,
+                    position_wander_rate,
                     fundamental_anchor,
+                    exciter_pressure,
                     sample_rate,
                 );
             }
