@@ -19,9 +19,9 @@
 
 ## 3. Randomizer
 
-- [ ] 3.1 Scale the randomizer's `body` ranges by 5. Add a seeded randomize function using `Noise` with redraw-then-clamp safety, and remove `mode_param()`. Unit-test the spec's Safe bounds (100 draws), Full-mode safety (1000 draws) and that two draws differ. Verify the tests pass.
-- [ ] 3.2 Add the Randomize button and mode combo, applying changes with begin/set/end per parameter. Verify only the seven parameters change (unit test on the applied list), and manually that host undo reverts a randomize (record the host used, or that it wasn't available).
+- [x] 3.1 Scale the randomizer's `body` ranges by 5. Add a seeded randomize function using `Noise` with redraw-then-clamp safety, and remove `mode_param()`. Unit-test the spec's Safe bounds (100 draws), Full-mode safety (1000 draws) and that two draws differ. Verify the tests pass.
+- [x] 3.2 Add the Randomize button and mode combo, applying changes with begin/set/end per parameter. Verify only the seven parameters change (unit test on the applied list), and manually that host undo reverts a randomize (record the host used, or that it wasn't available). (Done: `randomize_sets_only_its_seven_parameters` checks the applied list. No host is available in this cloud container, so host undo wasn't checked manually. Each change is sent as begin/set/end through `ParamSetter`, the same gesture a knob drag sends.)
 
 ## 4. Close-out
 
-- [ ] 4.1 Update the README (user preset folder per platform, randomizer modes). Mark H5 FIXED in `FABLE-CODE-REVIEW-2026-07-07.md`, along with the "Missing features" items 1, 2 and 5. Run fmt, clippy (default features) and the full test suite, and verify all are green.
+- [x] 4.1 Update the README (user preset folder per platform, randomizer modes). Mark H5 FIXED in `FABLE-CODE-REVIEW-2026-07-07.md`, along with the "Missing features" items 1, 2 and 5. Run fmt, clippy (default features) and the full test suite, and verify all are green. (Done. Default-feature clippy shows only warnings in existing editor code, and the one new warning, in a test, is fixed. `--no-default-features` clippy is clean with `-D warnings -A unknown_lints` on this container's 1.97 toolchain.)

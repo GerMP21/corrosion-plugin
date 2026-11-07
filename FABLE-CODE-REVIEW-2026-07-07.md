@@ -270,7 +270,12 @@ limiter, or non-neutral macros loads incompletely from the GUI — those six par
 keep whatever values were previously live. (The host state path via nih-plug
 persists them fine, which makes the divergence extra confusing.)
 
-### H5. GUI is missing controls for shipped, audible parameters
+### ~~H5. GUI is missing controls for shipped, audible parameters~~ — FIXED
+> **Status: FIXED** (2026-11-07, branch `claude/eloquent-dirac-fc0sqm`): OpenSpec change [`h05-expose-missing-gui-controls`](openspec/changes/h05-expose-missing-gui-controls/proposal.md).
+> - **Controls:** the editor now has resonator Brightness, Thickness, Sync ("Off" or its division), Play Mode, Limiter Mode, and a macro strip (Mass, Corrosion, Violence, Brightness).
+> - **Coverage test:** `editor_covers_every_parameter` renders the editor headlessly for every exciter, object and space mode, and fails for any parameter that is neither drawn nor on `HOST_ONLY_PARAMS`. That list holds only `exciter_pressure/speed/roughness` until H6.
+> - **User presets:** Save writes to a per-user folder (sanitized names, confirmation before overwriting), and they are listed after the factory bank.
+> - **Randomizer:** a Randomize button and mode selector apply the randomizer within its safety constraints. Its BODY range is rescaled to the 0–5 parameter, and the unregistered `mode_param` is removed.
 Diffing widgets (`&params.<field>` occurrences in editor.rs) against `CorrosionParams`:
 
 - **`res_brightness`** — resonator Brightness has no knob (Damping does).
@@ -473,13 +478,13 @@ above the block. Minor, but the doc and tests promise symmetric behavior.
 
 ## Missing features (code-evident, not backlog speculation)
 
-1. User preset save/load — Save button permanently disabled; no file dialog, no
-   user bank directory (GUI loads only the embedded `include_dir` factory bank).
-2. Randomizer — fully implemented module, zero integration (no UI, no param).
+1. ~~User preset save/load — Save button permanently disabled; no file dialog, no
+   user bank directory (GUI loads only the embedded `include_dir` factory bank).~~ — FIXED (H5)
+2. ~~Randomizer — fully implemented module, zero integration (no UI, no param).~~ — FIXED (H5)
 3. MSEG PingPong loop — placeholder (C2/H10 above). *(Not covered by the C2 fix; PingPong remains open.)*
 4. Sustain pedal / CC64, all-sound-off, MPE per-note bend (M12/M13).
-5. GUI exposure of brightness, thickness, sync rate, play mode, limiter mode,
-   macros (H5).
+5. ~~GUI exposure of brightness, thickness, sync rate, play mode, limiter mode,
+   macros (H5).~~ — FIXED
 6. Envelope→strike-position routing promised by `position_envelope` (H9).
 7. ~~Post-chain wet/dry or bypass for the body stage; true stereo processing of
    filter/drive (C5).~~ — FIXED
@@ -490,7 +495,7 @@ above the block. Minor, but the doc and tests promise symmetric behavior.
 2. ~~**C2** (crash)~~ — FIXED, ~~**C3** (RT allocation; debug abort)~~ — FIXED,
 3. ~~**C4/C5/C6** (audible correctness of envelope, chain topology, spring reverb)~~ — FIXED,
 4. ~~**H1–H4**~~ (FIXED: parameter ranges, defaults, and preset loading),
-5. **H5** (GUI gaps) and the remaining H items,
+5. ~~**H5**~~ (FIXED: GUI gaps) and the remaining H items,
 6. Medium items opportunistically, alongside regression tests for each fix.
 
 ## Later finding: voice overdrive and clipping

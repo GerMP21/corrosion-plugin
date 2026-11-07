@@ -93,6 +93,10 @@ struct EditorUiState {
     save_name: String,
     confirm_overwrite: bool,
     save_message: Option<(String, bool)>,
+    /// The randomizer's mode (editor state: it shapes the next click, not the
+    /// sound) and its randomness, seeded when the editor opens.
+    randomizer_mode: crate::randomizer::RandomizerMode,
+    randomizer_noise: crate::dsp::utils::noise::Noise,
 }
 
 impl EditorUiState {
@@ -108,6 +112,13 @@ impl EditorUiState {
             save_name: String::new(),
             confirm_overwrite: false,
             save_message: None,
+            randomizer_mode: crate::randomizer::RandomizerMode::Safe,
+            randomizer_noise: crate::dsp::utils::noise::Noise::new(
+                std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .map(|elapsed| elapsed.subsec_nanos() ^ elapsed.as_secs() as u32)
+                    .unwrap_or(1),
+            ),
         };
         state.refresh_user_presets();
         state
@@ -2144,8 +2155,61 @@ fn render_preset_loader(
                         .color(if is_error { DANGER_RED } else { MUTED_GREY }),
                 );
             }
+            ui.horizontal(|ui| {
+                use crate::randomizer::RandomizerMode;
+                let text_size = width_pct(scale, 0.011111112);
+                egui::ComboBox::from_id_salt("randomizer-mode")
+                    .selected_text(
+                        egui::RichText::new(state.randomizer_mode.name()).size(text_size),
+                    )
+                    .show_ui(ui, |ui| {
+                        for mode in [
+                            RandomizerMode::Safe,
+                            RandomizerMode::Object,
+                            RandomizerMode::Damage,
+                            RandomizerMode::Full,
+                        ] {
+                            ui.selectable_value(
+                                &mut state.randomizer_mode,
+                                mode,
+                                egui::RichText::new(mode.name()).size(text_size),
+                            );
+                        }
+                    });
+                if ui
+                    .button(egui::RichText::new("Randomize").size(text_size))
+                    .clicked()
+                {
+                    let patch = crate::randomizer::randomize(
+                        state.randomizer_mode,
+                        &mut state.randomizer_noise,
+                    );
+                    for (param, value) in randomizer_assignments(params, &patch) {
+                        setter.begin_set_parameter(param);
+                        setter.set_parameter(param, value);
+                        setter.end_set_parameter(param);
+                    }
+                }
+            });
         });
     });
+}
+
+/// The parameters a randomized patch sets, and their values: only these
+/// seven change (`h05-expose-missing-gui-controls`).
+fn randomizer_assignments<'a>(
+    params: &'a CorrosionParams,
+    patch: &crate::randomizer::RandomizedParams,
+) -> [(&'a FloatParam, f32); 7] {
+    [
+        (&params.size, patch.size),
+        (&params.rust, patch.rust),
+        (&params.damage, patch.damage),
+        (&params.drive, patch.drive),
+        (&params.width, patch.width),
+        (&params.body, patch.body),
+        (&params.output, patch.output),
+    ]
 }
 
 /// Load `preset` into the plugin: every parameter except the editor-only
@@ -3643,14 +3707,16 @@ mod tests {
         use crate::params::{exciter_param, object_param};
         for exciter in 1..=16 {
             for object in 0..9 {
-                let mut params = crate::params::CorrosionParams::default();
-                params.exciter = exciter_param(exciter);
-                params.object = object_param(object);
-                params.space_mode = nih_plug::prelude::IntParam::new(
-                    "Space Mode",
-                    3,
-                    nih_plug::prelude::IntRange::Linear { min: 0, max: 3 },
-                );
+                let params = crate::params::CorrosionParams {
+                    exciter: exciter_param(exciter),
+                    object: object_param(object),
+                    space_mode: nih_plug::prelude::IntParam::new(
+                        "Space Mode",
+                        3,
+                        nih_plug::prelude::IntRange::Linear { min: 0, max: 3 },
+                    ),
+                    ..Default::default()
+                };
                 println!(
                     "HEIGHT {exciter} {object}: {:.0}",
                     rendered_content_height(&params)
@@ -3691,6 +3757,30 @@ mod tests {
         assert!(state.confirm_overwrite);
         assert_eq!(state.preset_count(), factory + 1);
         std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn randomize_sets_only_its_seven_parameters() {
+        use nih_plug::prelude::{Param, Params};
+        let params = crate::params::CorrosionParams::default();
+        let mut noise = crate::dsp::utils::noise::Noise::new(5);
+        let patch =
+            crate::randomizer::randomize(crate::randomizer::RandomizerMode::Full, &mut noise);
+        let ptrs: Vec<_> = super::randomizer_assignments(&params, &patch)
+            .iter()
+            .map(|(param, _)| param.as_ptr())
+            .collect();
+        let mut ids: Vec<String> = params
+            .param_map()
+            .into_iter()
+            .filter(|(_, ptr, _)| ptrs.contains(ptr))
+            .map(|(id, _, _)| id)
+            .collect();
+        ids.sort();
+        assert_eq!(
+            ids,
+            ["body", "damage", "drive", "output", "rust", "size", "width"]
+        );
     }
 
     #[test]

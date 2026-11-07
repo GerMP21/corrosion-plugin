@@ -1,6 +1,3 @@
-use nih_plug::prelude::*;
-use std::sync::Arc;
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum RandomizerMode {
     #[default]
@@ -28,7 +25,7 @@ pub fn safe_ranges() -> ParamRanges {
         damage: (0.0, 0.5),
         drive: (0.0, 0.5),
         width: (0.3, 0.8),
-        body: (0.0, 0.5),
+        body: (0.0, 2.5),
         output: (0.5, 1.0),
     }
 }
@@ -64,7 +61,7 @@ pub fn full_ranges() -> ParamRanges {
         damage: (0.0, 1.0),
         drive: (0.0, 1.0),
         width: (0.0, 1.0),
-        body: (0.0, 1.0),
+        body: (0.0, 5.0),
         output: (0.5, 1.0),
     }
 }
@@ -146,26 +143,9 @@ impl SafetyConstraints {
         params.damage = params.damage.clamp(0.0, 1.0);
         params.drive = params.drive.clamp(0.0, 1.0);
         params.width = params.width.clamp(0.0, 1.0);
-        params.body = params.body.clamp(0.0, 1.0);
+        params.body = params.body.clamp(0.0, 5.0);
         params.output = params.output.clamp(0.1, 1.2);
     }
-}
-
-pub fn mode_param() -> IntParam {
-    IntParam::new("Randomizer Mode", 0, IntRange::Linear { min: 0, max: 3 })
-        .with_value_to_string(Arc::new(|value| {
-            RandomizerMode::from_int(value).name().to_string()
-        }))
-        .with_string_to_value(Arc::new(|string| {
-            let normalized = string.trim().to_lowercase();
-            match normalized.as_str() {
-                "safe" => Some(0),
-                "object" => Some(1),
-                "damage" => Some(2),
-                "full" => Some(3),
-                _ => None,
-            }
-        }))
 }
 
 impl RandomizerMode {
@@ -185,5 +165,84 @@ impl RandomizerMode {
             RandomizerMode::Damage => 2,
             RandomizerMode::Full => 3,
         }
+    }
+}
+
+/// How many times `randomize` redraws a patch that fails the safety
+/// constraints before clamping it into the safe ranges instead.
+const MAX_REDRAWS: usize = 16;
+
+/// A random patch for `mode`, drawn from `noise`: redrawn while it fails
+/// `SafetyConstraints::is_safe_patch`, and clamped into the safe ranges if
+/// it still fails after `MAX_REDRAWS` draws (`h05-expose-missing-gui-controls`).
+/// BODY is on the parameter's 0–5 scale.
+pub fn randomize(
+    mode: RandomizerMode,
+    noise: &mut crate::dsp::utils::noise::Noise,
+) -> RandomizedParams {
+    let mut draw = || {
+        let t: [f32; 7] = std::array::from_fn(|_| noise.unit());
+        randomize_params(mode, &t)
+    };
+    let mut patch = draw();
+    for _ in 0..MAX_REDRAWS {
+        if SafetyConstraints::is_safe_patch(&patch) {
+            return patch;
+        }
+        patch = draw();
+    }
+    if !SafetyConstraints::is_safe_patch(&patch) {
+        SafetyConstraints::clamp_to_safe_ranges(&mut patch);
+    }
+    patch
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::dsp::utils::noise::Noise;
+
+    #[test]
+    fn safe_mode_stays_in_its_ranges() {
+        let mut noise = Noise::new(7);
+        for _ in 0..100 {
+            let p = randomize(RandomizerMode::Safe, &mut noise);
+            for (name, value, lo, hi) in [
+                ("size", p.size, 0.5, 1.5),
+                ("rust", p.rust, 0.0, 0.5),
+                ("damage", p.damage, 0.0, 0.5),
+                ("drive", p.drive, 0.0, 0.5),
+                ("width", p.width, 0.3, 0.8),
+                ("body", p.body, 0.0, 2.5),
+                ("output", p.output, 0.5, 1.0),
+            ] {
+                assert!(
+                    (lo..=hi).contains(&value),
+                    "Safe {name} {value} outside {lo}..{hi}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn full_mode_patches_are_safe() {
+        let mut noise = Noise::new(11);
+        for _ in 0..1000 {
+            let p = randomize(RandomizerMode::Full, &mut noise);
+            assert!(SafetyConstraints::is_safe_patch(&p));
+        }
+    }
+
+    #[test]
+    fn draws_differ() {
+        let mut noise = Noise::new(3);
+        let (a, b) = (
+            randomize(RandomizerMode::Full, &mut noise),
+            randomize(RandomizerMode::Full, &mut noise),
+        );
+        assert!(
+            a.size != b.size || a.rust != b.rust || a.damage != b.damage || a.body != b.body,
+            "two Full draws came out identical"
+        );
     }
 }

@@ -11,7 +11,7 @@ Current package version: `0.1.0`. Preset schema version: `4` (with backwards-com
 - **Full MIDI expression**: notes, pitch bend (default ±2 semitones, ±24 safety clamp), channel + polyphonic pressure, and CC1 mod wheel. All routed live to active voices.
 - 16-voice polyphony. When the pool is full, released tails are stolen first, then held notes at least 100 ms old (quietest first, oldest on ties); a note that just started is only stolen if every held note is that young. Idle voices cost nothing, while a full pool at Render quality measured about 36 % of one core on the development machine.
 - 130+ host parameters covering exciters, objects, transformations, post-processing, four high-level macros, and three play modes.
-- An egui editor with UI scaling (50/75/100/125/150%).
+- An egui editor with UI scaling (50/75/100/125/150%), controls for every audible parameter (including play and limiter modes, sync and the four macros), user presets, and a randomizer.
 - Offline renderers for comparison suites, preset batch renders, and aliasing analysis with asserted budgets.
 - 50 curated factory presets seeded via a typed Rust binary (`src/bin/seed_presets.rs`).
 
@@ -54,6 +54,23 @@ Each object is driven by an algorithmic resonator generator (the single resonato
 - 5 TautCable, 5 CoilSpring, 5 SheetMetal, 5 IndustrialCog (14)
 
 Each anchors on a distinct Object × Exciter pair and tunes the relevant character params, exciter parameters, macros, and post-chain choices. Several use `PlayMode::Drone` for sustained drones, one uses `sync_rate` for tempo-synced echo. Regenerate with `cargo run --bin seed_presets`.
+
+### User Presets and Randomizer
+
+The editor's **Save** writes the current sound as a named preset (every parameter except UI Scale) into a per-user folder, and the preset list shows the factory bank followed by your presets. Saving over an existing name asks first. The folder:
+
+- Windows: `%APPDATA%\Corrosion\Presets`
+- macOS: `~/Library/Application Support/Corrosion/Presets`
+- Linux and others: `$XDG_DATA_HOME/corrosion/presets`, or `~/.local/share/corrosion/presets`
+
+**Randomize** draws a new Size, Rust, Damage, Drive, Width, BODY and Output within its mode's ranges and safety limits (patches stay audible, and extreme damage never meets extreme drive):
+
+- **Safe:** gentle variations.
+- **Object:** size only.
+- **Damage:** rust, damage and a little drive.
+- **Full:** everything, over wide ranges.
+
+Every change is sent to the host as a normal parameter edit, so host undo applies.
 
 The factory presets are placeholders, to be replaced by real ones. Their levels follow a light rule: none hits the limiter, and none is more than 12 dB below the bank's median (`preset_levels_are_sane`; per-preset numbers in `openspec/changes/resolve-exciter-tradeoffs/levels.md`).
 
