@@ -29,8 +29,12 @@ The position wander's rate SHALL be set by Wander Rate (0.1–5 Hz), independent
 - **THEN** the wander component of the strike position has a 2 Hz period in both cases
 
 ### Requirement: Older presets keep their wander
-Loading a preset that predates Wander Rate SHALL give a wander rate equal to the one that preset produced before.
+Loading a preset, or host state saved in a DAW project, that predates Wander Rate SHALL give a wander rate equal to the one it produced before.
 
 #### Scenario: Migrated rate
 - **WHEN** a preset without Wander Rate, storing Position Envelope 0.5, is loaded
 - **THEN** Wander Rate is 2.55 Hz (0.1 + 0.5 × 4.9) and Position Envelope is 0
+
+#### Scenario: Migrated host state
+- **WHEN** a DAW project saved before Wander Rate existed, storing Position Envelope 0.5, is reopened
+- **THEN** Wander Rate is 2.55 Hz and Position Envelope is 0

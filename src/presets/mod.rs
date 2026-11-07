@@ -75,6 +75,13 @@ pub fn migrate_preset_json(mut value: serde_json::Value) -> serde_json::Value {
 /// without the field gets that rate, and Position Envelope 0, so it sounds
 /// as it did (`h09-route-envelope-to-strike-position`). The field is
 /// optional, so the schema version stays at 4.
+/// The wander rate, in hertz, that Position Envelope `envelope` used to set
+/// before Wander Rate existed. Shared by the preset and host-state
+/// migrations so both keep an old patch's sound.
+pub fn legacy_wander_rate(envelope: f32) -> f32 {
+    0.1 + envelope.clamp(0.0, 1.0) * 4.9
+}
+
 fn migrate_wander_rate(value: &mut serde_json::Value) {
     let Some(extra) = value
         .get_mut("extra")
@@ -88,11 +95,10 @@ fn migrate_wander_rate(value: &mut serde_json::Value) {
     let envelope = extra
         .get("position_envelope")
         .and_then(serde_json::Value::as_f64)
-        .unwrap_or(0.0)
-        .clamp(0.0, 1.0);
+        .unwrap_or(0.0) as f32;
     extra.insert(
         "position_wander_rate".into(),
-        serde_json::json!(0.1 + envelope * 4.9),
+        serde_json::json!(legacy_wander_rate(envelope)),
     );
     extra.insert("position_envelope".into(), serde_json::json!(0.0));
 }

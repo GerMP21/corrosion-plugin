@@ -451,9 +451,10 @@ note.
     bit-identical to before the routing existed.
   - **Wander** (`position_wander`) adds a bounded sine drift at **Wander Rate**
     (`position_wander_rate`, 0.1–5 Hz, default 0.1), independent of Position
-    Envelope. Presets that predate Wander Rate load the rate their Position
-    Envelope used to set (`0.1 + position_envelope · 4.9`), with Position
-    Envelope 0.
+    Envelope. Presets and saved host state (DAW projects, through
+    `Plugin::filter_state`) that predate Wander Rate load the rate their
+    Position Envelope used to set (`0.1 + position_envelope · 4.9`), with
+    Position Envelope 0.
   - The strike weights are cached on the effective position, so they are
     recomputed only while it moves.
 - The resonator reports summed displacement and a first-difference velocity back

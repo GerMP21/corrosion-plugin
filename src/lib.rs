@@ -313,6 +313,28 @@ pub fn apply_output_limiter(sample: f32, ceiling: f32) -> f32 {
     sample.clamp(-ceiling, ceiling)
 }
 
+/// Host state saved before Wander Rate existed has no `position_wander_rate`;
+/// Position Envelope set the wander's rate then. Give such state that rate
+/// and Position Envelope 0, the same rule as the preset migration, so an old
+/// project reopens sounding as it did (`h09-route-envelope-to-strike-position`).
+/// State that has the field is left alone.
+fn migrate_host_wander_rate(
+    params: &mut std::collections::BTreeMap<String, nih_plug::wrapper::state::ParamValue>,
+) {
+    use nih_plug::wrapper::state::ParamValue;
+    if params.contains_key("position_wander_rate") {
+        return;
+    }
+    let Some(&ParamValue::F32(envelope)) = params.get("position_envelope") else {
+        return;
+    };
+    params.insert(
+        "position_wander_rate".into(),
+        ParamValue::F32(presets::legacy_wander_rate(envelope)),
+    );
+    params.insert("position_envelope".into(), ParamValue::F32(0.0));
+}
+
 /// Maximum drive-amount-to-gain multiplier in `apply_drive`. A drive of `1.0`
 /// brings the input up by `1 + DRIVE_GAIN_SCALE` before the waveshaper.
 const DRIVE_GAIN_SCALE: f32 = 4.0;
@@ -924,6 +946,13 @@ impl Plugin for Corrosion {
     /// Returns parameter interface for host automation
     fn params(&self) -> Arc<dyn Params> {
         self.params.clone()
+    }
+
+    /// Migrate host state (a saved DAW project) before nih-plug restores it.
+    /// The host restores parameters by ID, never through the preset loader,
+    /// so this applies the preset migrations that would otherwise be skipped.
+    fn filter_state(state: &mut PluginState) {
+        migrate_host_wander_rate(&mut state.params);
     }
 
     /// Called once when plugin is instantiated.
@@ -2464,5 +2493,55 @@ mod output_ceiling_tests {
             }
         }
         assert!(over > 0, "{}: no sample reached the clamp", path.display());
+    }
+}
+
+/// Host-state migration (`h09-route-envelope-to-strike-position`).
+#[cfg(test)]
+mod host_state_tests {
+    use super::Corrosion;
+    use nih_plug::prelude::{Plugin, PluginState};
+    use nih_plug::wrapper::state::ParamValue;
+
+    fn state(params: &[(&str, f32)]) -> PluginState {
+        PluginState {
+            version: "0.2.0".into(),
+            params: params
+                .iter()
+                .map(|&(id, v)| (id.to_string(), ParamValue::F32(v)))
+                .collect(),
+            fields: Default::default(),
+        }
+    }
+
+    fn f32_param(state: &PluginState, id: &str) -> f32 {
+        match state.params.get(id) {
+            Some(&ParamValue::F32(v)) => v,
+            other => panic!("{id}: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn old_host_state_keeps_its_wander() {
+        let mut saved = state(&[("position_envelope", 0.5), ("position_wander", 0.3)]);
+        Corrosion::filter_state(&mut saved);
+        assert!((f32_param(&saved, "position_wander_rate") - 2.55).abs() < 1e-5);
+        assert_eq!(f32_param(&saved, "position_envelope"), 0.0);
+        assert_eq!(f32_param(&saved, "position_wander"), 0.3);
+    }
+
+    #[test]
+    fn current_host_state_is_left_alone() {
+        let mut saved = state(&[("position_envelope", 0.5), ("position_wander_rate", 1.5)]);
+        Corrosion::filter_state(&mut saved);
+        assert_eq!(f32_param(&saved, "position_wander_rate"), 1.5);
+        assert_eq!(f32_param(&saved, "position_envelope"), 0.5);
+    }
+
+    #[test]
+    fn host_state_without_position_envelope_is_left_alone() {
+        let mut saved = state(&[("position_wander", 0.3)]);
+        Corrosion::filter_state(&mut saved);
+        assert!(!saved.params.contains_key("position_wander_rate"));
     }
 }

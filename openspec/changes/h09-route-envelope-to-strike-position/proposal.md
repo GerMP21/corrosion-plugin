@@ -13,7 +13,8 @@
 - **Presets and sessions:**
   - **Factory presets:** all 50 hold Position Envelope 0 and Wander 0, so none changes.
   - **Older presets:** they have no `position_wander_rate`, so they load the default. Any older preset that used Position Envelope to set the wander rate is migrated to the equivalent Wander Rate.
-- **BREAKING (host automation):** a session that automated Position Envelope to change the wander rate now moves the strike position instead.
+- **Saved DAW projects:** host state that predates Wander Rate gets the same migration through `Plugin::filter_state`, since the host restores parameters by ID and never goes through the preset loader.
+- **BREAKING (host automation):** a session that automated Position Envelope to change the wander rate now moves the strike position instead. Automation can't be migrated.
 
 ## Capabilities
 

@@ -333,7 +333,8 @@ swap would disconnect the host and GUI (which hold the original Arc from
 > - **Wander Rate:** a new `position_wander_rate` parameter (0.1–5 Hz, default 0.1, skewed) sets the wander's rate, independent of Position Envelope (`wander_period_follows_wander_rate`). The editor has a Wander Rate fader beside Wander.
 > - **Presets:** a preset without the field loads `0.1 + position_envelope · 4.9` Hz and Position Envelope 0, so it sounds as before (`preset_without_wander_rate_keeps_its_wander`). The 50 factory presets only gained the field at its default.
 > - **Neutral at 0:** at Position Envelope 0 the voice never touches the offset; 32 renders (16 exciters, with and without wander) are bit-identical to before, and the 16-voice benchmarks are within noise (numbers in the change's design).
-> - **BREAKING (host automation):** a session that automated Position Envelope to change the wander rate now moves the strike position instead.
+> - **Saved DAW projects:** `Plugin::filter_state` applies the same migration to host state that predates Wander Rate, since the host restores parameters by ID and never goes through the preset loader (`old_host_state_keeps_its_wander`).
+> - **BREAKING (host automation):** a session that automated Position Envelope to change the wander rate now moves the strike position instead. Automation can't be migrated.
 
 Documented as "How much envelope affects strike position" (params.rs:527-530).
 Actually (`core.rs:644-649`) it sets the **rate of the wander LFO**
