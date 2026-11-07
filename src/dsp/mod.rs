@@ -29,8 +29,9 @@ pub use post_processing::{
 };
 pub use profile::{ModalModeSpec, ModalProfile, ModalProfileId};
 pub use resonators::{
-    CharacterParams, CoilSpringResonator, IBeamResonator, IndustrialCogResonator, ModalResonator,
-    ResonatorCoefficients, ResonatorCore, SecondOrderMode, SheetMetalResonator, TautCableResonator,
+    CharacterParams, CoilSpringResonator, ContactPrediction, IBeamResonator,
+    IndustrialCogResonator, ModalResonator, ResonatorCoefficients, ResonatorCore, RingBound,
+    SecondOrderMode, SheetMetalResonator, TautCableResonator,
 };
 pub use transforms::{
     DamageAmount, HeatAmount, RustAmount, SizeScale, SludgeAmount, ThicknessAmount,

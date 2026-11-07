@@ -3,7 +3,8 @@
 //! A light rigid stick modeled with Hertzian contact and a separate bounce
 //! state so the resonator can throw the stick backward for micro-collisions.
 
-use crate::dsp::utils::rate;
+use crate::dsp::utils::{contact, rate};
+use crate::dsp::ContactPrediction;
 
 /// Light rigid stick with explicit micro-bounce tracking.
 #[derive(Clone, Debug)]
@@ -32,6 +33,10 @@ pub struct Drumstick {
     /// (`fix-sample-rate-time-constants`); exact 48 kHz values at 48 kHz.
     ratio: f32,
     velocity_decay: f32,
+    /// Host samples since the strike started, and the longest a strike may
+    /// last (0.25 s), however the resonator moves under the stick.
+    strike_frames: u32,
+    max_strike_frames: u32,
 }
 
 impl Drumstick {
@@ -50,6 +55,8 @@ impl Drumstick {
             last_penetration: 0.0,
             ratio: 1.0,
             velocity_decay: 0.999,
+            strike_frames: 0,
+            max_strike_frames: 12_000,
         }
     }
 
@@ -57,6 +64,7 @@ impl Drumstick {
     pub fn set_sample_rate(&mut self, sample_rate: f32) {
         self.ratio = rate::ratio(sample_rate);
         self.velocity_decay = rate::decay(0.999, self.ratio);
+        self.max_strike_frames = rate::frames(12_000, self.ratio);
     }
 
     /// Sets the mass, stiffness, restitution, and bounce cap.
@@ -81,22 +89,34 @@ impl Drumstick {
         self.stick_velocity = velocity * 5.0 + 3.0;
         self.bounce_count = 0;
         self.last_penetration = 0.0;
+        self.strike_frames = 0;
     }
 
     /// Processes one Hertzian contact sample and updates the stick state.
-    pub fn process_sample(&mut self, resonator_displacement: f32, resonator_velocity: f32) -> f32 {
+    pub fn process_sample(&mut self, resonator: ContactPrediction) -> f32 {
         if !self.active {
+            return 0.0;
+        }
+        self.strike_frames += 1;
+        if self.strike_frames >= self.max_strike_frames {
+            self.active = false;
             return 0.0;
         }
 
         self.stick_position += self.stick_velocity * rate::step(0.0003, self.ratio);
 
+        // Hertzian contact, solved against this sample's resonator response
+        // (`resolve-exciter-tradeoffs`). The returned force is
+        // `hertzian_force · stick_mass`.
+        let (position, stiffness, mass) =
+            (self.stick_position, self.tip_stiffness, self.stick_mass);
+        let force = contact::solve_force(|f| {
+            stiffness * (position - resonator.displacement(f)).max(0.0).powf(1.5) * mass
+        });
+        let resonator_displacement = resonator.displacement(force);
+        let resonator_velocity = resonator.velocity(force);
         let penetration = (self.stick_position - resonator_displacement).max(0.0);
-        let hertzian_force = if penetration > 0.0 {
-            self.tip_stiffness * penetration.powf(1.5)
-        } else {
-            0.0
-        };
+        let hertzian_force = force / mass;
 
         if penetration > 0.0 {
             let deceleration = hertzian_force / self.stick_mass.max(0.01);
@@ -107,9 +127,12 @@ impl Drumstick {
                 self.stick_velocity = -self.stick_velocity * self.restitution_bounciness;
                 self.stick_velocity += resonator_velocity * 0.3;
 
+                // The last bounce: the stick comes to rest instead of being
+                // pinned to the surface and pulled back into it, which made
+                // it chatter for as long as the note was held
+                // (`resolve-exciter-tradeoffs`).
                 if self.bounce_count >= self.max_bounces {
-                    self.stick_velocity = 0.0;
-                    self.stick_position = resonator_displacement;
+                    self.active = false;
                 }
             }
         } else {
@@ -123,7 +146,7 @@ impl Drumstick {
         self.last_penetration = penetration;
         self.stick_velocity *= self.velocity_decay;
 
-        hertzian_force * self.stick_mass
+        force
     }
 
     /// Returns whether the stick is still engaged.

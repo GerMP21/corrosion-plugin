@@ -11,7 +11,7 @@ Current package version: `0.1.0`. Preset schema version: `4` (with backwards-com
 - **Full MIDI expression**: notes, pitch bend (default ±2 semitones, ±24 safety clamp), channel + polyphonic pressure, and CC1 mod wheel. All routed live to active voices.
 - 16-voice polyphony. When the pool is full, released tails are stolen first, then held notes at least 100 ms old (quietest first, oldest on ties); a note that just started is only stolen if every held note is that young. Idle voices cost nothing, while a full pool at Render quality measured about 36 % of one core on the development machine.
 - 130+ host parameters covering exciters, objects, transformations, post-processing, four high-level macros, and three play modes.
-- An egui editor with UI scaling (50/75/100/125/150%).
+- An egui editor with UI scaling (50/75/100/125/150%), controls for every audible parameter (including play and limiter modes, sync and the four macros), user presets, and a randomizer.
 - Offline renderers for comparison suites, preset batch renders, and aliasing analysis with asserted budgets.
 - 50 curated factory presets seeded via a typed Rust binary (`src/bin/seed_presets.rs`).
 
@@ -37,13 +37,13 @@ Each object is driven by an algorithmic resonator generator (the single resonato
 
 ### Main Control Groups
 
-- **Sound**: `Exciter`, `Object`, `Size`, `Rust`, `Damage`, `Drive`, `Output`, `Width`, `Body`.
+- **Sound**: `Exciter`, `Object`, `Size`, `Rust`, `Damage`, `Drive`, `Output`, `Width`, `Body`. Master **Drive** (0–5) fades from clean to fully shaped over 0–1; above 1 it pushes the shaper harder (more saturation, not more level).
 - **Macros** (PRD §12, neutral midpoint at 0.5): `Mass`, `Corrosion`, `Violence`, `Brightness`. Each layers a bias across a cluster of related destinations (mass macro hits the exciter mass cluster + resonator size; corrosion adds damping and rust; violence pushes drive/chaos/damage; brightness opens the post-chain filter).
 - **Play mode**: `Tonal` (default — note → pitch), `Kit` (MIDI note range → object family, 10 notes per kit slot), `Drone` (force MSEG loop on for friction voices so notes ring until release).
 - **Quality**: `Eco` / `Normal` / `High` / `Render`. Controls both post-chain oversampling factor (1×/4×/8×/16×) **and** per-voice modal density (0.5×/1.0×/1.5×/2.0× the object's base mode count). Every mode runs the full post chain (Eco no longer skips body, spread or Space), so quality modes trade fidelity and CPU, not effects.
 - **Limiter**: `Hard` (default zero-latency hard clamp at ≈−0.3 dBFS) or `Lookahead` (48-sample window, instant attack, 50 ms release; reports its 1 ms latency to the host).
 - **Post chain**: per-channel WDF-style 4-pole ladder filter → Lorenz drive (dual-mono, so the voice engine's stereo image survives), plus the FEM body resonance added in parallel on the mono sum → HRTF spread → Space (Factory / Spring / Echo) → oversampled clipper. **BODY** (0–5) sets the body's mix level; **Chassis Volume** only sets its size (larger = lower resonances, which also ring a little louder at the same BODY). Cutoff, resonance, and master drive are smoothed at audio rate (~20 ms tau) with a first-call snap so static configurations are unchanged.
-- **Tempo sync**: `sync_rate < 0.05` keeps the Echo free-running; above it, six musical divisions (1/16 → 2/1) drive the delay from `context.transport().tempo` when the host reports one.
+- **Tempo sync**: off by default. `sync_rate < 0.05` (shown as "Off") keeps the Echo free-running on Delay Time. Above it, six musical divisions (1/16 → 2/1, shown by name) drive the delay from `context.transport().tempo` when the host reports one.
 - **Per-voice modulation**: damping, brightness, strike position, coupling, position wander, position envelope, and fundamental anchor automate through to held notes via `Voice::update_live_controls`; tail voices keep their note-on snapshot so decays stay consistent.
 
 ### Factory Presets
@@ -55,12 +55,29 @@ Each object is driven by an algorithmic resonator generator (the single resonato
 
 Each anchors on a distinct Object × Exciter pair and tunes the relevant character params, exciter parameters, macros, and post-chain choices. Several use `PlayMode::Drone` for sustained drones, one uses `sync_rate` for tempo-synced echo. Regenerate with `cargo run --bin seed_presets`.
 
-The factory presets are placeholders, to be replaced by real ones. Their levels follow a light rule: none hits the limiter, and none is more than 12 dB below the bank's median (`preset_levels_are_sane`; per-preset numbers in `openspec/changes/normalize-object-loudness/levels.md`).
+### User Presets and Randomizer
+
+The editor's **Save** writes the current sound as a named preset (every parameter except UI Scale) into a per-user folder, and the preset list shows the factory bank followed by your presets. Saving over an existing name asks first. The folder:
+
+- Windows: `%APPDATA%\Corrosion\Presets`
+- macOS: `~/Library/Application Support/Corrosion/Presets`
+- Linux and others: `$XDG_DATA_HOME/corrosion/presets`, or `~/.local/share/corrosion/presets`
+
+**Randomize** draws a new Size, Rust, Damage, Drive, Width, BODY and Output within its mode's ranges and safety limits (patches stay audible, and extreme damage never meets extreme drive):
+
+- **Safe:** gentle variations.
+- **Object:** size only.
+- **Damage:** rust, damage and a little drive.
+- **Full:** everything, over wide ranges.
+
+Every change is sent to the host as a normal parameter edit, so host undo applies.
+
+The factory presets are placeholders, to be replaced by real ones. Their levels follow a light rule: none hits the limiter, and none is more than 12 dB below the bank's median (`preset_levels_are_sane`; per-preset numbers in `openspec/changes/resolve-exciter-tradeoffs/levels.md`).
 
 **Loudness.**
 - Every object's mode bank is normalized at note-on to one strike level, so objects, registers (C2–C6), quality modes and damage settings land within a few dB of each other.
-- Each exciter has a fixed drive trim, so no default-control note overdrives the voice before its safety clamp.
-- Continuously driven exciters (bow, scrapes, jet, hum) are therefore much quieter than struck ones, and no longer hard-clip.
+- Each exciter has a drive level that puts its typical note at one common level, so struck, bowed, scraped and blown exciters play about equally loud.
+- A per-voice drive governor turns the exciter's force down when a note would near full scale, so no note overdrives the voice and none is clipped, whatever the drive.
 
 ## Repository Layout
 

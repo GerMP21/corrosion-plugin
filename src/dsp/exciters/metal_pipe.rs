@@ -5,7 +5,16 @@
 //! ringing, making it a coupled impact/oscillator model inside `dsp/exciters`.
 //! Use it for pipe strikes, metallic boings, and resonant hollow-tube impacts.
 
-use crate::dsp::utils::rate;
+use crate::dsp::utils::{contact, rate};
+use crate::dsp::ContactPrediction;
+/// How many resonator displacement units one unit of the pipe's travel
+/// spans: its drive level was raised from 0.107 to 0.541
+/// (`resolve-exciter-tradeoffs`), and through this scale the pipe meets the
+/// surface it met at the old level, so its Hertz contact stays
+/// force-limited instead of collapsing into a displacement-limited chatter
+/// whose level follows the sample grid (see `HAND_SCALE` in `hand_strike`).
+pub const PIPE_SCALE: f32 = 5.06;
+
 /// Coupled impact exciter with internal pipe modes.
 #[derive(Clone, Debug)]
 pub struct MetalPipe {
@@ -100,17 +109,23 @@ impl MetalPipe {
     }
 
     /// Processes one sample of coupled contact and pipe resonance.
-    pub fn process_sample(&mut self, target_displacement: f32, _target_velocity: f32) -> f32 {
+    pub fn process_sample(&mut self, target: ContactPrediction) -> f32 {
         if !self.active {
             return 0.0;
         }
+        let target = target.in_units(PIPE_SCALE);
 
         // Update pipe physics
         self.pipe_position += self.pipe_velocity * rate::step(0.0005, self.ratio);
 
-        // Hertzian contact
-        let penetration = (self.pipe_position - target_displacement).max(0.0);
-        let contact_force = self.metal_stiffness * penetration.powf(1.5) * self.pipe_mass;
+        // Hertzian contact, solved against this sample's resonator response
+        // (`resolve-exciter-tradeoffs`).
+        let (position, stiffness, mass) =
+            (self.pipe_position, self.metal_stiffness, self.pipe_mass);
+        let contact_force = contact::solve_force(|f| {
+            stiffness * (position - target.displacement(f)).max(0.0).powf(1.5) * mass
+        });
+        let penetration = (position - target.displacement(contact_force)).max(0.0);
 
         // Process pipe modes (the pipe rings from the collision)
         let pipe_output = self.process_pipe_modes(-contact_force);
@@ -140,6 +155,12 @@ impl MetalPipe {
     fn process_pipe_modes(&mut self, input_force: f32) -> f32 {
         let mut output = 0.0;
         let dt = 1.0 / self.sample_rate;
+        // The ring decay is a per-48 kHz-sample factor, and the input gain
+        // scales as `ratio²` so a force of a given area rings at the same
+        // amplitude at any rate (the ring's gain grows as `fs/ω` per sample,
+        // and each sample carries `1/fs` of the area).
+        let ring_decay = rate::decay(self.pipe_ring_decay, self.ratio);
+        let input_gain = (1.0 - self.pipe_ring_decay) * self.ratio * self.ratio;
 
         for mode in &mut self.pipe_modes {
             let freq = mode.frequency_hz * self.pipe_pitch;
@@ -147,9 +168,9 @@ impl MetalPipe {
 
             // Simple resonator: y'' + 2*d*y' + w^2*y = F
             // Using simplified difference equation
-            let coeff_a1 = -2.0 * (omega * dt).cos() * self.pipe_ring_decay;
-            let coeff_a2 = self.pipe_ring_decay * self.pipe_ring_decay;
-            let coeff_b0 = (1.0 - self.pipe_ring_decay) * mode.gain;
+            let coeff_a1 = -2.0 * (omega * dt).cos() * ring_decay;
+            let coeff_a2 = ring_decay * ring_decay;
+            let coeff_b0 = input_gain * mode.gain;
 
             let sample = coeff_b0 * input_force - coeff_a1 * mode.y1 - coeff_a2 * mode.y2;
             mode.y2 = mode.y1;

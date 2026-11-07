@@ -111,26 +111,13 @@ fn sync_rate_to_delay_time(
     free_running_delay_time: f32,
 ) -> f32 {
     // Off region: passthrough.
-    if sync_rate < 0.05 {
+    let Some(division) = params::sync_division(sync_rate) else {
         return free_running_delay_time;
-    }
+    };
     let Some(tempo) = tempo_bpm.filter(|t| t.is_finite() && *t > 0.0) else {
         return free_running_delay_time;
     };
-
-    // 6 discrete musical divisions in BEATS (1/4 note = 1 beat). Ascending
-    // so a higher sync_rate yields a longer delay.
-    const DIVISIONS: [f32; 6] = [
-        0.25, // 1/16 note (0.25 beats)
-        0.5,  // 1/8 note
-        1.0,  // 1/4 note (quarter)
-        2.0,  // 1/2 note (half)
-        4.0,  // 1/1 note (whole)
-        8.0,  // 2/1 note (double whole)
-    ];
-    let normalized = ((sync_rate - 0.05) / 0.95).clamp(0.0, 1.0);
-    let idx = (normalized * DIVISIONS.len() as f32) as usize;
-    let beats = DIVISIONS[idx.min(DIVISIONS.len() - 1)];
+    let beats = params::SYNC_DIVISIONS[division].0;
     let beat_seconds = 60.0 / tempo;
     let target_seconds = beats * beat_seconds;
     // Echo maps delay_time 0..1 → (0.02 + t * 0.78) seconds.
@@ -338,8 +325,9 @@ const DRIVE_NEG_HARD_THRESHOLD: f32 = 0.7;
 /// Upper bound for the compressed negative output. Tighter than the positive
 /// side so the asymmetry is audible.
 const DRIVE_NEG_CEILING: f32 = 1.1;
-/// Outer clamp applied to the dry/wet mix; sized so downstream limiters
-/// still have headroom even at maximum drive.
+/// Outer clamp applied to the dry/wet mix. The crossfade itself stays
+/// within the shaper's ceilings (1.2 / 1.1) for inputs up to ±1, so this
+/// only guards larger inputs.
 const DRIVE_OUTPUT_CLAMP: f32 = 1.5;
 
 /// Applies asymmetric drive/saturation to a sample.
@@ -348,13 +336,17 @@ const DRIVE_OUTPUT_CLAMP: f32 = 1.5;
 /// - Linear pass-through for low amplitudes
 /// - Smooth knee transition using cubic Hermite interpolation
 /// - Asymmetric saturation (different curves for positive/negative)
-/// - Dry/wet mixing
+/// - A dry/shaped crossfade: shaped share `min(drive, 1)`, dry share
+///   `1 − min(drive, 1)`, so the weights always sum to 1. Above 1 only the
+///   shaper's input gain (`1 + 4·drive`) rises: more saturation, not more
+///   level (`h02-normalize-master-drive-mix`).
 ///
 /// The asymmetry creates harmonic complexity typical of industrial textures.
 ///
 /// # Arguments
 /// * `sample` - Input sample value
-/// * `drive` - Drive amount (0.0 = clean, higher = more saturation)
+/// * `drive` - Drive amount, 0–5 (0.0 = clean; 1.0 = fully shaped; higher =
+///   more saturation)
 ///
 /// # Returns
 /// Processed sample with applied drive and saturation
@@ -364,7 +356,21 @@ pub fn apply_drive(sample: f32, drive: f32) -> f32 {
     if drive <= 0.0 {
         return sample;
     }
+    let shaped = drive_shape(sample, drive);
 
+    // Crossfade over the first unit of the knob; above 1 the shaper's
+    // input gain keeps rising, so more drive is more saturation, not more
+    // level (`h02-normalize-master-drive-mix`).
+    let wet = drive.min(1.0);
+    let dry_wet = shaped * wet + sample * (1.0 - wet);
+    dry_wet.clamp(-DRIVE_OUTPUT_CLAMP, DRIVE_OUTPUT_CLAMP)
+}
+
+/// The master drive's waveshaper alone: the input scaled by
+/// `1 + drive · DRIVE_GAIN_SCALE`, then the asymmetric soft-knee curve.
+/// `apply_drive` mixes it with the dry signal.
+#[inline]
+pub(crate) fn drive_shape(sample: f32, drive: f32) -> f32 {
     // Drive gain scales the input before the saturation curve.
     let drive_gain = 1.0 + drive * DRIVE_GAIN_SCALE;
     let amplified = sample * drive_gain;
@@ -374,7 +380,7 @@ pub fn apply_drive(sample: f32, drive: f32) -> f32 {
     let sign = amplified.signum();
 
     // Apply asymmetric waveshaping based on signal polarity
-    let shaped = if sign > 0.0 {
+    if sign > 0.0 {
         // Positive half: gentler curve, more "tube-like"
         if abs_sample < DRIVE_POS_SOFT_THRESHOLD {
             // Linear region - preserve transients
@@ -412,11 +418,7 @@ pub fn apply_drive(sample: f32, drive: f32) -> f32 {
                 DRIVE_NEG_HARD_THRESHOLD + (1.0 - DRIVE_NEG_HARD_THRESHOLD) * (1.0 - (-t).exp());
             sign * compressed.min(DRIVE_NEG_CEILING)
         }
-    };
-
-    // Dry/wet mix: more drive = more wet signal
-    let dry_wet = shaped * drive + sample * (1.0 - drive * 0.5);
-    dry_wet.clamp(-DRIVE_OUTPUT_CLAMP, DRIVE_OUTPUT_CLAMP)
+    }
 }
 
 /// Handles incoming MIDI note events and routes them to voice management.
@@ -807,7 +809,7 @@ impl Corrosion {
             self.params.component_tolerance.value(),
         );
         self.post_chain.set_drive_params(
-            (self.params.drive_amount.value() + bias.drive_amount_offset).clamp(0.0, 1.0),
+            (self.params.drive_amount.value() + bias.drive_amount_offset).clamp(0.0, 5.0),
             self.params.bias_starvation.value(),
             (self.params.chaos_depth.value() + bias.chaos_depth_offset).clamp(0.0, 1.0),
         );
@@ -1302,11 +1304,14 @@ mod tests {
         }
 
         eprintln!("hosted normalized note peak={peak:.6}");
-        // C5 level guard: within ±6 dB of the 0.118 reference measured when
-        // the default BODY (2.62) was chosen to keep the pre-C5 level.
+        // Level guard: within ±6 dB of the 0.452 reference. It was 0.118
+        // (measured when the default BODY, 2.62, was chosen to keep the
+        // pre-C5 level); `resolve-exciter-tradeoffs` sets every exciter's
+        // drive for a common level instead of its worst note, which raised
+        // the default patch about 12 dB.
         assert!(
-            (0.059..=0.236).contains(&peak),
-            "default note peak {peak} is more than 6 dB from 0.118"
+            (0.226..=0.902).contains(&peak),
+            "default note peak {peak} is more than 6 dB from 0.452"
         );
     }
 
@@ -1438,6 +1443,124 @@ mod tests {
         assert!(bias.chaos_depth_offset > 0.15);
     }
 
+    /// RMS of a quiet 1 kHz tone through the post chain, set up the way
+    /// `process()` sets it, with `drive_amount` and the Violence macro
+    /// (neutral at 0.5).
+    fn post_chain_drive_rms(drive_amount: f32, violence: f32) -> f32 {
+        use crate::params::float_param_for_test;
+        let mut plugin = Corrosion::default();
+        {
+            let params = Arc::get_mut(&mut plugin.params).unwrap();
+            params.drive_amount = float_param_for_test("Drive Amount", drive_amount, 0.0, 5.0);
+            params.macro_violence = float_param_for_test("Violence", violence, 0.0, 1.0);
+        }
+        let bias = super::resolve_macro_bias(&plugin.params);
+        plugin.apply_post_chain_params(48_000, None, &bias, 0.0);
+        let mut sum = 0.0f64;
+        for i in 0..4_800 {
+            let x = 0.05 * (std::f32::consts::TAU * 1_000.0 * i as f32 / 48_000.0).sin();
+            let (l, _) = plugin.post_chain.process(x, x);
+            sum += (l * l) as f64;
+        }
+        (sum / 4_800.0).sqrt() as f32
+    }
+
+    // --- Master drive mix (`h02-normalize-master-drive-mix`) ---
+
+    #[test]
+    fn master_drive_crossfades_below_one() {
+        for x in [-0.6f32, -0.05, 0.01, 0.3, 0.9] {
+            let expected = 0.5 * x + 0.5 * super::drive_shape(x, 0.5);
+            let out = super::apply_drive(x, 0.5);
+            assert!(
+                (out - expected).abs() < 1e-6,
+                "drive 0.5, input {x}: {out} vs crossfade {expected}"
+            );
+        }
+    }
+
+    #[test]
+    fn master_drive_has_no_dry_from_one_up() {
+        for drive in [1.0f32, 2.5, 5.0] {
+            for x in [-0.6f32, -0.05, 0.01, 0.3, 0.9] {
+                let (out, shaped) = (super::apply_drive(x, drive), super::drive_shape(x, drive));
+                assert!(
+                    (out - shaped).abs() < 1e-6,
+                    "drive {drive}, input {x}: {out} has a dry part (shaped {shaped})"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn master_drive_never_inverts() {
+        for drive in [0.0f32, 0.5, 1.0, 2.0, 3.0, 4.0, 5.0] {
+            for x in [-1.0f32, -0.3, -0.01, 0.0, 0.01, 0.3, 1.0] {
+                let out = super::apply_drive(x, drive);
+                assert!(
+                    out.signum() == x.signum() || (x == 0.0 && out == 0.0),
+                    "drive {drive}, input {x}: output {out} has the wrong sign"
+                );
+            }
+        }
+    }
+
+    /// Share of output power outside the 1 kHz fundamental for a
+    /// 0.25-amplitude 1 kHz sine through the master drive at 48 kHz.
+    fn master_drive_harmonic_share(drive: f32) -> f64 {
+        let n = 4_800; // 100 whole periods
+        let out: Vec<f64> = (0..n)
+            .map(|i| {
+                let x = 0.25 * (std::f32::consts::TAU * 1_000.0 * i as f32 / 48_000.0).sin();
+                super::apply_drive(x, drive) as f64
+            })
+            .collect();
+        let total: f64 = out.iter().map(|y| y * y).sum::<f64>() / n as f64;
+        let (mut re, mut im) = (0.0f64, 0.0f64);
+        for (i, y) in out.iter().enumerate() {
+            let phase = std::f64::consts::TAU * 1_000.0 * i as f64 / 48_000.0;
+            re += y * phase.cos();
+            im += y * phase.sin();
+        }
+        let fundamental = 2.0 * (re * re + im * im) / (n as f64 * n as f64);
+        1.0 - fundamental / total
+    }
+
+    #[test]
+    fn higher_master_drive_saturates_more() {
+        let shares = [1.0f32, 2.0, 5.0].map(master_drive_harmonic_share);
+        assert!(
+            shares[0] < shares[1] && shares[1] < shares[2],
+            "harmonic share at drive 1/2/5: {shares:?}"
+        );
+    }
+
+    #[test]
+    fn drive_amount_above_one_reaches_the_drive() {
+        // `h01-unclamp-post-drive-amount`: the whole 0–5 range is audible.
+        let (one, three, five) = (
+            post_chain_drive_rms(1.0, 0.5),
+            post_chain_drive_rms(3.0, 0.5),
+            post_chain_drive_rms(5.0, 0.5),
+        );
+        assert!(
+            three > one * 1.05 && five > three * 1.05,
+            "drive amounts 1/3/5 give RMS {one:.5}/{three:.5}/{five:.5}"
+        );
+    }
+
+    #[test]
+    fn violence_pushes_drive_amount_past_one() {
+        let (plain, violent) = (
+            post_chain_drive_rms(1.0, 0.5),
+            post_chain_drive_rms(1.0, 1.0),
+        );
+        assert!(
+            violent > plain * 1.02,
+            "Violence at drive amount 1: RMS {violent:.5} vs {plain:.5}"
+        );
+    }
+
     #[test]
     fn brightness_macro_opens_filter() {
         use crate::params::float_param_for_test;
@@ -1561,6 +1684,100 @@ mod tests {
             (synced - expected).abs() < 0.02,
             "1/4 note @ 120 BPM should give normalized delay ≈ {expected}, got {synced}"
         );
+    }
+
+    /// The sync parameter's displayed text at `value`.
+    fn sync_display(params: &crate::params::CorrosionParams, value: f32) -> String {
+        use nih_plug::prelude::Param;
+        let normalized = params.sync_rate.preview_normalized(value);
+        params
+            .sync_rate
+            .normalized_value_to_string(normalized, false)
+    }
+
+    /// The echo's delay in seconds for a normalized delay time.
+    fn echo_seconds(delay_time: f32) -> f32 {
+        0.02 + delay_time * 0.78
+    }
+
+    #[test]
+    fn fresh_instance_has_sync_off() {
+        // `h03-default-tempo-sync-off`: with the host reporting 120 BPM, the
+        // default sync leaves Delay Time in charge.
+        let plugin = Corrosion::default();
+        let default = plugin.params.sync_rate.value();
+        for knob in [0.1f32, 0.42, 0.9] {
+            assert_eq!(
+                super::sync_rate_to_delay_time(default, Some(120.0), knob),
+                knob,
+                "default sync_rate {default} should leave Delay Time {knob} free-running"
+            );
+        }
+    }
+
+    #[test]
+    fn sync_display_names_the_division() {
+        let plugin = Corrosion::default();
+        let params = &plugin.params;
+        for (value, text, seconds) in [
+            (0.0f32, "Off", None),
+            (0.3, "1/8", Some(0.25)),
+            (1.0, "2/1", Some(0.8)),
+        ] {
+            assert_eq!(sync_display(params, value), text, "display at {value}");
+            let delay = echo_seconds(super::sync_rate_to_delay_time(value, Some(120.0), 0.42));
+            match seconds {
+                None => assert!(
+                    (delay - echo_seconds(0.42)).abs() < 1e-6,
+                    "{value}: free-running"
+                ),
+                Some(s) => assert!(
+                    (delay - s).abs() < 1e-4,
+                    "{value}: delay {delay} s, expected {s} s"
+                ),
+            }
+        }
+    }
+
+    #[test]
+    fn typed_sync_division_round_trips() {
+        use nih_plug::prelude::Param;
+        let plugin = Corrosion::default();
+        let param = &plugin.params.sync_rate;
+        let names = std::iter::once("Off").chain(crate::params::SYNC_DIVISIONS.iter().map(|d| d.1));
+        for name in names {
+            let normalized = param
+                .string_to_normalized_value(name)
+                .unwrap_or_else(|| panic!("{name} should parse"));
+            assert_eq!(param.normalized_value_to_string(normalized, false), name);
+        }
+    }
+
+    #[test]
+    fn sync_display_matches_behaviour_across_the_range() {
+        let plugin = Corrosion::default();
+        let params = &plugin.params;
+        for step in 0..=100 {
+            let value = step as f32 / 100.0;
+            let shown = sync_display(params, value);
+            let expected = match crate::params::sync_division(value) {
+                None => "Off",
+                Some(i) => crate::params::SYNC_DIVISIONS[i].1,
+            };
+            assert_eq!(shown, expected, "display at {value}");
+            // The division the echo plays at 60 BPM, where one beat is 1 s.
+            let delay = echo_seconds(super::sync_rate_to_delay_time(value, Some(60.0), 0.5));
+            match crate::params::sync_division(value) {
+                None => assert!((delay - echo_seconds(0.5)).abs() < 1e-6),
+                Some(i) => {
+                    let beats = crate::params::SYNC_DIVISIONS[i].0;
+                    assert!(
+                        (delay - beats.min(0.8)).abs() < 1e-4,
+                        "{value}: {delay} s for {beats} beats"
+                    );
+                }
+            }
+        }
     }
 
     #[test]
@@ -1703,7 +1920,7 @@ mod c5_measurements {
         let mut drive = LorenzDrive::new();
         drive.set_sample_rate(sr);
         drive.set_parameters(
-            (params.drive_amount.value() + bias.drive_amount_offset).clamp(0.0, 1.0),
+            (params.drive_amount.value() + bias.drive_amount_offset).clamp(0.0, 5.0),
             params.bias_starvation.value(),
             (params.chaos_depth.value() + bias.chaos_depth_offset).clamp(0.0, 1.0),
         );
@@ -1950,10 +2167,28 @@ mod c5_measurements {
     /// output unless it hits the limiter (trimmed in 5 % steps until it
     /// doesn't) or its RMS is more than 12 dB below the median (raised to
     /// 12 dB below). Prints the seeder's `PRESET_LEVELS` table.
+    ///
+    /// An output above 1 is a raise from an earlier pass, so it starts from
+    /// 1 again and the floor rule re-derives it (`resolve-exciter-tradeoffs`:
+    /// the raises compensated for exciters that are now at a common level).
     #[test]
     #[ignore]
     fn preset_levels_table() {
-        let levels = preset_levels();
+        let levels: Vec<_> = preset_levels()
+            .into_iter()
+            .map(|(name, body, output, peak, rms, hits)| {
+                if output > 1.0 {
+                    let path = factory_preset_paths()
+                        .into_iter()
+                        .find(|p| Preset::load(p).unwrap().name == name)
+                        .unwrap();
+                    let (peak, rms, hits) = render_preset(&path, body / 5.0, 1.0 / output);
+                    (name, body, 1.0, peak, rms, hits)
+                } else {
+                    (name, body, output, peak, rms, hits)
+                }
+            })
+            .collect();
         let floor = median(levels.iter().map(|l| l.4).collect()) * 10f32.powf(-12.0 / 20.0);
         println!("LEVELS // median floor {floor:.5}");
         for (name, body, output, peak0, rms0, hits0) in levels {
@@ -1961,9 +2196,11 @@ mod c5_measurements {
                 .into_iter()
                 .find(|p| Preset::load(p).unwrap().name == name)
                 .unwrap();
-            let mut scale = 1.0_f32;
+            let stored = Preset::load(&path).unwrap().output;
+            // `render_preset` scales the stored output; start from `output`.
+            let mut scale = output / stored;
             if rms0 < floor {
-                scale = floor / rms0.max(1e-9);
+                scale *= floor / rms0.max(1e-9);
             }
             let mut result = render_preset(&path, body / 5.0, scale);
             let mut steps = 0;
@@ -1972,7 +2209,7 @@ mod c5_measurements {
                 result = render_preset(&path, body / 5.0, scale);
                 steps += 1;
             }
-            let out = ((output * scale) * 1000.0).round() / 1000.0;
+            let out = ((stored * scale) * 1000.0).round() / 1000.0;
             println!(
                 "LEVELS (\"{name}\", {body:.2}, {out:.3}), // rms {:.5} (was {rms0:.5}), peak {:.4} (was {peak0:.4}), hits {} (was {hits0})",
                 result.1, result.0, result.2

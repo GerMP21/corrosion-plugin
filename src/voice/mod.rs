@@ -428,6 +428,20 @@ pub struct Voice {
     /// Largest |sample| fed to the output clamp since note-on. Lets tests
     /// check that default notes don't overdrive (`normalize-object-loudness`).
     pre_clamp_peak: f32,
+    /// Extra multiplier on the exciter force, 1.0 in use. Tests raise it to
+    /// probe contact stability far above the default drive
+    /// (`stabilize-mallet-and-grinding-contact`).
+    pub(crate) drive_scale: f32,
+    /// Whether the drive governor may turn the exciter force down. Always
+    /// on in use; tests turn it off to probe the contact's own stability
+    /// (`resolve-exciter-tradeoffs`).
+    pub(crate) governor_enabled: bool,
+    /// The governor's follower of the ring bound.
+    governor_level: f32,
+    /// The governor's gain on the exciter force.
+    governor_gain: f32,
+    /// Whether the resonator tracks its ring bound this sample.
+    ring_tracking: bool,
     frames_below_threshold: u32,
     start_frame: u64,
     excitation_value: f32,
@@ -435,12 +449,15 @@ pub struct Voice {
     excitation_decay: f32,
     highpass_state: f32,
     damage_amount: f32,
-    rattle_phase: f32,
+    /// Noise for the damage rattle (`resolve-exciter-tradeoffs`).
+    rattle_noise: crate::dsp::utils::noise::Noise,
     sample_rate: f32,
     /// Per-sample constants converted for `sample_rate` (see `set_rate`).
     rate: VoiceRateConstants,
     exciter_family: ExciterFamily,
     one_shot_phase: OneShotEnvelopePhase,
+    /// Whether the next attack step is the first of the note.
+    one_shot_first_step: bool,
     one_shot_level: f32,
     one_shot_attack: f32,
     one_shot_release: f32,
@@ -470,22 +487,64 @@ const TAIL_ENERGY_THRESHOLD: f32 = 1e-4;
 const TAIL_DEACTIVATE_FRAMES: u32 = 4800;
 /// Per-sample peak-hold decay, at 48 kHz.
 const PEAK_DECAY: f32 = 0.999;
-/// Pole and input gain of the voice's one-pole high-pass boost, at 48 kHz.
-/// (The gain is kept as its own literal: `1.0 − 0.8` isn't exactly `0.2` in
-/// f32.)
-/// Fixed force trim per exciter ID (index 0 unused), so a default-control
-/// note at full velocity stays under full scale before the voice clamp on
-/// every object from C2 to C6 (`normalize-object-loudness`). Banks are
-/// normalized to one strike level, so what remains is each exciter's own
-/// drive level. Each trim is `0.9 / worst pre-clamp peak` from
-/// `print_exciter_overdrive`, applied only where that peak exceeded 1.0.
-const EXCITER_DRIVE_TRIM: [f32; 17] = [
-    1.0, 3.1929e-03, 1.0, 7.5118e-02, 1.5827e-03, 1.3839e-01, 3.0468e-01, 1.0735e-01, 1.0,
-    1.1755e-03, 1.8014e-03, 1.9514e-03, 4.2822e-02, 9.9174e-04, 7.8856e-04, 2.3966e-01, 4.7378e-03,
+/// Drive level per exciter ID (index 0 unused): the force multiplier that
+/// puts each exciter's median note, over every object at C2/C4/C6 (velocity
+/// 127, default controls), at a pre-clamp peak of about 0.35
+/// (`resolve-exciter-tradeoffs`). Banks are normalized to one strike level,
+/// so what remains is each exciter's own drive. Louder notes are left to the
+/// drive governor rather than turning the exciter down everywhere. The
+/// levels come from `print_exciter_overdrive`; HandStrike, TensionSnap and
+/// MetalPipe respond non-linearly to their drive (the contact solve), so
+/// theirs were found by bracketing rather than in one step.
+///
+/// HandStrike's level is its `HAND_SCALE` by construction: the hand sees the
+/// resonator in units of `HAND_SCALE` displacements, so with the two equal
+/// it meets the surface it met at a drive of 1 (median 0.0063) while its
+/// force, and so its output, is `HAND_SCALE` times larger (0.35).
+const EXCITER_DRIVE_LEVEL: [f32; 17] = [
+    1.0,
+    2.1664e-02,
+    crate::dsp::exciters::hand_strike::HAND_SCALE,
+    8.1953e-01,
+    5.7269e+00,
+    9.2944e-01,
+    5.3012e-01,
+    5.4100e-01,
+    1.4146e+00,
+    8.3877e-03,
+    2.6216e-03,
+    1.9438e-02,
+    9.0962e-02,
+    5.9898e-03,
+    3.2879e-03,
+    6.2745e-01,
+    4.4103e-02,
 ];
 
-const HIGHPASS_POLE: f32 = 0.8;
+/// Pole and input gain of the voice's one-pole high-pass boost, at 48 kHz.
+/// The resonator's ring bound weights each mode by this filter's response.
+/// (The gain is kept as its own literal: `1.0 − 0.8` isn't exactly `0.2` in
+/// f32.)
+const HIGHPASS_POLE: f32 = crate::dsp::resonators::core::OUTPUT_HIGHPASS_POLE;
 const HIGHPASS_GAIN: f32 = 0.2;
+/// Boost of the high-passed signal per unit of normalized velocity.
+const HIGHPASS_BOOST: f32 = 1.5;
+
+/// Drive governor (`resolve-exciter-tradeoffs`, design Decision 1). Above
+/// this level of the followed ring bound, the exciter force is scaled by
+/// `(GOVERNOR_THRESHOLD / level)^GOVERNOR_ORDER`. A sustained note driven
+/// `x` times over the threshold then settles at `x^(1/(order + 1))` of it:
+/// +1.3 dB for 12 dB over.
+const GOVERNOR_THRESHOLD: f32 = 0.7;
+const GOVERNOR_ORDER: i32 = 8;
+/// The bound no single sample's force may push the ring bound past, so a
+/// strike that comes faster than the follower can react still stays under
+/// full scale. 0.9 keeps the margin `stabilize-mallet-and-grinding-contact`
+/// specifies for HardMallet and HeavyGrinding, for every exciter.
+const GOVERNOR_CEILING: f32 = 0.9;
+/// The follower's attack and release time constants, in seconds.
+const GOVERNOR_ATTACK_S: f32 = 0.001;
+const GOVERNOR_RELEASE_S: f32 = 0.2;
 
 /// The voice's per-sample constants for one sample rate. Each is exactly its
 /// 48 kHz value at 48 kHz (`fix-sample-rate-time-constants`).
@@ -496,6 +555,13 @@ struct VoiceRateConstants {
     highpass_gain: f32,
     peak_decay: f32,
     tail_frames: u32,
+    governor_attack: f32,
+    governor_release: f32,
+}
+
+/// One-pole follower coefficient for time constant `seconds`, at 48 kHz.
+fn follower_coefficient(seconds: f32) -> f32 {
+    1.0 - (-1.0 / (seconds * rate::REFERENCE_RATE)).exp()
 }
 
 impl VoiceRateConstants {
@@ -511,6 +577,8 @@ impl VoiceRateConstants {
             },
             peak_decay: rate::decay(PEAK_DECAY, r),
             tail_frames: rate::frames(TAIL_DEACTIVATE_FRAMES, r),
+            governor_attack: rate::smoother(follower_coefficient(GOVERNOR_ATTACK_S), r),
+            governor_release: rate::smoother(follower_coefficient(GOVERNOR_RELEASE_S), r),
         }
     }
 }
@@ -552,6 +620,11 @@ impl Voice {
 
             peak_hold: 0.0,
             pre_clamp_peak: 0.0,
+            drive_scale: 1.0,
+            governor_enabled: true,
+            governor_level: 0.0,
+            governor_gain: 1.0,
+            ring_tracking: false,
             frames_below_threshold: 0,
             start_frame: 0,
             excitation_value: 0.0,
@@ -559,11 +632,12 @@ impl Voice {
             excitation_decay: 0.5,
             highpass_state: 0.0,
             damage_amount: 0.0,
-            rattle_phase: 0.0,
+            rattle_noise: crate::dsp::utils::noise::Noise::default(),
             sample_rate: 48000.0,
             rate: VoiceRateConstants::for_rate(48_000.0),
             exciter_family: ExciterFamily::Hit,
             one_shot_phase: OneShotEnvelopePhase::Idle,
+            one_shot_first_step: false,
             one_shot_level: 0.0,
             one_shot_attack: 0.05,
             one_shot_release: 0.5,
@@ -596,6 +670,7 @@ impl Voice {
             ExciterFamily::Hit => {
                 self.one_shot_phase = OneShotEnvelopePhase::Attack;
                 self.one_shot_level = 0.0;
+                self.one_shot_first_step = true;
                 self.one_shot_attack = controls.env_attack.max(0.001);
                 self.one_shot_release = controls.env_release.max(0.001);
                 self.mseg = MSEG::new();
@@ -665,8 +740,16 @@ impl Voice {
                 match self.one_shot_phase {
                     OneShotEnvelopePhase::Idle => 0.0,
                     OneShotEnvelopePhase::Attack => {
+                        // Sampled at sample centres: the first step is half
+                        // a step, so a short strike on the ramp has the same
+                        // area at every rate (`resolve-exciter-tradeoffs`).
+                        let step = if std::mem::take(&mut self.one_shot_first_step) {
+                            0.5
+                        } else {
+                            1.0
+                        };
                         self.one_shot_level =
-                            (self.one_shot_level + dt / self.one_shot_attack).min(1.0);
+                            (self.one_shot_level + step * dt / self.one_shot_attack).min(1.0);
                         if self.one_shot_level >= 1.0 {
                             self.one_shot_phase = OneShotEnvelopePhase::Release;
                         }
@@ -831,8 +914,23 @@ impl Voice {
         self.excitation_sent = false;
         self.peak_hold = 0.0;
         self.pre_clamp_peak = 0.0;
+        self.governor_level = 0.0;
+        self.governor_gain = 1.0;
         self.frames_below_threshold = 0;
         self.start_frame = start_frame;
+        // One seed per note (and so per voice), a separate stream for each
+        // noise consumer.
+        {
+            use crate::dsp::utils::noise::{note_seed, salted};
+            let seed = note_seed(note, velocity, start_frame);
+            self.rattle_noise.reseed(salted(seed, 0));
+            self.wire_brush.reseed(salted(seed, 6));
+            self.metal_chain.reseed(salted(seed, 8));
+            self.heavy_grinding.reseed(salted(seed, 10));
+            self.tension_rise.reseed(salted(seed, 12));
+            self.pneumatic_jet.reseed(salted(seed, 13));
+            self.particle_rain.reseed(salted(seed, 16));
+        }
         let velocity_norm = (velocity / 127.0).clamp(0.0, 1.0);
         let clamped_damage = damage.clamp(0.0, 10.0);
         self.damage_amount = clamped_damage;
@@ -1156,7 +1254,7 @@ impl Voice {
         self.excitation_value = 0.0;
         self.excitation_state = 0.0;
         self.highpass_state = 0.0;
-        self.rattle_phase = 0.0;
+        self.rattle_noise.reseed(0);
         self.one_shot_phase = OneShotEnvelopePhase::Idle;
         self.one_shot_level = 0.0;
         self.adsr_phase = AdsrPhase::Idle;
@@ -1248,15 +1346,85 @@ impl Voice {
             return 0.0;
         }
 
-        self.rattle_phase += crate::dsp::utils::GOLDEN_STEP;
-        if self.rattle_phase > 1000.0 {
-            self.rattle_phase -= 1000.0;
-        }
-
-        let noise = (self.rattle_phase.sin() * 43_758.547).fract() * 2.0 - 1.0;
+        // Per-sample white noise added to the output: hold its audible-band
+        // level at any rate.
+        let noise = crate::dsp::utils::rate::white_noise(
+            self.rattle_noise.bipolar(),
+            crate::dsp::utils::rate::ratio(self.sample_rate),
+        );
         let highpass_noise = noise * 0.5;
         let rattle_amount = self.damage_amount.min(1.0) * (signal_level - threshold) * 0.08;
         highpass_noise * rattle_amount
+    }
+
+    /// The resonator's response to this sample's exciter force, as the
+    /// exciter sees it: scaled by everything the voice multiplies the force
+    /// by (`stabilize-mallet-and-grinding-contact`).
+    fn contact_prediction(&mut self, envelope: f32) -> crate::dsp::ContactPrediction {
+        let scale = envelope * self.force_scale();
+        let prediction = self
+            .resonator
+            .contact_prediction(self.sample_rate as u32)
+            .scaled(scale);
+        match self.governor_force_limit() {
+            Some(limit) => prediction.limited(limit / scale.abs().max(f32::MIN_POSITIVE)),
+            None => prediction,
+        }
+    }
+
+    /// Everything the voice multiplies the exciter's force by, after the
+    /// envelope: drive level, test drive and the governor's smooth gain.
+    fn force_scale(&self) -> f32 {
+        let governor = if self.governor_enabled {
+            self.governor_gain
+        } else {
+            1.0
+        };
+        EXCITER_DRIVE_LEVEL[self.exciter_type.clamp(0, 16) as usize] * self.drive_scale * governor
+    }
+
+    /// The governor's per-sample ceiling: cap `force` so it can't push the
+    /// ring bound past `GOVERNOR_CEILING`. Contact exciters see the same cap
+    /// in their prediction (`ContactPrediction::limit`). The modes only decay
+    /// without force, so the bound after the last sample is an upper bound
+    /// on where this sample starts.
+    fn apply_governor_ceiling(&mut self, force: f32) -> f32 {
+        match self.governor_force_limit() {
+            Some(limit) => force.clamp(-limit, limit),
+            None => force,
+        }
+    }
+
+    /// The largest force this sample may apply, if the governor limits it.
+    fn governor_force_limit(&mut self) -> Option<f32> {
+        if !self.governor_enabled {
+            return None;
+        }
+        let bound = self.resonator.ring_bound(self.sample_rate as u32);
+        (bound.per_force > 0.0).then(|| (GOVERNOR_CEILING - bound.level).max(0.0) / bound.per_force)
+    }
+
+    /// The governor's follower, after the resonator has processed this
+    /// sample's force: it follows the ring bound, and above
+    /// `GOVERNOR_THRESHOLD` the gain is `(threshold / level)^GOVERNOR_ORDER`.
+    /// The gain depends only on the current level, so a long ring that
+    /// keeps the bound up after the force has dropped can't wind it down.
+    fn update_governor(&mut self) {
+        if !self.governor_enabled || !self.ring_tracking {
+            return;
+        }
+        let level = self.resonator.ring_bound(self.sample_rate as u32).level;
+        let k = if level > self.governor_level {
+            self.rate.governor_attack
+        } else {
+            self.rate.governor_release
+        };
+        self.governor_level += k * (level - self.governor_level);
+        self.governor_gain = if self.governor_level > GOVERNOR_THRESHOLD {
+            (GOVERNOR_THRESHOLD / self.governor_level).powi(GOVERNOR_ORDER)
+        } else {
+            1.0
+        };
     }
 
     fn process_exciter(&mut self) -> f32 {
@@ -1272,31 +1440,61 @@ impl Voice {
         let res_vel = self.resonator.get_velocity();
 
         let envelope = self.process_force_envelope();
+        self.ring_tracking = self.governor_enabled && envelope > 0.0;
+        self.resonator
+            .set_ring_tracking(self.ring_tracking, HIGHPASS_BOOST * self.velocity / 127.0);
         if envelope <= 0.0 {
             return 0.0;
         }
 
         let excitation = match self.exciter_type {
             1 => self.bow_exciter.process_sample(res_vel),
-            2 => self.hand_strike.process_sample(res_disp, res_vel),
-            3 => self.felt_mallet.process_sample(res_disp, 0.0),
-            4 => self.hard_mallet.process_sample(res_disp, res_vel),
-            5 => self.drumstick.process_sample(res_disp, res_vel),
+            2 => {
+                let prediction = self.contact_prediction(envelope);
+                self.hand_strike.process_sample(prediction)
+            }
+            3 => {
+                let prediction = self.contact_prediction(envelope);
+                self.felt_mallet.process_sample(prediction)
+            }
+            4 => {
+                let prediction = self.contact_prediction(envelope);
+                self.hard_mallet.process_sample(prediction)
+            }
+            5 => {
+                let prediction = self.contact_prediction(envelope);
+                self.drumstick.process_sample(prediction)
+            }
             6 => self.wire_brush.process_sample(res_disp, 0.0),
-            7 => self.metal_pipe.process_sample(res_disp, 0.0),
-            8 => self.metal_chain.process_sample(res_disp, 0.0),
+            7 => {
+                let prediction = self.contact_prediction(envelope);
+                self.metal_pipe.process_sample(prediction)
+            }
+            8 => {
+                let prediction = self.contact_prediction(envelope);
+                self.metal_chain.process_sample(prediction)
+            }
             9 => self.stiff_point.process_sample(res_disp, res_vel),
-            10 => self.heavy_grinding.process_sample(res_disp, res_vel),
+            10 => {
+                let prediction = self.contact_prediction(envelope);
+                self.heavy_grinding.process_sample(prediction)
+            }
             11 => self.corrugated_drag.process_sample(res_disp, res_vel),
             12 => self.tension_rise.process_sample(res_disp, res_vel),
             13 => self.pneumatic_jet.process_sample(res_disp, res_vel),
             14 => self.electromagnetic_hum.process_sample(res_disp, 0.0),
-            15 => self.tension_snap.process_sample(res_disp, 0.0),
-            16 => self.particle_rain.process_sample(res_disp, 0.0),
+            15 => {
+                let prediction = self.contact_prediction(envelope);
+                self.tension_snap.process_sample(prediction)
+            }
+            16 => {
+                let prediction = self.contact_prediction(envelope);
+                self.particle_rain.process_sample(prediction)
+            }
             _ => 0.0,
         };
 
-        excitation * envelope * EXCITER_DRIVE_TRIM[self.exciter_type.clamp(0, 16) as usize]
+        self.apply_governor_ceiling(excitation * envelope * self.force_scale())
     }
 
     /// Render one mono sample from the voice.
@@ -1321,6 +1519,7 @@ impl Voice {
 
         let excitation = self.process_exciter();
         let sample = self.resonator.process_sample(excitation, sample_rate);
+        self.update_governor();
 
         // Guard the audio output against NaNs or infinities before it
         // leaves the voice boundary.
@@ -1336,7 +1535,7 @@ impl Voice {
         self.highpass_state = self.rate.highpass_pole * self.highpass_state
             + self.rate.highpass_gain * sample_with_rattle;
         let highpass = sample_with_rattle - self.highpass_state;
-        let boost_amount = velocity_norm * 1.5;
+        let boost_amount = velocity_norm * HIGHPASS_BOOST;
         let boosted_sample = sample_with_rattle + (highpass * boost_amount);
 
         self.pre_clamp_peak = self.pre_clamp_peak.max(boosted_sample.abs());
@@ -1395,6 +1594,7 @@ impl Voice {
         let (left, right) = self
             .resonator
             .process_sample_stereo(excitation, sample_rate, width);
+        self.update_governor();
 
         // Guard the stereo output against NaNs or infinities before it
         // leaves the voice boundary.
@@ -1419,7 +1619,7 @@ impl Voice {
         let highpass = (mono + rattle) - self.highpass_state;
         // Exciter ids are 1..=16 (see params::ExciterType). The `0` branch
         // never fires today, so we keep the unconditional 1.5x boost.
-        let boost_amount = velocity_norm * 1.5;
+        let boost_amount = velocity_norm * HIGHPASS_BOOST;
         let boosted_left = left_with_rattle + (highpass * boost_amount);
         let boosted_right = right_with_rattle + (highpass * boost_amount);
 
@@ -1482,6 +1682,37 @@ mod tests {
     fn midi_60_is_c4() {
         let hz = midi_to_hz(60);
         assert!((hz - 261.626).abs() < 0.1);
+    }
+
+    #[test]
+    fn hit_attack_has_the_same_area_at_every_rate() {
+        // A short strike on the attack ramp: the envelope's area over its
+        // first millisecond matches the continuous ramp `t / attack` at every
+        // rate, because the ramp is sampled at sample centres
+        // (`resolve-exciter-tradeoffs`, design Decision 5).
+        let attack = 0.005;
+        let window = 0.001;
+        let exact = 0.5 * window * window / attack;
+        for sample_rate in [44_100.0f32, 48_000.0, 96_000.0] {
+            let mut voice = Voice::new();
+            voice.set_rate(sample_rate);
+            let controls = VoiceControls {
+                env_attack: attack,
+                ..VoiceControls::default()
+            };
+            voice.configure_envelope(0, 0.8, controls);
+            let samples = (window * sample_rate).round() as usize;
+            let area: f32 = (0..samples)
+                .map(|_| voice.process_force_envelope())
+                .sum::<f32>()
+                / sample_rate;
+            let duration = samples as f32 / sample_rate;
+            let expected = exact * (duration / window).powi(2);
+            assert!(
+                (area / expected - 1.0).abs() < 0.005,
+                "{sample_rate}: area {area:.4e}, continuous {expected:.4e}"
+            );
+        }
     }
 
     #[test]
@@ -2120,48 +2351,123 @@ mod tests {
         (xs.iter().map(|&x| (x * x) as f64).sum::<f64>() / xs.len().max(1) as f64).sqrt() as f32
     }
 
-    /// The level tolerance (dB) for `exciter`: the spec's 1.5 dB, widened
-    /// only where a residual comes from sample-grid rounding or chaotic
-    /// contact rather than an unconverted constant. Each reason, with the
-    /// measured numbers, is in `fix-sample-rate-time-constants`'s design.md
-    /// ("Implementation findings").
-    fn level_tolerance_db(exciter: i32) -> f32 {
-        match exciter {
-            // Stick-slip limit cycle (clipped, so hidden, before
-            // normalize-object-loudness trimmed it under full scale).
-            1 => 2.0,
-            // ~5-sample strike on the envelope's attack ramp.
-            2 => 3.0,
-            // Chaotic chatter after the bounce limit.
-            5 => 3.0,
-            // Impulse times rounded to the sample grid.
-            6 => 2.5,
-            // Hash noise and a few random-phase impacts, at about -80 dBFS.
-            8 => 3.0,
-            // Clipped stick-slip.
-            12 => 3.0,
-            // Hash noise whose f32 phase coarsens faster at higher rates
-            // (also hidden by clipping before normalize-object-loudness).
-            13 => 3.0,
-            // Grid-rounded spawn train aliasing onto the modes.
-            16 => 8.0,
-            _ => 1.5,
+    /// Pipe C4 level at 44.1, 96 and 192 kHz against 48 kHz, as mean power
+    /// over 128 note seeds at velocity 100 (192 kHz is informational). Noise-driven exciters vary by several
+    /// dB from seed to seed, so this is their expected level across rates.
+    #[test]
+    #[ignore]
+    fn print_seed_averaged_rate_levels() {
+        let rows: Vec<String> = std::thread::scope(|scope| {
+            let handles: Vec<_> = (1..=16)
+                .map(|exciter| {
+                    scope.spawn(move || {
+                        let mean_power = |sample_rate: u32| {
+                            let mut total = 0.0f64;
+                            for start in 0..128u64 {
+                                let mut voice = Voice::new();
+                                voice.note_on(
+                                    60,
+                                    100.0,
+                                    crate::dsp::ModalProfileId::Pipe,
+                                    start * 7919,
+                                    1.0,
+                                    0.0,
+                                    0.0,
+                                    exciter,
+                                );
+                                let n = sample_rate as usize;
+                                let out: Vec<f32> = (0..2 * n)
+                                    .map(|i| {
+                                        if i == n {
+                                            voice.note_off();
+                                        }
+                                        voice.process_sample(sample_rate)
+                                    })
+                                    .collect();
+                                total += (rms(&out) as f64).powi(2);
+                            }
+                            total / 128.0
+                        };
+                        let reference = mean_power(48_000);
+                        let db = |sample_rate| 10.0 * (mean_power(sample_rate) / reference).log10();
+                        format!(
+                            "exciter {exciter:2}: 44.1 kHz {:+.2} dB, 96 kHz {:+.2} dB, 192 kHz {:+.2} dB",
+                            db(44_100),
+                            db(96_000),
+                            db(192_000)
+                        )
+                    })
+                })
+                .collect();
+            handles.into_iter().map(|h| h.join().unwrap()).collect()
+        });
+        println!("{}", rows.join("\n"));
+    }
+
+    /// Mean power of Pipe C4 with `exciter` at `sample_rate`, over
+    /// velocities 40/70/100/127 and 32 note seeds each: one second held,
+    /// one released. (8 seeds left HeavyGrinding's mean scattered by up to
+    /// 2.7 dB; 64 put every velocity within 1.1 dB.)
+    fn expected_pipe_power(exciter: i32, sample_rate: u32) -> f64 {
+        let mut total = 0.0f64;
+        for velocity in [40.0f32, 70.0, 100.0, 127.0] {
+            for seed in 0..32u64 {
+                let mut voice = Voice::new();
+                voice.note_on(
+                    60,
+                    velocity,
+                    crate::dsp::ModalProfileId::Pipe,
+                    seed * 7919,
+                    1.0,
+                    0.0,
+                    0.0,
+                    exciter,
+                );
+                let held = sample_rate as usize;
+                let out: Vec<f32> = (0..2 * held)
+                    .map(|i| {
+                        if i == held {
+                            voice.note_off();
+                        }
+                        voice.process_sample(sample_rate)
+                    })
+                    .collect();
+                total += (rms(&out) as f64).powi(2);
+            }
         }
+        total / 128.0
     }
 
     #[test]
     fn every_exciter_has_the_same_level_at_any_sample_rate() {
-        let mut failures = Vec::new();
-        for exciter in 1..=16 {
-            let reference = rms(&render_pipe_note(exciter, 48_000, 1.0, 1.0));
-            for sample_rate in [44_100, 96_000] {
-                let level = rms(&render_pipe_note(exciter, sample_rate, 1.0, 1.0));
-                let diff = 20.0 * (level / reference).log10();
-                if diff.abs() > level_tolerance_db(exciter) || !diff.is_finite() {
-                    failures.push(format!("exciter {exciter} @ {sample_rate}: {diff:+.2} dB"));
-                }
-            }
-        }
+        // The expected level, averaged over seeds and velocities: a single
+        // note can't resolve 1.5 dB for a noise-driven exciter (its level
+        // varies by several dB from the seed alone), and Bow's stick-slip
+        // locks into a different regime at velocity 100 on 44.1 kHz only
+        // (`resolve-exciter-tradeoffs` findings).
+        let failures: Vec<String> = std::thread::scope(|scope| {
+            let handles: Vec<_> = (1..=16)
+                .map(|exciter| {
+                    scope.spawn(move || {
+                        let reference = expected_pipe_power(exciter, 48_000);
+                        [44_100, 96_000]
+                            .into_iter()
+                            .filter_map(|sample_rate| {
+                                let power = expected_pipe_power(exciter, sample_rate);
+                                let diff = 10.0 * (power / reference).log10();
+                                (diff.abs() > 1.5 || !diff.is_finite()).then(|| {
+                                    format!("exciter {exciter} @ {sample_rate}: {diff:+.2} dB")
+                                })
+                            })
+                            .collect::<Vec<_>>()
+                    })
+                })
+                .collect();
+            handles
+                .into_iter()
+                .flat_map(|h| h.join().unwrap())
+                .collect()
+        });
         assert!(
             failures.is_empty(),
             "level differs from 48 kHz:\n{}",
@@ -2172,15 +2478,7 @@ mod tests {
     #[test]
     fn struck_attack_timing_does_not_depend_on_sample_rate() {
         let time_to_peak = |exciter: i32, sample_rate: u32| {
-            let mut out = render_pipe_note(exciter, sample_rate, 0.5, 0.0);
-            // The drumstick keeps chattering on the resonator after its
-            // bounce limit, and its loudest peak lands somewhere in that
-            // chaotic chatter. Time its strike instead: the first 20 ms.
-            // The hard mallet's rebounds do the same once its drive trim
-            // keeps it from clipping (normalize-object-loudness).
-            if exciter == 4 || exciter == 5 {
-                out.truncate(sample_rate as usize / 50);
-            }
+            let out = render_pipe_note(exciter, sample_rate, 0.5, 0.0);
             let peak = out
                 .iter()
                 .enumerate()
@@ -2276,6 +2574,11 @@ mod tests {
     /// The largest value fed to the voice clamp for one note at velocity 127
     /// with default controls: one second held, one second released, 48 kHz.
     fn pre_clamp_peak(profile: ModalProfileId, exciter: i32, note: u8) -> f32 {
+        sweep_note(profile, exciter, note).0
+    }
+
+    /// `pre_clamp_peak`, and the lowest gain the drive governor applied.
+    fn sweep_note(profile: ModalProfileId, exciter: i32, note: u8) -> (f32, f32) {
         let mut voice = Voice::new();
         voice.note_on_with_controls(
             note,
@@ -2288,28 +2591,59 @@ mod tests {
             exciter,
             VoiceControls::default(),
         );
+        let mut lowest_gain = 1.0f32;
         for i in 0..96_000 {
             if i == 48_000 {
                 voice.note_off();
             }
             voice.process_sample(48_000);
+            lowest_gain = lowest_gain.min(voice.governor_gain);
         }
-        voice.pre_clamp_peak
+        (voice.pre_clamp_peak, lowest_gain)
+    }
+
+    /// Pre-clamp peak of every exciter (index 1–16) on every object at
+    /// C2/C4/C6, velocity 127, default controls, in `ALL_PROFILES` × note
+    /// order. Computed once (one thread per exciter) and shared by the
+    /// level and overdrive tests.
+    fn sweep_table() -> &'static Vec<Vec<f32>> {
+        static TABLE: std::sync::OnceLock<Vec<Vec<f32>>> = std::sync::OnceLock::new();
+        TABLE.get_or_init(|| {
+            std::thread::scope(|scope| {
+                let handles: Vec<_> = (0..=16)
+                    .map(|exciter| {
+                        scope.spawn(move || {
+                            if exciter == 0 {
+                                return Vec::new();
+                            }
+                            ALL_PROFILES
+                                .iter()
+                                .flat_map(|&profile| {
+                                    [36, 60, 84].map(|note| pre_clamp_peak(profile, exciter, note))
+                                })
+                                .collect()
+                        })
+                    })
+                    .collect();
+                handles.into_iter().map(|h| h.join().unwrap()).collect()
+            })
+        })
+    }
+
+    fn sweep_note_name(index: usize) -> String {
+        format!("{:?} {}", ALL_PROFILES[index / 3], [36, 60, 84][index % 3])
     }
 
     #[test]
     fn default_notes_do_not_overdrive_the_voice() {
         let mut failures = Vec::new();
-        for profile in ALL_PROFILES {
-            // HandStrike (struck), Bow (friction), PneumaticJet (specialty).
-            for exciter in [2, 1, 13] {
-                for note in [36, 60, 84] {
-                    let peak = pre_clamp_peak(profile, exciter, note);
-                    if peak > 1.0 || !peak.is_finite() {
-                        failures.push(format!(
-                            "{profile:?} exciter {exciter} note {note}: {peak:.2}"
-                        ));
-                    }
+        for exciter in 1..=16 {
+            for (index, &peak) in sweep_table()[exciter].iter().enumerate() {
+                if peak > 1.0 || !peak.is_finite() {
+                    failures.push(format!(
+                        "exciter {exciter} {}: {peak:.2}",
+                        sweep_note_name(index)
+                    ));
                 }
             }
         }
@@ -2320,28 +2654,317 @@ mod tests {
         );
     }
 
-    /// Worst and median pre-clamp peak per exciter over every object at
-    /// C2/C4/C6 (velocity 127, default controls). Used to set
-    /// `EXCITER_DRIVE_TRIM`.
+    fn median(values: &[f32]) -> f32 {
+        let mut sorted = values.to_vec();
+        sorted.sort_by(f32::total_cmp);
+        sorted[sorted.len() / 2]
+    }
+
+    #[test]
+    fn exciters_play_at_a_common_level() {
+        let medians: Vec<f32> = (1..=16).map(|e| median(&sweep_table()[e])).collect();
+        let common = median(&medians);
+        let failures: Vec<String> = medians
+            .iter()
+            .enumerate()
+            .filter_map(|(i, &m)| {
+                let diff = 20.0 * (m / common).log10();
+                (diff.abs() > 6.0 || !diff.is_finite())
+                    .then(|| format!("exciter {}: median {m:.4} ({diff:+.1} dB)", i + 1))
+            })
+            .collect();
+        assert!(
+            failures.is_empty(),
+            "exciter medians more than 6 dB from the common {common:.4}:\n{}",
+            failures.join("\n")
+        );
+    }
+
+    /// (pre-clamp peak, output RMS) of one note at `drive` times the default
+    /// drive: velocity 127, 1 s held + 1 s released, 48 kHz.
+    fn note_at_drive(profile: ModalProfileId, exciter: i32, note: u8, drive: f32) -> (f32, f32) {
+        let mut voice = Voice::new();
+        voice.note_on_with_controls(
+            note,
+            127.0,
+            profile,
+            0,
+            1.0,
+            0.0,
+            0.0,
+            exciter,
+            VoiceControls::default(),
+        );
+        voice.drive_scale = drive;
+        let mut sum = 0.0f64;
+        for i in 0..96_000 {
+            if i == 48_000 {
+                voice.note_off();
+            }
+            let y = voice.process_sample(48_000);
+            sum += (y * y) as f64;
+        }
+        (voice.pre_clamp_peak, (sum / 96_000.0).sqrt() as f32)
+    }
+
+    #[test]
+    fn excess_drive_is_reduced_not_clipped() {
+        let mut failures = Vec::new();
+        for exciter in 1..=16 {
+            let (loudest, _) = sweep_table()[exciter]
+                .iter()
+                .enumerate()
+                .max_by(|a, b| a.1.total_cmp(b.1))
+                .unwrap();
+            let (profile, note) = (ALL_PROFILES[loudest / 3], [36u8, 60, 84][loudest % 3]);
+            // Judged on the peak: a governor acting above a threshold can
+            // only pull a driven note down to about that threshold, so a
+            // note quieter than it at default drive ends up louder on
+            // average while its peak stays bounded (`resolve-exciter-tradeoffs`).
+            let (default_peak, _) = note_at_drive(profile, exciter as i32, note, 1.0);
+            let (peak, _) = note_at_drive(profile, exciter as i32, note, 4.0);
+            let diff = 20.0 * (peak / default_peak).log10();
+            if peak > 1.0 || !peak.is_finite() || diff.abs() > 3.0 || !diff.is_finite() {
+                failures.push(format!(
+                    "exciter {exciter} {}: peak {peak:.2}, {diff:+.1} dB vs default drive",
+                    sweep_note_name(loudest)
+                ));
+            }
+        }
+        assert!(
+            failures.is_empty(),
+            "12 dB of extra drive:\n{}",
+            failures.join("\n")
+        );
+    }
+
+    #[test]
+    fn contact_is_stable_without_the_governor() {
+        use crate::dsp::ResonatorCore;
+        let failures: Vec<String> = std::thread::scope(|scope| {
+            let handles: Vec<_> = (1..=16)
+                .map(|exciter| {
+                    scope.spawn(move || {
+                        let mut failures = Vec::new();
+                        for profile in ALL_PROFILES {
+                            for note in [36u8, 60, 84] {
+                                let mut voice = Voice::new();
+                                voice.note_on_with_controls(
+                                    note,
+                                    127.0,
+                                    profile,
+                                    0,
+                                    1.0,
+                                    0.0,
+                                    0.0,
+                                    exciter,
+                                    VoiceControls::default(),
+                                );
+                                voice.drive_scale = 4.0;
+                                voice.governor_enabled = false;
+                                voice.set_rate(48_000.0);
+                                let mut peak = 0.0f32;
+                                for i in 0..96_000 {
+                                    if i == 48_000 {
+                                        voice.note_off();
+                                    }
+                                    let excitation = voice.process_exciter();
+                                    let y = voice.resonator.process_sample(excitation, 48_000);
+                                    peak = if y.is_finite() {
+                                        peak.max(y.abs())
+                                    } else {
+                                        f32::INFINITY
+                                    };
+                                }
+                                if peak.is_nan() || peak >= 100.0 {
+                                    failures.push(format!(
+                                        "exciter {exciter} {profile:?} note {note}: {peak:.3e}"
+                                    ));
+                                }
+                            }
+                        }
+                        failures
+                    })
+                })
+                .collect();
+            handles
+                .into_iter()
+                .flat_map(|h| h.join().unwrap())
+                .collect()
+        });
+        assert!(
+            failures.is_empty(),
+            "diverged at 12 dB extra drive, governor off:\n{}",
+            failures.join("\n")
+        );
+    }
+
+    /// Median and worst pre-clamp peak per exciter over every object at
+    /// C2/C4/C6 (velocity 127, default controls), how many of those notes
+    /// engage the drive governor and by how much, and the drive level that
+    /// would put the median at `DRIVE_LEVEL_TARGET`. Used to set
+    /// `EXCITER_DRIVE_LEVEL` (`resolve-exciter-tradeoffs`).
     #[test]
     #[ignore]
     fn print_exciter_overdrive() {
-        for exciter in 1..=16 {
-            let mut peaks: Vec<(f32, String)> = Vec::new();
+        const DRIVE_LEVEL_TARGET: f32 = 0.35;
+        let rows: Vec<String> = std::thread::scope(|scope| {
+            let handles: Vec<_> = (1..=16)
+                .map(|exciter| {
+                    scope.spawn(move || {
+                        let mut notes: Vec<(f32, f32, String)> = Vec::new();
+                        for profile in ALL_PROFILES {
+                            for note in [36u8, 60, 84] {
+                                let (peak, gain) = sweep_note(profile, exciter, note);
+                                notes.push((peak, gain, format!("{profile:?} {note}")));
+                            }
+                        }
+                        notes.sort_by(|a, b| a.0.total_cmp(&b.0));
+                        let median = notes[notes.len() / 2].0;
+                        let (worst, _, at) = notes.last().unwrap();
+                        let engaged: Vec<f32> = notes
+                            .iter()
+                            .filter(|n| n.1 < 0.999)
+                            .map(|n| 20.0 * n.1.log10())
+                            .collect();
+                        let deepest = engaged.iter().copied().fold(0.0f32, f32::min);
+                        format!(
+                            "OVERDRIVE exciter {exciter:2}: median {median:8.4}, worst {worst:8.3} ({at}), \
+                             governor on {} notes (deepest {deepest:+.1} dB), level {:.4e}",
+                            engaged.len(),
+                            super::EXCITER_DRIVE_LEVEL[exciter as usize] * DRIVE_LEVEL_TARGET / median
+                        )
+                    })
+                })
+                .collect();
+            handles.into_iter().map(|h| h.join().unwrap()).collect()
+        });
+        println!("{}", rows.join("\n"));
+    }
+
+    // --- Mallet and grinder contact (stabilize-mallet-and-grinding-contact) ---
+
+    /// Pre-clamp peaks of `exciter` over every object at C2/C4/C6
+    /// (velocity 127, default controls), sorted.
+    fn sweep_peaks(exciter: i32) -> Vec<f32> {
+        let mut peaks = sweep_table()[exciter as usize].clone();
+        peaks.sort_by(f32::total_cmp);
+        peaks
+    }
+
+    #[test]
+    fn mallet_and_grinder_play_at_a_struck_exciter_level() {
+        let median = |peaks: &[f32]| peaks[peaks.len() / 2];
+        let target = 0.5 * (median(&sweep_peaks(5)) + median(&sweep_peaks(6)));
+        for exciter in [4, 10] {
+            let peaks = sweep_peaks(exciter);
+            let diff = 20.0 * (median(&peaks) / target).log10();
+            let worst = *peaks.last().unwrap();
+            assert!(
+                worst <= 0.9,
+                "exciter {exciter}: worst pre-clamp peak {worst:.3}"
+            );
+            // HeavyGrinding's steady, low-frequency force moves IndustrialCog
+            // C2's low modes ~40x more than its median note, so a single
+            // trim can't lift its median without overdriving that note. Its
+            // level is left to the per-voice drive governor
+            // (`resolve-exciter-tradeoffs`); only HardMallet is held to the
+            // struck target here.
+            if exciter == 10 {
+                continue;
+            }
+            assert!(
+                diff.abs() <= 6.0,
+                "exciter {exciter}: median {:.4} is {diff:+.1} dB from the struck target {target:.4}",
+                median(&peaks)
+            );
+        }
+    }
+
+    /// Largest |resonator output| for one note driven `drive` times harder
+    /// than default (velocity 127, 1 s held + 1 s released, 48 kHz).
+    fn resonator_peak_at_drive(profile: ModalProfileId, exciter: i32, note: u8, drive: f32) -> f32 {
+        use crate::dsp::ResonatorCore;
+        let mut voice = Voice::new();
+        voice.note_on_with_controls(
+            note,
+            127.0,
+            profile,
+            0,
+            1.0,
+            0.0,
+            0.0,
+            exciter,
+            VoiceControls::default(),
+        );
+        voice.drive_scale = drive;
+        voice.set_rate(48_000.0);
+        let mut peak = 0.0f32;
+        for i in 0..96_000 {
+            if i == 48_000 {
+                voice.note_off();
+            }
+            let excitation = voice.process_exciter();
+            let y = voice.resonator.process_sample(excitation, 48_000);
+            if !y.is_finite() {
+                return f32::INFINITY;
+            }
+            peak = peak.max(y.abs());
+        }
+        peak
+    }
+
+    #[test]
+    fn mallet_and_grinder_contact_is_stable_far_above_default_drive() {
+        let mut failures = Vec::new();
+        for exciter in [4, 10] {
             for profile in ALL_PROFILES {
                 for note in [36, 60, 84] {
-                    peaks.push((
-                        pre_clamp_peak(profile, exciter, note),
-                        format!("{profile:?} {note}"),
-                    ));
+                    let peak = resonator_peak_at_drive(profile, exciter, note, 16.0);
+                    if peak.is_nan() || peak >= 100.0 {
+                        failures.push(format!(
+                            "exciter {exciter} {profile:?} note {note}: {peak:.3e}"
+                        ));
+                    }
                 }
             }
-            peaks.sort_by(|a, b| a.0.total_cmp(&b.0));
-            let (worst, at) = peaks.last().unwrap();
-            println!(
-                "OVERDRIVE exciter {exciter:2}: worst {worst:10.3} ({at}), median {:8.3}, trim {:.3e}",
-                peaks[peaks.len() / 2].0,
-                (0.9 / worst).min(1.0) * super::EXCITER_DRIVE_TRIM[exciter as usize]
+        }
+        assert!(
+            failures.is_empty(),
+            "diverged at 16x drive:\n{}",
+            failures.join("\n")
+        );
+    }
+
+    #[test]
+    fn strikes_come_to_rest() {
+        use crate::dsp::ResonatorCore;
+        for exciter in [4, 5] {
+            let mut voice = Voice::new();
+            voice.note_on_with_controls(
+                60,
+                100.0,
+                ModalProfileId::Pipe,
+                0,
+                1.0,
+                0.0,
+                0.0,
+                exciter,
+                VoiceControls::default(),
+            );
+            voice.set_rate(48_000.0);
+            let mut last_force_at = 0;
+            for i in 0..96_000 {
+                let excitation = voice.process_exciter();
+                voice.resonator.process_sample(excitation, 48_000);
+                if excitation != 0.0 {
+                    last_force_at = i;
+                }
+            }
+            assert!(
+                last_force_at < 24_000,
+                "exciter {exciter} still applies force at {:.3} s",
+                last_force_at as f32 / 48_000.0
             );
         }
     }

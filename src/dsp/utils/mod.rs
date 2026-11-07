@@ -13,7 +13,9 @@ pub mod body;
 #[allow(clippy::approx_constant)]
 pub const GOLDEN_STEP: f32 = 1.618_034;
 pub mod budget;
+pub mod contact;
 pub mod deterministic_excitation;
+pub mod noise;
 pub mod rate;
 
 pub use body::BodyResonator;

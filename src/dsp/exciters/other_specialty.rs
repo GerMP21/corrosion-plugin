@@ -7,7 +7,9 @@
 //! Use these models for air jets, electrical buzz, release clicks, and rain-like
 //! granular motion.
 
-use crate::dsp::utils::rate;
+use crate::dsp::utils::noise::Noise;
+use crate::dsp::utils::{contact, rate};
+use crate::dsp::ContactPrediction;
 /// Turbulent air-jet exciter with band-limited noise shaping.
 #[derive(Clone, Debug)]
 pub struct PneumaticJet {
@@ -15,7 +17,8 @@ pub struct PneumaticJet {
     nozzle_width: f32,
     turbulence_chaos: f32,
     active: bool,
-    rng_phase: f32,
+    /// Noise for this note (`resolve-exciter-tradeoffs`).
+    noise: Noise,
     filter_state: f32,
     /// `48 kHz / fs` and the band filter's coefficient for it
     /// (`fix-sample-rate-time-constants`).
@@ -31,7 +34,7 @@ impl PneumaticJet {
             nozzle_width: 0.5,
             turbulence_chaos: 0.3,
             active: false,
-            rng_phase: 0.0,
+            noise: Noise::default(),
             filter_state: 0.0,
             ratio: 1.0,
             filter_alpha: (500.0 + 0.5 * 2000.0) / 10000.0,
@@ -57,6 +60,11 @@ impl PneumaticJet {
         self.update_filter_alpha();
     }
 
+    /// Restart the noise for a new note (the voice seeds it per note).
+    pub fn reseed(&mut self, seed: u32) {
+        self.noise.reseed(seed);
+    }
+
     /// Starts the airflow burst with an initial drive velocity.
     pub fn trigger(&mut self, velocity: f32) {
         self.active = true;
@@ -69,8 +77,7 @@ impl PneumaticJet {
             return 0.0;
         }
         let v_rel = self.air_pressure - res_vel;
-        self.rng_phase += 1.618;
-        let noise = (self.rng_phase.sin() * 43_758.547).fract() * 2.0 - 1.0;
+        let noise = rate::white_noise(self.noise.bipolar(), self.ratio);
         // Non-linear jet saturation keeps the air burst from exploding in level.
         let saturated = v_rel * v_rel - self.turbulence_chaos * v_rel * v_rel * v_rel;
         let raw = noise * saturated.max(0.0);
@@ -184,6 +191,8 @@ pub struct TensionSnap {
     hooked: bool,
     pull_position: f32,
     tension: f32,
+    /// Places the snap spike between samples (`resolve-exciter-tradeoffs`).
+    events: rate::EventSplitter,
     /// `48 kHz / fs` (`fix-sample-rate-time-constants`).
     ratio: f32,
 }
@@ -199,6 +208,7 @@ impl TensionSnap {
             hooked: false,
             pull_position: 0.0,
             tension: 0.0,
+            events: rate::EventSplitter::default(),
             ratio: 1.0,
         }
     }
@@ -225,22 +235,50 @@ impl TensionSnap {
     }
 
     /// Processes one sample of tension build-up and release.
-    pub fn process_sample(&mut self, res_disp: f32, _res_vel: f32) -> f32 {
+    pub fn process_sample(&mut self, resonator: ContactPrediction) -> f32 {
         if !self.active {
             return 0.0;
         }
         if self.hooked {
             self.pull_position += rate::step(0.001, self.ratio);
-            let dx = self.pull_position - res_disp;
-            self.tension = self.hook_stiffness * dx.max(0.0);
-            if self.tension > self.snap_force || self.pull_position > self.pull_distance {
+            // The hook's tension and the force it applies, solved against
+            // this sample's resonator response (`resolve-exciter-tradeoffs`).
+            // Snapping lowers the output (0.1·T → 3·T/ratio only above the
+            // threshold), so the law stays non-increasing in the force.
+            let (pull, stiffness, snap_force, beyond) = (
+                self.pull_position,
+                self.hook_stiffness,
+                self.snap_force,
+                self.pull_position > self.pull_distance,
+            );
+            let ratio = self.ratio;
+            let tension_at = |f: f32| stiffness * (pull - resonator.displacement(f)).max(0.0);
+            let output_at = |tension: f32| {
+                if tension > snap_force || beyond {
+                    tension * 3.0 / ratio
+                } else {
+                    tension * 0.1
+                }
+            };
+            let previous = self.tension;
+            let force = contact::solve_force(|f| output_at(tension_at(f)));
+            self.tension = tension_at(force);
+            if self.tension > self.snap_force || beyond {
                 self.hooked = false;
-                // One-sample snap spike: keep its area at any rate.
-                return self.tension * 3.0 / self.ratio;
+                // The snap spike lands between samples at the tension's
+                // threshold crossing (`resolve-exciter-tradeoffs`).
+                let rise = self.tension - previous;
+                let early = if rise > 0.0 && self.tension > self.snap_force {
+                    (self.tension - self.snap_force) / rise
+                } else {
+                    0.0
+                };
+                self.events.add(force, early);
+                return self.events.take();
             }
-            return self.tension * 0.1;
+            return force + self.events.take();
         }
-        0.0
+        self.events.take()
     }
 
     /// Returns whether the hook is still engaged.
@@ -269,7 +307,8 @@ pub struct ParticleRain {
     active: bool,
     spawn_accumulator: f32,
     particles: Vec<Particle>,
-    rng_phase: f32,
+    /// Noise for this note (`resolve-exciter-tradeoffs`).
+    noise: Noise,
     /// `48 kHz / fs` (`fix-sample-rate-time-constants`).
     ratio: f32,
 }
@@ -280,6 +319,18 @@ struct Particle {
     mass: f32,
     velocity: f32,
 }
+
+/// How deep a particle reaches into the surface per unit of its velocity.
+const PENETRATION: f32 = 0.01;
+/// How many resonator displacement units one unit of a particle's reach
+/// spans. A particle can't push the surface further than its reach, so at a
+/// drive that brings the rain up to the other exciters' level, a reach of
+/// one unit per displacement left it displacement-limited: about 21 dB
+/// under the others whatever its drive, and with a level that followed the
+/// sample grid. Through this scale the particles meet an effectively rigid
+/// surface and their force follows their own motion
+/// (`resolve-exciter-tradeoffs`).
+const RAIN_SCALE: f32 = 1000.0;
 
 impl ParticleRain {
     /// Most particles alive at once. Spawning is at most 2 per sample (flow is
@@ -297,7 +348,7 @@ impl ParticleRain {
             active: false,
             spawn_accumulator: 0.0,
             particles: Vec::with_capacity(Self::MAX_PARTICLES),
-            rng_phase: 0.0,
+            noise: Noise::default(),
             ratio: 1.0,
         }
     }
@@ -314,6 +365,11 @@ impl ParticleRain {
         self.mass_variance = variance.clamp(0.0, 5.0);
     }
 
+    /// Restart the noise for a new note (the voice seeds it per note).
+    pub fn reseed(&mut self, seed: u32) {
+        self.noise.reseed(seed);
+    }
+
     /// Starts particle emission with a velocity-scaled flow.
     pub fn trigger(&mut self, velocity: f32) {
         self.active = true;
@@ -321,44 +377,56 @@ impl ParticleRain {
     }
 
     /// Processes one sample of particle spawning and impact decay.
-    pub fn process_sample(&mut self, res_disp: f32, _res_vel: f32) -> f32 {
+    pub fn process_sample(&mut self, resonator: ContactPrediction) -> f32 {
         if !self.active {
             return 0.0;
         }
 
-        self.spawn_accumulator += rate::step(self.flow_rate * 0.1, self.ratio);
+        let decay = 0.99;
+        let (velocity_step, age_step) =
+            (rate::step(0.05, self.ratio), rate::step(0.001, self.ratio));
+        let spawn_step = rate::step(self.flow_rate * 0.1, self.ratio);
+        self.spawn_accumulator += spawn_step;
         while self.spawn_accumulator > 1.0 {
             self.spawn_accumulator -= 1.0;
             if self.particles.len() == Self::MAX_PARTICLES {
                 continue;
             }
-            let variance = (self.pseudo_random() - 0.5) * 2.0 * self.mass_variance;
+            // The spawn fell `born` (0–1) of a sample before this sample's
+            // end: start the particle that much older, so spawns aren't
+            // rounded to the sample grid. The loop below then adds this
+            // sample's full step (`resolve-exciter-tradeoffs`).
+            let born = (self.spawn_accumulator / spawn_step).clamp(0.0, 1.0);
+            let variance = self.noise.bipolar() * self.mass_variance;
             self.particles.push(Particle {
-                age: 0.0,
+                age: -age_step * (1.0 - born),
                 mass: (self.particle_mass * (1.0 + variance)).max(0.01),
-                velocity: -0.5,
+                velocity: -0.5 - velocity_step * (1.0 - born),
             });
         }
 
-        let mut total_force = 0.0;
-        let decay = 0.99;
-        let (velocity_step, age_step) =
-            (rate::step(0.05, self.ratio), rate::step(0.001, self.ratio));
-        self.particles.retain_mut(|p| {
+        for p in self.particles.iter_mut() {
             p.velocity += velocity_step;
             p.age += age_step;
-            let penetration = (p.velocity * 0.01 - res_disp).max(0.0);
-            // Each particle contributes a tiny force spike when it penetrates.
-            let force = if penetration > 0.0 {
-                p.mass * penetration * 10.0
-            } else {
-                0.0
-            };
-            total_force += force;
-            p.age < 0.1 && p.velocity < 1.0
+        }
+        // A particle stops pushing once it reaches the rebound velocity; drop
+        // it before the solve, so it doesn't add a sample-length tail whose
+        // size depends on the rate.
+        self.particles.retain(|p| p.age < 0.1 && p.velocity < 1.0);
+        let resonator = resonator.in_units(RAIN_SCALE);
+        // Each penetrating particle pushes with a small spring force; all of
+        // them are solved together with this sample's resonator response
+        // (`resolve-exciter-tradeoffs`).
+        let particles = &self.particles;
+        let force = contact::solve_force(|f| {
+            let surface = resonator.displacement(f);
+            particles
+                .iter()
+                .map(|p| p.mass * (p.velocity * PENETRATION - surface).max(0.0) * 10.0)
+                .sum::<f32>()
+                * decay
         });
-
-        total_force * decay
+        force
     }
 
     /// Returns whether emission is still active or particles remain.
@@ -369,11 +437,6 @@ impl ParticleRain {
     /// Stops spawning new particles.
     pub fn release(&mut self) {
         self.active = false;
-    }
-
-    fn pseudo_random(&mut self) -> f32 {
-        self.rng_phase += 1.618;
-        ((self.rng_phase.sin() * 43_758.547).fract()).abs()
     }
 }
 

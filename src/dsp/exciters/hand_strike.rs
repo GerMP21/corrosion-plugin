@@ -4,7 +4,18 @@
 //! The hand mass and mute decay together shape whether the gesture reads as a
 //! slap, mute, or a heavier palm strike.
 
-use crate::dsp::utils::rate;
+use crate::dsp::utils::{contact, rate};
+use crate::dsp::ContactPrediction;
+
+/// How many resonator displacement units one unit of the hand's travel
+/// spans. The hand's drive level (`crate::voice`) multiplies its force, and
+/// with it how far the resonator yields to it; seen through this scale, the
+/// hand meets the surface it met at a drive of 1, so its strike keeps the
+/// shape it had there instead of collapsing into a displacement-limited
+/// sample or two (`resolve-exciter-tradeoffs`). The voice uses this value as
+/// HandStrike's drive level (`EXCITER_DRIVE_LEVEL`), which is what makes the
+/// two cancel.
+pub const HAND_SCALE: f32 = 55.4;
 
 /// Fleshy impact with strong damping and a simple release state.
 #[derive(Clone, Debug)]
@@ -25,6 +36,8 @@ pub struct HandStrike {
     active: bool,
     /// Linear decay state multiplied into the output each sample.
     decay_state: f32,
+    /// Whether the hand has reached the surface yet this strike.
+    landed: bool,
     /// `48 kHz / fs` and per-sample constants derived from it
     /// (`fix-sample-rate-time-constants`); exact 48 kHz values at 48 kHz.
     ratio: f32,
@@ -44,6 +57,7 @@ impl HandStrike {
             hand_velocity: 0.0,
             active: false,
             decay_state: 1.0,
+            landed: false,
             ratio: 1.0,
             velocity_decay: 0.99,
             mute_decay_per_sample: 0.95,
@@ -72,27 +86,47 @@ impl HandStrike {
         self.hand_position = -0.1 * velocity;
         self.hand_velocity = velocity * 2.0;
         self.decay_state = 1.0;
+        self.landed = false;
     }
 
     /// Produces a single force sample using the current resonator state.
-    pub fn process_sample(&mut self, resonator_displacement: f32, resonator_velocity: f32) -> f32 {
+    pub fn process_sample(&mut self, resonator: ContactPrediction) -> f32 {
         if !self.active {
             return 0.0;
         }
+        let resonator = resonator.in_units(HAND_SCALE);
 
-        let displacement_diff = self.hand_position - resonator_displacement;
-        let velocity_diff = self.hand_velocity - resonator_velocity;
-
-        let spring_force = self.flesh_stiffness * displacement_diff;
-        let damping_force = self.flesh_damping * velocity_diff;
-        let total_force = spring_force + damping_force;
-
-        let force = total_force.max(0.0) * self.hand_mass * self.decay_state;
+        // Kelvin–Voigt contact, solved against this sample's resonator
+        // response (`resolve-exciter-tradeoffs`).
+        // The force is taken at the middle of the step, so the approach's
+        // area doesn't depend on where the sample grid falls.
+        let half_decay = self.velocity_decay.sqrt();
+        let velocity = self.hand_velocity * half_decay;
+        let position = self.hand_position + 0.5 * velocity * rate::step(0.01, self.ratio);
+        let (stiffness, damping) = (self.flesh_stiffness, self.flesh_damping);
+        let scale = self.hand_mass * self.decay_state;
+        let force = contact::solve_force(|f| {
+            let spring_force = stiffness * (position - resonator.displacement(f));
+            let damping_force = damping * (velocity - resonator.velocity(f));
+            (spring_force + damping_force).max(0.0) * scale
+        });
+        let (resonator_displacement, resonator_velocity) =
+            (resonator.displacement(force), resonator.velocity(force));
 
         self.hand_velocity *= self.velocity_decay;
+        let before = self.hand_position;
         self.hand_position += self.hand_velocity * rate::step(0.01, self.ratio);
 
-        if self.hand_position > resonator_displacement - 0.01 {
+        let surface = resonator_displacement - 0.01;
+        let mut force = force;
+        if self.hand_position > surface {
+            // The hand reached the surface partway through this sample: only
+            // that part of the step pushed, so the strike's length isn't
+            // rounded up to whole samples (`resolve-exciter-tradeoffs`).
+            if before < surface && !self.landed {
+                force *= ((surface - before) / (self.hand_position - before)).clamp(0.0, 1.0);
+            }
+            self.landed = true;
             self.hand_position = resonator_displacement;
             self.hand_velocity = resonator_velocity * 0.5;
         }

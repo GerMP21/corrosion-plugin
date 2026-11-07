@@ -3,7 +3,8 @@
 //! Uses a polynomial contact curve where a soft linear term handles the body
 //! of the hit and a steeper power term models the core bottoming out.
 
-use crate::dsp::utils::rate;
+use crate::dsp::utils::{contact, rate};
+use crate::dsp::ContactPrediction;
 
 /// Soft mallet with a non-linear compression curve.
 #[derive(Clone, Debug)]
@@ -66,17 +67,26 @@ impl FeltMallet {
     }
 
     /// Processes one sample of non-linear contact force.
-    pub fn process_sample(&mut self, resonator_displacement: f32, _resonator_velocity: f32) -> f32 {
+    pub fn process_sample(&mut self, resonator: ContactPrediction) -> f32 {
         if !self.active {
             return 0.0;
         }
 
         self.mallet_position += self.mallet_velocity * rate::step(0.001, self.ratio);
-        let compression = (self.mallet_position - resonator_displacement).max(0.0);
-
-        let soft_component = self.felt_softness * compression;
-        let hard_component = self.core_hardness * compression.powf(self.compression_curve);
-        let force = (soft_component + hard_component) * self.mallet_mass;
+        // Felt compression, solved against this sample's resonator response
+        // (`resolve-exciter-tradeoffs`).
+        let position = self.mallet_position;
+        let (softness, hardness, curve, mass) = (
+            self.felt_softness,
+            self.core_hardness,
+            self.compression_curve,
+            self.mallet_mass,
+        );
+        let force = contact::solve_force(|f| {
+            let compression = (position - resonator.displacement(f)).max(0.0);
+            (softness * compression + hardness * compression.powf(curve)) * mass
+        });
+        let compression = (position - resonator.displacement(force)).max(0.0);
 
         if compression > 0.01 {
             self.mallet_velocity -= compression * rate::step(0.5, self.ratio);

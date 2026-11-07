@@ -123,6 +123,10 @@ pub struct BidirectionalInteractionBus {
     pub state: InteractionState,
     /// Cached per-mode coupling coefficients.
     pub mode_coefficients: Vec<f32>,
+    /// What `mode_coefficients` were last computed for: (position, lock,
+    /// lock minimum, mode count). They are a pure function of these, so an
+    /// unchanged key skips the per-mode `sin` (`resolve-exciter-tradeoffs`).
+    cached_for: Option<(f32, bool, f32, usize)>,
 }
 
 impl BidirectionalInteractionBus {
@@ -131,6 +135,7 @@ impl BidirectionalInteractionBus {
         Self {
             state: InteractionState::new(),
             mode_coefficients: Vec::new(),
+            cached_for: None,
         }
     }
 
@@ -140,6 +145,7 @@ impl BidirectionalInteractionBus {
         Self {
             state: InteractionState::new(),
             mode_coefficients: Vec::with_capacity(mode_capacity),
+            cached_for: None,
         }
     }
 
@@ -161,6 +167,16 @@ impl BidirectionalInteractionBus {
         let count = self.mode_coefficients.len();
         if count > 0 {
             let current_position = self.state.update_position();
+            let key = (
+                current_position,
+                self.state.fundamental_lock,
+                self.state.fundamental_minimum,
+                count,
+            );
+            if self.cached_for == Some(key) {
+                return;
+            }
+            self.cached_for = Some(key);
             for (i, coeff) in self.mode_coefficients.iter_mut().enumerate() {
                 *coeff = mode_coefficient_1d(i, current_position);
             }

@@ -81,11 +81,14 @@ impl StiffPointScrape {
         let k_point = 100.0 + self.chatter_pitch * 900.0; // 100-1000 Hz range
         let spring_force = k_point * self.accumulated_deflection;
 
-        // Damping force
+        // Damping force: it resists the relative motion, so it drags the
+        // surface along with the tip. (It was subtracted, which turned it
+        // into negative damping on the resonator: the contact ran away at
+        // high drive, `resolve-exciter-tradeoffs`.)
         let d_point = self.chatter_damping * 50.0;
         let damping_force = d_point * v_rel;
 
-        let total_force = spring_force - damping_force;
+        let total_force = spring_force + damping_force;
 
         // Check for slip - tip snaps forward when threshold exceeded
         if self.accumulated_deflection.abs() > self.slip_threshold {

@@ -13,6 +13,42 @@ static FACTORY_PRESETS_DIR: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/presets/
 use crate::params::{exciter_model_items, CorrosionParams, ExciterFamily, ExciterType, Object};
 use crate::Preset;
 
+/// Parameters deliberately left without an editor control, each with the
+/// reason. `editor_covers_every_parameter` fails for any other parameter the
+/// editor doesn't draw (`h05-expose-missing-gui-controls`).
+// Read by the coverage test only.
+#[cfg_attr(not(test), allow(dead_code))]
+pub(crate) const HOST_ONLY_PARAMS: &[(&str, &str)] = &[
+    (
+        "exciter_pressure",
+        "no exciter reads it yet; it gets a knob once it is wired (h06)",
+    ),
+    (
+        "exciter_speed",
+        "no exciter reads it yet; it gets a knob once it is wired (h06)",
+    ),
+    (
+        "exciter_roughness",
+        "no exciter reads it yet; it gets a knob once it is wired (h06)",
+    ),
+];
+
+#[cfg(test)]
+thread_local! {
+    /// Parameters drawn by an editor widget since the last clear (tests only).
+    static DRAWN_PARAMS: std::cell::RefCell<std::collections::HashSet<ParamPtr>> =
+        std::cell::RefCell::new(std::collections::HashSet::new());
+}
+
+/// Records that a widget drew `param` (tests only; a no-op otherwise).
+#[inline]
+fn note_drawn(_param: ParamPtr) {
+    #[cfg(test)]
+    DRAWN_PARAMS.with(|drawn| {
+        drawn.borrow_mut().insert(_param);
+    });
+}
+
 // ---------------------------------------------------------------------------
 // Design tokens – industrial / brutalist palette from the evidence HTML
 // ---------------------------------------------------------------------------
@@ -45,7 +81,103 @@ struct EditorUiState {
     last_ui_scale: i32,
     last_requested_size: (u32, u32),
     factory_presets: Vec<FactoryPresetEntry>,
+    /// Index into the factory presets followed by the user presets.
     selected_factory_preset: usize,
+    /// The user preset folder (`None` when the platform's variables are
+    /// unset), its presets, and how many of its files couldn't be read.
+    user_preset_dir: Option<std::path::PathBuf>,
+    user_presets: Vec<(std::path::PathBuf, Preset)>,
+    unreadable_user_presets: usize,
+    /// The Save row: the typed name, whether it is waiting on an overwrite
+    /// confirmation, and the last save message (`true` for an error).
+    save_name: String,
+    confirm_overwrite: bool,
+    save_message: Option<(String, bool)>,
+    /// The randomizer's mode (editor state: it shapes the next click, not the
+    /// sound) and its randomness, seeded when the editor opens.
+    randomizer_mode: crate::randomizer::RandomizerMode,
+    randomizer_noise: crate::dsp::utils::noise::Noise,
+}
+
+impl EditorUiState {
+    fn new(last_ui_scale: i32, last_requested_size: (u32, u32)) -> Self {
+        let mut state = Self {
+            last_ui_scale,
+            last_requested_size,
+            factory_presets: load_factory_presets(),
+            selected_factory_preset: 0,
+            user_preset_dir: crate::presets::user_preset_dir(),
+            user_presets: Vec::new(),
+            unreadable_user_presets: 0,
+            save_name: String::new(),
+            confirm_overwrite: false,
+            save_message: None,
+            randomizer_mode: crate::randomizer::RandomizerMode::Safe,
+            randomizer_noise: crate::dsp::utils::noise::Noise::new(
+                std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .map(|elapsed| elapsed.subsec_nanos() ^ elapsed.as_secs() as u32)
+                    .unwrap_or(1),
+            ),
+        };
+        state.refresh_user_presets();
+        state
+    }
+
+    /// Re-read the user preset folder (on editor open and after a save).
+    fn refresh_user_presets(&mut self) {
+        let (presets, unreadable) = match &self.user_preset_dir {
+            Some(dir) => crate::presets::list_user_presets(dir),
+            None => (Vec::new(), 0),
+        };
+        self.user_presets = presets;
+        self.unreadable_user_presets = unreadable;
+    }
+
+    /// Factory presets, then user presets.
+    fn preset_count(&self) -> usize {
+        self.factory_presets.len() + self.user_presets.len()
+    }
+
+    fn preset_name(&self, index: usize) -> &str {
+        match index.checked_sub(self.factory_presets.len()) {
+            None => &self.factory_presets[index].name,
+            Some(user) => &self.user_presets[user].1.name,
+        }
+    }
+
+    fn preset(&self, index: usize) -> Option<Preset> {
+        match index.checked_sub(self.factory_presets.len()) {
+            None => Preset::from_json_str(self.factory_presets[index].json).ok(),
+            Some(user) => self
+                .user_presets
+                .get(user)
+                .map(|(_, preset)| preset.clone()),
+        }
+    }
+
+    /// Save the current sound under the typed name, asking before replacing
+    /// a user preset (`h05-expose-missing-gui-controls`).
+    fn save(&mut self, params: &CorrosionParams, overwrite: bool) {
+        use crate::presets::{save_user_preset, SaveOutcome};
+        self.confirm_overwrite = false;
+        let Some(dir) = self.user_preset_dir.clone() else {
+            self.save_message = Some(("No user preset folder on this system".to_string(), true));
+            return;
+        };
+        match save_user_preset(&dir, &self.save_name, params, overwrite) {
+            Ok(SaveOutcome::Saved(_)) => {
+                let name = self.save_name.trim().to_string();
+                self.refresh_user_presets();
+                if let Some(user) = self.user_presets.iter().position(|(_, p)| p.name == name) {
+                    self.selected_factory_preset = self.factory_presets.len() + user;
+                }
+                self.save_message = Some((format!("Saved \"{name}\""), false));
+            }
+            Ok(SaveOutcome::NeedsConfirmation(_)) => self.confirm_overwrite = true,
+            Err(error) => self.save_message = Some((format!("Couldn't save: {error}"), true)),
+        }
+    }
 }
 
 #[derive(Clone)]
@@ -781,12 +913,7 @@ pub fn create_editor(
     let resize_state = editor_state.clone();
     create_egui_editor(
         editor_state,
-        EditorUiState {
-            last_ui_scale: initial_scale,
-            last_requested_size: initial_size,
-            factory_presets: load_factory_presets(),
-            selected_factory_preset: 0,
-        },
+        EditorUiState::new(initial_scale, initial_size),
         |_, _| {},
         move |egui_ctx, setter, state| {
             let ui_scale = params.ui_scale.value();
@@ -977,6 +1104,7 @@ fn industrial_knob(
     scale: f32,
     large: bool,
 ) -> egui::Response {
+    note_drawn(param.as_ptr());
     let radius = if large {
         width_pct(scale, 0.023148149)
     } else {
@@ -1131,6 +1259,35 @@ fn industrial_fader(
     accent: egui::Color32,
     scale: f32,
 ) -> egui::Response {
+    industrial_fader_text(ui, label, param, min, max, setter, accent, scale, false)
+}
+
+/// The text a fader shows for `param`: its own display string (for
+/// parameters whose values have names, such as Sync's "Off" or "1/8"), or the
+/// plain number.
+fn fader_value_text(param: &FloatParam, min: f32, max: f32, param_text: bool) -> String {
+    if param_text {
+        param.normalized_value_to_string(param.unmodulated_normalized_value(), false)
+    } else {
+        format_value(param.value(), min, max)
+    }
+}
+
+/// `industrial_fader`, showing the parameter's own display string when
+/// `param_text` is set (`h05-expose-missing-gui-controls`).
+#[allow(clippy::too_many_arguments)]
+fn industrial_fader_text(
+    ui: &mut egui::Ui,
+    label: &str,
+    param: &FloatParam,
+    min: f32,
+    max: f32,
+    setter: &ParamSetter,
+    accent: egui::Color32,
+    scale: f32,
+    param_text: bool,
+) -> egui::Response {
+    note_drawn(param.as_ptr());
     let track_height = height_pct(scale, 0.0078125);
     let thumb_width = width_pct(scale, 0.014814815);
     let thumb_height = height_pct(scale, 0.026041667);
@@ -1194,7 +1351,7 @@ fn industrial_fader(
     let cy = rect.center().y;
 
     // Value display (left)
-    let value_text = format_value(value, min, max);
+    let value_text = fader_value_text(param, min, max, param_text);
     painter.text(
         egui::pos2(rect.min.x + value_width * 0.5, cy),
         egui::Align2::CENTER_CENTER,
@@ -1263,6 +1420,7 @@ fn industrial_vfader(
     accent: egui::Color32,
     scale: f32,
 ) -> egui::Response {
+    note_drawn(param.as_ptr());
     let track_width = width_pct(scale, 0.024074074);
     let track_height = height_pct(scale, 0.15625);
     let thumb_width = width_pct(scale, 0.027777778);
@@ -1410,6 +1568,7 @@ fn industrial_combo(
     _accent: egui::Color32,
     scale: f32,
 ) {
+    note_drawn(param.as_ptr());
     let current = param.value();
     let selected = items
         .iter()
@@ -1569,6 +1728,8 @@ fn render_ui(
     });
     ui.spacing_mut().item_spacing.x = original_item_spacing_x;
 
+    render_macro_strip(ui, params, setter, scale);
+
     // Footer
     render_footer(ui, scale);
 }
@@ -1679,6 +1840,39 @@ fn render_header(
                         );
                     },
                 );
+                // Play and limiter modes (`h05-expose-missing-gui-controls`).
+                ui.allocate_ui_with_layout(
+                    egui::vec2(combo_width, ui.available_height()),
+                    egui::Layout::top_down(egui::Align::LEFT),
+                    |ui| {
+                        industrial_combo(
+                            ui,
+                            "play-mode-header",
+                            "PLAY",
+                            &params.play_mode,
+                            &[(0, "Tonal"), (1, "Kit"), (2, "Drone")],
+                            setter,
+                            SAFETY_YELLOW,
+                            scale,
+                        );
+                    },
+                );
+                ui.allocate_ui_with_layout(
+                    egui::vec2(combo_width, ui.available_height()),
+                    egui::Layout::top_down(egui::Align::LEFT),
+                    |ui| {
+                        industrial_combo(
+                            ui,
+                            "limiter-mode-header",
+                            "LIMITER",
+                            &params.limiter_mode,
+                            &[(0, "Hard"), (1, "Lookahead")],
+                            setter,
+                            DANGER_RED,
+                            scale,
+                        );
+                    },
+                );
                 vfader_global(
                     ui,
                     "OUTPUT",
@@ -1729,6 +1923,7 @@ fn vfader_global(
     accent: egui::Color32,
     scale: f32,
 ) {
+    note_drawn(param.as_ptr());
     let track_width = width_pct(scale, 0.009259259);
     let track_height = height_pct(scale, 0.046875);
     let desired = egui::vec2(
@@ -1834,7 +2029,8 @@ fn render_preset_loader(
                     .color(MUTED_GREY),
             );
             ui.horizontal(|ui| {
-                if state.factory_presets.is_empty() {
+                let count = state.preset_count();
+                if count == 0 {
                     ui.label(
                         egui::RichText::new("No presets")
                             .size(width_pct(scale, 0.008333334))
@@ -1843,12 +2039,9 @@ fn render_preset_loader(
                     return;
                 }
 
-                state.selected_factory_preset = state
-                    .selected_factory_preset
-                    .min(state.factory_presets.len().saturating_sub(1));
-                let selected_name = state.factory_presets[state.selected_factory_preset]
-                    .name
-                    .as_str();
+                state.selected_factory_preset = state.selected_factory_preset.min(count - 1);
+                let selected_name = state.preset_name(state.selected_factory_preset).to_string();
+                let mut load = None;
 
                 let arrow_size =
                     egui::vec2(width_pct(scale, 0.016666668), height_pct(scale, 0.0234375));
@@ -1861,19 +2054,12 @@ fn render_preset_loader(
                     )
                     .clicked()
                 {
-                    state.selected_factory_preset = if state.selected_factory_preset == 0 {
-                        state.factory_presets.len() - 1
-                    } else {
-                        state.selected_factory_preset - 1
-                    };
-                    let entry = state.factory_presets[state.selected_factory_preset].clone();
-                    if let Ok(preset) = Preset::from_json_str(entry.json) {
-                        apply_preset(params, setter, &preset);
-                    }
+                    load = Some((state.selected_factory_preset + count - 1) % count);
                 }
 
                 let spacing = ui.spacing().item_spacing.x;
                 let combo_width = (ui.available_width() - arrow_size.x - spacing).max(0.0);
+                let factory_count = state.factory_presets.len();
                 egui::ComboBox::from_id_salt("factory-preset-loader")
                     .width(combo_width)
                     .selected_text(
@@ -1882,19 +2068,25 @@ fn render_preset_loader(
                             .color(OFF_WHITE),
                     )
                     .show_ui(ui, |ui| {
-                        for (index, preset) in state.factory_presets.iter().enumerate() {
+                        for index in 0..count {
+                            if index == factory_count {
+                                // User presets follow the factory bank.
+                                ui.separator();
+                                ui.label(
+                                    egui::RichText::new("USER")
+                                        .size(width_pct(scale, 0.0069444445))
+                                        .color(MUTED_GREY),
+                                );
+                            }
                             if ui
                                 .selectable_label(
                                     index == state.selected_factory_preset,
-                                    egui::RichText::new(&preset.name)
+                                    egui::RichText::new(state.preset_name(index))
                                         .size(width_pct(scale, 0.012962963)),
                                 )
                                 .clicked()
                             {
-                                state.selected_factory_preset = index;
-                                if let Ok(loaded) = Preset::from_json_str(preset.json) {
-                                    apply_preset(params, setter, &loaded);
-                                }
+                                load = Some(index);
                             }
                         }
                     });
@@ -1908,180 +2100,138 @@ fn render_preset_loader(
                     )
                     .clicked()
                 {
-                    state.selected_factory_preset =
-                        (state.selected_factory_preset + 1) % state.factory_presets.len();
-                    let entry = state.factory_presets[state.selected_factory_preset].clone();
-                    if let Ok(preset) = Preset::from_json_str(entry.json) {
+                    load = Some((state.selected_factory_preset + 1) % count);
+                }
+
+                if let Some(index) = load {
+                    state.selected_factory_preset = index;
+                    if let Some(preset) = state.preset(index) {
                         apply_preset(params, setter, &preset);
                     }
                 }
             });
             ui.horizontal(|ui| {
-                let save_button = egui::Button::new(
-                    egui::RichText::new("Save").size(width_pct(scale, 0.011111112)),
+                let text_size = width_pct(scale, 0.011111112);
+                if state.confirm_overwrite {
+                    ui.label(
+                        egui::RichText::new(format!("Replace \"{}\"?", state.save_name.trim()))
+                            .size(text_size)
+                            .color(SAFETY_YELLOW),
+                    );
+                    if ui
+                        .button(egui::RichText::new("Replace").size(text_size))
+                        .clicked()
+                    {
+                        state.save(params, true);
+                    }
+                    if ui
+                        .button(egui::RichText::new("Cancel").size(text_size))
+                        .clicked()
+                    {
+                        state.confirm_overwrite = false;
+                    }
+                } else {
+                    let field_width = (ui.available_width() - width_pct(scale, 0.05)).max(0.0);
+                    ui.add_sized(
+                        egui::vec2(field_width, height_pct(scale, 0.0234375)),
+                        egui::TextEdit::singleline(&mut state.save_name).hint_text("Preset name"),
+                    );
+                    let save = egui::Button::new(egui::RichText::new("Save").size(text_size));
+                    let can_save = !state.save_name.trim().is_empty();
+                    if ui.add_enabled(can_save, save).clicked() {
+                        state.save(params, false);
+                    }
+                }
+            });
+            let notice = match (&state.save_message, state.unreadable_user_presets) {
+                (Some((message, is_error)), _) => Some((message.clone(), *is_error)),
+                (None, 0) => None,
+                (None, n) => Some((format!("{n} user preset file(s) couldn't be read"), true)),
+            };
+            if let Some((message, is_error)) = notice {
+                ui.label(
+                    egui::RichText::new(message)
+                        .size(width_pct(scale, 0.0069444445))
+                        .color(if is_error { DANGER_RED } else { MUTED_GREY }),
                 );
-                let _ = ui.add_enabled(false, save_button);
+            }
+            ui.horizontal(|ui| {
+                use crate::randomizer::RandomizerMode;
+                let text_size = width_pct(scale, 0.011111112);
+                egui::ComboBox::from_id_salt("randomizer-mode")
+                    .selected_text(
+                        egui::RichText::new(state.randomizer_mode.name()).size(text_size),
+                    )
+                    .show_ui(ui, |ui| {
+                        for mode in [
+                            RandomizerMode::Safe,
+                            RandomizerMode::Object,
+                            RandomizerMode::Damage,
+                            RandomizerMode::Full,
+                        ] {
+                            ui.selectable_value(
+                                &mut state.randomizer_mode,
+                                mode,
+                                egui::RichText::new(mode.name()).size(text_size),
+                            );
+                        }
+                    });
+                if ui
+                    .button(egui::RichText::new("Randomize").size(text_size))
+                    .clicked()
+                {
+                    let patch = crate::randomizer::randomize(
+                        state.randomizer_mode,
+                        &mut state.randomizer_noise,
+                    );
+                    for (param, value) in randomizer_assignments(params, &patch) {
+                        setter.begin_set_parameter(param);
+                        setter.set_parameter(param, value);
+                        setter.end_set_parameter(param);
+                    }
+                }
             });
         });
     });
 }
 
+/// The parameters a randomized patch sets, and their values: only these
+/// seven change (`h05-expose-missing-gui-controls`).
+fn randomizer_assignments<'a>(
+    params: &'a CorrosionParams,
+    patch: &crate::randomizer::RandomizedParams,
+) -> [(&'a FloatParam, f32); 7] {
+    [
+        (&params.size, patch.size),
+        (&params.rust, patch.rust),
+        (&params.damage, patch.damage),
+        (&params.drive, patch.drive),
+        (&params.width, patch.width),
+        (&params.body, patch.body),
+        (&params.output, patch.output),
+    ]
+}
+
+/// Load `preset` into the plugin: every parameter except the editor-only
+/// ones (`PRESET_SKIPPED_PARAMS`), each as one begin/set/end gesture so the
+/// host records it. Driven by the parameter map, so no parameter can be
+/// missed (`h04-load-every-preset-field-in-gui`).
 fn apply_preset(params: &CorrosionParams, setter: &ParamSetter, preset: &Preset) {
-    let loaded = preset.clone().into_params();
-
-    macro_rules! set_float {
-        ($field:ident) => {
-            setter.set_parameter(&params.$field, loaded.$field.value());
-        };
+    let values: std::collections::HashMap<String, f32> =
+        preset.parameter_values(params).into_iter().collect();
+    for (id, ptr, _) in params.param_map() {
+        if let Some(&normalized) = values.get(&id) {
+            // SAFETY: `ptr` comes from the plugin's own parameter map, which
+            // outlives the editor.
+            unsafe {
+                setter.raw_context.raw_begin_set_parameter(ptr);
+                setter
+                    .raw_context
+                    .raw_set_parameter_normalized(ptr, normalized);
+                setter.raw_context.raw_end_set_parameter(ptr);
+            }
+        }
     }
-
-    macro_rules! set_int {
-        ($field:ident) => {
-            setter.set_parameter(&params.$field, loaded.$field.value());
-        };
-    }
-
-    set_int!(object);
-    set_int!(exciter);
-    set_int!(quality_mode);
-    set_int!(ui_scale);
-    set_int!(loop_mode);
-    set_int!(loop_start_stage);
-    set_int!(loop_end_stage);
-    set_int!(space_mode);
-
-    set_float!(size);
-    set_float!(rust);
-    set_float!(damage);
-    set_float!(drive);
-    set_float!(output);
-    set_float!(width);
-    set_float!(body);
-    set_float!(env_attack);
-    set_float!(env_decay);
-    set_float!(env_sustain);
-    set_float!(env_release);
-    set_float!(mseg_onset);
-    set_float!(mseg_attack);
-    set_float!(mseg_hold);
-    set_float!(mseg_decay);
-    set_float!(mseg_sustain);
-    set_float!(mseg_release);
-    set_float!(env_amount);
-    set_float!(velocity_to_peak);
-    set_float!(sync_rate);
-    set_float!(global_time_scale);
-    set_float!(velocity_to_level);
-    set_float!(velocity_to_time);
-    set_float!(curve_tension);
-    set_float!(exciter_pressure);
-    set_float!(exciter_speed);
-    set_float!(exciter_roughness);
-    set_float!(hand_mass);
-    set_float!(flesh_stiffness);
-    set_float!(flesh_damping);
-    set_float!(mute_decay);
-    set_float!(mallet_mass);
-    set_float!(felt_softness);
-    set_float!(core_hardness);
-    set_float!(compression_curve);
-    set_float!(material_stiffness);
-    set_float!(impact_damping);
-    set_float!(stick_mass);
-    set_float!(tip_stiffness);
-    set_float!(restitution_bounciness);
-    set_float!(micro_bounce_limit);
-    set_float!(wire_density);
-    set_float!(spread_duration);
-    set_float!(brush_wire_stiffness);
-    set_float!(amplitude_randomization);
-    set_float!(pipe_mass);
-    set_float!(metal_stiffness);
-    set_float!(pipe_pitch);
-    set_float!(pipe_ring_decay);
-    set_float!(link_count);
-    set_float!(chain_mass);
-    set_float!(drop_envelope_spread);
-    set_float!(internal_rattle);
-    set_float!(rattle_color);
-    set_float!(bow_pressure);
-    set_float!(bow_speed);
-    set_float!(rosin_grip);
-    set_float!(slip_curve);
-    set_float!(scrape_speed);
-    set_float!(point_pressure);
-    set_float!(chatter_pitch);
-    set_float!(chatter_damping);
-    set_float!(grind_speed);
-    set_float!(grind_pressure);
-    set_float!(surface_grit);
-    set_float!(grit_color);
-    set_float!(drag_speed);
-    set_float!(ridge_spacing);
-    set_float!(ridge_depth);
-    set_float!(drag_exciter_mass);
-    set_float!(pull_speed);
-    set_float!(break_threshold);
-    set_float!(slip_stochasticity);
-    set_float!(creak_sharpness);
-    set_float!(air_pressure);
-    set_float!(nozzle_width);
-    set_float!(turbulence_chaos);
-    set_float!(mains_frequency);
-    set_float!(coil_proximity);
-    set_float!(voltage_sag);
-    set_float!(pull_distance);
-    set_float!(hook_stiffness);
-    set_float!(snap_force);
-    set_float!(flow_rate);
-    set_float!(particle_mass);
-    set_float!(mass_variance);
-    set_float!(strike_position);
-    set_float!(coupling_stiffness);
-    set_float!(position_wander);
-    set_float!(position_envelope);
-    set_float!(fundamental_anchor);
-    set_float!(res_damping);
-    set_float!(res_brightness);
-    set_float!(thickness);
-    set_float!(heat);
-    set_float!(sludge);
-    set_float!(pipe_diameter);
-    set_float!(plate_aspect);
-    set_float!(plate_stiffness);
-    set_float!(tank_volume);
-    set_float!(tank_cavity_mix);
-    set_float!(chain_link_mass);
-    set_float!(chain_instability);
-    set_float!(beam_shear);
-    set_float!(cable_braid);
-    set_float!(cable_tension_drop);
-    set_float!(spring_dispersion);
-    set_float!(spring_slosh);
-    set_float!(sheet_thinness);
-    set_float!(cog_dissonance);
-    set_float!(filter_cutoff);
-    set_float!(filter_resonance);
-    set_float!(component_tolerance);
-    set_float!(drive_amount);
-    set_float!(bias_starvation);
-    set_float!(chaos_depth);
-    set_float!(spread_width);
-    set_float!(listener_proximity);
-    set_float!(chassis_material);
-    set_float!(chassis_volume);
-    set_float!(space_amount);
-    set_float!(factory_size);
-    set_float!(machinery_clutter);
-    set_float!(wall_impedance);
-    set_float!(spring_tension);
-    set_float!(wire_stiffness);
-    set_float!(spring_tank_size);
-    set_float!(delay_time);
-    set_float!(machinery_movement);
-    set_float!(high_frequency_damping);
-    set_float!(analog_ceiling);
-    set_float!(diode_softness);
 }
 
 fn load_factory_presets() -> Vec<FactoryPresetEntry> {
@@ -2614,9 +2764,23 @@ fn render_resonator_column(
             });
         }
 
+        // Brightness tilts every object's mode gains, so it sits with the
+        // object's own controls rather than in one object's panel
+        // (`h05-expose-missing-gui-controls`).
+        industrial_fader(
+            ui,
+            "Brightness",
+            &params.res_brightness,
+            0.0,
+            1.0,
+            setter,
+            OFF_WHITE,
+            scale,
+        );
+
         ui.add_space(height_pct(scale, 0.0052083335));
 
-        // Environmental Exposure (rust/damage/heat/sludge)
+        // Environmental Exposure (rust/damage/heat/sludge/thickness)
         let recessed = recessed_panel(scale);
         recessed.show(ui, |ui| {
             section_heading(ui, "Environmental Exposure", DANGER_RED, scale);
@@ -2658,6 +2822,16 @@ fn render_resonator_column(
                 1.0,
                 setter,
                 SAFETY_YELLOW,
+                scale,
+            );
+            industrial_fader(
+                ui,
+                "Thickness",
+                &params.thickness,
+                0.0,
+                1.0,
+                setter,
+                MUTED_GREY,
                 scale,
             );
         });
@@ -2991,6 +3165,19 @@ fn render_processing_column(
                     );
                 }
                 3 => {
+                    // Sync names its division, or "Off" while Delay Time
+                    // runs free (`h03-default-tempo-sync-off`).
+                    industrial_fader_text(
+                        ui,
+                        "Sync",
+                        &params.sync_rate,
+                        0.0,
+                        1.0,
+                        setter,
+                        OFF_WHITE,
+                        scale,
+                        true,
+                    );
                     industrial_fader(
                         ui,
                         "Delay Time",
@@ -3085,6 +3272,47 @@ fn render_processing_column(
                 OFF_WHITE,
                 scale,
             );
+        });
+    });
+}
+
+/// The four macros, each a global bias across a cluster of destinations
+/// (neutral at 0.5), in one strip above the footer
+/// (`h05-expose-missing-gui-controls`).
+fn render_macro_strip(
+    ui: &mut egui::Ui,
+    params: &CorrosionParams,
+    setter: &ParamSetter,
+    scale: f32,
+) {
+    let macros: [(&str, &FloatParam); 4] = [
+        ("MASS", &params.macro_mass),
+        ("CORROSION", &params.macro_corrosion),
+        ("VIOLENCE", &params.macro_violence),
+        ("BRIGHTNESS", &params.macro_brightness),
+    ];
+    recessed_panel(scale).show(ui, |ui| {
+        section_heading(ui, "Macros", SAFETY_YELLOW, scale);
+        let knob_width = width_pct(scale, 0.053703703);
+        let gap = ((ui.available_width() - knob_width * macros.len() as f32)
+            / (macros.len() + 1) as f32)
+            .max(0.0);
+        ui.horizontal(|ui| {
+            ui.add_space(gap);
+            for (label, param) in macros {
+                industrial_knob(
+                    ui,
+                    label,
+                    param,
+                    0.0,
+                    1.0,
+                    setter,
+                    SAFETY_YELLOW,
+                    scale,
+                    false,
+                );
+                ui.add_space(gap);
+            }
         });
     });
 }
@@ -3364,6 +3592,231 @@ fn resonator_param_ref(params: &CorrosionParams, id: ResonatorControlId) -> &Flo
 
 #[cfg(test)]
 mod tests {
+    /// A host stand-in for headless editor renders: it accepts every
+    /// parameter gesture and does nothing with it.
+    struct NullGui;
+
+    impl nih_plug::prelude::GuiContext for NullGui {
+        fn plugin_api(&self) -> nih_plug::prelude::PluginApi {
+            nih_plug::prelude::PluginApi::Clap
+        }
+        fn request_resize(&self) -> bool {
+            false
+        }
+        unsafe fn raw_begin_set_parameter(&self, _param: nih_plug::prelude::ParamPtr) {}
+        unsafe fn raw_set_parameter_normalized(
+            &self,
+            _param: nih_plug::prelude::ParamPtr,
+            _normalized: f32,
+        ) {
+        }
+        unsafe fn raw_end_set_parameter(&self, _param: nih_plug::prelude::ParamPtr) {}
+        fn get_state(&self) -> nih_plug::prelude::PluginState {
+            unimplemented!("not used by headless renders")
+        }
+        fn set_state(&self, _state: nih_plug::prelude::PluginState) {}
+    }
+
+    /// IDs of the parameters the editor draws a widget for, rendering one
+    /// frame of the real editor UI headlessly with `params`.
+    fn drawn_parameter_ids(params: &crate::params::CorrosionParams) -> Vec<String> {
+        use nih_plug::prelude::Params;
+        super::DRAWN_PARAMS.with(|drawn| drawn.borrow_mut().clear());
+        let gui = NullGui;
+        let setter = nih_plug::prelude::ParamSetter::new(&gui);
+        let mut state =
+            super::EditorUiState::new(2, (super::BASE_EDITOR_WIDTH, super::BASE_EDITOR_HEIGHT));
+        let ctx = nih_plug_egui::egui::Context::default();
+        let input = nih_plug_egui::egui::RawInput {
+            screen_rect: Some(nih_plug_egui::egui::Rect::from_min_size(
+                nih_plug_egui::egui::Pos2::ZERO,
+                nih_plug_egui::egui::vec2(super::editor_width(1.0), super::editor_height(1.0)),
+            )),
+            ..Default::default()
+        };
+        let _ = ctx.run(input, |ctx| {
+            nih_plug_egui::egui::CentralPanel::default().show(ctx, |ui| {
+                super::render_ui(ui, params, &setter, &mut state, 1.0);
+            });
+        });
+        let drawn = super::DRAWN_PARAMS.with(|drawn| drawn.borrow().clone());
+        params
+            .param_map()
+            .into_iter()
+            .filter(|(_, ptr, _)| drawn.contains(ptr))
+            .map(|(id, _, _)| id)
+            .collect()
+    }
+
+    /// Every parameter the editor draws for some exciter, object and space
+    /// mode (their panels differ).
+    fn all_drawn_parameter_ids() -> std::collections::BTreeSet<String> {
+        use crate::params::{exciter_param, object_param};
+        let mut ids = std::collections::BTreeSet::new();
+        let mut render = |edit: &dyn Fn(&mut crate::params::CorrosionParams)| {
+            let mut params = crate::params::CorrosionParams::default();
+            edit(&mut params);
+            ids.extend(drawn_parameter_ids(&params));
+        };
+        for exciter in 1..=16 {
+            render(&|p| p.exciter = exciter_param(exciter));
+        }
+        for object in 0..9 {
+            render(&|p| p.object = object_param(object));
+        }
+        for mode in 0..4 {
+            render(&|p| {
+                p.space_mode = nih_plug::prelude::IntParam::new(
+                    "Space Mode",
+                    mode,
+                    nih_plug::prelude::IntRange::Linear { min: 0, max: 3 },
+                )
+            });
+        }
+        ids
+    }
+
+    /// Height of the editor's content for `params` at 100 % scale, from a
+    /// headless render.
+    fn rendered_content_height(params: &crate::params::CorrosionParams) -> f32 {
+        let gui = NullGui;
+        let setter = nih_plug::prelude::ParamSetter::new(&gui);
+        let mut state =
+            super::EditorUiState::new(2, (super::BASE_EDITOR_WIDTH, super::BASE_EDITOR_HEIGHT));
+        let ctx = nih_plug_egui::egui::Context::default();
+        let input = nih_plug_egui::egui::RawInput {
+            screen_rect: Some(nih_plug_egui::egui::Rect::from_min_size(
+                nih_plug_egui::egui::Pos2::ZERO,
+                nih_plug_egui::egui::vec2(super::editor_width(1.0), super::editor_height(1.0)),
+            )),
+            ..Default::default()
+        };
+        let mut height = 0.0;
+        let _ = ctx.run(input, |ctx| {
+            nih_plug_egui::egui::CentralPanel::default().show(ctx, |ui| {
+                super::render_ui(ui, params, &setter, &mut state, 1.0);
+                height = ui.min_rect().height();
+            });
+        });
+        height
+    }
+
+    #[test]
+    #[ignore]
+    fn print_editor_content_height() {
+        use crate::params::{exciter_param, object_param};
+        for exciter in 1..=16 {
+            for object in 0..9 {
+                let params = crate::params::CorrosionParams {
+                    exciter: exciter_param(exciter),
+                    object: object_param(object),
+                    space_mode: nih_plug::prelude::IntParam::new(
+                        "Space Mode",
+                        3,
+                        nih_plug::prelude::IntRange::Linear { min: 0, max: 3 },
+                    ),
+                    ..Default::default()
+                };
+                println!(
+                    "HEIGHT {exciter} {object}: {:.0}",
+                    rendered_content_height(&params)
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn saved_preset_appears_without_reopening() {
+        let dir = std::env::temp_dir().join(format!(
+            "corrosion-editor-save-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let mut state =
+            super::EditorUiState::new(2, (super::BASE_EDITOR_WIDTH, super::BASE_EDITOR_HEIGHT));
+        state.user_preset_dir = Some(dir.clone());
+        state.refresh_user_presets();
+        let factory = state.factory_presets.len();
+        let params = crate::params::CorrosionParams::default();
+
+        state.save_name = "My Grind".to_string();
+        state.save(&params, false);
+        assert_eq!(state.preset_count(), factory + 1);
+        assert_eq!(state.preset_name(factory), "My Grind");
+        assert_eq!(
+            state.selected_factory_preset, factory,
+            "the new preset is selected"
+        );
+        assert_eq!(state.save_message.as_ref().map(|m| m.1), Some(false));
+
+        // Saving the same name asks first, and Cancel keeps one file.
+        state.save(&params, false);
+        assert!(state.confirm_overwrite);
+        assert_eq!(state.preset_count(), factory + 1);
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn randomize_sets_only_its_seven_parameters() {
+        use nih_plug::prelude::{Param, Params};
+        let params = crate::params::CorrosionParams::default();
+        let mut noise = crate::dsp::utils::noise::Noise::new(5);
+        let patch =
+            crate::randomizer::randomize(crate::randomizer::RandomizerMode::Full, &mut noise);
+        let ptrs: Vec<_> = super::randomizer_assignments(&params, &patch)
+            .iter()
+            .map(|(param, _)| param.as_ptr())
+            .collect();
+        let mut ids: Vec<String> = params
+            .param_map()
+            .into_iter()
+            .filter(|(_, ptr, _)| ptrs.contains(ptr))
+            .map(|(id, _, _)| id)
+            .collect();
+        ids.sort();
+        assert_eq!(
+            ids,
+            ["body", "damage", "drive", "output", "rust", "size", "width"]
+        );
+    }
+
+    #[test]
+    fn sync_fader_shows_the_parameter_text() {
+        use crate::params::sync_rate_param;
+        for (value, text) in [(0.0, "Off"), (0.3, "1/8"), (1.0, "2/1")] {
+            let param = sync_rate_param(value);
+            assert_eq!(super::fader_value_text(&param, 0.0, 1.0, true), text);
+        }
+    }
+
+    #[test]
+    fn editor_covers_every_parameter() {
+        // `h05-expose-missing-gui-controls`: every parameter is either drawn
+        // by the editor or listed, with a reason, as host-only.
+        use nih_plug::prelude::Params;
+        let drawn = all_drawn_parameter_ids();
+        let host_only: Vec<&str> = super::HOST_ONLY_PARAMS.iter().map(|(id, _)| *id).collect();
+        let missing: Vec<String> = crate::params::CorrosionParams::default()
+            .param_map()
+            .into_iter()
+            .map(|(id, _, _)| id)
+            .filter(|id| !drawn.contains(id) && !host_only.contains(&id.as_str()))
+            .collect();
+        assert!(
+            missing.is_empty(),
+            "no editor control and not host-only: {missing:?}"
+        );
+        let both: Vec<&str> = host_only
+            .iter()
+            .copied()
+            .filter(|id| drawn.contains(*id))
+            .collect();
+        assert!(both.is_empty(), "drawn but listed as host-only: {both:?}");
+    }
+
     use super::{
         exciter_panel, knob_drag_value, load_factory_presets, persist_editor_size, resonator_panel,
         scaled_editor_size, sizes_match, ui_scale_factor,
