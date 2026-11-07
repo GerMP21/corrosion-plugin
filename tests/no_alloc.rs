@@ -208,7 +208,17 @@ fn live_expression_is_alloc_free() {
             manager.set_channel_pressure(step as f32 / 48.0);
             manager.set_poly_pressure(57, 1.0 - step as f32 / 48.0);
             manager.set_mod_wheel(step as f32 / 48.0);
-            manager.update_live_controls(0.3, 0.7, 0.4, 0.5, 0.2, 0.1, 0.3, SAMPLE_RATE);
+            manager.update_live_controls(
+                0.3,
+                0.7,
+                0.4,
+                0.5,
+                0.2,
+                0.1,
+                0.3,
+                step as f32 / 48.0,
+                SAMPLE_RATE,
+            );
             run(&mut manager, 128);
         }
     });

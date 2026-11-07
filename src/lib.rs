@@ -1019,6 +1019,7 @@ impl Plugin for Corrosion {
             self.params.position_wander.value(),
             self.params.position_envelope.value(),
             self.params.fundamental_anchor.value(),
+            self.params.exciter_pressure.value(),
             sample_rate,
         );
 

@@ -295,6 +295,33 @@ The per-exciter DSP models implement the formulas in
 `docs/detailed-specs/exciter-algorithms.md` (Kelvin–Voigt, Hertzian contact,
 micro-bouncing, Poisson impulse clusters, Stribeck friction, etc.).
 
+### Global exciter controls
+
+Three host parameters act on every exciter on top of its dedicated controls
+(`h06-wire-global-exciter-controls`). Each is neutral at its default, where a
+note renders bit-identically to one that ignores it
+(`default_global_controls_are_bit_identical`).
+
+| Control | Default | Factor | Applies | Acts on |
+|---|---|---|---|---|
+| Pressure | 0.5 | `2^((p − 0.5)·4)`: −12 dB to +12 dB | live, smoothed ~10 ms | every exciter's force, through `Voice::force_scale` |
+| Speed | 0.5 | `2^((s − 0.5)·2)`: ×0.5 to ×2 | note-on | motion speeds: Bow Speed, Scrape/Grind/Drag/Pull Speed, ParticleRain Flow Rate; WireBrush and MetalChain spreads are divided by it |
+| Roughness | 0.3 | `r / 0.3`: ×0 to ×3.33 | note-on | grit and randomness: Bow Rosin Grip, WireBrush Amplitude Randomization, MetalChain Internal Rattle, HeavyGrinding Surface Grit, TensionRise Slip Stochasticity, PneumaticJet Turbulence Chaos, ParticleRain Mass Variance |
+
+- **Pressure** is part of `force_scale`, so contact exciters see it in their
+  prediction and the drive governor still bounds the voice. It reaches held
+  notes through `update_live_controls`.
+- **Speed and Roughness** scale a copy of `VoiceControls` before the
+  per-exciter dispatch (`apply_global_exciter_controls`). Each scaled value is
+  clamped to its host parameter's range. Exciters with no motion or grit
+  parameter are inert to them: HandStrike, FeltMallet, HardMallet, Drumstick
+  and MetalPipe for both;
+  PneumaticJet, ElectromagneticHum and TensionSnap for Speed; StiffPoint,
+  CorrugatedDrag, ElectromagneticHum and TensionSnap for Roughness.
+- `maximum_global_controls_do_not_overdrive_the_voice` plays every exciter on
+  every object at C2/C4/C6, velocity 127, with all three at 1: no pre-clamp
+  sample exceeds 1.0.
+
 ### Drive levels and the drive governor
 
 Each exciter's force is scaled by a drive level (`EXCITER_DRIVE_LEVEL` in

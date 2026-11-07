@@ -18,20 +18,7 @@ use crate::Preset;
 /// editor doesn't draw (`h05-expose-missing-gui-controls`).
 // Read by the coverage test only.
 #[cfg_attr(not(test), allow(dead_code))]
-pub(crate) const HOST_ONLY_PARAMS: &[(&str, &str)] = &[
-    (
-        "exciter_pressure",
-        "no exciter reads it yet; it gets a knob once it is wired (h06)",
-    ),
-    (
-        "exciter_speed",
-        "no exciter reads it yet; it gets a knob once it is wired (h06)",
-    ),
-    (
-        "exciter_roughness",
-        "no exciter reads it yet; it gets a knob once it is wired (h06)",
-    ),
-];
+pub(crate) const HOST_ONLY_PARAMS: &[(&str, &str)] = &[];
 
 #[cfg(test)]
 thread_local! {
@@ -2305,6 +2292,27 @@ fn render_exciter_column(
                 .size(width_pct(scale, 0.0074074073))
                 .color(MUTED_GREY),
         );
+        ui.add_space(height_pct(scale, 0.0052083335));
+
+        // Global Pressure, Speed and Roughness: they act on every exciter
+        // model, so they sit with the selector rather than in a model's panel
+        // (`h06-wire-global-exciter-controls`).
+        let globals: [(&str, &FloatParam); 3] = [
+            ("Pressure", &params.exciter_pressure),
+            ("Speed", &params.exciter_speed),
+            ("Roughness", &params.exciter_roughness),
+        ];
+        let knob_width = width_pct(scale, 0.053703703);
+        let gap = ((ui.available_width() - globals.len() as f32 * knob_width)
+            / (globals.len() + 1) as f32)
+            .max(0.0);
+        ui.horizontal(|ui| {
+            ui.add_space(gap);
+            for (label, param) in globals {
+                industrial_knob(ui, label, param, 0.0, 1.0, setter, OFF_WHITE, scale, true);
+                ui.add_space(gap);
+            }
+        });
         ui.add_space(height_pct(scale, 0.0052083335));
 
         if !panel_spec.controls.is_empty() {

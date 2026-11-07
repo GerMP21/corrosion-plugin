@@ -18,9 +18,11 @@
 //! - **Damage** (damage) - Structural damage introducing rattle and chaos
 //!
 //! ### Exciter Controls
-//! - **Pressure** (exciter_pressure) - Force of excitation
-//! - **Speed** (exciter_speed) - Velocity for friction exciters
-//! - **Roughness** (exciter_roughness) - Surface texture and grit
+//! Global controls that act on every exciter model; each is neutral at its
+//! default.
+//! - **Pressure** (exciter_pressure) - Force trim, −12 to +12 dB (neutral 0.5), live on held notes
+//! - **Speed** (exciter_speed) - Motion-speed multiplier, ×0.5 to ×2 (neutral 0.5), at note-on
+//! - **Roughness** (exciter_roughness) - Grit and randomness multiplier, ×0 to ×3.33 (neutral 0.3), at note-on
 //!
 //! ### Envelope Generators
 //! Standard ADSR for impact/specialty exciters:
@@ -270,19 +272,30 @@ pub struct CorrosionParams {
     #[id = "curve_tension"]
     pub curve_tension: FloatParam,
 
-    // Exciter Controls
-    /// Exciter pressure/force (0.0 to 1.0)
-    /// Overall intensity of excitation
+    // Exciter Controls (global: they act on every exciter model;
+    // `h06-wire-global-exciter-controls`)
+    /// Pressure (0.0 to 1.0, neutral at 0.5): trims every exciter's force by
+    /// `2^((p − 0.5)·4)`, −12 dB at 0 to +12 dB at 1. Live on held notes
+    /// (smoothed over ~10 ms); the drive governor still keeps each voice
+    /// under full scale.
     #[id = "exciter_pressure"]
     pub exciter_pressure: FloatParam,
 
-    /// Exciter speed (0.0 to 1.0)
-    /// Velocity for friction exciters (bow, point, grind, drag)
+    /// Speed (0.0 to 1.0, neutral at 0.5): multiplies each motion speed by
+    /// `2^((s − 0.5)·2)`, ×0.5 to ×2, at note-on: Bow Speed, Scrape, Grind,
+    /// Drag and Pull Speed, and ParticleRain Flow Rate. WireBrush Spread
+    /// Duration and MetalChain Drop Envelope Spread are divided by it.
+    /// Inert on HandStrike, FeltMallet, HardMallet, Drumstick, MetalPipe,
+    /// PneumaticJet, ElectromagneticHum and TensionSnap.
     #[id = "exciter_speed"]
     pub exciter_speed: FloatParam,
 
-    /// Exciter roughness (0.0 to 1.0)
-    /// Surface texture - affects grit, chatter, and friction
+    /// Roughness (0.0 to 1.0, neutral at 0.3): multiplies each grit or
+    /// randomness amount by `r / 0.3`, ×0 to ×3.33, at note-on: Bow Rosin
+    /// Grip, WireBrush Amplitude Randomization, MetalChain Internal Rattle,
+    /// HeavyGrinding Surface Grit, TensionRise Slip Stochasticity,
+    /// PneumaticJet Turbulence Chaos and ParticleRain Mass Variance. Inert on
+    /// the other exciters.
     #[id = "exciter_roughness"]
     pub exciter_roughness: FloatParam,
 
@@ -947,6 +960,86 @@ impl ExciterType {
     }
 }
 
+/// Parse `text` as either a plain parameter value or, when it ends with
+/// `suffix` (or starts with `prefix`), as the displayed factor converted back
+/// by `from_factor`.
+fn parse_factor_text(
+    text: &str,
+    prefix: &[&str],
+    suffix: &str,
+    from_factor: fn(f32) -> f32,
+) -> Option<f32> {
+    let text = text.trim();
+    let lower = text.to_ascii_lowercase();
+    if !suffix.is_empty() && lower.ends_with(&suffix.to_ascii_lowercase()) {
+        let number = text[..text.len() - suffix.len()].trim();
+        return number.parse::<f32>().ok().map(from_factor);
+    }
+    for p in prefix {
+        if let Some(number) = text.strip_prefix(p) {
+            return number.trim().parse::<f32>().ok().map(from_factor);
+        }
+    }
+    text.parse::<f32>().ok()
+}
+
+/// The global Pressure: a trim on every exciter's force, from −12 dB at 0
+/// through 0 dB at its default 0.5 to +12 dB at 1, live on held notes. Its
+/// value is shown in dB; typing "6 dB" or a plain 0–1 value both work
+/// (`h06-wire-global-exciter-controls`).
+pub fn exciter_pressure_param(default: f32) -> FloatParam {
+    FloatParam::new(
+        "Pressure",
+        default,
+        FloatRange::Linear { min: 0.0, max: 1.0 },
+    )
+    .with_value_to_string(Arc::new(|value| {
+        let db = 20.0 * crate::voice::pressure_factor(value).log10();
+        format!("{db:+.1} dB")
+    }))
+    .with_string_to_value(Arc::new(|string| {
+        parse_factor_text(string, &[], "dB", |db| {
+            (0.5 + (db / 20.0) * std::f32::consts::LOG2_10 / 4.0).clamp(0.0, 1.0)
+        })
+    }))
+}
+
+/// The global Speed: a multiplier on every motion speed (and divisor on
+/// every spread), ×0.5 at 0, ×1 at its default 0.5 and ×2 at 1, applied at
+/// note-on. Its value is shown as the multiplier; typing "×1.5", "x1.5" or a
+/// plain 0–1 value all work.
+pub fn exciter_speed_param(default: f32) -> FloatParam {
+    FloatParam::new("Speed", default, FloatRange::Linear { min: 0.0, max: 1.0 })
+        .with_value_to_string(Arc::new(|value| {
+            format!("×{:.2}", crate::voice::speed_factor(value))
+        }))
+        .with_string_to_value(Arc::new(|string| {
+            parse_factor_text(string, &["×", "x", "X"], "", |factor| {
+                (0.5 + factor.max(f32::MIN_POSITIVE).log2() / 2.0).clamp(0.0, 1.0)
+            })
+        }))
+}
+
+/// The global Roughness: a multiplier on every grit and randomness amount,
+/// ×0 at 0, ×1 at its default 0.3 and ×3.33 at 1, applied at note-on. Its
+/// value is shown as the multiplier; typing "×2", "x2" or a plain 0–1 value
+/// all work.
+pub fn exciter_roughness_param(default: f32) -> FloatParam {
+    FloatParam::new(
+        "Roughness",
+        default,
+        FloatRange::Linear { min: 0.0, max: 1.0 },
+    )
+    .with_value_to_string(Arc::new(|value| {
+        format!("×{:.2}", crate::voice::roughness_factor(value))
+    }))
+    .with_string_to_value(Arc::new(|string| {
+        parse_factor_text(string, &["×", "x", "X"], "", |factor| {
+            (factor * 0.3).clamp(0.0, 1.0)
+        })
+    }))
+}
+
 /// The tempo-sync parameter: Off by default, so Delay Time works out of the
 /// box. Its value is shown as "Off" or the division the echo plays, from
 /// `sync_division`, and typing a division name selects the middle of its
@@ -1532,17 +1625,9 @@ impl Default for CorrosionParams {
             ),
 
             // Exciter control defaults
-            exciter_pressure: FloatParam::new(
-                "Pressure",
-                0.5,
-                FloatRange::Linear { min: 0.0, max: 1.0 },
-            ),
-            exciter_speed: FloatParam::new("Speed", 0.5, FloatRange::Linear { min: 0.0, max: 1.0 }),
-            exciter_roughness: FloatParam::new(
-                "Roughness",
-                0.3,
-                FloatRange::Linear { min: 0.0, max: 1.0 },
-            ),
+            exciter_pressure: exciter_pressure_param(0.5),
+            exciter_speed: exciter_speed_param(0.5),
+            exciter_roughness: exciter_roughness_param(0.3),
 
             // Dedicated exciter defaults derived from the previous generic mappings
             hand_mass: display_float_param("Hand Mass", 1.7, 0.4, 3.0),
@@ -1864,5 +1949,50 @@ impl Default for CorrosionParams {
                 FloatRange::Linear { min: 0.0, max: 1.0 },
             ),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{exciter_pressure_param, exciter_roughness_param, exciter_speed_param};
+    use nih_plug::prelude::Param;
+
+    #[test]
+    fn global_exciter_controls_show_their_factor() {
+        let text = |param: &nih_plug::prelude::FloatParam, value: f32| {
+            param.normalized_value_to_string(param.preview_normalized(value), false)
+        };
+        let pressure = exciter_pressure_param(0.5);
+        let speed = exciter_speed_param(0.5);
+        let roughness = exciter_roughness_param(0.3);
+        assert_eq!(text(&pressure, 0.5), "+0.0 dB");
+        assert_eq!(text(&pressure, 1.0), "+12.0 dB");
+        assert_eq!(text(&speed, 0.5), "×1.00");
+        assert_eq!(text(&speed, 1.0), "×2.00");
+        assert_eq!(text(&roughness, 0.3), "×1.00");
+        assert_eq!(text(&roughness, 0.0), "×0.00");
+    }
+
+    #[test]
+    fn global_exciter_controls_parse_what_they_show() {
+        let parse = |param: &nih_plug::prelude::FloatParam, text: &str| {
+            param
+                .string_to_normalized_value(text)
+                .map(|n| param.preview_plain(n))
+        };
+        let close = |got: Option<f32>, want: f32| got.is_some_and(|v| (v - want).abs() < 1e-4);
+        let pressure = exciter_pressure_param(0.5);
+        let speed = exciter_speed_param(0.5);
+        let roughness = exciter_roughness_param(0.3);
+        // ×4 is +12.04 dB, so +12.0 dB lands just below the maximum.
+        assert!(close(parse(&pressure, "+12.0 dB"), 0.998_289));
+        assert!(close(parse(&pressure, "0 dB"), 0.5));
+        assert!(close(parse(&pressure, "0.25"), 0.25));
+        assert!(close(parse(&speed, "×2.00"), 1.0));
+        assert!(close(parse(&speed, "x0.5"), 0.0));
+        assert!(close(parse(&speed, "0.75"), 0.75));
+        assert!(close(parse(&roughness, "×1.00"), 0.3));
+        assert!(close(parse(&roughness, "x2"), 0.6));
+        assert!(close(parse(&roughness, "0.9"), 0.9));
     }
 }

@@ -291,7 +291,14 @@ Diffing widgets (`&params.<field>` occurrences in editor.rs) against `CorrosionP
   (modes, ranges, safety constraints, even a `mode_param()`) but **nothing
   references it** — no GUI button, no parameter. Dead feature.
 
-### H6. Three host-facing exciter params are dead
+### ~~H6. Three host-facing exciter params are dead~~ — FIXED
+> **Status: FIXED** (2026-11-07, branch `claude/zen-dirac-vq38u4`): OpenSpec change [`h06-wire-global-exciter-controls`](openspec/changes/h06-wire-global-exciter-controls/proposal.md).
+> - **Pressure** trims every exciter's force by −12 to +12 dB (neutral at 0.5) inside `Voice::force_scale`, so contact predictions and the drive governor follow it. It is live on held notes, smoothed over ~10 ms.
+> - **Speed** (×0.5 to ×2, neutral 0.5) and **Roughness** (×0 to ×3.33, neutral 0.3) scale each exciter's motion-speed and grit/randomness parameters at note-on, clamped to their host ranges. Exciters with no such parameter are documented as inert.
+> - **Defaults are bit-identical:** `default_global_controls_are_bit_identical` covers all 16 exciters, and the 48 kHz render hashes are unchanged. No factory preset changes.
+> - **Editor:** Pressure, Speed and Roughness knobs sit under the exciter selector, and `HOST_ONLY_PARAMS` is now empty. The values display as dB or ×factor.
+> - **Overdrive:** `maximum_global_controls_do_not_overdrive_the_voice` plays every exciter × object at C2/C4/C6, velocity 127, with all three at 1, and stays under 1.0 pre-clamp.
+
 `exciter_pressure`, `exciter_speed`, `exciter_roughness` (params.rs:258-272) are
 captured into `VoiceControls` (lib.rs:485-487) and then **never read** — no exciter
 consumes them (each uses its dedicated params instead). They're automatable,
