@@ -183,12 +183,24 @@ fn band_fade(frequency_hz: f32, sample_rate: f32) -> f32 {
 /// output before its clamp.
 pub(crate) const OUTPUT_HIGHPASS_POLE: f32 = 0.8;
 
-/// `|H(e^{jω})| = 2a·|sin(ω/2)| / |1 − a·e^{−jω}|` of the voice's high-pass.
-fn highpass_response(omega: f64, sample_rate: u32) -> f32 {
+/// `|H(e^{jω})| = 2a·|sin(ω/2)| / |1 − a·e^{−jω}|` of the voice's high-pass,
+/// from `cos ω` (`|sin(ω/2)| = √((1 − cos ω)/2)`), so a retune that already
+/// has `cos ω` needs no further transcendental
+/// (`h12-skip-redundant-mode-retunes`).
+fn highpass_response(cos_omega: f64, sample_rate: u32) -> f32 {
     let ratio = crate::dsp::utils::rate::ratio(sample_rate.max(1) as f32);
     let a = crate::dsp::utils::rate::decay(OUTPUT_HIGHPASS_POLE, ratio) as f64;
-    let denominator = (1.0 - 2.0 * a * omega.cos() + a * a).max(1e-12).sqrt();
-    (2.0 * a * (0.5 * omega).sin().abs() / denominator) as f32
+    let denominator = (1.0 - 2.0 * a * cos_omega + a * a).max(1e-12).sqrt();
+    let half_sin = (0.5 * (1.0 - cos_omega)).max(0.0).sqrt();
+    (2.0 * a * half_sin / denominator) as f32
+}
+
+/// A mode's pole radius `r = exp(−1/(τ·fs))`, in f64. It depends only on
+/// the decay and the sample rate, so a retune reuses it.
+fn pole_radius(mode: crate::dsp::ModalModeSpec, sample_rate: u32) -> f64 {
+    let fs = sample_rate.max(1) as f64;
+    let decay_seconds = (mode.decay_seconds.max(f32::EPSILON)) as f64;
+    (-1.0 / (decay_seconds * fs)).exp()
 }
 
 /// Coefficients of one mode in coupled (complex one-pole) form:
@@ -225,10 +237,14 @@ struct CoupledCoefficients {
 
 impl CoupledCoefficients {
     fn for_mode(mode: crate::dsp::ModalModeSpec, sample_rate: u32) -> Self {
+        Self::with_radius(mode, sample_rate, pole_radius(mode, sample_rate))
+    }
+
+    /// `for_mode` with the pole radius already known: the frequency-dependent
+    /// terms only. Bit-identical to `for_mode` for the same radius.
+    fn with_radius(mode: crate::dsp::ModalModeSpec, sample_rate: u32, r: f64) -> Self {
         let fs = sample_rate.max(1) as f64;
-        let decay_seconds = (mode.decay_seconds.max(f32::EPSILON)) as f64;
         let omega = std::f64::consts::TAU * mode.frequency_hz as f64 / fs;
-        let r = (-1.0 / (decay_seconds * fs)).exp();
         let rate_ratio = REFERENCE_SAMPLE_RATE as f64 / fs;
         let b0 = mode.gain as f64 * rate_ratio * rate_ratio;
         let (sin, cos) = omega.sin_cos();
@@ -241,7 +257,7 @@ impl CoupledCoefficients {
             gain_im: (scale * sin) as f32,
             fade: band_fade(mode.frequency_hz, fs as f32),
             gain_norm: scale.abs() as f32,
-            highpass_response: highpass_response(omega, sample_rate),
+            highpass_response: highpass_response(cos, sample_rate),
         }
     }
 }
@@ -288,6 +304,17 @@ impl SecondOrderMode {
     pub fn set_frequency(&mut self, frequency_hz: f32, sample_rate: u32) {
         self.spec.frequency_hz = frequency_hz;
         self.coefficients = CoupledCoefficients::for_mode(self.spec, sample_rate);
+        self.cached_sample_rate = Some(sample_rate);
+    }
+
+    /// Retune the mode to `frequency_hz` with its pole radius `radius`
+    /// (`pole_radius` for its current decay at `sample_rate`): like
+    /// `set_frequency`, but only the frequency-dependent terms are
+    /// recomputed (no `exp`). Bit-identical to `set_frequency`
+    /// (`h12-skip-redundant-mode-retunes`). Allocation-free.
+    fn retune(&mut self, frequency_hz: f32, sample_rate: u32, radius: f64) {
+        self.spec.frequency_hz = frequency_hz;
+        self.coefficients = CoupledCoefficients::with_radius(self.spec, sample_rate, radius);
         self.cached_sample_rate = Some(sample_rate);
     }
 
@@ -483,6 +510,19 @@ pub struct ModalResonator {
     /// use; tests turn it off to compare with the full bank
     /// (`h11-prune-unsoundable-modes`).
     pub(crate) prune_enabled: bool,
+    /// The pitch factor (dynamics × bend) the modes' coefficients were last
+    /// built for (`h12-skip-redundant-mode-retunes`).
+    applied_factor: f32,
+    /// Whether `apply_dynamics` may skip a rebuild the factor doesn't need.
+    /// Always on in use; tests turn it off to rebuild every mode every
+    /// sample, the old behaviour.
+    pub(crate) retune_skip_enabled: bool,
+    /// Each mode's pole radius (`pole_radius`), for retunes. Kept off the
+    /// modes so the per-sample loop's data stays small; `MAX_MODES` capacity.
+    mode_radii: Vec<f64>,
+    /// The sample rate `mode_radii` holds, or 0 when a decay has changed
+    /// since (note-on, live damping) and they must be recomputed.
+    radii_rate: u32,
 }
 
 /// A mode at or above this frequency can't reach the audible band at any
@@ -494,6 +534,12 @@ pub const PRUNE_MAX_FREQUENCY_HZ: f32 = BAND_TOP_HZ / 0.25;
 /// A mode whose decay time constant is under this is gone within about five
 /// samples at 48 kHz: a feedthrough tick, not a resonance.
 pub const PRUNE_MIN_DECAY_SECONDS: f32 = 1e-4;
+
+/// How far the pitch factor may move before `apply_dynamics` rebuilds the
+/// modes: just under 0.05 cents (`2^(0.05/1200) − 1 ≈ 2.888e-5`), leaving
+/// room for f32 rounding, so every mode stays within 0.05 cents of its
+/// target (`h12-skip-redundant-mode-retunes`).
+const RETUNE_TOLERANCE: f32 = 2.8e-5;
 
 /// Whether a mode can ever contribute to the sound.
 fn mode_can_sound(spec: &crate::dsp::ModalModeSpec) -> bool {
@@ -602,6 +648,10 @@ impl ModalResonator {
             transformed_specs: Vec::with_capacity(MAX_MODES),
             mode_weights: Vec::with_capacity(MAX_MODES),
             prune_enabled: true,
+            applied_factor: 1.0,
+            retune_skip_enabled: true,
+            mode_radii: Vec::with_capacity(MAX_MODES),
+            radii_rate: 0,
         }
     }
 
@@ -801,6 +851,10 @@ impl ModalResonator {
             transformed_specs: Vec::with_capacity(MAX_MODES),
             mode_weights: Vec::with_capacity(MAX_MODES),
             prune_enabled: true,
+            applied_factor: 1.0,
+            retune_skip_enabled: true,
+            mode_radii: Vec::with_capacity(MAX_MODES),
+            radii_rate: 0,
         }
     }
 
@@ -1028,6 +1082,9 @@ impl ModalResonator {
         self.dyn_amplitude = 0.0;
         self.dyn_lf_displacement = 0.0;
         self.pitch_bend_factor = 1.0;
+        // The fill built every mode at its base frequency, with new decays.
+        self.applied_factor = 1.0;
+        self.radii_rate = 0;
         self.prepared = false;
 
         // Damping/brightness are kept off `base_decay_seconds`/`base_gain` so
@@ -1090,6 +1147,8 @@ impl ModalResonator {
     /// coefficients in place. Allocation-free; intended to be called once per
     /// buffer from the host layer for held-note automation.
     pub fn set_live_resonator_controls(&mut self, damping: f32, brightness: f32, sample_rate: u32) {
+        // Damping changes the decays, so the retune radii must be rebuilt.
+        self.radii_rate = 0;
         let mode_count = self.modes.len();
         if mode_count == 0 {
             return;
@@ -1252,25 +1311,51 @@ impl ModalResonator {
         self.ring.bound
     }
 
-    /// Apply the object's per-sample dynamic pitch behavior, recomputing the
-    /// affected mode coefficients from their immutable base frequency. Layers
-    /// the current `pitch_bend_factor` on top so MIDI pitch bend tracks the
-    /// dynamic shift. No-op for static objects without active pitch bend.
-    /// Allocation-free.
-    fn apply_dynamics(&mut self, sample_rate: u32) {
+    /// The pitch factor this sample's `apply_dynamics` aims for: the
+    /// object's dynamic factor times the pitch bend.
+    pub(crate) fn target_pitch_factor(&self) -> f32 {
         let dyn_factor = match &self.dynamics {
             Dynamics::None => 1.0,
             Dynamics::TautCable(inst) => inst.dynamic_pitch_factor(self.dyn_amplitude),
             Dynamics::SheetMetal(inst) => inst.warp_factor(self.dyn_lf_displacement),
         };
-        let factor = dyn_factor * self.pitch_bend_factor;
+        dyn_factor * self.pitch_bend_factor
+    }
+
+    /// Apply the object's per-sample dynamic pitch behavior, recomputing the
+    /// affected mode coefficients from their immutable base frequency. Layers
+    /// the current `pitch_bend_factor` on top so MIDI pitch bend tracks the
+    /// dynamic shift. No-op for static objects without active pitch bend.
+    /// Allocation-free.
+    // Kept out of line: it only runs for bent or dynamic notes, and inlined
+    // into the per-sample path it slowed plain notes by about 25 %
+    // (`h12-skip-redundant-mode-retunes`).
+    #[inline(never)]
+    fn apply_dynamics(&mut self, sample_rate: u32) {
+        let factor = self.target_pitch_factor();
         if !factor.is_finite() {
             return;
         }
-        for mode in &mut self.modes {
-            let base = mode.base_frequency_hz;
-            mode.set_frequency(base * factor, sample_rate);
+        if self.retune_skip_enabled {
+            // A held bend gives the same factor every sample, and a slowly
+            // moving one barely moves: skip until it has moved by more than
+            // `RETUNE_TOLERANCE` (`h12-skip-redundant-mode-retunes`).
+            if (factor / self.applied_factor - 1.0).abs() <= RETUNE_TOLERANCE {
+                return;
+            }
+            self.refresh_radii(sample_rate);
+            for (mode, &radius) in self.modes.iter_mut().zip(&self.mode_radii) {
+                let base = mode.base_frequency_hz;
+                mode.retune(base * factor, sample_rate, radius);
+            }
+        } else {
+            // The reference: rebuild every mode from scratch every sample.
+            for mode in &mut self.modes {
+                let base = mode.base_frequency_hz;
+                mode.set_frequency(base * factor, sample_rate);
+            }
         }
+        self.applied_factor = factor;
     }
 
     #[inline]
@@ -1297,10 +1382,27 @@ impl ModalResonator {
         // rebuild biquads here. For dynamic objects the next sample will pick
         // it up via apply_dynamics — but doing the rebuild once now keeps the
         // response immediate.
-        for mode in &mut self.modes {
+        self.refresh_radii(sample_rate);
+        for (mode, &radius) in self.modes.iter_mut().zip(&self.mode_radii) {
             let base = mode.base_frequency_hz;
-            mode.set_frequency(base * factor, sample_rate);
+            mode.retune(base * factor, sample_rate, radius);
         }
+        self.applied_factor = factor;
+    }
+
+    /// Make `mode_radii` hold every mode's pole radius at `sample_rate`,
+    /// recomputing them only after a decay or rate change. Allocation-free.
+    fn refresh_radii(&mut self, sample_rate: u32) {
+        if self.radii_rate == sample_rate && self.mode_radii.len() == self.modes.len() {
+            return;
+        }
+        self.mode_radii.clear();
+        self.mode_radii.extend(
+            self.modes
+                .iter()
+                .map(|mode| pole_radius(mode.spec, sample_rate)),
+        );
+        self.radii_rate = sample_rate;
     }
 
     /// Current multiplicative pitch-bend factor (1.0 = no bend).
@@ -2217,6 +2319,91 @@ mod tests {
                  C6 smallest size Render: {} of {}",
                 unsoundable(&small).len(),
                 small.modes.len()
+            );
+        }
+    }
+
+    // --- Retune cost (h12-skip-redundant-mode-retunes) ---
+
+    /// A ringing bank's output over one second: struck once, then with
+    /// `bend` held, rebuilding every mode every sample unless `skip`.
+    /// TautCable's tension drop is 0, so only the bend sets its pitch.
+    fn bent_output(profile: ModalProfileId, bend: f32, skip: bool) -> Vec<u32> {
+        let mut bank = ModalResonator::with_algorithm_controls_and_note(
+            profile,
+            crate::dsp::SizeScale::new(1.0),
+            crate::dsp::RustAmount::new(0.0),
+            crate::dsp::DamageAmount::new(0.5),
+            crate::dsp::ThicknessAmount::new(0.0),
+            crate::dsp::HeatAmount::new(0.0),
+            crate::dsp::SludgeAmount::new(0.0),
+            C4,
+            0.5,
+            0.5,
+            CharacterParams {
+                cable_tension_drop: 0.0,
+                ..CharacterParams::default()
+            },
+            2.0,
+        );
+        bank.retune_skip_enabled = skip;
+        bank.set_pitch_bend_factor(bend, 48_000);
+        (0..48_000)
+            .map(|i| {
+                bank.process_sample(if i == 0 { 1.0 } else { 0.0 }, 48_000)
+                    .to_bits()
+            })
+            .collect()
+    }
+
+    #[test]
+    fn held_bend_is_bit_identical_to_rebuilding_every_sample() {
+        // A constant pitch: every static object, and TautCable with its
+        // tension drop at 0. SheetMetal's warp always moves its pitch, so
+        // it's covered by `moving_dynamics_stay_in_tune`'s rule instead.
+        let bend = 2.0f32.powf(2.0 / 12.0);
+        for profile in PROFILES
+            .into_iter()
+            .filter(|&p| p != ModalProfileId::SheetMetal)
+        {
+            assert!(
+                bent_output(profile, bend, true) == bent_output(profile, bend, false),
+                "{profile:?}: a held +2-semitone bend changes the output"
+            );
+        }
+    }
+
+    #[test]
+    fn moving_dynamics_stay_in_tune() {
+        // A struck TautCable: its pitch factor moves with the ring's
+        // amplitude every sample. Every mode must stay within 0.05 cents of
+        // `base × factor` at every sample.
+        let tolerance = (0.05f64 / 1200.0 * std::f64::consts::LN_2) as f32;
+        for profile in [ModalProfileId::TautCable, ModalProfileId::SheetMetal] {
+            let mut bank = prune_bank(profile, C4, 1.0, 2.0, 0.0);
+            let mut moved = 0usize;
+            let mut last = bank.target_pitch_factor();
+            for i in 0..48_000 {
+                let factor = bank.target_pitch_factor();
+                if factor != last {
+                    moved += 1;
+                    last = factor;
+                }
+                bank.process_sample(if i < 48 { 1.0 } else { 0.0 }, 48_000);
+                for (index, mode) in bank.modes.iter().enumerate() {
+                    let target = mode.base_frequency_hz * factor;
+                    let cents_ln = (mode.spec.frequency_hz / target).ln().abs();
+                    assert!(
+                        cents_ln <= tolerance,
+                        "{profile:?} sample {i}, mode {index}: {} Hz vs {target} Hz ({:.4} cents)",
+                        mode.spec.frequency_hz,
+                        cents_ln / std::f32::consts::LN_2 * 1200.0
+                    );
+                }
+            }
+            assert!(
+                moved > 1_000,
+                "{profile:?}: the factor only moved {moved} times"
             );
         }
     }
