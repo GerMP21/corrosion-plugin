@@ -3583,6 +3583,58 @@ mod tests {
     }
 
     #[test]
+    fn zero_position_envelope_leaves_the_position_alone() {
+        // At Position Envelope 0 the envelope offset is exactly 0 on every
+        // sample. The effective position is `clamp(base + offset + wander)`,
+        // and `base + 0.0` is `base` bit for bit, so the position and the
+        // output are what they were before the routing existed
+        // (`h09-route-envelope-to-strike-position`, "Zero is neutral").
+        // Checked for every envelope family, with and without wander, and
+        // after Position Envelope is automated up and back to 0 on a held
+        // note (the offset must be cleared, not left at its last value).
+        for exciter in [1, 2, 13] {
+            for wander in [0.0, 0.3] {
+                let mut voice = Voice::new();
+                voice.note_on_with_controls(
+                    60,
+                    127.0,
+                    ModalProfileId::Pipe,
+                    0,
+                    1.0,
+                    0.0,
+                    0.0,
+                    exciter,
+                    VoiceControls {
+                        strike_position: 0.3,
+                        position_wander: wander,
+                        position_envelope: 0.0,
+                        ..VoiceControls::default()
+                    },
+                );
+                let live = |voice: &mut Voice, amount: f32| {
+                    voice.update_live_controls(
+                        0.5, 0.5, 0.3, 1.0, wander, amount, 0.1, 0.3, 0.5, 48_000,
+                    );
+                };
+                for i in 0..48_000 {
+                    if i == 12_000 {
+                        live(&mut voice, 1.0);
+                        voice.process_sample(48_000);
+                        assert!(voice.resonator.strike_envelope_offset() > 0.0);
+                        live(&mut voice, 0.0);
+                    }
+                    voice.process_sample(48_000);
+                    assert_eq!(
+                        voice.resonator.strike_envelope_offset().to_bits(),
+                        0.0f32.to_bits(),
+                        "exciter {exciter}, wander {wander}, sample {i}"
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
     fn wander_period_follows_wander_rate() {
         // Wander 0.2 around 0.25 at 2 Hz: the wander component (position
         // minus base and envelope offset) crosses zero upward every 0.5 s,

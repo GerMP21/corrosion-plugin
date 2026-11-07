@@ -23,6 +23,7 @@ The Space section's delays are written in raw samples, and its buffers are sized
   - The Factory reverb is no longer metallic at most sizes. The five Factory presets change and get a level pass.
   - Echo reaches its full Delay Time range. Its delay is now rounded to the nearest sample, so Hanging Chain Echo's 0.215 s (10 319.9995 samples in f32) moves from 10 319 to 10 320 samples at 48 kHz: one sample later.
   - Every Space mode now sounds the same at 44.1, 48, 96 and 192 kHz.
+  - A tempo-synced division longer than 0.8 s is halved until it fits, so the echo stays on the beat (1/1 at 120 BPM plays as 1/4) instead of clamping to an off-tempo 0.8 s. Added after `/opsx:verify` flagged the clamp.
 
 ## Capabilities
 

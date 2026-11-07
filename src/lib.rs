@@ -119,9 +119,28 @@ fn sync_rate_to_delay_time(
     };
     let beats = params::SYNC_DIVISIONS[division].0;
     let beat_seconds = 60.0 / tempo;
-    let target_seconds = beats * beat_seconds;
+    let target_seconds = fit_on_the_beat(beats * beat_seconds);
     // Echo maps delay_time 0..1 → (0.02 + t * 0.78) seconds.
     ((target_seconds - 0.02) / 0.78).clamp(0.0, 1.0)
+}
+
+/// The echo's longest delay, in seconds (Delay Time 1).
+const ECHO_MAX_SECONDS: f32 = 0.8;
+
+/// A synced division longer than the echo can hold is halved until it fits,
+/// so the echo stays on the beat (1/1 at 120 BPM plays as 1/4, 0.5 s)
+/// rather than stopping at an off-tempo 0.8 s
+/// (`h10-scale-space-effects-with-sample-rate`).
+fn fit_on_the_beat(seconds: f32) -> f32 {
+    let mut seconds = seconds;
+    // A tempo is at least a few BPM, so a few dozen halvings always suffice.
+    for _ in 0..32 {
+        if seconds <= ECHO_MAX_SECONDS {
+            break;
+        }
+        seconds *= 0.5;
+    }
+    seconds
 }
 
 /// Map the active quality mode to the resonator mode-count multiplier captured
@@ -1756,7 +1775,8 @@ mod tests {
         for (value, text, seconds) in [
             (0.0f32, "Off", None),
             (0.3, "1/8", Some(0.25)),
-            (1.0, "2/1", Some(0.8)),
+            // 2/1 is 4 s at 120 BPM: halved to 0.5 s, on the beat.
+            (1.0, "2/1", Some(0.5)),
         ] {
             assert_eq!(sync_display(params, value), text, "display at {value}");
             let delay = echo_seconds(super::sync_rate_to_delay_time(value, Some(120.0), 0.42));
@@ -1804,14 +1824,51 @@ mod tests {
             match crate::params::sync_division(value) {
                 None => assert!((delay - echo_seconds(0.5)).abs() < 1e-6),
                 Some(i) => {
+                    // Halved until it fits in 0.8 s, so it stays on the beat.
                     let beats = crate::params::SYNC_DIVISIONS[i].0;
+                    let mut expected = beats;
+                    while expected > 0.8 {
+                        expected *= 0.5;
+                    }
                     assert!(
-                        (delay - beats.min(0.8)).abs() < 1e-4,
+                        (delay - expected).abs() < 1e-4,
                         "{value}: {delay} s for {beats} beats"
                     );
                 }
             }
         }
+    }
+
+    #[test]
+    fn long_synced_divisions_stay_on_the_beat() {
+        // At 120 BPM a beat is 0.5 s. Divisions that fit play as written;
+        // longer ones are halved until they fit, landing on 1/4 here.
+        let tempo = Some(120.0);
+        for (division, beats, expected) in [
+            ("1/8", 0.5f32, 0.25f32),
+            ("1/4", 1.0, 0.5),
+            ("1/2", 2.0, 0.5),
+            ("1/1", 4.0, 0.5),
+            ("2/1", 8.0, 0.5),
+        ] {
+            let index = crate::params::SYNC_DIVISIONS
+                .iter()
+                .position(|d| d.1 == division)
+                .unwrap();
+            assert_eq!(crate::params::SYNC_DIVISIONS[index].0, beats);
+            // The middle of the division's band on the Sync control.
+            let bands = crate::params::SYNC_DIVISIONS.len() as f32;
+            let off = crate::params::SYNC_OFF_BELOW;
+            let value = off + (index as f32 + 0.5) / bands * (1.0 - off);
+            let delay = echo_seconds(super::sync_rate_to_delay_time(value, tempo, 0.42));
+            assert!(
+                (delay - expected).abs() < 1e-4,
+                "{division} at 120 BPM: {delay} s, expected {expected} s"
+            );
+        }
+        // At 90 BPM (0.667 s a beat) 1/1 is 2.667 s: halved twice to 0.667 s.
+        let value = super::fit_on_the_beat(4.0 * 60.0 / 90.0);
+        assert!((value - 60.0 / 90.0).abs() < 1e-5, "{value}");
     }
 
     #[test]

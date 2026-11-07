@@ -1091,6 +1091,27 @@ fn industrial_knob(
     scale: f32,
     large: bool,
 ) -> egui::Response {
+    industrial_knob_text(
+        ui, label, param, min, max, setter, accent, scale, large, false,
+    )
+}
+
+/// `industrial_knob`, showing the parameter's own display string (such as
+/// Pressure's "+6.0 dB" or Speed's "×1.41") when `param_text` is set
+/// (`h06-wire-global-exciter-controls`).
+#[allow(clippy::too_many_arguments)]
+fn industrial_knob_text(
+    ui: &mut egui::Ui,
+    label: &str,
+    param: &FloatParam,
+    min: f32,
+    max: f32,
+    setter: &ParamSetter,
+    accent: egui::Color32,
+    scale: f32,
+    large: bool,
+    param_text: bool,
+) -> egui::Response {
     note_drawn(param.as_ptr());
     let radius = if large {
         width_pct(scale, 0.023148149)
@@ -1212,7 +1233,11 @@ fn industrial_knob(
     );
 
     // Value below label
-    let value_text = format_value(display_value, min, max);
+    let value_text = if param_text {
+        param.normalized_value_to_string(param.preview_normalized(display_value), false)
+    } else {
+        format_value(display_value, min, max)
+    };
     painter.text(
         egui::pos2(center.x, label_y + label_height),
         egui::Align2::CENTER_TOP,
@@ -2343,7 +2368,9 @@ fn render_exciter_column(
         ui.horizontal(|ui| {
             ui.add_space(gap);
             for (label, param) in globals {
-                industrial_knob(ui, label, param, 0.0, 1.0, setter, OFF_WHITE, scale, true);
+                industrial_knob_text(
+                    ui, label, param, 0.0, 1.0, setter, OFF_WHITE, scale, true, true,
+                );
                 ui.add_space(gap);
             }
         });

@@ -30,16 +30,18 @@
 1. **Delays in seconds, converted with `fs`.**
    - The comb bases become `[1553, 1657, 1789, 1913] / 48 000` s, and the allpasses 200 and 300 / 48 000 s, so 48 kHz delays are exactly the old values before any clamp.
    - The size scaling (`0.5 + 1.5·size`) is unchanged.
+   - *As built:* each delay is kept as its 48 kHz sample count and scaled by `fs / 48 000` (`space::delay_samples`). That is the same delay in time, and the factor is exactly 1 at 48 kHz, so 48 kHz delays are the old values bit for bit.
 2. **Buffers sized for 192 kHz at construction, as `Box<[f32]>` heap slices.**
    - **Comb:** 1913·2·4 = 15 304 samples, rounded up.
    - **Allpass:** 300·4.
    - **Echo:** `0.8·(1 + max modulation)·192 000` plus a margin.
    - **Spring:** `0.08·1.5·192 000`.
-   - **HRTF:** 1 ms at 192 kHz, rounded to 256.
+   - **HRTF:** 1 ms at 192 kHz, rounded to 256. *As built:* kept as two inline `[f32; 256]` arrays (2 KB) rather than a heap slice, since they are small.
    - Each processor keeps a `capacity` and computes delays with `min(capacity − 1)` only as a guard. The spec scenarios prove the guard is never reached.
    - *Alternative:* resize in `set_sample_rate`. That allocates at a rate change; nih-plug's `initialize` is off the audio thread, but sizing once is simpler and can't regress.
 3. **Echo stays integer-read.** Interpolation is M7. Delays are rounded to whole samples, which is within the spec's one-sample tolerance.
-4. **The Factory presets get a level pass with `preset_levels_table`'s rules.** Un-collapsing the combs changes the tail's density and its 48 kHz decay (the combs that were clamped to 2000 get longer). The rules catch any level outliers; the presets are placeholders, so they don't get a re-voice.
+4. **Synced divisions are folded onto the beat, not clamped** (added after verification). The echo's buffer stays at 0.8 s; a longer synced division is halved until it fits. *Alternative:* a buffer long enough for 2/1 at slow tempos (4 s at 120 BPM, 24 s at 20 BPM) would cost tens of MB per post chain at 192 kHz.
+5. **The Factory presets get a level pass with `preset_levels_table`'s rules.** Un-collapsing the combs changes the tail's density and its 48 kHz decay (the combs that were clamped to 2000 get longer). The rules catch any level outliers; the presets are placeholders, so they don't get a re-voice.
 
 ## Risks / Trade-offs
 

@@ -23,7 +23,7 @@
    - `apply_output_limiter(sample, ceiling)` clamps to `±ceiling`.
    - The process loop passes the same per-buffer `limiter_threshold` the lookahead limiter already uses (`analog_ceiling.clamp(0.1, 1.0)`), so the two modes share one value by construction.
    - *Alternative:* a separate "hard ceiling" parameter. That's more surface for no gain: the comment already states the intent.
-2. **Keep `LIMITER_THRESHOLD`** as the documented default ceiling. Offline tools and the preset level checks call `apply_output_limiter(x, LIMITER_THRESHOLD)`; their presets all store that value, so nothing they measure changes.
+2. **Keep `LIMITER_THRESHOLD`** as the documented default ceiling. The offline WAV writer and the preset level checks clamp at `LIMITER_THRESHOLD`; *as built*, `render_presets` passes each preset's own stored Analog Ceiling, which is closer to the plugin. The factory presets all store 0.9661, so nothing they measure changes.
 
 ## Risks / Trade-offs
 

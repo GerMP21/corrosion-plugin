@@ -473,7 +473,7 @@ mod tests {
 
     // --- Sample-rate independence (h10-scale-space-effects-with-sample-rate) ---
 
-    const RATES: [f32; 4] = [44_100.0, 48_000.0, 96_000.0, 192_000.0];
+    const RATES: [f32; 5] = [44_100.0, 48_000.0, 88_200.0, 96_000.0, 192_000.0];
 
     /// Seconds for the Schroeder energy decay of `output` to fall 30 dB.
     fn t30(output: &[f32], sample_rate: f32) -> f32 {
