@@ -7,11 +7,11 @@ Holding a pitch bend SHALL NOT make a voice cost more than 10 % more CPU than th
 
 #### Scenario: Sixteen bent voices
 - **WHEN** 16 Render-quality voices are processed for 4 096 samples with a held +2-semitone pitch bend, and again with no bend
-- **THEN** the bent run takes at most 1.1 times as long as the unbent run
+- **THEN** the bent run takes at most 1.1 times as long as the unbent run, taken as the median over 5 benchmark runs of the ratio within each run (`scripts/bench_ratios.py`)
 
 #### Scenario: Sixteen dynamic voices
 - **WHEN** 16 TautCable voices with tension drop are processed for 4 096 samples while ringing, and again with tension drop 0
-- **THEN** the dynamic run takes at most 1.5 times as long as the static run
+- **THEN** the dynamic run takes at most 1.5 times as long as the static run, taken as the median over 5 benchmark runs of the ratio within each run (`scripts/bench_ratios.py`)
 
 ### Requirement: Skipping retunes does not change the pitch heard
 Each mode's frequency SHALL stay within 0.05 cents of the frequency its object's dynamics and pitch bend call for at every sample.

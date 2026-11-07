@@ -105,3 +105,16 @@ Earlier runs with the same code gave dynamics/static 1.49×, 1.52× and 1.57×, 
 
 - **The floor for dynamics is about 1.1×, not 1.0×.** With every retune disabled (an experiment, not shipped), dynamics cost 1.10–1.15× static: the two notes sound different, so the exciter and governor do different work.
 - **Bent / plain is about 1.0–1.1×** (from about 5×), and **dynamics / static is about 1.5–1.6×** (from 1.9× after the first pass; the dynamic run went from 45 ms to about 18 ms). Run-to-run noise on this container is ±10–15 % per benchmark, so single ratios land on both sides of the bounds.
+
+### Median of 5 runs (`scripts/bench_ratios.py`)
+
+The spec's ratios are now the median, over 5 runs, of the ratio within each run (each benchmark against its twin under the same machine conditions). First measurement with the code above:
+
+| Run | Bent / plain | Dynamics / static |
+|---|---|---|
+| 1 | 0.936× (17.66 / 18.88 ms) | 1.459× (16.02 / 10.98 ms) |
+| 2 | 1.057× (19.09 / 18.05 ms) | 1.558× (18.38 / 11.80 ms) |
+| 3 | 1.180× (19.40 / 16.43 ms) | 1.720× (17.21 / 10.01 ms) |
+| 4 | 1.063× (19.51 / 18.35 ms) | 1.481× (17.02 / 11.49 ms) |
+| 5 | 1.094× (19.05 / 17.42 ms) | 1.795× (20.03 / 11.16 ms) |
+| **Median** | **1.063× (bound 1.1×): met** | **1.558× (bound 1.5×): not met** |

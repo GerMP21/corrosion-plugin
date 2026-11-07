@@ -9,7 +9,7 @@
 
 - [x] 2.1 Add `applied_factor` and the 0.05-cent skip in `apply_dynamics`, reset by `set_pitch_bend_factor` and note-on. Verify both 1.2 tests pass, along with the dynamics, sheet-sweep and pitch-bend tests.
 - [x] 2.2 Add `SecondOrderMode::retune` (cached radius, angle-dependent terms only) and use it in `apply_dynamics` and `set_pitch_bend_factor`. Verify the golden fixture still matches (note-on is unaffected) and that `tests/no_alloc.rs` passes in debug.
-- [ ] 2.3 Re-run the benchmarks from 1.1. Verify bent ≤ 1.1× plain and dynamics ≤ 1.5× static, and record the numbers.
+- [ ] 2.3 Re-run the benchmarks from 1.1 with `scripts/bench_ratios.py` (median of the within-run ratio over 5 runs). Verify bent ≤ 1.1× plain and dynamics ≤ 1.5× static, and record the numbers.
 
 ## 3. Close-out
 
