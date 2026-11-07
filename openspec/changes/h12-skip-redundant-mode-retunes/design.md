@@ -74,3 +74,34 @@ Same session. Two runs with the shipped variant (the high-pass response computed
 - **Dynamics / static: 1.9×**, above the 1.5× bound. The dynamic run got cheaper (45 → 30 ms), but its static twin got much cheaper still, so the ratio rose. Per voice-sample the dynamics cost about 280 ns over static: roughly one rebuild of every mode every few samples, since the tension drop moves the factor by more than 0.05 cents that often.
 
 **Code layout dominates the plain benchmarks.** Plain notes don't run any of the new code, yet `voice_manager_sixteen_voices_render` measured 17.5–18.3 ms or 22.4–25.5 ms depending only on cold code elsewhere in `core.rs`. The bench scenario's output hash is bit-identical between a fast and a slow build (`0xa3012f403966c099`), so this is code placement, not work. Ratios within one build are still comparable; absolute numbers across builds are not.
+
+### Code-layout noise fixed
+
+The plain-bench swings came from `SecondOrderMode::ensure_rate`, which every mode calls every sample from `process`. Its rebuild branch (`CoupledCoefficients::for_mode`) was inlined into the per-sample loops, so any change to the coefficient code's size moved plain notes by up to 30 % with bit-identical output. The rebuild is now a separate `#[cold] #[inline(never)]` function. Two variants that measured 18 and 24 ms before (high-pass from `acos` vs from `cos`) now both measure 17–18.5 ms.
+
+### Incremental retune (added after the first measurements)
+
+The cache-and-skip alone left dynamics at about 1.9× static, because TautCable's tension drop moves the factor past 0.05 cents on almost every sample (4 040 of 4 096 in the benchmark), so every mode was rebuilt with `sin_cos` almost every sample. As built:
+
+- **`RetuneCache`, one per mode, kept off the modes** (`retune_cache`): pole radius, input gain `b0`, `2π/fs`, the angle and its sine and cosine, `1/ω`, and the angle the ring-bound terms were last computed at. A new bank (note-on) or rate rebuilds it; live damping and brightness refresh only the radius and gain.
+- **Held bend (`set_pitch_bend_factor`): exact.** `retune_exact` reuses the radius and calls `sin_cos`, bit-identical to `for_mode`.
+- **Moving factor (`apply_dynamics`): incremental.**
+  - `retune_incremental` rotates the cached sine and cosine by the angle step with a fifth-order Taylor rotation and updates `1/ω` to second order, with no transcendental call and no division. The angle itself comes exactly from the frequency.
+  - An exact `sin_cos` refresh runs every 256 rotations, or for a step above 1e-3 rad.
+  - Only the pole, input gain and band fade are rewritten. `|g|` and the high-pass response feed only the governor's ring bound, so they are recomputed once the angle has moved about 1 cent since they were last computed. A bound up to 0.06 % stale is far inside the governor's 10 % margin.
+- `moving_dynamics_stay_in_tune` checks every mode's frequency and its actual pole angle (`atan2` of the f32 pole) against `base × factor` at every sample, for TautCable and SheetMetal.
+
+### After (task 2.3)
+
+Three runs in one session, after all of the above.
+
+| Run | plain Render | bent | Bent / plain | cable static | cable dynamics | Dynamics / static |
+|---|---|---|---|---|---|---|
+| 1 | 21.00 ms | 22.52 ms | 1.07× | 11.67 ms | 19.71 ms | 1.69× |
+| 2 | 20.28 ms | 18.94 ms | 0.93× | 11.31 ms | 17.67 ms | 1.56× |
+| 3 | 19.04 ms | 21.12 ms | 1.11× | 12.34 ms | 18.16 ms | 1.47× |
+
+Earlier runs with the same code gave dynamics/static 1.49×, 1.52× and 1.57×, and bent/plain 1.11×, 1.00× and 1.06×.
+
+- **The floor for dynamics is about 1.1×, not 1.0×.** With every retune disabled (an experiment, not shipped), dynamics cost 1.10–1.15× static: the two notes sound different, so the exciter and governor do different work.
+- **Bent / plain is about 1.0–1.1×** (from about 5×), and **dynamics / static is about 1.5–1.6×** (from 1.9× after the first pass; the dynamic run went from 45 ms to about 18 ms). Run-to-run noise on this container is ±10–15 % per benchmark, so single ratios land on both sides of the bounds.

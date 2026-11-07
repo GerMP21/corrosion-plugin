@@ -195,6 +195,59 @@ fn highpass_response(cos_omega: f64, sample_rate: u32) -> f32 {
     (2.0 * a * half_sin / denominator) as f32
 }
 
+/// A mode's angular frequency per sample, `ω = 2π·f / fs`, in f64.
+#[inline]
+fn mode_omega(frequency_hz: f32, sample_rate: u32) -> f64 {
+    std::f64::consts::TAU * frequency_hz as f64 / sample_rate.max(1) as f64
+}
+
+/// What a retune needs about one mode, kept off the modes so the
+/// per-sample loop's data stays small (`h12-skip-redundant-mode-retunes`):
+/// the pole radius, and the angle the coefficients were last built for with
+/// its sine and cosine, so a small retune can rotate them instead of calling
+/// `sin_cos`.
+#[derive(Clone, Copy, Debug, Default)]
+struct RetuneCache {
+    radius: f64,
+    /// The input gain `b0 = gain·(48 000/fs)²`.
+    b0: f64,
+    omega: f64,
+    /// `2π / fs`, so a small retune gets `ω` from the frequency without a
+    /// division.
+    omega_per_hz: f64,
+    /// `1/ω`, updated with the angle so a small retune needs no division.
+    inv_omega: f64,
+    sin: f64,
+    cos: f64,
+    /// Incremental rotations since the last exact `sin_cos`.
+    steps: u32,
+    /// The angle the ring-bound terms (`gain_norm`, `highpass_response`)
+    /// were last computed for.
+    omega_full: f64,
+}
+
+/// Incremental rotations allowed before an exact `sin_cos` refresh. Each
+/// rotation adds about 1e-16 of rounding, so this keeps the drift far below
+/// anything audible while making the refresh's cost negligible.
+const RETUNE_EXACT_EVERY: u32 = 256;
+/// The largest angle step rotated incrementally; a bigger jump (a fast bend)
+/// is recomputed exactly. The fifth-order rotation's error at this step is
+/// about 1e-24.
+const RETUNE_MAX_ROTATION: f64 = 1e-3;
+/// How far (relative) the angle may move before an incremental retune also
+/// recomputes the ring-bound terms, `|g|` and the high-pass response: about
+/// 1 cent. They only feed the drive governor's bound, which keeps a 10 %
+/// margin under full scale, and move by about this fraction, so a bound up
+/// to 0.06 % stale is far inside it.
+const RETUNE_BOUND_REFRESH: f64 = 6e-4;
+
+/// A mode's input gain `b0 = gain·(48 000 / fs)²`, in f64.
+#[inline]
+fn input_gain(mode: crate::dsp::ModalModeSpec, sample_rate: u32) -> f64 {
+    let rate_ratio = REFERENCE_SAMPLE_RATE as f64 / sample_rate.max(1) as f64;
+    mode.gain as f64 * rate_ratio * rate_ratio
+}
+
 /// A mode's pole radius `r = exp(−1/(τ·fs))`, in f64. It depends only on
 /// the decay and the sample rate, so a retune reuses it.
 fn pole_radius(mode: crate::dsp::ModalModeSpec, sample_rate: u32) -> f64 {
@@ -243,11 +296,22 @@ impl CoupledCoefficients {
     /// `for_mode` with the pole radius already known: the frequency-dependent
     /// terms only. Bit-identical to `for_mode` for the same radius.
     fn with_radius(mode: crate::dsp::ModalModeSpec, sample_rate: u32, r: f64) -> Self {
-        let fs = sample_rate.max(1) as f64;
-        let omega = std::f64::consts::TAU * mode.frequency_hz as f64 / fs;
-        let rate_ratio = REFERENCE_SAMPLE_RATE as f64 / fs;
-        let b0 = mode.gain as f64 * rate_ratio * rate_ratio;
+        let omega = mode_omega(mode.frequency_hz, sample_rate);
         let (sin, cos) = omega.sin_cos();
+        Self::with_phasor(mode, sample_rate, r, omega, sin, cos)
+    }
+
+    /// `with_radius` with `sin ω` and `cos ω` already known too.
+    fn with_phasor(
+        mode: crate::dsp::ModalModeSpec,
+        sample_rate: u32,
+        r: f64,
+        omega: f64,
+        sin: f64,
+        cos: f64,
+    ) -> Self {
+        let fs = sample_rate.max(1) as f64;
+        let b0 = input_gain(mode, sample_rate);
         // b0·(sin ω / ω)·(cot ω + i); a 0 Hz mode keeps a finite gain.
         let scale = b0 / omega.max(1e-9);
         Self {
@@ -307,14 +371,86 @@ impl SecondOrderMode {
         self.cached_sample_rate = Some(sample_rate);
     }
 
-    /// Retune the mode to `frequency_hz` with its pole radius `radius`
-    /// (`pole_radius` for its current decay at `sample_rate`): like
-    /// `set_frequency`, but only the frequency-dependent terms are
-    /// recomputed (no `exp`). Bit-identical to `set_frequency`
+    /// Retune the mode to `frequency_hz` exactly, reusing the cached pole
+    /// radius (no `exp`). Bit-identical to `set_frequency`
     /// (`h12-skip-redundant-mode-retunes`). Allocation-free.
-    fn retune(&mut self, frequency_hz: f32, sample_rate: u32, radius: f64) {
+    fn retune_exact(&mut self, frequency_hz: f32, sample_rate: u32, cache: &mut RetuneCache) {
         self.spec.frequency_hz = frequency_hz;
-        self.coefficients = CoupledCoefficients::with_radius(self.spec, sample_rate, radius);
+        let omega = mode_omega(frequency_hz, sample_rate);
+        let (sin, cos) = omega.sin_cos();
+        *cache = RetuneCache {
+            omega,
+            inv_omega: 1.0 / omega.max(1e-9),
+            sin,
+            cos,
+            steps: 0,
+            omega_full: omega,
+            ..*cache
+        };
+        self.coefficients =
+            CoupledCoefficients::with_phasor(self.spec, sample_rate, cache.radius, omega, sin, cos);
+        self.cached_sample_rate = Some(sample_rate);
+    }
+
+    /// Retune the mode to `frequency_hz` for a small, moving pitch change:
+    /// the pole is rotated by the angle step (a fifth-order Taylor rotation,
+    /// no transcendental call) rather than rebuilt with `sin_cos`. The angle
+    /// itself is recomputed exactly from the frequency, so it doesn't drift;
+    /// its sine and cosine are refreshed exactly every `RETUNE_EXACT_EVERY`
+    /// rotations or on a jump above `RETUNE_MAX_ROTATION`. Allocation-free.
+    fn retune_incremental(&mut self, frequency_hz: f32, sample_rate: u32, cache: &mut RetuneCache) {
+        let omega = frequency_hz as f64 * cache.omega_per_hz;
+        let step = omega - cache.omega;
+        if cache.steps >= RETUNE_EXACT_EVERY || step.abs() > RETUNE_MAX_ROTATION {
+            self.retune_exact(frequency_hz, sample_rate, cache);
+            return;
+        }
+        self.spec.frequency_hz = frequency_hz;
+        // Multiplications by the reciprocals: a float division by a constant
+        // isn't turned into one, and this runs for every mode every sample.
+        const SIXTH: f64 = 1.0 / 6.0;
+        const TWENTIETH: f64 = 1.0 / 20.0;
+        const TWENTY_FOURTH: f64 = 1.0 / 24.0;
+        let step2 = step * step;
+        let cos_step = 1.0 - step2 * (0.5 - step2 * TWENTY_FOURTH);
+        let sin_step = step * (1.0 - step2 * SIXTH * (1.0 - step2 * TWENTIETH));
+        let (sin, cos) = (
+            cache.sin * cos_step + cache.cos * sin_step,
+            cache.cos * cos_step - cache.sin * sin_step,
+        );
+        // `1/(ω + Δ) = (1/ω)·(1 − δ + δ²)` with `δ = Δ/ω`, to O(δ³) ≈ 1e-14.
+        let delta = step * cache.inv_omega;
+        let inv_omega = cache.inv_omega * (1.0 - delta * (1.0 - delta));
+        *cache = RetuneCache {
+            omega,
+            inv_omega,
+            sin,
+            cos,
+            steps: cache.steps + 1,
+            ..*cache
+        };
+        if (omega - cache.omega_full).abs() > RETUNE_BOUND_REFRESH * cache.omega_full {
+            cache.omega_full = omega;
+            self.coefficients = CoupledCoefficients::with_phasor(
+                self.spec,
+                sample_rate,
+                cache.radius,
+                omega,
+                sin,
+                cos,
+            );
+        } else {
+            // The pole and the input gain, as `with_phasor` builds them; the
+            // ring-bound terms keep their recent values.
+            let r = cache.radius;
+            let scale = cache.b0 * cache.inv_omega;
+            let c = &mut self.coefficients;
+            c.pole_re = (r * cos) as f32;
+            c.pole_im = (r * sin) as f32;
+            c.gain_re = (scale * cos) as f32;
+            c.gain_im = (scale * sin) as f32;
+            c.fade = band_fade(frequency_hz, sample_rate.max(1) as f32);
+        }
         self.cached_sample_rate = Some(sample_rate);
     }
 
@@ -340,12 +476,24 @@ impl SecondOrderMode {
     }
 
     /// Rebuild the coefficients if they were derived for another rate.
+    ///
+    /// Runs for every mode every sample, so only the comparison is inlined.
+    /// The rebuild is kept out of line: inlined into the per-sample loops,
+    /// its size (which changes with any edit to the coefficient code) moved
+    /// plain notes by up to 30 % with bit-identical output
+    /// (`h12-skip-redundant-mode-retunes`).
     #[inline]
     fn ensure_rate(&mut self, sample_rate: u32) {
         if self.cached_sample_rate != Some(sample_rate) {
-            self.coefficients = CoupledCoefficients::for_mode(self.spec, sample_rate);
-            self.cached_sample_rate = Some(sample_rate);
+            self.rebuild_for_rate(sample_rate);
         }
+    }
+
+    #[cold]
+    #[inline(never)]
+    fn rebuild_for_rate(&mut self, sample_rate: u32) {
+        self.coefficients = CoupledCoefficients::for_mode(self.spec, sample_rate);
+        self.cached_sample_rate = Some(sample_rate);
     }
 
     /// Process one excitation sample through the resonator.
@@ -517,12 +665,15 @@ pub struct ModalResonator {
     /// Always on in use; tests turn it off to rebuild every mode every
     /// sample, the old behaviour.
     pub(crate) retune_skip_enabled: bool,
-    /// Each mode's pole radius (`pole_radius`), for retunes. Kept off the
-    /// modes so the per-sample loop's data stays small; `MAX_MODES` capacity.
-    mode_radii: Vec<f64>,
-    /// The sample rate `mode_radii` holds, or 0 when a decay has changed
-    /// since (note-on, live damping) and they must be recomputed.
-    radii_rate: u32,
+    /// Each mode's `RetuneCache`, in mode order; `MAX_MODES` capacity.
+    retune_cache: Vec<RetuneCache>,
+    /// The sample rate `retune_cache` was built for, or 0 when it must be
+    /// rebuilt (a new bank at note-on).
+    retune_cache_rate: u32,
+    /// Whether the decays and gains changed since the cache was built (live
+    /// damping and brightness), so its radii and input gains must be
+    /// recomputed; the angles are still valid.
+    retune_radii_stale: bool,
 }
 
 /// A mode at or above this frequency can't reach the audible band at any
@@ -650,8 +801,9 @@ impl ModalResonator {
             prune_enabled: true,
             applied_factor: 1.0,
             retune_skip_enabled: true,
-            mode_radii: Vec::with_capacity(MAX_MODES),
-            radii_rate: 0,
+            retune_cache: Vec::with_capacity(MAX_MODES),
+            retune_cache_rate: 0,
+            retune_radii_stale: false,
         }
     }
 
@@ -853,8 +1005,9 @@ impl ModalResonator {
             prune_enabled: true,
             applied_factor: 1.0,
             retune_skip_enabled: true,
-            mode_radii: Vec::with_capacity(MAX_MODES),
-            radii_rate: 0,
+            retune_cache: Vec::with_capacity(MAX_MODES),
+            retune_cache_rate: 0,
+            retune_radii_stale: false,
         }
     }
 
@@ -1084,7 +1237,7 @@ impl ModalResonator {
         self.pitch_bend_factor = 1.0;
         // The fill built every mode at its base frequency, with new decays.
         self.applied_factor = 1.0;
-        self.radii_rate = 0;
+        self.retune_cache_rate = 0;
         self.prepared = false;
 
         // Damping/brightness are kept off `base_decay_seconds`/`base_gain` so
@@ -1148,7 +1301,7 @@ impl ModalResonator {
     /// buffer from the host layer for held-note automation.
     pub fn set_live_resonator_controls(&mut self, damping: f32, brightness: f32, sample_rate: u32) {
         // Damping changes the decays, so the retune radii must be rebuilt.
-        self.radii_rate = 0;
+        self.retune_radii_stale = true;
         let mode_count = self.modes.len();
         if mode_count == 0 {
             return;
@@ -1343,10 +1496,10 @@ impl ModalResonator {
             if (factor / self.applied_factor - 1.0).abs() <= RETUNE_TOLERANCE {
                 return;
             }
-            self.refresh_radii(sample_rate);
-            for (mode, &radius) in self.modes.iter_mut().zip(&self.mode_radii) {
+            self.refresh_retune_cache(sample_rate);
+            for (mode, cache) in self.modes.iter_mut().zip(&mut self.retune_cache) {
                 let base = mode.base_frequency_hz;
-                mode.retune(base * factor, sample_rate, radius);
+                mode.retune_incremental(base * factor, sample_rate, cache);
             }
         } else {
             // The reference: rebuild every mode from scratch every sample.
@@ -1382,27 +1535,45 @@ impl ModalResonator {
         // rebuild biquads here. For dynamic objects the next sample will pick
         // it up via apply_dynamics — but doing the rebuild once now keeps the
         // response immediate.
-        self.refresh_radii(sample_rate);
-        for (mode, &radius) in self.modes.iter_mut().zip(&self.mode_radii) {
+        self.refresh_retune_cache(sample_rate);
+        for (mode, cache) in self.modes.iter_mut().zip(&mut self.retune_cache) {
             let base = mode.base_frequency_hz;
-            mode.retune(base * factor, sample_rate, radius);
+            mode.retune_exact(base * factor, sample_rate, cache);
         }
         self.applied_factor = factor;
     }
 
-    /// Make `mode_radii` hold every mode's pole radius at `sample_rate`,
-    /// recomputing them only after a decay or rate change. Allocation-free.
-    fn refresh_radii(&mut self, sample_rate: u32) {
-        if self.radii_rate == sample_rate && self.mode_radii.len() == self.modes.len() {
-            return;
+    /// Make `retune_cache` describe every mode at `sample_rate`: rebuilt in
+    /// full for a new bank or rate (radius, angle, sine and cosine of each
+    /// mode's current frequency), or just its radii after live damping.
+    /// Allocation-free.
+    fn refresh_retune_cache(&mut self, sample_rate: u32) {
+        if self.retune_cache_rate != sample_rate || self.retune_cache.len() != self.modes.len() {
+            self.retune_cache.clear();
+            self.retune_cache.extend(self.modes.iter().map(|mode| {
+                let omega = mode_omega(mode.spec.frequency_hz, sample_rate);
+                let (sin, cos) = omega.sin_cos();
+                RetuneCache {
+                    radius: pole_radius(mode.spec, sample_rate),
+                    b0: input_gain(mode.spec, sample_rate),
+                    omega_per_hz: std::f64::consts::TAU / sample_rate.max(1) as f64,
+                    omega,
+                    inv_omega: 1.0 / omega.max(1e-9),
+                    sin,
+                    cos,
+                    steps: 0,
+                    omega_full: omega,
+                }
+            }));
+            self.retune_cache_rate = sample_rate;
+            self.retune_radii_stale = false;
+        } else if self.retune_radii_stale {
+            for (mode, cache) in self.modes.iter().zip(&mut self.retune_cache) {
+                cache.radius = pole_radius(mode.spec, sample_rate);
+                cache.b0 = input_gain(mode.spec, sample_rate);
+            }
+            self.retune_radii_stale = false;
         }
-        self.mode_radii.clear();
-        self.mode_radii.extend(
-            self.modes
-                .iter()
-                .map(|mode| pole_radius(mode.spec, sample_rate)),
-        );
-        self.radii_rate = sample_rate;
     }
 
     /// Current multiplicative pitch-bend factor (1.0 = no bend).
@@ -2399,6 +2570,21 @@ mod tests {
                         mode.spec.frequency_hz,
                         cents_ln / std::f32::consts::LN_2 * 1200.0
                     );
+                    // The pole the mode actually rings at, which a small
+                    // retune rotates rather than rebuilds, must be in tune
+                    // too.
+                    let c = mode.coefficients;
+                    let angle = (c.pole_im as f64).atan2(c.pole_re as f64);
+                    let expected = std::f64::consts::TAU * target as f64 / 48_000.0;
+                    if expected < std::f64::consts::PI {
+                        let pole_ln = (angle / expected).ln().abs() as f32;
+                        assert!(
+                            pole_ln <= tolerance,
+                            "{profile:?} sample {i}, mode {index}: pole angle {angle} vs \
+                             {expected} ({:.4} cents)",
+                            pole_ln / std::f32::consts::LN_2 * 1200.0
+                        );
+                    }
                 }
             }
             assert!(
