@@ -475,6 +475,39 @@ pub struct ModalResonator {
     /// Note-on scratch for the rust/thickness/heat/sludge/damage-transformed
     /// specs, also kept at `MAX_MODES` capacity.
     transformed_specs: Vec<crate::dsp::ModalModeSpec>,
+    /// Each mode's brightness weight (0 for the first mode of the unpruned
+    /// bank, 1 for the last), kept from before the prune so dropping modes
+    /// doesn't re-tilt the ones that stay. `MAX_MODES` capacity.
+    mode_weights: Vec<f32>,
+    /// Whether note-on drops the modes that can never sound. Always on in
+    /// use; tests turn it off to compare with the full bank
+    /// (`h11-prune-unsoundable-modes`).
+    pub(crate) prune_enabled: bool,
+}
+
+/// A mode at or above this frequency can't reach the audible band at any
+/// pitch a note can be tuned to: `BAND_TOP_HZ` at the lowest per-note
+/// tuning (×0.25, −24 semitones). Object dynamics only raise pitch. Fixed in
+/// hertz, so the bank is the same at every sample rate
+/// (`h11-prune-unsoundable-modes`).
+pub const PRUNE_MAX_FREQUENCY_HZ: f32 = BAND_TOP_HZ / 0.25;
+/// A mode whose decay time constant is under this is gone within about five
+/// samples at 48 kHz: a feedthrough tick, not a resonance.
+pub const PRUNE_MIN_DECAY_SECONDS: f32 = 1e-4;
+
+/// Whether a mode can ever contribute to the sound.
+fn mode_can_sound(spec: &crate::dsp::ModalModeSpec) -> bool {
+    spec.frequency_hz < PRUNE_MAX_FREQUENCY_HZ && spec.decay_seconds >= PRUNE_MIN_DECAY_SECONDS
+}
+
+/// Brightness weight of mode `index` of `count`: 0 for the first, 1 for the
+/// last.
+fn brightness_weight(index: usize, count: usize) -> f32 {
+    if count <= 1 {
+        0.0
+    } else {
+        index as f32 / (count - 1) as f32
+    }
 }
 
 /// Strike-level estimate of the default patch's bank (Pipe, C4, default
@@ -567,6 +600,8 @@ impl ModalResonator {
             ring: RingTracking::default(),
             raw_specs: Vec::with_capacity(MAX_MODES),
             transformed_specs: Vec::with_capacity(MAX_MODES),
+            mode_weights: Vec::with_capacity(MAX_MODES),
+            prune_enabled: true,
         }
     }
 
@@ -764,6 +799,8 @@ impl ModalResonator {
             ring: RingTracking::default(),
             raw_specs: Vec::with_capacity(MAX_MODES),
             transformed_specs: Vec::with_capacity(MAX_MODES),
+            mode_weights: Vec::with_capacity(MAX_MODES),
+            prune_enabled: true,
         }
     }
 
@@ -951,6 +988,23 @@ impl ModalResonator {
             },
             &mut self.transformed_specs,
         );
+        // Drop the modes that can never sound, in place, keeping each kept
+        // mode's brightness weight from the full bank
+        // (`h11-prune-unsoundable-modes`). Allocation-free: both buffers
+        // keep `MAX_MODES` capacity.
+        let full_count = self.transformed_specs.len();
+        self.mode_weights.clear();
+        let mut kept = 0;
+        for index in 0..full_count {
+            let spec = self.transformed_specs[index];
+            if self.prune_enabled && !mode_can_sound(&spec) {
+                continue;
+            }
+            self.transformed_specs[kept] = spec;
+            self.mode_weights.push(brightness_weight(index, full_count));
+            kept += 1;
+        }
+        self.transformed_specs.truncate(kept);
         self.modes.clear();
         self.modes.extend(
             self.transformed_specs
@@ -1041,10 +1095,12 @@ impl ModalResonator {
             return;
         }
         for (index, mode) in self.modes.iter_mut().enumerate() {
-            let mode_weight = if mode_count <= 1 {
-                0.0
+            // Note-on banks carry their weights from before the prune; a
+            // bank built another way weights by position.
+            let mode_weight = if self.mode_weights.len() == mode_count {
+                self.mode_weights[index]
             } else {
-                index as f32 / (mode_count - 1) as f32
+                brightness_weight(index, mode_count)
             };
             mode.set_damping_brightness(damping, brightness, mode_weight, sample_rate);
         }
@@ -1641,6 +1697,10 @@ mod tests {
     /// Re-captured again for `resolve-exciter-tradeoffs`: the note-on level
     /// estimate uses the modes' true `b0/ω` amplitude and the top-of-band
     /// fade, so the normalized gains moved slightly.
+    /// Re-captured for `h11-prune-unsoundable-modes`: note-on drops modes at
+    /// or above 80 kHz or with a decay under 0.1 ms. Only the three Pipe
+    /// Render cases lose modes (24 → 18, 24 → 18, 12 → 9); the other 105
+    /// cases are unchanged.
     #[test]
     fn mode_banks_match_golden_fixture() {
         let current = current_fingerprints();
@@ -2015,5 +2075,149 @@ mod tests {
             largest <= 2.0 * early,
             "largest step {largest:.4e} vs {early:.4e} in the first 10 ms"
         );
+    }
+
+    // --- Unsoundable modes (h11-prune-unsoundable-modes) ---
+
+    /// The spec's limits: the top of the audible band at the lowest pitch a
+    /// note can be tuned to (20 kHz / 0.25), and a 0.1 ms decay.
+    const SPEC_MAX_HZ: f32 = 80_000.0;
+    const SPEC_MIN_DECAY_S: f32 = 1e-4;
+
+    fn prune_bank(
+        profile: ModalProfileId,
+        note_hz: f32,
+        size: f32,
+        scale: f32,
+        damage: f32,
+    ) -> ModalResonator {
+        ModalResonator::with_algorithm_controls_and_note(
+            profile,
+            crate::dsp::SizeScale::new(size),
+            crate::dsp::RustAmount::new(0.0),
+            crate::dsp::DamageAmount::new(damage),
+            crate::dsp::ThicknessAmount::new(0.0),
+            crate::dsp::HeatAmount::new(0.0),
+            crate::dsp::SludgeAmount::new(0.0),
+            note_hz,
+            0.5,
+            0.5,
+            CharacterParams::default(),
+            scale,
+        )
+    }
+
+    /// The bank's modes that break the spec's limits, as (index, Hz, decay).
+    fn unsoundable(bank: &ModalResonator) -> Vec<(usize, f32, f32)> {
+        bank.modes
+            .iter()
+            .enumerate()
+            .filter(|(_, m)| {
+                m.spec.frequency_hz >= SPEC_MAX_HZ || m.spec.decay_seconds < SPEC_MIN_DECAY_S
+            })
+            .map(|(i, m)| (i, m.spec.frequency_hz, m.spec.decay_seconds))
+            .collect()
+    }
+
+    #[test]
+    fn small_high_pipe_has_only_soundable_modes() {
+        let bank = prune_bank(ModalProfileId::Pipe, C6, 0.05, 2.0, 0.0);
+        let bad = unsoundable(&bank);
+        assert!(
+            bad.is_empty(),
+            "Pipe C6, smallest size, Render: {} of {} modes can't sound, e.g. {:?}",
+            bad.len(),
+            bank.modes.len(),
+            &bad[..bad.len().min(3)]
+        );
+    }
+
+    #[test]
+    fn every_bank_has_only_soundable_modes() {
+        let mut failures = Vec::new();
+        for profile in PROFILES {
+            for (name, hz) in [("C2", C2), ("C4", C4), ("C6", C6)] {
+                for scale in QUALITY_SCALES {
+                    for damage in [0.0, 1.0] {
+                        let bank = prune_bank(profile, hz, 1.0, scale, damage);
+                        let bad = unsoundable(&bank).len();
+                        if bad > 0 {
+                            failures.push(format!(
+                                "{profile:?} {name} scale {scale} damage {damage}: {bad} of {}",
+                                bank.modes.len()
+                            ));
+                        }
+                    }
+                }
+            }
+        }
+        assert!(
+            failures.is_empty(),
+            "banks with unsoundable modes:\n{}",
+            failures.join("\n")
+        );
+    }
+
+    #[test]
+    fn retuning_down_keeps_the_bank() {
+        for profile in PROFILES {
+            let mut bank = prune_bank(profile, C4, 1.0, 2.0, 0.0);
+            let before: Vec<u32> = bank
+                .modes
+                .iter()
+                .map(|m| m.base_frequency_hz.to_bits())
+                .collect();
+            bank.set_pitch_bend_factor(0.25, 48_000);
+            let after: Vec<u32> = bank
+                .modes
+                .iter()
+                .map(|m| m.base_frequency_hz.to_bits())
+                .collect();
+            assert_eq!(before, after, "{profile:?}: the bank changed on a retune");
+            for mode in &bank.modes {
+                let expected = mode.base_frequency_hz * 0.25;
+                assert!(
+                    (mode.spec.frequency_hz - expected).abs() <= expected * 1e-6,
+                    "{profile:?}: {} Hz, expected {expected} Hz",
+                    mode.spec.frequency_hz
+                );
+            }
+        }
+    }
+
+    /// Prints how many modes each object's bank holds that can never sound,
+    /// over C2/C4/C6 at every quality and damage 0 and 1.
+    #[test]
+    #[ignore]
+    fn print_unsoundable_mode_counts() {
+        for profile in PROFILES {
+            let (mut bad, mut total) = (0usize, 0usize);
+            let mut worst = String::new();
+            let mut worst_bad = 0usize;
+            for (name, hz) in [("C2", C2), ("C4", C4), ("C6", C6)] {
+                for scale in QUALITY_SCALES {
+                    for damage in [0.0, 1.0] {
+                        let bank = prune_bank(profile, hz, 1.0, scale, damage);
+                        let n = unsoundable(&bank).len();
+                        bad += n;
+                        total += bank.modes.len();
+                        if n > worst_bad {
+                            worst_bad = n;
+                            worst = format!(
+                                "{name} scale {scale} damage {damage}: {n} of {}",
+                                bank.modes.len()
+                            );
+                        }
+                    }
+                }
+            }
+            let small = prune_bank(profile, C6, 0.05, 2.0, 0.0);
+            println!(
+                "UNSOUNDABLE {profile:?}: {bad} of {total} modes over the sweep; worst {worst}; \
+                 C6 smallest size Render: {} of {}",
+                unsoundable(&small).len(),
+                small.modes.len()
+            );
+        }
     }
 }

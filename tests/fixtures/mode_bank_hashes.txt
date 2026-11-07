@@ -7,9 +7,9 @@ Pipe scale=1 damage=1 modes=12 0x942cfcbbd00afd08
 Pipe scale=1.5 damage=0 modes=9 0xd81e4cdcabe8eeb5
 Pipe scale=1.5 damage=0.5 modes=18 0x6fb71d9c95970bea
 Pipe scale=1.5 damage=1 modes=18 0x7de9b52ec7dd996a
-Pipe scale=2 damage=0 modes=12 0x4822183b4093280c
-Pipe scale=2 damage=0.5 modes=24 0x547e00dc326493df
-Pipe scale=2 damage=1 modes=24 0x24382d055661d8a6
+Pipe scale=2 damage=0 modes=9 0x6fbb4a111e63ad69
+Pipe scale=2 damage=0.5 modes=18 0xaf4afa0351053901
+Pipe scale=2 damage=1 modes=18 0x770547b10a571fbb
 Plate scale=0.5 damage=0 modes=4 0x15a02df700762ad8
 Plate scale=0.5 damage=0.5 modes=8 0xcc50a39d159cf3ab
 Plate scale=0.5 damage=1 modes=8 0x05343b1c8c11d310
