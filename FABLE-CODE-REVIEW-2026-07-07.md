@@ -359,7 +359,12 @@ With `position_wander = 0`, `position_envelope` does nothing.
 - `HrtfSpread` delay buffer is 64 samples but "1 ms max" needs 96 at 96 kHz
   (silently clamped via `.min(63)`).
 
-### H11. Modal banks generate modes above Nyquist and with negative decay formulas
+### ~~H11. Modal banks generate modes above Nyquist and with negative decay formulas~~ — FIXED
+> **Status: FIXED** (2026-11-07, branch `claude/zen-dirac-vq38u4`): OpenSpec change [`h11-prune-unsoundable-modes`](openspec/changes/h11-prune-unsoundable-modes/proposal.md).
+> - **Aliasing half:** already fixed by `resolve-exciter-tradeoffs`, whose top-of-band fade silences every mode at or above `min(20 kHz, 0.45·fs)`, so out-of-band modes no longer alias.
+> - **Wasted modes:** note-on now drops every mode at or above 80 kHz (the band top at the lowest reachable pitch) or with a decay under 0.1 ms (the rescued negative-decay modes), so they no longer cost a mode update every sample or feed the one-sample direct path. Kept modes keep their brightness weights, and a bent note keeps its whole bank.
+> - **Tests:** the small high Pipe at Render, a sweep over every object, quality and damage, a 24-semitone retune, and a pruned-vs-full level comparison (largest change +0.003 dB). The golden fixture changes only for the three Pipe Render cases that lose modes. Render is no slower; at normal sizes only Pipe and SheetMetal lose modes, so the CPU saving is modest outside small sizes.
+
 `src/dsp/resonators/basic.rs`, `sheet_metal.rs`, etc.:
 - No frequency clamp anywhere: Pipe (`n·f1·√(1+Bn²)`), Plate (`k·(m²+n²)`),
   SheetMetal (`base·n²`) routinely produce modes far above fs/2 for normal notes.

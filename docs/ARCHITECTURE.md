@@ -233,6 +233,25 @@ from the mode's current frequency, so a mode retuned across it fades instead
 of switching on or off. (It replaced a hard cut at the top, which clicked on
 retune and hid the contact runaway that implicit contact now fixes.)
 
+**Unsoundable modes are pruned.** At note-on, after the material transforms
+and before the bank is filled, every mode that can never sound is dropped
+(`h11-prune-unsoundable-modes`):
+- its frequency is at or above `PRUNE_MAX_FREQUENCY_HZ` = 80 kHz, the band top
+  (20 kHz) at the lowest pitch a note can be tuned to (×0.25). Object dynamics
+  only raise pitch, so such a mode can't reach the band during the note. The
+  limit is in hertz, so the bank is the same at every sample rate;
+- or its decay time constant is under `PRUNE_MIN_DECAY_SECONDS` = 0.1 ms (gone
+  in about five samples at 48 kHz). The generators' negative decay formulas
+  (Pipe's `1.5 − 0.15·n`, Plate's `0.4 − 0.02·(m + n)`) land here after their
+  `max(ε)` rescue.
+
+The prune compacts the preallocated spec buffer in place (no allocation), and
+each kept mode keeps its brightness weight from the full bank, so dropping
+modes doesn't re-tilt the ones that stay. A pitch bend never rebuilds the bank,
+so a bent note keeps every mode it started with. At normal sizes only Pipe and
+SheetMetal lose modes; small sizes push the other objects' upper modes past
+80 kHz too.
+
 **Bank normalization.** At note-on, after the material transforms, every bank
 is scaled to one strike level (`STRIKE_LEVEL_REF`, the default Pipe C4
 patch's), whatever the object, pitch, quality mode, damage or character
