@@ -117,7 +117,14 @@ src/
                       post_chain (PostProcessingChain + PostQualityMode)
     utils/            budget (mode-count estimates), body, deterministic_excitation
   gui/
-    editor.rs         egui editor: knobs/faders, UI scale (50–150%), quality selector
+    editor.rs         egui editor: knobs/faders, UI scale (50–150%), quality,
+                      play and limiter mode selectors, a macro strip (Mass,
+                      Corrosion, Violence, Brightness), resonator Brightness,
+                      Thickness, and Sync (shows "Off" or its division).
+                      `editor_covers_every_parameter` renders the editor
+                      headlessly for every exciter, object and space mode, and
+                      fails if a parameter has no control and isn't on
+                      `HOST_ONLY_PARAMS` (with its reason).
   presets/
     mod.rs            Preset save/load + sanitization (out of scope for this review)
   offline/

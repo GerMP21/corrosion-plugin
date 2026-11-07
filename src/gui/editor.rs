@@ -13,6 +13,40 @@ static FACTORY_PRESETS_DIR: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/presets/
 use crate::params::{exciter_model_items, CorrosionParams, ExciterFamily, ExciterType, Object};
 use crate::Preset;
 
+/// Parameters deliberately left without an editor control, each with the
+/// reason. `editor_covers_every_parameter` fails for any other parameter the
+/// editor doesn't draw (`h05-expose-missing-gui-controls`).
+pub(crate) const HOST_ONLY_PARAMS: &[(&str, &str)] = &[
+    (
+        "exciter_pressure",
+        "no exciter reads it yet; it gets a knob once it is wired (h06)",
+    ),
+    (
+        "exciter_speed",
+        "no exciter reads it yet; it gets a knob once it is wired (h06)",
+    ),
+    (
+        "exciter_roughness",
+        "no exciter reads it yet; it gets a knob once it is wired (h06)",
+    ),
+];
+
+#[cfg(test)]
+thread_local! {
+    /// Parameters drawn by an editor widget since the last clear (tests only).
+    static DRAWN_PARAMS: std::cell::RefCell<std::collections::HashSet<ParamPtr>> =
+        std::cell::RefCell::new(std::collections::HashSet::new());
+}
+
+/// Records that a widget drew `param` (tests only; a no-op otherwise).
+#[inline]
+fn note_drawn(_param: ParamPtr) {
+    #[cfg(test)]
+    DRAWN_PARAMS.with(|drawn| {
+        drawn.borrow_mut().insert(_param);
+    });
+}
+
 // ---------------------------------------------------------------------------
 // Design tokens – industrial / brutalist palette from the evidence HTML
 // ---------------------------------------------------------------------------
@@ -977,6 +1011,7 @@ fn industrial_knob(
     scale: f32,
     large: bool,
 ) -> egui::Response {
+    note_drawn(param.as_ptr());
     let radius = if large {
         width_pct(scale, 0.023148149)
     } else {
@@ -1131,6 +1166,35 @@ fn industrial_fader(
     accent: egui::Color32,
     scale: f32,
 ) -> egui::Response {
+    industrial_fader_text(ui, label, param, min, max, setter, accent, scale, false)
+}
+
+/// The text a fader shows for `param`: its own display string (for
+/// parameters whose values have names, such as Sync's "Off" or "1/8"), or the
+/// plain number.
+fn fader_value_text(param: &FloatParam, min: f32, max: f32, param_text: bool) -> String {
+    if param_text {
+        param.normalized_value_to_string(param.unmodulated_normalized_value(), false)
+    } else {
+        format_value(param.value(), min, max)
+    }
+}
+
+/// `industrial_fader`, showing the parameter's own display string when
+/// `param_text` is set (`h05-expose-missing-gui-controls`).
+#[allow(clippy::too_many_arguments)]
+fn industrial_fader_text(
+    ui: &mut egui::Ui,
+    label: &str,
+    param: &FloatParam,
+    min: f32,
+    max: f32,
+    setter: &ParamSetter,
+    accent: egui::Color32,
+    scale: f32,
+    param_text: bool,
+) -> egui::Response {
+    note_drawn(param.as_ptr());
     let track_height = height_pct(scale, 0.0078125);
     let thumb_width = width_pct(scale, 0.014814815);
     let thumb_height = height_pct(scale, 0.026041667);
@@ -1194,7 +1258,7 @@ fn industrial_fader(
     let cy = rect.center().y;
 
     // Value display (left)
-    let value_text = format_value(value, min, max);
+    let value_text = fader_value_text(param, min, max, param_text);
     painter.text(
         egui::pos2(rect.min.x + value_width * 0.5, cy),
         egui::Align2::CENTER_CENTER,
@@ -1263,6 +1327,7 @@ fn industrial_vfader(
     accent: egui::Color32,
     scale: f32,
 ) -> egui::Response {
+    note_drawn(param.as_ptr());
     let track_width = width_pct(scale, 0.024074074);
     let track_height = height_pct(scale, 0.15625);
     let thumb_width = width_pct(scale, 0.027777778);
@@ -1410,6 +1475,7 @@ fn industrial_combo(
     _accent: egui::Color32,
     scale: f32,
 ) {
+    note_drawn(param.as_ptr());
     let current = param.value();
     let selected = items
         .iter()
@@ -1569,6 +1635,8 @@ fn render_ui(
     });
     ui.spacing_mut().item_spacing.x = original_item_spacing_x;
 
+    render_macro_strip(ui, params, setter, scale);
+
     // Footer
     render_footer(ui, scale);
 }
@@ -1679,6 +1747,39 @@ fn render_header(
                         );
                     },
                 );
+                // Play and limiter modes (`h05-expose-missing-gui-controls`).
+                ui.allocate_ui_with_layout(
+                    egui::vec2(combo_width, ui.available_height()),
+                    egui::Layout::top_down(egui::Align::LEFT),
+                    |ui| {
+                        industrial_combo(
+                            ui,
+                            "play-mode-header",
+                            "PLAY",
+                            &params.play_mode,
+                            &[(0, "Tonal"), (1, "Kit"), (2, "Drone")],
+                            setter,
+                            SAFETY_YELLOW,
+                            scale,
+                        );
+                    },
+                );
+                ui.allocate_ui_with_layout(
+                    egui::vec2(combo_width, ui.available_height()),
+                    egui::Layout::top_down(egui::Align::LEFT),
+                    |ui| {
+                        industrial_combo(
+                            ui,
+                            "limiter-mode-header",
+                            "LIMITER",
+                            &params.limiter_mode,
+                            &[(0, "Hard"), (1, "Lookahead")],
+                            setter,
+                            DANGER_RED,
+                            scale,
+                        );
+                    },
+                );
                 vfader_global(
                     ui,
                     "OUTPUT",
@@ -1729,6 +1830,7 @@ fn vfader_global(
     accent: egui::Color32,
     scale: f32,
 ) {
+    note_drawn(param.as_ptr());
     let track_width = width_pct(scale, 0.009259259);
     let track_height = height_pct(scale, 0.046875);
     let desired = egui::vec2(
@@ -2478,9 +2580,23 @@ fn render_resonator_column(
             });
         }
 
+        // Brightness tilts every object's mode gains, so it sits with the
+        // object's own controls rather than in one object's panel
+        // (`h05-expose-missing-gui-controls`).
+        industrial_fader(
+            ui,
+            "Brightness",
+            &params.res_brightness,
+            0.0,
+            1.0,
+            setter,
+            OFF_WHITE,
+            scale,
+        );
+
         ui.add_space(height_pct(scale, 0.0052083335));
 
-        // Environmental Exposure (rust/damage/heat/sludge)
+        // Environmental Exposure (rust/damage/heat/sludge/thickness)
         let recessed = recessed_panel(scale);
         recessed.show(ui, |ui| {
             section_heading(ui, "Environmental Exposure", DANGER_RED, scale);
@@ -2522,6 +2638,16 @@ fn render_resonator_column(
                 1.0,
                 setter,
                 SAFETY_YELLOW,
+                scale,
+            );
+            industrial_fader(
+                ui,
+                "Thickness",
+                &params.thickness,
+                0.0,
+                1.0,
+                setter,
+                MUTED_GREY,
                 scale,
             );
         });
@@ -2855,6 +2981,19 @@ fn render_processing_column(
                     );
                 }
                 3 => {
+                    // Sync names its division, or "Off" while Delay Time
+                    // runs free (`h03-default-tempo-sync-off`).
+                    industrial_fader_text(
+                        ui,
+                        "Sync",
+                        &params.sync_rate,
+                        0.0,
+                        1.0,
+                        setter,
+                        OFF_WHITE,
+                        scale,
+                        true,
+                    );
                     industrial_fader(
                         ui,
                         "Delay Time",
@@ -2949,6 +3088,47 @@ fn render_processing_column(
                 OFF_WHITE,
                 scale,
             );
+        });
+    });
+}
+
+/// The four macros, each a global bias across a cluster of destinations
+/// (neutral at 0.5), in one strip above the footer
+/// (`h05-expose-missing-gui-controls`).
+fn render_macro_strip(
+    ui: &mut egui::Ui,
+    params: &CorrosionParams,
+    setter: &ParamSetter,
+    scale: f32,
+) {
+    let macros: [(&str, &FloatParam); 4] = [
+        ("MASS", &params.macro_mass),
+        ("CORROSION", &params.macro_corrosion),
+        ("VIOLENCE", &params.macro_violence),
+        ("BRIGHTNESS", &params.macro_brightness),
+    ];
+    recessed_panel(scale).show(ui, |ui| {
+        section_heading(ui, "Macros", SAFETY_YELLOW, scale);
+        let knob_width = width_pct(scale, 0.053703703);
+        let gap = ((ui.available_width() - knob_width * macros.len() as f32)
+            / (macros.len() + 1) as f32)
+            .max(0.0);
+        ui.horizontal(|ui| {
+            ui.add_space(gap);
+            for (label, param) in macros {
+                industrial_knob(
+                    ui,
+                    label,
+                    param,
+                    0.0,
+                    1.0,
+                    setter,
+                    SAFETY_YELLOW,
+                    scale,
+                    false,
+                );
+                ui.add_space(gap);
+            }
         });
     });
 }
@@ -3228,6 +3408,179 @@ fn resonator_param_ref(params: &CorrosionParams, id: ResonatorControlId) -> &Flo
 
 #[cfg(test)]
 mod tests {
+    /// A host stand-in for headless editor renders: it accepts every
+    /// parameter gesture and does nothing with it.
+    struct NullGui;
+
+    impl nih_plug::prelude::GuiContext for NullGui {
+        fn plugin_api(&self) -> nih_plug::prelude::PluginApi {
+            nih_plug::prelude::PluginApi::Clap
+        }
+        fn request_resize(&self) -> bool {
+            false
+        }
+        unsafe fn raw_begin_set_parameter(&self, _param: nih_plug::prelude::ParamPtr) {}
+        unsafe fn raw_set_parameter_normalized(
+            &self,
+            _param: nih_plug::prelude::ParamPtr,
+            _normalized: f32,
+        ) {
+        }
+        unsafe fn raw_end_set_parameter(&self, _param: nih_plug::prelude::ParamPtr) {}
+        fn get_state(&self) -> nih_plug::prelude::PluginState {
+            unimplemented!("not used by headless renders")
+        }
+        fn set_state(&self, _state: nih_plug::prelude::PluginState) {}
+    }
+
+    /// IDs of the parameters the editor draws a widget for, rendering one
+    /// frame of the real editor UI headlessly with `params`.
+    fn drawn_parameter_ids(params: &crate::params::CorrosionParams) -> Vec<String> {
+        use nih_plug::prelude::Params;
+        super::DRAWN_PARAMS.with(|drawn| drawn.borrow_mut().clear());
+        let gui = NullGui;
+        let setter = nih_plug::prelude::ParamSetter::new(&gui);
+        let mut state = super::EditorUiState {
+            last_ui_scale: 2,
+            last_requested_size: (super::BASE_EDITOR_WIDTH, super::BASE_EDITOR_HEIGHT),
+            factory_presets: load_factory_presets(),
+            selected_factory_preset: 0,
+        };
+        let ctx = nih_plug_egui::egui::Context::default();
+        let input = nih_plug_egui::egui::RawInput {
+            screen_rect: Some(nih_plug_egui::egui::Rect::from_min_size(
+                nih_plug_egui::egui::Pos2::ZERO,
+                nih_plug_egui::egui::vec2(super::editor_width(1.0), super::editor_height(1.0)),
+            )),
+            ..Default::default()
+        };
+        let _ = ctx.run(input, |ctx| {
+            nih_plug_egui::egui::CentralPanel::default().show(ctx, |ui| {
+                super::render_ui(ui, params, &setter, &mut state, 1.0);
+            });
+        });
+        let drawn = super::DRAWN_PARAMS.with(|drawn| drawn.borrow().clone());
+        params
+            .param_map()
+            .into_iter()
+            .filter(|(_, ptr, _)| drawn.contains(ptr))
+            .map(|(id, _, _)| id)
+            .collect()
+    }
+
+    /// Every parameter the editor draws for some exciter, object and space
+    /// mode (their panels differ).
+    fn all_drawn_parameter_ids() -> std::collections::BTreeSet<String> {
+        use crate::params::{exciter_param, object_param};
+        let mut ids = std::collections::BTreeSet::new();
+        let mut render = |edit: &dyn Fn(&mut crate::params::CorrosionParams)| {
+            let mut params = crate::params::CorrosionParams::default();
+            edit(&mut params);
+            ids.extend(drawn_parameter_ids(&params));
+        };
+        for exciter in 1..=16 {
+            render(&|p| p.exciter = exciter_param(exciter));
+        }
+        for object in 0..9 {
+            render(&|p| p.object = object_param(object));
+        }
+        for mode in 0..4 {
+            render(&|p| {
+                p.space_mode = nih_plug::prelude::IntParam::new(
+                    "Space Mode",
+                    mode,
+                    nih_plug::prelude::IntRange::Linear { min: 0, max: 3 },
+                )
+            });
+        }
+        ids
+    }
+
+    /// Height of the editor's content for `params` at 100 % scale, from a
+    /// headless render.
+    fn rendered_content_height(params: &crate::params::CorrosionParams) -> f32 {
+        let gui = NullGui;
+        let setter = nih_plug::prelude::ParamSetter::new(&gui);
+        let mut state = super::EditorUiState {
+            last_ui_scale: 2,
+            last_requested_size: (super::BASE_EDITOR_WIDTH, super::BASE_EDITOR_HEIGHT),
+            factory_presets: load_factory_presets(),
+            selected_factory_preset: 0,
+        };
+        let ctx = nih_plug_egui::egui::Context::default();
+        let input = nih_plug_egui::egui::RawInput {
+            screen_rect: Some(nih_plug_egui::egui::Rect::from_min_size(
+                nih_plug_egui::egui::Pos2::ZERO,
+                nih_plug_egui::egui::vec2(super::editor_width(1.0), super::editor_height(1.0)),
+            )),
+            ..Default::default()
+        };
+        let mut height = 0.0;
+        let _ = ctx.run(input, |ctx| {
+            nih_plug_egui::egui::CentralPanel::default().show(ctx, |ui| {
+                super::render_ui(ui, params, &setter, &mut state, 1.0);
+                height = ui.min_rect().height();
+            });
+        });
+        height
+    }
+
+    #[test]
+    #[ignore]
+    fn print_editor_content_height() {
+        use crate::params::{exciter_param, object_param};
+        for exciter in 1..=16 {
+            for object in 0..9 {
+                let mut params = crate::params::CorrosionParams::default();
+                params.exciter = exciter_param(exciter);
+                params.object = object_param(object);
+                params.space_mode = nih_plug::prelude::IntParam::new(
+                    "Space Mode",
+                    3,
+                    nih_plug::prelude::IntRange::Linear { min: 0, max: 3 },
+                );
+                println!(
+                    "HEIGHT {exciter} {object}: {:.0}",
+                    rendered_content_height(&params)
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn sync_fader_shows_the_parameter_text() {
+        use crate::params::sync_rate_param;
+        for (value, text) in [(0.0, "Off"), (0.3, "1/8"), (1.0, "2/1")] {
+            let param = sync_rate_param(value);
+            assert_eq!(super::fader_value_text(&param, 0.0, 1.0, true), text);
+        }
+    }
+
+    #[test]
+    fn editor_covers_every_parameter() {
+        // `h05-expose-missing-gui-controls`: every parameter is either drawn
+        // by the editor or listed, with a reason, as host-only.
+        use nih_plug::prelude::Params;
+        let drawn = all_drawn_parameter_ids();
+        let host_only: Vec<&str> = super::HOST_ONLY_PARAMS.iter().map(|(id, _)| *id).collect();
+        let missing: Vec<String> = crate::params::CorrosionParams::default()
+            .param_map()
+            .into_iter()
+            .map(|(id, _, _)| id)
+            .filter(|id| !drawn.contains(id) && !host_only.contains(&id.as_str()))
+            .collect();
+        assert!(
+            missing.is_empty(),
+            "no editor control and not host-only: {missing:?}"
+        );
+        let both: Vec<&str> = host_only
+            .iter()
+            .copied()
+            .filter(|id| drawn.contains(*id))
+            .collect();
+        assert!(both.is_empty(), "drawn but listed as host-only: {both:?}");
+    }
+
     use super::{
         exciter_panel, knob_drag_value, load_factory_presets, persist_editor_size, resonator_panel,
         scaled_editor_size, sizes_match, ui_scale_factor,

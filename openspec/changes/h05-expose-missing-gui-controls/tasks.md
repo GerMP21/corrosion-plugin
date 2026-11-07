@@ -2,11 +2,14 @@
 
 ## 1. Missing controls
 
-- [ ] 1.1 Add the editor's host-only list constant, and a unit test comparing the editor's widget parameter IDs plus that list with `CorrosionParams::param_map()`. Verify it fails today and names the missing IDs.
-- [ ] 1.2 Add Brightness (Resonator column, by Damping) and Thickness (by Heat and Sludge). Verify they appear in the widget set and that the coverage test's missing list shrinks.
-- [ ] 1.3 Add the Sync control in the Space section, showing H3's "Off" or division text. Verify the displayed text matches the parameter's formatter.
-- [ ] 1.4 Add Play Mode and Limiter Mode combos in the header. Verify that selecting each value sets the parameter, and that a host automation change shows in the combo (manual check in a host or standalone; record which).
-- [ ] 1.5 Add the macro strip with Mass, Corrosion, Violence and Brightness knobs. Verify the coverage test passes. Update `docs/ARCHITECTURE.md`'s GUI section and verify it lists the new controls.
+- [x] 1.1 Add the editor's host-only list constant, and a unit test comparing the editor's widget parameter IDs plus that list with `CorrosionParams::param_map()`. Verify it fails today and names the missing IDs.
+
+  (Done: `editor_covers_every_parameter` renders the real `render_ui` headlessly with egui for every exciter, object and space mode, and records each widget's parameter. Before the new controls it named `play_mode`, `limiter_mode`, `sync_rate`, `res_brightness`, `thickness`, the four macros and `exciter_pressure/speed/roughness`. The last three are on the host-only list until H6 wires them.)
+
+- [x] 1.2 Add Brightness (Resonator column, by Damping) and Thickness (by Heat and Sludge). Verify they appear in the widget set and that the coverage test's missing list shrinks.
+- [x] 1.3 Add the Sync control in the Space section, showing H3's "Off" or division text. Verify the displayed text matches the parameter's formatter.
+- [x] 1.4 Add Play Mode and Limiter Mode combos in the header. Verify that selecting each value sets the parameter, and that a host automation change shows in the combo (manual check in a host or standalone; record which). (Done. No host or display is available in this cloud container, so the selection and automation checks weren't done manually. The combos are the same `industrial_combo` that already drives Quality and Material, and they read `param.value()` every frame.)
+- [x] 1.5 Add the macro strip with Mass, Corrosion, Violence and Brightness knobs. Verify the coverage test passes. Update `docs/ARCHITECTURE.md`'s GUI section and verify it lists the new controls. (Done. `editor_covers_every_parameter` passes. ARCHITECTURE has no GUI section, so the module-map entry for `editor.rs` lists the new controls. The editor scrolls (`ScrollArea`): at 100 % its content was already 920–1088 px tall at HEAD for a 768 px window, and the new controls add about 100–135 px (`print_editor_content_height`).)
 
 ## 2. User presets
 
