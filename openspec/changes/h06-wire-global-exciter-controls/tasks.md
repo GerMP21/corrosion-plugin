@@ -25,4 +25,4 @@
 
 - [x] 4.1 Add Pressure, Speed and Roughness knobs beside the exciter selector (and take them off H5's host-only list if that exists). Verify the editor builds with the GUI feature.
 - [x] 4.2 Update the parameter docs in `src/params.rs` (ranges, neutral points, which exciters each affects) and the exciter section in `docs/ARCHITECTURE.md`. Verify `cargo doc` adds no warnings.
-- [ ] 4.3 Mark H6 FIXED in `FABLE-CODE-REVIEW-2026-07-07.md`. Run fmt, clippy and the full test suite, and verify all are green.
+- [x] 4.3 Mark H6 FIXED in `FABLE-CODE-REVIEW-2026-07-07.md`. Run fmt, clippy and the full test suite, and verify all are green.
