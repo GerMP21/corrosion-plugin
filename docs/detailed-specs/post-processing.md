@@ -69,6 +69,24 @@ thousands of interconnected nodes.
 
 ### `Space Modes`
 
+> **Timing is sample-rate independent** (`h10-scale-space-effects-with-sample-rate`).
+> Every Space delay is tuned as a sample count at 48 kHz and scaled by
+> `sample_rate / 48 000`, so it is exactly the tuned value at 48 kHz and the same
+> time at 44.1, 88.2, 96 and 192 kHz. Buffers are heap slices sized in `new()` for
+> the longest delay at 192 kHz (`space::MAX_SAMPLE_RATE`), so no control position
+> clamps and the audio thread never allocates:
+>
+> | Stage | Delay | Buffer at 192 kHz |
+> |---|---|---|
+> | Factory combs | 1553/1657/1789/1913 samples at 48 kHz × `0.5 + 1.5·size` | 15 312 each |
+> | Factory allpasses | 200 / 300 samples at 48 kHz | 1 208 each |
+> | Spring | 80 ms × `0.5 + tank` | 23 048 per channel |
+> | Echo | `0.02 + 0.78·delay_time` s, ±10 % modulation, rounded to a sample | 168 968 per channel |
+> | HRTF spread (before Space) | up to 1 ms | 256 per channel |
+>
+> About 1.8 MB per post chain. The four combs keep their mutually-prime
+> spacing, so they stay distinct at every size.
+
 ### 5. Factory Reverb
 **Implemented (`space.rs::FactoryReverb`):** A Schroeder-style reverb — 4 comb
 filters + 2 allpass diffusers, with `wall_impedance` setting feedback and

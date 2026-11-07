@@ -341,7 +341,13 @@ Actually (`core.rs:644-649`) it sets the **rate of the wander LFO**
 (`0.1 + position_envelope·4.9` Hz) — there is no envelope→position routing at all.
 With `position_wander = 0`, `position_envelope` does nothing.
 
-### H10. Sample-rate dependence throughout the space section
+### ~~H10. Sample-rate dependence throughout the space section~~ — FIXED
+> **Status: FIXED** (2026-11-07, branch `claude/zen-dirac-vq38u4`): OpenSpec change [`h10-scale-space-effects-with-sample-rate`](openspec/changes/h10-scale-space-effects-with-sample-rate/proposal.md).
+> - **Time-defined delays:** the Factory combs and allpasses, the spring tank, the echo and the HRTF delay are tuned at 48 kHz and scaled by `fs / 48 000`, so 48 kHz delays are the tuned values before any clamp.
+> - **Buffers for 192 kHz,** allocated in `new()` (about 1.8 MB per post chain), so no knob position clamps: the combs stay distinct at every size, Delay Time reaches 0.8 s at every rate, and the spring and HRTF keep their timing.
+> - **Tests:** Factory T30 is 0.616–0.617 s at 44.1/48/96/192 kHz (was 0.610/0.560/0.280/0.140 s); the 0.8 s echo arrives within a sample at every rate; the 96 kHz Delay Time sweep rises from 0.02 to 0.8 s; the spring's tank-1 echo is 0.120 s at 48 and 192 kHz; HRTF's 1 ms holds at 192 kHz.
+> - **Presets:** the five Factory-reverb presets lose the metallic collapsed-comb tail and stay within the bank's level rules with no trim. Hanging Chain Echo's echo comes one sample later (rounded instead of truncated). Numbers in the change's `levels.md`.
+
 - `FactoryReverb` comb delays are in raw samples (1553–1913 base, clamp 100–2000)
   with **no sample-rate scaling** despite `set_sample_rate` claiming to recompute
   them (space.rs:64-78). Room decay/size halves at 96 kHz.
@@ -458,8 +464,9 @@ above the block. Minor, but the doc and tests promise symmetric behavior.
   `Preset::into_params` (presets/mod.rs:555-557 uses a bare `int_param`), and
   `filter_cutoff` loses its formatter. Only affects the (dead) `load_state` path
   and `sanitized()` round-trips, but it's an asymmetry waiting to bite.
-- **M16. `FactoryReverb.diffusion_y` is dead state**; allpass delays are
-  hard-coded 200/300 samples (also not sample-rate scaled).
+- ~~**M16. `FactoryReverb.diffusion_y` is dead state**; allpass delays are
+  hard-coded 200/300 samples (also not sample-rate scaled).~~ — FIXED (H10:
+  `diffusion_y` removed; the allpass delays are sample-rate scaled).
 - **M17. `rattle_noise` "noise"** (`voice/mod.rs:1130-1148`) is
   `sin(φ)·43758.547` fract with φ stepping by the golden ratio — a deterministic
   chirpy pattern, identical in both stereo channels, gated by a threshold that
