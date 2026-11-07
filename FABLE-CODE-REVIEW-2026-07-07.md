@@ -327,7 +327,14 @@ derive). If anything ever did call `load_state`, the `self.params = Arc::new(...
 swap would disconnect the host and GUI (which hold the original Arc from
 `params()`) from the audio thread's parameter set. Delete or rewrite via setters.
 
-### H9. `position_envelope` doesn't do what it says
+### ~~H9. `position_envelope` doesn't do what it says~~ — FIXED
+> **Status: FIXED** (2026-11-07, branch `claude/zen-dirac-vq38u4`): OpenSpec change [`h09-route-envelope-to-strike-position`](openspec/changes/h09-route-envelope-to-strike-position/proposal.md).
+> - **Routing:** the effective strike position is `strike_position + position_envelope · envelope · 0.5` (plus wander), clamped to 0..1, every sample. The voice sets the offset from its force envelope before the resonator prepares the sample (`force_envelope_moves_the_strike_position`: 0.2 → 0.7 on a Bow swell; `position_envelope_is_audible_without_wander`).
+> - **Wander Rate:** a new `position_wander_rate` parameter (0.1–5 Hz, default 0.1, skewed) sets the wander's rate, independent of Position Envelope (`wander_period_follows_wander_rate`). The editor has a Wander Rate fader beside Wander.
+> - **Presets:** a preset without the field loads `0.1 + position_envelope · 4.9` Hz and Position Envelope 0, so it sounds as before (`preset_without_wander_rate_keeps_its_wander`). The 50 factory presets only gained the field at its default.
+> - **Neutral at 0:** at Position Envelope 0 the voice never touches the offset; 32 renders (16 exciters, with and without wander) are bit-identical to before, and the 16-voice benchmarks are within noise (numbers in the change's design).
+> - **BREAKING (host automation):** a session that automated Position Envelope to change the wander rate now moves the strike position instead.
+
 Documented as "How much envelope affects strike position" (params.rs:527-530).
 Actually (`core.rs:644-649`) it sets the **rate of the wander LFO**
 (`0.1 + position_envelope·4.9` Hz) — there is no envelope→position routing at all.
@@ -499,7 +506,7 @@ above the block. Minor, but the doc and tests promise symmetric behavior.
 4. Sustain pedal / CC64, all-sound-off, MPE per-note bend (M12/M13).
 5. ~~GUI exposure of brightness, thickness, sync rate, play mode, limiter mode,
    macros (H5).~~ — FIXED
-6. Envelope→strike-position routing promised by `position_envelope` (H9).
+6. ~~Envelope→strike-position routing promised by `position_envelope` (H9).~~ — FIXED
 7. ~~Post-chain wet/dry or bypass for the body stage; true stereo processing of
    filter/drive (C5).~~ — FIXED
 

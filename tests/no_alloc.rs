@@ -215,6 +215,7 @@ fn live_expression_is_alloc_free() {
                 0.5,
                 0.2,
                 0.1,
+                2.0,
                 0.3,
                 step as f32 / 48.0,
                 SAMPLE_RATE,

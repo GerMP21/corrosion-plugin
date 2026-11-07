@@ -202,6 +202,7 @@ fn voice_controls_from_preset(preset: &Preset) -> VoiceControls {
         coupling_stiffness: extra.coupling_stiffness,
         position_wander: extra.position_wander,
         position_envelope: extra.position_envelope,
+        position_wander_rate: extra.position_wander_rate,
         fundamental_anchor: extra.fundamental_anchor,
         res_damping: extra.res_damping,
         res_brightness: extra.res_brightness,

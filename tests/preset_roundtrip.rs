@@ -316,3 +316,60 @@ fn migration_idempotent_on_current_version() {
     let second = Preset::from_json_str(&re_serialized).unwrap();
     assert_eq!(first, second, "migration must be idempotent on v4 input");
 }
+
+#[test]
+fn preset_without_wander_rate_keeps_its_wander() {
+    // Before `position_wander_rate`, Position Envelope set the wander's rate
+    // (`0.1 + position_envelope · 4.9` Hz). Such a preset loads that rate,
+    // with Position Envelope 0 (`h09-route-envelope-to-strike-position`).
+    let json = r#"
+    {
+        "name": "Old Wander",
+        "version": "4",
+        "object": "Pipe",
+        "exciter": 1,
+        "size": 1.0,
+        "rust": 0.0,
+        "damage": 0.0,
+        "drive": 0.0,
+        "output": 1.0,
+        "width": 0.5,
+        "body": 1.0,
+        "extra": { "position_wander": 0.3, "position_envelope": 0.5 }
+    }
+    "#;
+    let loaded = Preset::from_json_str(json).unwrap();
+    assert!(
+        (loaded.extra.position_wander_rate - 2.55).abs() < 1e-5,
+        "rate {}",
+        loaded.extra.position_wander_rate
+    );
+    assert_eq!(loaded.extra.position_envelope, 0.0);
+    assert_eq!(loaded.extra.position_wander, 0.3);
+    let params = loaded.into_params();
+    assert!((params.position_wander_rate.value() - 2.55).abs() < 1e-5);
+    assert_eq!(params.position_envelope.value(), 0.0);
+}
+
+#[test]
+fn preset_with_wander_rate_keeps_both_fields() {
+    let json = r#"
+    {
+        "name": "New Wander",
+        "version": "4",
+        "object": "Pipe",
+        "exciter": 1,
+        "size": 1.0,
+        "rust": 0.0,
+        "damage": 0.0,
+        "drive": 0.0,
+        "output": 1.0,
+        "width": 0.5,
+        "body": 1.0,
+        "extra": { "position_envelope": 0.5, "position_wander_rate": 1.5 }
+    }
+    "#;
+    let loaded = Preset::from_json_str(json).unwrap();
+    assert_eq!(loaded.extra.position_wander_rate, 1.5);
+    assert_eq!(loaded.extra.position_envelope, 0.5);
+}

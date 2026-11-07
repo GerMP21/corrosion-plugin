@@ -245,8 +245,11 @@ pub struct VoiceControls {
     pub coupling_stiffness: f32,
     /// Randomized movement around the strike position.
     pub position_wander: f32,
-    /// Envelope-driven movement around the strike position.
+    /// How far the note's force envelope moves the strike position:
+    /// `position_envelope · envelope · 0.5` is added to it, every sample.
     pub position_envelope: f32,
+    /// Rate of the position wander, in hertz (0.1–5).
+    pub position_wander_rate: f32,
     /// Pulls the resonator toward its fundamental mode.
     pub fundamental_anchor: f32,
     /// Resonator damping control; higher values shorten decay.
@@ -357,6 +360,7 @@ impl Default for VoiceControls {
             coupling_stiffness: 1.0,
             position_wander: 0.0,
             position_envelope: 0.0,
+            position_wander_rate: 0.1,
             fundamental_anchor: 0.3,
             res_damping: 0.5,
             res_brightness: 0.5,
@@ -542,6 +546,9 @@ pub struct Voice {
     pressure_target: f32,
     /// The smoothed Pressure force factor, following `pressure_target`.
     pressure_gain: f32,
+    /// How far the force envelope moves the strike position (Position
+    /// Envelope, 0..1; `h09-route-envelope-to-strike-position`).
+    position_envelope_amount: f32,
     /// Whether the resonator tracks its ring bound this sample.
     ring_tracking: bool,
     frames_below_threshold: u32,
@@ -734,6 +741,7 @@ impl Voice {
             global_controls_enabled: true,
             pressure_target: 1.0,
             pressure_gain: 1.0,
+            position_envelope_amount: 0.0,
             ring_tracking: false,
             frames_below_threshold: 0,
             start_frame: 0,
@@ -1073,10 +1081,11 @@ impl Voice {
             controls.strike_position,
             controls.coupling_stiffness,
             controls.position_wander,
-            controls.position_envelope,
+            controls.position_wander_rate,
             controls.fundamental_anchor,
             self.sample_rate,
         );
+        self.set_position_envelope_amount(controls.position_envelope);
         // Carry the current channel pitch bend into the new note so a held
         // bend doesn't reset every time a fresh key is pressed. Channel
         // pressure and mod wheel persist for the same reason; poly pressure
@@ -1268,6 +1277,7 @@ impl Voice {
         coupling_stiffness: f32,
         position_wander: f32,
         position_envelope: f32,
+        position_wander_rate: f32,
         fundamental_anchor: f32,
         exciter_pressure: f32,
         sample_rate: u32,
@@ -1275,6 +1285,7 @@ impl Voice {
         if !self.active {
             return;
         }
+        self.set_position_envelope_amount(position_envelope);
         if self.global_controls_enabled {
             self.pressure_target = pressure_factor(exciter_pressure);
         }
@@ -1284,10 +1295,20 @@ impl Voice {
             strike_position,
             coupling_stiffness,
             position_wander,
-            position_envelope,
+            position_wander_rate,
             fundamental_anchor,
             self.sample_rate,
         );
+    }
+
+    /// Set how far the force envelope moves the strike position. Turning it
+    /// to 0 clears the offset, so a voice at 0 never touches it per sample.
+    fn set_position_envelope_amount(&mut self, amount: f32) {
+        let amount = amount.clamp(0.0, 1.0);
+        if amount <= 0.0 {
+            self.resonator.set_envelope_offset(0.0, 0.0);
+        }
+        self.position_envelope_amount = amount;
     }
 
     /// Apply a channel pitch bend in semitones to this voice.
@@ -1570,6 +1591,10 @@ impl Voice {
             && !self.mseg.is_active()
             && self.one_shot_phase == OneShotEnvelopePhase::Idle
         {
+            if self.position_envelope_amount > 0.0 {
+                self.resonator
+                    .set_envelope_offset(self.position_envelope_amount, 0.0);
+            }
             return 0.0;
         }
 
@@ -1577,6 +1602,13 @@ impl Voice {
         let res_vel = self.resonator.get_velocity();
 
         let envelope = self.process_force_envelope();
+        // The force envelope moves the strike position, before this sample
+        // is prepared (`h09-route-envelope-to-strike-position`). At amount 0
+        // the offset stays at the 0 `set_position_envelope_amount` left.
+        if self.position_envelope_amount > 0.0 {
+            self.resonator
+                .set_envelope_offset(self.position_envelope_amount, envelope);
+        }
         self.ring_tracking = self.governor_enabled && envelope > 0.0;
         self.resonator
             .set_ring_tracking(self.ring_tracking, HIGHPASS_BOOST * self.velocity / 127.0);
@@ -2220,6 +2252,7 @@ mod tests {
             1.0,
             0.0,
             0.0,
+            0.1,
             0.3,
             0.5,
             sample_rate,
@@ -2241,7 +2274,7 @@ mod tests {
         voice.note_off();
 
         let pre = voice.resonator.modes[0].spec.decay_seconds;
-        voice.update_live_controls(1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.3, 0.5, 48_000);
+        voice.update_live_controls(1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.1, 0.3, 0.5, 48_000);
         let post = voice.resonator.modes[0].spec.decay_seconds;
 
         assert_eq!(pre, post, "tail voices should not receive live automation");
@@ -3237,6 +3270,7 @@ mod tests {
                             1.0,
                             0.0,
                             0.0,
+                            0.1,
                             0.3,
                             pressure_after,
                             48_000,
@@ -3464,5 +3498,119 @@ mod tests {
             "pre-clamp peak over 1.0 at Pressure, Speed and Roughness 1:\n{}",
             failures.join("\n")
         );
+    }
+
+    // --- Strike position (h09-route-envelope-to-strike-position) ---
+
+    /// A held Bow note on Pipe C4 at velocity 127, peak level 1: per sample,
+    /// (effective strike position, envelope offset, output) over `seconds`.
+    fn strike_track(controls: VoiceControls, seconds: f32) -> Vec<(f32, f32, f32)> {
+        let mut voice = Voice::new();
+        voice.note_on_with_controls(
+            60,
+            127.0,
+            ModalProfileId::Pipe,
+            0,
+            1.0,
+            0.0,
+            0.0,
+            1,
+            VoiceControls {
+                velocity_to_peak: 1.0,
+                ..controls
+            },
+        );
+        (0..(seconds * 48_000.0) as usize)
+            .map(|_| {
+                let y = voice.process_sample(48_000);
+                (
+                    voice.resonator.effective_strike_position(),
+                    voice.resonator.strike_envelope_offset(),
+                    y,
+                )
+            })
+            .collect()
+    }
+
+    #[test]
+    fn force_envelope_moves_the_strike_position() {
+        let track = strike_track(
+            VoiceControls {
+                strike_position: 0.2,
+                position_envelope: 1.0,
+                position_wander: 0.0,
+                ..VoiceControls::default()
+            },
+            1.0,
+        );
+        for (i, &(position, offset, _)) in track.iter().enumerate() {
+            let expected = (0.2 + offset).clamp(0.0, 1.0);
+            assert!(
+                (position - expected).abs() < 1e-6,
+                "sample {i}: position {position}, expected 0.2 + {offset}"
+            );
+        }
+        let (low, high) = track.iter().fold((1.0f32, 0.0f32), |(lo, hi), &(p, _, _)| {
+            (lo.min(p), hi.max(p))
+        });
+        assert!(low < 0.21, "the position starts at {low}, not 0.2");
+        assert!(
+            (high - 0.7).abs() < 0.01,
+            "at the envelope's peak the position is {high}, not 0.7"
+        );
+    }
+
+    #[test]
+    fn position_envelope_is_audible_without_wander() {
+        let render = |amount: f32| {
+            strike_track(
+                VoiceControls {
+                    strike_position: 0.2,
+                    position_envelope: amount,
+                    position_wander: 0.0,
+                    ..VoiceControls::default()
+                },
+                1.0,
+            )
+            .into_iter()
+            .map(|(_, _, y)| y.to_bits())
+            .collect::<Vec<u32>>()
+        };
+        assert!(
+            render(0.0) != render(1.0),
+            "Position Envelope 0 and 1 render the same at Wander 0"
+        );
+    }
+
+    #[test]
+    fn wander_period_follows_wander_rate() {
+        // Wander 0.2 around 0.25 at 2 Hz: the wander component (position
+        // minus base and envelope offset) crosses zero upward every 0.5 s,
+        // with Position Envelope 0 and 1. The range stays inside 0..1, so no
+        // clamp distorts it.
+        for amount in [0.0, 1.0] {
+            let track = strike_track(
+                VoiceControls {
+                    strike_position: 0.25,
+                    position_wander: 0.2,
+                    position_wander_rate: 2.0,
+                    position_envelope: amount,
+                    ..VoiceControls::default()
+                },
+                2.0,
+            );
+            let wander: Vec<f32> = track.iter().map(|&(p, o, _)| p - 0.25 - o).collect();
+            let rises: Vec<usize> = (1..wander.len())
+                .filter(|&i| wander[i - 1] < 0.0 && wander[i] >= 0.0)
+                .collect();
+            assert!(rises.len() >= 3, "amount {amount}: {} rises", rises.len());
+            for pair in rises.windows(2) {
+                let period = (pair[1] - pair[0]) as f32 / 48_000.0;
+                assert!(
+                    (period - 0.5).abs() < 0.002,
+                    "Position Envelope {amount}: wander period {period:.4} s, expected 0.5 s"
+                );
+            }
+        }
     }
 }

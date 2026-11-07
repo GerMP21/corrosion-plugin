@@ -441,7 +441,21 @@ note.
 - Per-mode 1D strike coefficients `c_n(P) = sin((n+1)·π·P)`.
 - `fundamental_anchor` clamps `c_0` to a minimum so the pitch never fully nulls.
 - `coupling_stiffness` blends feed-forward (`0`) ↔ position-weighted (`1`) force.
-- `position_wander` adds a bounded sinusoidal drift to the strike position.
+- **Effective strike position**, every sample:
+  `clamp(strike_position + position_envelope · envelope · 0.5 + wander, 0, 1)`
+  (`h09-route-envelope-to-strike-position`).
+  - **Position Envelope** moves the strike point with the note's force envelope
+    (0..1, set by the voice each sample before the resonator prepares the
+    sample), so a strike or a bow swell sweeps the contact point and the
+    timbre. At 0 the voice never touches the offset, and the output is
+    bit-identical to before the routing existed.
+  - **Wander** (`position_wander`) adds a bounded sine drift at **Wander Rate**
+    (`position_wander_rate`, 0.1–5 Hz, default 0.1), independent of Position
+    Envelope. Presets that predate Wander Rate load the rate their Position
+    Envelope used to set (`0.1 + position_envelope · 4.9`), with Position
+    Envelope 0.
+  - The strike weights are cached on the effective position, so they are
+    recomputed only while it moves.
 - The resonator reports summed displacement and a first-difference velocity back
   to the exciter each sample.
 

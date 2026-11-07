@@ -46,6 +46,8 @@
 //! - **Strike Position** (strike_position) - Where exciter contacts object
 //! - **Coupling** (coupling_stiffness) - Bidirectional interaction strength
 //! - **Wander** (position_wander) - Simulated hand unsteadiness
+//! - **Wander Rate** (position_wander_rate) - How fast Wander moves (0.1 to 5 Hz)
+//! - **Position Envelope** (position_envelope) - How far the force envelope moves the strike position
 //!
 //! ## Relationships
 //!
@@ -548,12 +550,22 @@ pub struct CorrosionParams {
     pub coupling_stiffness: FloatParam,
 
     /// Position wander amount (0.0 to 1.0)
-    /// Simulates hand unsteadiness during excitation
+    /// Simulates hand unsteadiness during excitation: a slow sine around the
+    /// strike position, at Wander Rate.
     #[id = "position_wander"]
     pub position_wander: FloatParam,
 
-    /// Position envelope amount (0.0 to 1.0)
-    /// How much envelope affects strike position
+    /// Position wander rate (0.1 to 5 Hz, default 0.1): how fast Wander
+    /// moves the strike position (`h09-route-envelope-to-strike-position`).
+    #[id = "position_wander_rate"]
+    pub position_wander_rate: FloatParam,
+
+    /// Position envelope amount (0.0 to 1.0, default 0)
+    /// How much the note's force envelope moves the strike position: the
+    /// effective position is `strike_position + position_envelope ·
+    /// envelope · 0.5`, clamped to 0..1, every sample. A strike or a bow
+    /// swell moves the contact point, and so the timbre, as the envelope
+    /// rises and falls. At 0 the position doesn't move.
     #[id = "position_envelope"]
     pub position_envelope: FloatParam,
 
@@ -1040,6 +1052,22 @@ pub fn exciter_roughness_param(default: f32) -> FloatParam {
             (factor * 0.3).clamp(0.0, 1.0)
         })
     }))
+}
+
+/// The position wander's rate: 0.1–5 Hz, default 0.1, skewed so the slow
+/// rates get more knob travel (`h09-route-envelope-to-strike-position`).
+pub fn position_wander_rate_param(default: f32) -> FloatParam {
+    FloatParam::new(
+        "Wander Rate",
+        default,
+        FloatRange::Skewed {
+            min: 0.1,
+            max: 5.0,
+            factor: FloatRange::skew_factor(-1.5),
+        },
+    )
+    .with_unit(" Hz")
+    .with_value_to_string(formatters::v2s_f32_rounded(2))
 }
 
 /// The tempo-sync parameter: Off by default, so Delay Time works out of the
@@ -1708,6 +1736,7 @@ impl Default for CorrosionParams {
                 0.0,
                 FloatRange::Linear { min: 0.0, max: 1.0 },
             ),
+            position_wander_rate: position_wander_rate_param(0.1),
             position_envelope: FloatParam::new(
                 "Position Envelope",
                 0.0,

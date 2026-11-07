@@ -1050,13 +1050,14 @@ impl ModalResonator {
         }
     }
 
-    /// Update interaction parameters from the voice layer.
+    /// Update interaction parameters from the voice layer. `wander_rate` is
+    /// the position wander's rate in hertz (Wander Rate, 0.1–5 Hz).
     pub fn set_interaction_params(
         &mut self,
         strike_position: f32,
         coupling_stiffness: f32,
         position_wander: f32,
-        position_envelope: f32,
+        wander_rate: f32,
         fundamental_anchor: f32,
         sample_rate: f32,
     ) {
@@ -1066,13 +1067,35 @@ impl ModalResonator {
         self.interaction_bus.state.coupling_stiffness = coupling_stiffness.clamp(0.0, 1.0);
         self.interaction_bus.state.fundamental_lock = fundamental_anchor > 0.0;
         self.interaction_bus.state.fundamental_minimum = fundamental_anchor.clamp(0.0, 1.0);
-        let wander_rate = 0.1 + position_envelope.clamp(0.0, 1.0) * 4.9;
         self.interaction_bus.state.set_position_wander(
             position_wander,
-            wander_rate,
+            wander_rate.clamp(0.1, 5.0),
             sample_rate.max(1.0),
         );
         self.interaction_bus.update();
+    }
+
+    /// Move the strike position with the note's force envelope this sample:
+    /// `amount · envelope · 0.5` is added to the base position before the
+    /// wander and the clamp (`h09-route-envelope-to-strike-position`). Call
+    /// it once per sample, before the sample is prepared. At amount 0 the
+    /// position, and so the output, is unchanged. Allocation-free.
+    #[inline]
+    pub fn set_envelope_offset(&mut self, amount: f32, envelope: f32) {
+        self.interaction_bus
+            .state
+            .set_envelope_offset(amount, envelope);
+    }
+
+    /// The effective strike position after the last update (base position,
+    /// envelope offset and wander, clamped to 0..1).
+    pub fn effective_strike_position(&self) -> f32 {
+        self.interaction_bus.state.effective_position
+    }
+
+    /// The force envelope's offset on the strike position this sample.
+    pub fn strike_envelope_offset(&self) -> f32 {
+        self.interaction_bus.state.envelope_offset
     }
 
     /// This sample's preparation, before any force is applied: advance the
@@ -1897,7 +1920,7 @@ mod tests {
             let mut plain = level_bank(profile, C4, 1.0, 0.0);
             let mut predicted = level_bank(profile, C4, 1.0, 0.0);
             for bank in [&mut plain, &mut predicted] {
-                bank.set_interaction_params(0.4, 0.8, 0.3, 0.5, 0.0, 48_000.0);
+                bank.set_interaction_params(0.4, 0.8, 0.3, 2.55, 0.0, 48_000.0);
             }
             for n in 0..4_000 {
                 let force = if n < 48 { 0.5 } else { 0.0 };
