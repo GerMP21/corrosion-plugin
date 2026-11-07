@@ -2,7 +2,7 @@
 
 ## 1. Tests first
 
-- [ ] 1.1 Add tests for the spec scenarios: Factory −30 dB time at 44.1/48/96/192 kHz; Echo at 0.8 s across rates; Spring at tank 1 at 48 and 192 kHz; the 96 kHz Delay Time sweep; and distinct comb delays at five sizes. Verify each fails on the current code, and record the measured numbers in the change.
+- [x] 1.1 Add tests for the spec scenarios: Factory −30 dB time at 44.1/48/96/192 kHz; Echo at 0.8 s across rates; Spring at tank 1 at 48 and 192 kHz; the 96 kHz Delay Time sweep; and distinct comb delays at five sizes. Verify each fails on the current code, and record the measured numbers in the change.
 
 ## 2. Time-defined delays and buffers
 
