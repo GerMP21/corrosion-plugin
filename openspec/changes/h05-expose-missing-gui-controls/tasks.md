@@ -13,9 +13,9 @@
 
 ## 2. User presets
 
-- [ ] 2.1 In `src/presets/mod.rs`, add `user_preset_dir()` (platform env vars, Decision 3), `sanitize_file_name()`, and `list_user_presets(dir)`, which skips unreadable files and counts them. Unit-test the sanitizing with separators, reserved names and empty names, and list a temp folder with one corrupt file. Verify the tests pass.
-- [ ] 2.2 Add the name field, Save, and the overwrite confirm/cancel in the preset loader, with inline errors. Unit-test a save → reload round trip into a temp folder (all parameters except `ui_scale` restored) and a declined overwrite (file bytes unchanged). Verify the tests pass.
-- [ ] 2.3 Show the user presets after the factory bank, refreshed after a save. Verify manually in the standalone or a host that a new save appears without reopening, or record that only the unit tests cover it.
+- [x] 2.1 In `src/presets/mod.rs`, add `user_preset_dir()` (platform env vars, Decision 3), `sanitize_file_name()`, and `list_user_presets(dir)`, which skips unreadable files and counts them. Unit-test the sanitizing with separators, reserved names and empty names, and list a temp folder with one corrupt file. Verify the tests pass.
+- [x] 2.2 Add the name field, Save, and the overwrite confirm/cancel in the preset loader, with inline errors. Unit-test a save → reload round trip into a temp folder (all parameters except `ui_scale` restored) and a declined overwrite (file bytes unchanged). Verify the tests pass.
+- [x] 2.3 Show the user presets after the factory bank, refreshed after a save. Verify manually in the standalone or a host that a new save appears without reopening, or record that only the unit tests cover it. (Done. No host or display is available in this cloud container. `saved_preset_appears_without_reopening` checks the editor state instead: after a save, the new preset is listed after the factory bank and selected, and a second save of the same name waits for confirmation.)
 
 ## 3. Randomizer
 

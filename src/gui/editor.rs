@@ -16,6 +16,8 @@ use crate::Preset;
 /// Parameters deliberately left without an editor control, each with the
 /// reason. `editor_covers_every_parameter` fails for any other parameter the
 /// editor doesn't draw (`h05-expose-missing-gui-controls`).
+// Read by the coverage test only.
+#[cfg_attr(not(test), allow(dead_code))]
 pub(crate) const HOST_ONLY_PARAMS: &[(&str, &str)] = &[
     (
         "exciter_pressure",
@@ -79,7 +81,92 @@ struct EditorUiState {
     last_ui_scale: i32,
     last_requested_size: (u32, u32),
     factory_presets: Vec<FactoryPresetEntry>,
+    /// Index into the factory presets followed by the user presets.
     selected_factory_preset: usize,
+    /// The user preset folder (`None` when the platform's variables are
+    /// unset), its presets, and how many of its files couldn't be read.
+    user_preset_dir: Option<std::path::PathBuf>,
+    user_presets: Vec<(std::path::PathBuf, Preset)>,
+    unreadable_user_presets: usize,
+    /// The Save row: the typed name, whether it is waiting on an overwrite
+    /// confirmation, and the last save message (`true` for an error).
+    save_name: String,
+    confirm_overwrite: bool,
+    save_message: Option<(String, bool)>,
+}
+
+impl EditorUiState {
+    fn new(last_ui_scale: i32, last_requested_size: (u32, u32)) -> Self {
+        let mut state = Self {
+            last_ui_scale,
+            last_requested_size,
+            factory_presets: load_factory_presets(),
+            selected_factory_preset: 0,
+            user_preset_dir: crate::presets::user_preset_dir(),
+            user_presets: Vec::new(),
+            unreadable_user_presets: 0,
+            save_name: String::new(),
+            confirm_overwrite: false,
+            save_message: None,
+        };
+        state.refresh_user_presets();
+        state
+    }
+
+    /// Re-read the user preset folder (on editor open and after a save).
+    fn refresh_user_presets(&mut self) {
+        let (presets, unreadable) = match &self.user_preset_dir {
+            Some(dir) => crate::presets::list_user_presets(dir),
+            None => (Vec::new(), 0),
+        };
+        self.user_presets = presets;
+        self.unreadable_user_presets = unreadable;
+    }
+
+    /// Factory presets, then user presets.
+    fn preset_count(&self) -> usize {
+        self.factory_presets.len() + self.user_presets.len()
+    }
+
+    fn preset_name(&self, index: usize) -> &str {
+        match index.checked_sub(self.factory_presets.len()) {
+            None => &self.factory_presets[index].name,
+            Some(user) => &self.user_presets[user].1.name,
+        }
+    }
+
+    fn preset(&self, index: usize) -> Option<Preset> {
+        match index.checked_sub(self.factory_presets.len()) {
+            None => Preset::from_json_str(self.factory_presets[index].json).ok(),
+            Some(user) => self
+                .user_presets
+                .get(user)
+                .map(|(_, preset)| preset.clone()),
+        }
+    }
+
+    /// Save the current sound under the typed name, asking before replacing
+    /// a user preset (`h05-expose-missing-gui-controls`).
+    fn save(&mut self, params: &CorrosionParams, overwrite: bool) {
+        use crate::presets::{save_user_preset, SaveOutcome};
+        self.confirm_overwrite = false;
+        let Some(dir) = self.user_preset_dir.clone() else {
+            self.save_message = Some(("No user preset folder on this system".to_string(), true));
+            return;
+        };
+        match save_user_preset(&dir, &self.save_name, params, overwrite) {
+            Ok(SaveOutcome::Saved(_)) => {
+                let name = self.save_name.trim().to_string();
+                self.refresh_user_presets();
+                if let Some(user) = self.user_presets.iter().position(|(_, p)| p.name == name) {
+                    self.selected_factory_preset = self.factory_presets.len() + user;
+                }
+                self.save_message = Some((format!("Saved \"{name}\""), false));
+            }
+            Ok(SaveOutcome::NeedsConfirmation(_)) => self.confirm_overwrite = true,
+            Err(error) => self.save_message = Some((format!("Couldn't save: {error}"), true)),
+        }
+    }
 }
 
 #[derive(Clone)]
@@ -815,12 +902,7 @@ pub fn create_editor(
     let resize_state = editor_state.clone();
     create_egui_editor(
         editor_state,
-        EditorUiState {
-            last_ui_scale: initial_scale,
-            last_requested_size: initial_size,
-            factory_presets: load_factory_presets(),
-            selected_factory_preset: 0,
-        },
+        EditorUiState::new(initial_scale, initial_size),
         |_, _| {},
         move |egui_ctx, setter, state| {
             let ui_scale = params.ui_scale.value();
@@ -1936,7 +2018,8 @@ fn render_preset_loader(
                     .color(MUTED_GREY),
             );
             ui.horizontal(|ui| {
-                if state.factory_presets.is_empty() {
+                let count = state.preset_count();
+                if count == 0 {
                     ui.label(
                         egui::RichText::new("No presets")
                             .size(width_pct(scale, 0.008333334))
@@ -1945,12 +2028,9 @@ fn render_preset_loader(
                     return;
                 }
 
-                state.selected_factory_preset = state
-                    .selected_factory_preset
-                    .min(state.factory_presets.len().saturating_sub(1));
-                let selected_name = state.factory_presets[state.selected_factory_preset]
-                    .name
-                    .as_str();
+                state.selected_factory_preset = state.selected_factory_preset.min(count - 1);
+                let selected_name = state.preset_name(state.selected_factory_preset).to_string();
+                let mut load = None;
 
                 let arrow_size =
                     egui::vec2(width_pct(scale, 0.016666668), height_pct(scale, 0.0234375));
@@ -1963,19 +2043,12 @@ fn render_preset_loader(
                     )
                     .clicked()
                 {
-                    state.selected_factory_preset = if state.selected_factory_preset == 0 {
-                        state.factory_presets.len() - 1
-                    } else {
-                        state.selected_factory_preset - 1
-                    };
-                    let entry = state.factory_presets[state.selected_factory_preset].clone();
-                    if let Ok(preset) = Preset::from_json_str(entry.json) {
-                        apply_preset(params, setter, &preset);
-                    }
+                    load = Some((state.selected_factory_preset + count - 1) % count);
                 }
 
                 let spacing = ui.spacing().item_spacing.x;
                 let combo_width = (ui.available_width() - arrow_size.x - spacing).max(0.0);
+                let factory_count = state.factory_presets.len();
                 egui::ComboBox::from_id_salt("factory-preset-loader")
                     .width(combo_width)
                     .selected_text(
@@ -1984,19 +2057,25 @@ fn render_preset_loader(
                             .color(OFF_WHITE),
                     )
                     .show_ui(ui, |ui| {
-                        for (index, preset) in state.factory_presets.iter().enumerate() {
+                        for index in 0..count {
+                            if index == factory_count {
+                                // User presets follow the factory bank.
+                                ui.separator();
+                                ui.label(
+                                    egui::RichText::new("USER")
+                                        .size(width_pct(scale, 0.0069444445))
+                                        .color(MUTED_GREY),
+                                );
+                            }
                             if ui
                                 .selectable_label(
                                     index == state.selected_factory_preset,
-                                    egui::RichText::new(&preset.name)
+                                    egui::RichText::new(state.preset_name(index))
                                         .size(width_pct(scale, 0.012962963)),
                                 )
                                 .clicked()
                             {
-                                state.selected_factory_preset = index;
-                                if let Ok(loaded) = Preset::from_json_str(preset.json) {
-                                    apply_preset(params, setter, &loaded);
-                                }
+                                load = Some(index);
                             }
                         }
                     });
@@ -2010,20 +2089,61 @@ fn render_preset_loader(
                     )
                     .clicked()
                 {
-                    state.selected_factory_preset =
-                        (state.selected_factory_preset + 1) % state.factory_presets.len();
-                    let entry = state.factory_presets[state.selected_factory_preset].clone();
-                    if let Ok(preset) = Preset::from_json_str(entry.json) {
+                    load = Some((state.selected_factory_preset + 1) % count);
+                }
+
+                if let Some(index) = load {
+                    state.selected_factory_preset = index;
+                    if let Some(preset) = state.preset(index) {
                         apply_preset(params, setter, &preset);
                     }
                 }
             });
             ui.horizontal(|ui| {
-                let save_button = egui::Button::new(
-                    egui::RichText::new("Save").size(width_pct(scale, 0.011111112)),
-                );
-                let _ = ui.add_enabled(false, save_button);
+                let text_size = width_pct(scale, 0.011111112);
+                if state.confirm_overwrite {
+                    ui.label(
+                        egui::RichText::new(format!("Replace \"{}\"?", state.save_name.trim()))
+                            .size(text_size)
+                            .color(SAFETY_YELLOW),
+                    );
+                    if ui
+                        .button(egui::RichText::new("Replace").size(text_size))
+                        .clicked()
+                    {
+                        state.save(params, true);
+                    }
+                    if ui
+                        .button(egui::RichText::new("Cancel").size(text_size))
+                        .clicked()
+                    {
+                        state.confirm_overwrite = false;
+                    }
+                } else {
+                    let field_width = (ui.available_width() - width_pct(scale, 0.05)).max(0.0);
+                    ui.add_sized(
+                        egui::vec2(field_width, height_pct(scale, 0.0234375)),
+                        egui::TextEdit::singleline(&mut state.save_name).hint_text("Preset name"),
+                    );
+                    let save = egui::Button::new(egui::RichText::new("Save").size(text_size));
+                    let can_save = !state.save_name.trim().is_empty();
+                    if ui.add_enabled(can_save, save).clicked() {
+                        state.save(params, false);
+                    }
+                }
             });
+            let notice = match (&state.save_message, state.unreadable_user_presets) {
+                (Some((message, is_error)), _) => Some((message.clone(), *is_error)),
+                (None, 0) => None,
+                (None, n) => Some((format!("{n} user preset file(s) couldn't be read"), true)),
+            };
+            if let Some((message, is_error)) = notice {
+                ui.label(
+                    egui::RichText::new(message)
+                        .size(width_pct(scale, 0.0069444445))
+                        .color(if is_error { DANGER_RED } else { MUTED_GREY }),
+                );
+            }
         });
     });
 }
@@ -3440,12 +3560,8 @@ mod tests {
         super::DRAWN_PARAMS.with(|drawn| drawn.borrow_mut().clear());
         let gui = NullGui;
         let setter = nih_plug::prelude::ParamSetter::new(&gui);
-        let mut state = super::EditorUiState {
-            last_ui_scale: 2,
-            last_requested_size: (super::BASE_EDITOR_WIDTH, super::BASE_EDITOR_HEIGHT),
-            factory_presets: load_factory_presets(),
-            selected_factory_preset: 0,
-        };
+        let mut state =
+            super::EditorUiState::new(2, (super::BASE_EDITOR_WIDTH, super::BASE_EDITOR_HEIGHT));
         let ctx = nih_plug_egui::egui::Context::default();
         let input = nih_plug_egui::egui::RawInput {
             screen_rect: Some(nih_plug_egui::egui::Rect::from_min_size(
@@ -3501,12 +3617,8 @@ mod tests {
     fn rendered_content_height(params: &crate::params::CorrosionParams) -> f32 {
         let gui = NullGui;
         let setter = nih_plug::prelude::ParamSetter::new(&gui);
-        let mut state = super::EditorUiState {
-            last_ui_scale: 2,
-            last_requested_size: (super::BASE_EDITOR_WIDTH, super::BASE_EDITOR_HEIGHT),
-            factory_presets: load_factory_presets(),
-            selected_factory_preset: 0,
-        };
+        let mut state =
+            super::EditorUiState::new(2, (super::BASE_EDITOR_WIDTH, super::BASE_EDITOR_HEIGHT));
         let ctx = nih_plug_egui::egui::Context::default();
         let input = nih_plug_egui::egui::RawInput {
             screen_rect: Some(nih_plug_egui::egui::Rect::from_min_size(
@@ -3545,6 +3657,40 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn saved_preset_appears_without_reopening() {
+        let dir = std::env::temp_dir().join(format!(
+            "corrosion-editor-save-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let mut state =
+            super::EditorUiState::new(2, (super::BASE_EDITOR_WIDTH, super::BASE_EDITOR_HEIGHT));
+        state.user_preset_dir = Some(dir.clone());
+        state.refresh_user_presets();
+        let factory = state.factory_presets.len();
+        let params = crate::params::CorrosionParams::default();
+
+        state.save_name = "My Grind".to_string();
+        state.save(&params, false);
+        assert_eq!(state.preset_count(), factory + 1);
+        assert_eq!(state.preset_name(factory), "My Grind");
+        assert_eq!(
+            state.selected_factory_preset, factory,
+            "the new preset is selected"
+        );
+        assert_eq!(state.save_message.as_ref().map(|m| m.1), Some(false));
+
+        // Saving the same name asks first, and Cancel keeps one file.
+        state.save(&params, false);
+        assert!(state.confirm_overwrite);
+        assert_eq!(state.preset_count(), factory + 1);
+        std::fs::remove_dir_all(dir).unwrap();
     }
 
     #[test]

@@ -703,3 +703,322 @@ impl Preset {
         sanitized
     }
 }
+
+// ---------------------------------------------------------------------------
+// User presets (`h05-expose-missing-gui-controls`)
+// ---------------------------------------------------------------------------
+
+/// File extension of preset files, factory and user alike.
+pub const PRESET_EXTENSION: &str = "corrosion-preset";
+
+/// The per-user preset folder, from the platform's standard environment
+/// variables (no new dependency):
+/// - Windows: `%APPDATA%\Corrosion\Presets`
+/// - macOS: `$HOME/Library/Application Support/Corrosion/Presets`
+/// - others: `$XDG_DATA_HOME/corrosion/presets`, else
+///   `$HOME/.local/share/corrosion/presets`
+///
+/// `None` when the variables it needs are unset. The folder may not exist
+/// yet; saving creates it.
+pub fn user_preset_dir() -> Option<std::path::PathBuf> {
+    user_preset_dir_for(std::env::consts::OS, |name| std::env::var_os(name))
+}
+
+/// `user_preset_dir` for operating system `os`, reading variables through
+/// `env` (testable on any platform).
+pub fn user_preset_dir_for(
+    os: &str,
+    env: impl Fn(&str) -> Option<std::ffi::OsString>,
+) -> Option<std::path::PathBuf> {
+    use std::path::PathBuf;
+    let non_empty = |name: &str| {
+        env(name)
+            .filter(|value| !value.is_empty())
+            .map(PathBuf::from)
+    };
+    match os {
+        "windows" => non_empty("APPDATA").map(|dir| dir.join("Corrosion").join("Presets")),
+        "macos" => non_empty("HOME").map(|home| {
+            home.join("Library")
+                .join("Application Support")
+                .join("Corrosion")
+                .join("Presets")
+        }),
+        _ => non_empty("XDG_DATA_HOME")
+            .or_else(|| non_empty("HOME").map(|home| home.join(".local").join("share")))
+            .map(|data| data.join("corrosion").join("presets")),
+    }
+}
+
+/// A file name (without extension) for a preset called `name`, safe on every
+/// platform:
+/// - path separators and characters invalid on Windows become `_`;
+/// - control characters are dropped;
+/// - leading and trailing spaces and dots are trimmed;
+/// - Windows reserved device names (`CON`, `NUL`, `COM1`, …) get a `_` prefix;
+/// - the result is at most 100 characters, and "Untitled" if nothing is left.
+pub fn sanitize_file_name(name: &str) -> String {
+    let replaced: String = name
+        .chars()
+        .filter(|c| !c.is_control())
+        .map(|c| match c {
+            '/' | '\\' | ':' | '*' | '?' | '"' | '<' | '>' | '|' => '_',
+            other => other,
+        })
+        .collect();
+    let trimmed = replaced.trim_matches(|c: char| c == ' ' || c == '.');
+    let mut file: String = trimmed.chars().take(100).collect();
+    file = file.trim_end_matches([' ', '.']).to_string();
+    if file.is_empty() {
+        return "Untitled".to_string();
+    }
+    let stem = file.split('.').next().unwrap_or("").to_ascii_uppercase();
+    let reserved = matches!(stem.as_str(), "CON" | "PRN" | "AUX" | "NUL")
+        || ((stem.starts_with("COM") || stem.starts_with("LPT"))
+            && stem.len() == 4
+            && stem.as_bytes()[3].is_ascii_digit()
+            && stem.as_bytes()[3] != b'0');
+    if reserved {
+        file.insert(0, '_');
+    }
+    file
+}
+
+/// The user presets in `dir`, sorted by display name (ignoring case), and
+/// how many preset files were skipped because they couldn't be read. A
+/// missing folder is simply empty.
+pub fn list_user_presets(dir: &Path) -> (Vec<(std::path::PathBuf, Preset)>, usize) {
+    let Ok(entries) = fs::read_dir(dir) else {
+        return (Vec::new(), 0);
+    };
+    let mut presets = Vec::new();
+    let mut skipped = 0;
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.extension().is_none_or(|ext| ext != PRESET_EXTENSION) {
+            continue;
+        }
+        match Preset::load(&path) {
+            Ok(preset) => presets.push((path, preset)),
+            Err(_) => skipped += 1,
+        }
+    }
+    presets.sort_by_key(|(_, preset)| preset.name.to_lowercase());
+    (presets, skipped)
+}
+
+/// What `save_user_preset` did.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SaveOutcome {
+    /// The preset was written to this file.
+    Saved(std::path::PathBuf),
+    /// A user preset already uses this file: nothing was written. Save again
+    /// with `overwrite` to replace it.
+    NeedsConfirmation(std::path::PathBuf),
+}
+
+/// Save `params` as a user preset called `name` in `dir`, under its
+/// sanitized file name. An existing file is replaced only with `overwrite`;
+/// otherwise nothing is written and the caller asks first. File I/O, so call
+/// it from the GUI thread, never the audio thread.
+pub fn save_user_preset(
+    dir: &Path,
+    name: &str,
+    params: &CorrosionParams,
+    overwrite: bool,
+) -> io::Result<SaveOutcome> {
+    let name = name.trim();
+    if name.is_empty() {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "enter a preset name",
+        ));
+    }
+    let path = dir.join(format!("{}.{PRESET_EXTENSION}", sanitize_file_name(name)));
+    if path.exists() && !overwrite {
+        return Ok(SaveOutcome::NeedsConfirmation(path));
+    }
+    Preset::from_params(name, params).save(&path)?;
+    Ok(SaveOutcome::Saved(path))
+}
+
+#[cfg(test)]
+mod user_preset_tests {
+    use super::*;
+    use std::ffi::OsString;
+
+    fn env_of<'a>(vars: &'a [(&'a str, &'a str)]) -> impl Fn(&str) -> Option<OsString> + 'a {
+        move |name| {
+            vars.iter()
+                .find(|(key, _)| *key == name)
+                .map(|(_, value)| OsString::from(value))
+        }
+    }
+
+    /// A fresh, empty folder under the system temp folder.
+    pub(crate) fn temp_dir(tag: &str) -> std::path::PathBuf {
+        let unique = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let dir =
+            std::env::temp_dir().join(format!("corrosion-{tag}-{}-{unique}", std::process::id()));
+        fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    #[test]
+    fn preset_folder_per_platform() {
+        use std::path::PathBuf;
+        assert_eq!(
+            user_preset_dir_for(
+                "windows",
+                env_of(&[("APPDATA", r"C:\Users\a\AppData\Roaming")])
+            ),
+            Some(
+                PathBuf::from(r"C:\Users\a\AppData\Roaming")
+                    .join("Corrosion")
+                    .join("Presets")
+            )
+        );
+        assert_eq!(
+            user_preset_dir_for("macos", env_of(&[("HOME", "/Users/a")])),
+            Some(PathBuf::from(
+                "/Users/a/Library/Application Support/Corrosion/Presets"
+            ))
+        );
+        assert_eq!(
+            user_preset_dir_for(
+                "linux",
+                env_of(&[("XDG_DATA_HOME", "/data"), ("HOME", "/home/a")])
+            ),
+            Some(PathBuf::from("/data/corrosion/presets"))
+        );
+        assert_eq!(
+            user_preset_dir_for("linux", env_of(&[("HOME", "/home/a")])),
+            Some(PathBuf::from("/home/a/.local/share/corrosion/presets"))
+        );
+        assert_eq!(user_preset_dir_for("linux", env_of(&[])), None);
+        assert_eq!(
+            user_preset_dir_for("windows", env_of(&[("APPDATA", "")])),
+            None
+        );
+    }
+
+    #[test]
+    fn file_names_are_sanitized() {
+        for (name, file) in [
+            ("My Grind", "My Grind"),
+            ("a/b\\c", "a_b_c"),
+            ("../../etc/passwd", "_.._etc_passwd"),
+            ("what?: <x> | \"y\" *", "what__ _x_ _ _y_ _"),
+            ("  .hidden.  ", "hidden"),
+            ("tab\there", "tabhere"),
+            ("", "Untitled"),
+            ("...", "Untitled"),
+            ("CON", "_CON"),
+            ("nul.txt", "_nul.txt"),
+            ("COM1", "_COM1"),
+            ("COM0", "COM0"),
+            ("Console", "Console"),
+        ] {
+            assert_eq!(sanitize_file_name(name), file, "name {name:?}");
+        }
+        assert_eq!(sanitize_file_name(&"x".repeat(300)).len(), 100);
+    }
+
+    #[test]
+    fn saved_preset_reloads_every_parameter() {
+        use nih_plug::prelude::Params;
+        // A factory preset's parameters stand in for the current sound.
+        let path = format!(
+            "{}/presets/factory/beam_grind.{PRESET_EXTENSION}",
+            env!("CARGO_MANIFEST_DIR")
+        );
+        let sound = Preset::load(path).unwrap().into_params();
+        let dir = temp_dir("save");
+        let saved = save_user_preset(&dir, "My Grind", &sound, false).unwrap();
+        let SaveOutcome::Saved(file) = saved else {
+            panic!("first save should write: {saved:?}");
+        };
+        assert_eq!(file, dir.join(format!("My Grind.{PRESET_EXTENSION}")));
+        let reloaded = Preset::load(&file).unwrap();
+        assert_eq!(reloaded.name, "My Grind");
+        let live = CorrosionParams::default();
+        let plain = |params: &CorrosionParams| -> std::collections::HashMap<String, f32> {
+            params
+                .param_map()
+                .into_iter()
+                // SAFETY: the pointers come from `params`, borrowed here.
+                .map(|(id, ptr, _)| (id, unsafe { ptr.unmodulated_plain_value() }))
+                .collect()
+        };
+        let (want, live_ptrs) = (plain(&sound), live.param_map());
+        for (id, normalized) in reloaded.parameter_values(&live) {
+            let ptr = live_ptrs.iter().find(|(pid, _, _)| *pid == id).unwrap().1;
+            // SAFETY: `ptr` comes from `live`, alive for this test.
+            let got = unsafe { ptr.preview_plain(normalized) };
+            assert!(
+                (got - want[&id]).abs() <= 1e-4 * want[&id].abs().max(1.0),
+                "{id}: saved {}, reloaded {got}",
+                want[&id]
+            );
+        }
+        fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn declined_overwrite_leaves_the_file_alone() {
+        let dir = temp_dir("overwrite");
+        let params = CorrosionParams::default();
+        let SaveOutcome::Saved(file) = save_user_preset(&dir, "Keep", &params, false).unwrap()
+        else {
+            panic!("first save should write");
+        };
+        let before = fs::read(&file).unwrap();
+        let louder = Preset {
+            output: 3.0,
+            ..Preset::from_params("Keep", &params)
+        }
+        .into_params();
+        assert_eq!(
+            save_user_preset(&dir, "Keep", &louder, false).unwrap(),
+            SaveOutcome::NeedsConfirmation(file.clone())
+        );
+        assert_eq!(
+            fs::read(&file).unwrap(),
+            before,
+            "declined overwrite changed the file"
+        );
+        assert_eq!(
+            save_user_preset(&dir, "Keep", &louder, true).unwrap(),
+            SaveOutcome::Saved(file.clone())
+        );
+        assert_ne!(
+            fs::read(&file).unwrap(),
+            before,
+            "confirmed overwrite should write"
+        );
+        assert!(save_user_preset(&dir, "   ", &params, false).is_err());
+        fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn listing_skips_unreadable_files() {
+        let dir = temp_dir("list");
+        let mut good = Preset::from_params("Zinc Hit", &CorrosionParams::default());
+        good.save(dir.join(format!("zinc.{PRESET_EXTENSION}")))
+            .unwrap();
+        good.name = "anvil".to_string();
+        good.save(dir.join(format!("anvil.{PRESET_EXTENSION}")))
+            .unwrap();
+        fs::write(dir.join(format!("broken.{PRESET_EXTENSION}")), "{ not json").unwrap();
+        fs::write(dir.join("notes.txt"), "not a preset").unwrap();
+        let (presets, skipped) = list_user_presets(&dir);
+        let names: Vec<&str> = presets.iter().map(|(_, p)| p.name.as_str()).collect();
+        assert_eq!(names, ["anvil", "Zinc Hit"]);
+        assert_eq!(skipped, 1);
+        assert_eq!(list_user_presets(&dir.join("missing")), (Vec::new(), 0));
+        fs::remove_dir_all(dir).unwrap();
+    }
+}
