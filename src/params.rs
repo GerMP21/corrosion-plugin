@@ -1468,7 +1468,8 @@ impl Default for CorrosionParams {
     fn default() -> Self {
         Self {
             #[cfg(feature = "gui")]
-            editor_state: EguiState::from_size(1080, 768),
+            // 75 % of the 1080 x 768 base: fits a host window on a 1080p screen.
+            editor_state: EguiState::from_size(810, 576),
 
             // Sound generation defaults
             exciter: exciter_param(ExciterType::HandStrike.to_int()),
@@ -1519,7 +1520,7 @@ impl Default for CorrosionParams {
             body: FloatParam::new("Body", 2.62, FloatRange::Linear { min: 0.0, max: 5.0 }),
 
             // UI scale (percentage display)
-            ui_scale: IntParam::new("UI Scale", 2, IntRange::Linear { min: 0, max: 4 })
+            ui_scale: IntParam::new("UI Scale", 1, IntRange::Linear { min: 0, max: 4 })
                 .with_value_to_string(Arc::new(|value| match value {
                     0 => "50%".to_string(),
                     1 => "75%".to_string(),

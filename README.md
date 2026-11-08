@@ -59,6 +59,8 @@ Each anchors on a distinct Object × Exciter pair and tunes the relevant charact
 
 ### User Presets and Randomizer
 
+The editor opens at 75 % (810 × 576). The **SCALE** selector (50–150 %) resizes the plugin window in hosts that allow it; the controls always fit the window's width, and taller exciter panels scroll.
+
 The editor's **Save** writes the current sound as a named preset (every parameter except UI Scale) into a per-user folder, and the preset list shows the factory bank followed by your presets. Saving over an existing name asks first. The folder:
 
 - Windows: `%APPDATA%\Corrosion\Presets`

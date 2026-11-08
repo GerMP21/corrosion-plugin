@@ -129,7 +129,9 @@ src/
                       post_chain (PostProcessingChain + PostQualityMode)
     utils/            budget (mode-count estimates), body, deterministic_excitation
   gui/
-    editor.rs         egui editor: knobs/faders, UI scale (50–150%), quality,
+    editor.rs         egui editor: knobs/faders, UI scale (50–150%, default 75%: 810×576;
+                      a change asks the host to resize; the layout never exceeds the
+                      window's width), quality,
                       play and limiter mode selectors, a macro strip (Mass,
                       Corrosion, Violence, Brightness), resonator Brightness,
                       Thickness, and Sync (shows "Off" or its division).
