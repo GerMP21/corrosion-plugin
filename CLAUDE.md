@@ -44,6 +44,7 @@ How each change has been done, and what the maintainer expects:
 3. **Record numbers in the change's `design.md`** (a `## Measurements` section): before/after values, benchmark tables, anything the proposal guessed wrong. When the implementation differs from a design decision, add an *As built* note rather than leaving the design stale.
 4. **Docs:** update `docs/ARCHITECTURE.md` (and the README when users see the change), and mark the finding FIXED in `FABLE-CODE-REVIEW-2026-07-07.md` with date, branch, change link and what proves it.
 5. **Close out:** `cargo fmt --check`, clippy with `-D warnings`, the full test suite, then commit and push.
+6. **Update "Current state" in this file** when a change is finished, without being asked: the date in its heading, the change's row (fixed, on which branch, PR number and whether it is merged), what is next, and the "Not yet archived" list. Also keep the branch and PR line in "Git and PRs" current. Commit it with the change's close-out.
 
 ## Build and test
 
