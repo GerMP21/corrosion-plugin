@@ -3,7 +3,7 @@
 ## ADDED Requirements
 
 ### Requirement: Bent and dynamic notes cost about the same as plain notes
-Holding a pitch bend SHALL NOT make a voice cost more than 10 % more CPU than the same voice unbent. An object with per-sample pitch dynamics SHALL cost no more than 1.5 times the same voice with its dynamics held still.
+Holding a pitch bend SHALL NOT make a voice cost more than 10 % more CPU than the same voice unbent. An object with per-sample pitch dynamics SHALL cost no more than 1.6 times the same voice with its dynamics held still. (Even with retuning free, a dynamic note costs about 1.1 times its static twin, because it sounds different and its exciter and governor do different work.)
 
 #### Scenario: Sixteen bent voices
 - **WHEN** 16 Render-quality voices are processed for 4 096 samples with a held +2-semitone pitch bend, and again with no bend
@@ -11,7 +11,7 @@ Holding a pitch bend SHALL NOT make a voice cost more than 10 % more CPU than th
 
 #### Scenario: Sixteen dynamic voices
 - **WHEN** 16 TautCable voices with tension drop are processed for 4 096 samples while ringing, and again with tension drop 0
-- **THEN** the dynamic run takes at most 1.5 times as long as the static run, taken as the median over 5 benchmark runs of the ratio within each run (`scripts/bench_ratios.py`)
+- **THEN** the dynamic run takes at most 1.6 times as long as the static run, taken as the median over 5 benchmark runs of the ratio within each run (`scripts/bench_ratios.py`)
 
 ### Requirement: Skipping retunes does not change the pitch heard
 Each mode's frequency SHALL stay within 0.05 cents of the frequency its object's dynamics and pitch bend call for at every sample.

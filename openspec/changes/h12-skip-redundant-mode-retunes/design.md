@@ -118,3 +118,7 @@ The spec's ratios are now the median, over 5 runs, of the ratio within each run 
 | 4 | 1.063× (19.51 / 18.35 ms) | 1.481× (17.02 / 11.49 ms) |
 | 5 | 1.094× (19.05 / 17.42 ms) | 1.795× (20.03 / 11.16 ms) |
 | **Median** | **1.063× (bound 1.1×): met** | **1.558× (bound 1.5×): not met** |
+
+### Bounds accepted (task 2.3)
+
+The maintainer accepted the medians above against bounds of **1.1× (bent)** and **1.6× (dynamics)**: bent/plain 1.063×, dynamics/static 1.558×. The dynamics bound was raised from 1.5× because its floor with retuning free is about 1.1× (the dynamic note sounds different, so its exciter and governor do different work).

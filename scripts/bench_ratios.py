@@ -23,7 +23,7 @@ PAIRS = [
         "dynamics / static",
         "voice_manager_sixteen_voices_cable_dynamics",
         "voice_manager_sixteen_voices_cable_static",
-        1.5,
+        1.6,
     ),
 ]
 FILTER = "voice_manager_sixteen_voices_(render|bent|cable)"

@@ -376,7 +376,13 @@ With `position_wander = 0`, `position_envelope` does nothing.
   `0.4 − 0.02(m+n)`. They're rescued by `.max(f32::EPSILON)` into effectively dead
   modes — silent second-order sections that still burn CPU every sample.
 
-### H12. Per-sample coefficient rebuild for dynamic objects and bent notes
+### ~~H12. Per-sample coefficient rebuild for dynamic objects and bent notes~~ — FIXED
+> **Status: FIXED** (2026-11-08, branch `claude/zen-dirac-vq38u4`): OpenSpec change [`h12-skip-redundant-mode-retunes`](openspec/changes/h12-skip-redundant-mode-retunes/proposal.md).
+> - **Skip:** the bank remembers the pitch factor its coefficients were built for and skips the rebuild while the factor stays within 0.05 cents. A held bend is free after its first sample, and bit-identical to rebuilding every sample.
+> - **Incremental rotation:** a moving factor (TautCable tension drop, SheetMetal warp, a bend in motion) rotates each mode's cached sine and cosine with a Taylor step, with no transcendental call or division, refreshing exactly every 256 steps. Every mode's frequency and pole angle stay within 0.05 cents of the target at every sample.
+> - **Cost (median of 5 runs, `scripts/bench_ratios.py`):** 16 bent Render voices cost about 1.06× unbent (was about 5×); 16 TautCable voices with tension drop cost about 1.56× their static twin (bound 1.6×). The static twin itself went from 43 ms to about 11 ms.
+> - **Also fixed:** `SecondOrderMode::ensure_rate`'s rebuild branch is out of line. Inlined, it made plain notes swing by up to 30 % with bit-identical output whenever the coefficient code changed size.
+
 `core.rs:658-672`: when dynamics are active (TautCable, SheetMetal) **or any
 non-unity pitch bend is held**, `apply_dynamics` calls `set_frequency` on *every
 mode every sample*, each doing a `cos` + `exp` (`ResonatorCoefficients::for_mode`).
@@ -505,8 +511,10 @@ above the block. Minor, but the doc and tests promise symmetric behavior.
 - `dsp::mod` re-exports `crate::offline::*` specs (mod.rs:43-46) — an inverted
   dependency (DSP core depending on the offline module) that exists only for
   convenience re-export; it drags offline render specs into every DSP consumer.
-- `benches/performance.rs` exists but nothing benchmarks the dynamic-object /
-  pitch-bend per-sample rebuild path (H12), which is the actual worst case.
+- ~~`benches/performance.rs` exists but nothing benchmarks the dynamic-object /
+  pitch-bend per-sample rebuild path (H12), which is the actual worst case.~~ — FIXED
+  (H12: `voice_manager_sixteen_voices_bent` and `_cable_dynamics` / `_cable_static`,
+  compared with their twins by `scripts/bench_ratios.py`).
 - `docs/CODE-REVIEW.md` should be updated or archived — two of its headline
   findings are fixed, and readers may assume the rest of the file is current.
 
