@@ -74,7 +74,7 @@ The editor's **Save** writes the current sound as a named preset (every paramete
 
 Every change is sent to the host as a normal parameter edit, so host undo applies.
 
-The factory presets are placeholders, to be replaced by real ones. Their levels follow a light rule: none hits the limiter, and none is more than 12 dB below the bank's median (`preset_levels_are_sane`; per-preset numbers in `openspec/changes/resolve-exciter-tradeoffs/levels.md`).
+The factory presets are placeholders, to be replaced by real ones. Their levels follow a light rule: none hits the limiter, and none is more than 12 dB below the bank's median (`preset_levels_are_sane`; per-preset numbers in `openspec/changes/archive/2026-11-08-resolve-exciter-tradeoffs/levels.md`).
 
 **Loudness.**
 - Every object's mode bank is normalized at note-on to one strike level, so objects, registers (C2–C6), quality modes and damage settings land within a few dB of each other.

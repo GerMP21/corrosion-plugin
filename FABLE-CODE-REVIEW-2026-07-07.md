@@ -7,6 +7,7 @@ factory preset bank, test suite expectations, and build configuration.
 **Method:** line-by-line read of the audio path; targeted reads of the GUI and offline
 paths; numeric simulation used to verify the ladder-filter stability finding.
 **Status (2026-10-05):** C1–C6 are FIXED (OpenSpec changes archived under `openspec/changes/archive/`, specs in `openspec/specs/`), including the follow-ups from their verification pass.
+**Status (2026-11-08):** H1–H14 are FIXED too. Their OpenSpec changes are archived under `openspec/changes/archive/2026-11-08-h*`, and their requirements are in `openspec/specs/`. The medium findings (M1–M20) are open except M16.
 **Note:** `docs/CODE-REVIEW.md` (2026-05-27) is now partially stale — its Finding 1
 (clipper oversampling no-op) and the factory-reverb delay compounding have since been
 fixed (regression tests exist for both). This document supersedes it.
@@ -222,7 +223,7 @@ two instances or true stereo state (like `FactoryEcho` has).
 ## HIGH
 
 ### ~~H1. `drive_amount` knob: 80 % of its range is dead, and its maximum is ~20 % wet~~ — FIXED
-> **Status: FIXED** (2026-10-27, branch `claude/eloquent-dirac-fc0sqm`): OpenSpec change [`h01-unclamp-post-drive-amount`](openspec/changes/h01-unclamp-post-drive-amount/proposal.md).
+> **Status: FIXED** (2026-10-27, branch `claude/eloquent-dirac-fc0sqm`): OpenSpec change [`h01-unclamp-post-drive-amount`](openspec/changes/archive/2026-11-08-h01-unclamp-post-drive-amount/proposal.md).
 > - **Range:** the host-side clamp of `drive_amount + Violence offset` is now the parameter's own 0–5, so the wet share (`amount / 5`) reaches 100 % at the top of the knob.
 > - **Mix:** the drive's mix is a crossfade (`dry·(1 − w)`, not `1 − w/2`), so it no longer adds up to +3.5 dB at full wet. The drive's input gain (`1 + amount/2`) is unchanged.
 > - **Correction to this finding:** the Violence offset is −0.2 to +0.2 around its neutral 0.5, not +0.4.
@@ -236,7 +237,7 @@ two instances or true stereo state (like `FactoryEcho` has).
   they make the post drive nearly inaudible.
 
 ### ~~H2. `apply_drive` mix math assumes drive ∈ 0..1 but the param is 0..5~~ — FIXED
-> **Status: FIXED** (2026-10-27, branch `claude/eloquent-dirac-fc0sqm`): OpenSpec change [`h02-normalize-master-drive-mix`](openspec/changes/h02-normalize-master-drive-mix/proposal.md).
+> **Status: FIXED** (2026-10-27, branch `claude/eloquent-dirac-fc0sqm`): OpenSpec change [`h02-normalize-master-drive-mix`](openspec/changes/archive/2026-11-08-h02-normalize-master-drive-mix/proposal.md).
 > - **Mix:** the master drive now crossfades, `shaped·m + dry·(1 − m)` with `m = min(drive, 1)`. The weights always sum to 1 and the dry weight is never negative. Above 1 only the shaper's input gain rises.
 > - **Correction to this finding:** the old negative dry weight never flipped the output's sign, because the shaped term always dominated. The cost was the loudness jump.
 > - **Presets:** the 11 presets that use Drive 1.0–1.6 are 0.3–1.6 dB quieter (`levels.md`) and needed no trims.
@@ -247,7 +248,7 @@ clamp-dominated, phase-smeared regime rather than "more saturation". The weights
 also don't sum to 1 anywhere above drive ≈ 0.67, giving a built-in loudness jump.
 
 ### ~~H3. Tempo sync is ON by default and silently disables the Delay Time knob~~ — FIXED
-> **Status: FIXED** (2026-10-27, branch `claude/eloquent-dirac-fc0sqm`): OpenSpec change [`h03-default-tempo-sync-off`](openspec/changes/h03-default-tempo-sync-off/proposal.md).
+> **Status: FIXED** (2026-10-27, branch `claude/eloquent-dirac-fc0sqm`): OpenSpec change [`h03-default-tempo-sync-off`](openspec/changes/archive/2026-11-08-h03-default-tempo-sync-off/proposal.md).
 > - **Default and display:** `sync_rate` defaults to 0.0 (Off), and the host shows "Off" or the division name ("1/16" … "2/1"). The name comes from the same band function the Echo uses (`params::sync_division`), so the display can't drift from the behaviour.
 > - **Presets:** the 49 factory presets that don't use sync now store 0.0. Hanging Chain Echo keeps its 0.5 (1/4).
 > - **Still open:** the editor control for sync is part of H5.
@@ -258,7 +259,7 @@ indication. Default should be 0.0 (Off). (The GUI doesn't even expose `sync_rate
 — see H5 — so a GUI user can't turn sync off at all.)
 
 ### ~~H4. GUI preset loading drops v4 fields~~ — FIXED
-> **Status: FIXED** (2026-11-07, branch `claude/eloquent-dirac-fc0sqm`): OpenSpec change [`h04-load-every-preset-field-in-gui`](openspec/changes/h04-load-every-preset-field-in-gui/proposal.md).
+> **Status: FIXED** (2026-11-07, branch `claude/eloquent-dirac-fc0sqm`): OpenSpec change [`h04-load-every-preset-field-in-gui`](openspec/changes/archive/2026-11-08-h04-load-every-preset-field-in-gui/proposal.md).
 > - **Generic load:** the editor's `apply_preset` now walks the parameter map and applies `Preset::parameter_values` (every parameter except `ui_scale`), each as a begin/set/end gesture. The six skipped IDs (play mode, limiter mode, the four macros) load, and so will any parameter added later.
 > - **Values:** they are normalized against the live parameter, because `into_params` builds some parameters with other ranges.
 > - **UI Scale:** loading a preset no longer resizes the editor.
@@ -271,7 +272,7 @@ keep whatever values were previously live. (The host state path via nih-plug
 persists them fine, which makes the divergence extra confusing.)
 
 ### ~~H5. GUI is missing controls for shipped, audible parameters~~ — FIXED
-> **Status: FIXED** (2026-11-07, branch `claude/eloquent-dirac-fc0sqm`): OpenSpec change [`h05-expose-missing-gui-controls`](openspec/changes/h05-expose-missing-gui-controls/proposal.md).
+> **Status: FIXED** (2026-11-07, branch `claude/eloquent-dirac-fc0sqm`): OpenSpec change [`h05-expose-missing-gui-controls`](openspec/changes/archive/2026-11-08-h05-expose-missing-gui-controls/proposal.md).
 > - **Controls:** the editor now has resonator Brightness, Thickness, Sync ("Off" or its division), Play Mode, Limiter Mode, and a macro strip (Mass, Corrosion, Violence, Brightness).
 > - **Coverage test:** `editor_covers_every_parameter` renders the editor headlessly for every exciter, object and space mode, and fails for any parameter that is neither drawn nor on `HOST_ONLY_PARAMS`. That list holds only `exciter_pressure/speed/roughness` until H6.
 > - **User presets:** Save writes to a per-user folder (sanitized names, confirmation before overwriting), and they are listed after the factory bank.
@@ -292,7 +293,7 @@ Diffing widgets (`&params.<field>` occurrences in editor.rs) against `CorrosionP
   references it** — no GUI button, no parameter. Dead feature.
 
 ### ~~H6. Three host-facing exciter params are dead~~ — FIXED
-> **Status: FIXED** (2026-11-07, branch `claude/zen-dirac-vq38u4`): OpenSpec change [`h06-wire-global-exciter-controls`](openspec/changes/h06-wire-global-exciter-controls/proposal.md).
+> **Status: FIXED** (2026-11-07, branch `claude/zen-dirac-vq38u4`): OpenSpec change [`h06-wire-global-exciter-controls`](openspec/changes/archive/2026-11-08-h06-wire-global-exciter-controls/proposal.md).
 > - **Pressure** trims every exciter's force by −12 to +12 dB (neutral at 0.5) inside `Voice::force_scale`, so contact predictions and the drive governor follow it. It is live on held notes, smoothed over ~10 ms.
 > - **Speed** (×0.5 to ×2, neutral 0.5) and **Roughness** (×0 to ×3.33, neutral 0.3) scale each exciter's motion-speed and grit/randomness parameters at note-on, clamped to their host ranges. Exciters with no such parameter are documented as inert.
 > - **Defaults are bit-identical:** `default_global_controls_are_bit_identical` covers all 16 exciters, and the 48 kHz render hashes are unchanged. No factory preset changes.
@@ -305,7 +306,7 @@ consumes them (each uses its dedicated params instead). They're automatable,
 documented ("Overall intensity of excitation"), shown in presets, and do nothing.
 
 ### ~~H7. The two limiter modes target different ceilings~~ — FIXED
-> **Status: FIXED** (2026-11-07, branch `claude/zen-dirac-vq38u4`): OpenSpec change [`h07-hard-limiter-honors-analog-ceiling`](openspec/changes/h07-hard-limiter-honors-analog-ceiling/proposal.md).
+> **Status: FIXED** (2026-11-07, branch `claude/zen-dirac-vq38u4`): OpenSpec change [`h07-hard-limiter-honors-analog-ceiling`](openspec/changes/archive/2026-11-08-h07-hard-limiter-honors-analog-ceiling/proposal.md).
 > - **One ceiling:** `apply_output_limiter(sample, ceiling)` takes the ceiling, and `process` passes the same per-buffer Analog Ceiling the Lookahead limiter uses. Both modes now stop at it after output gain.
 > - **Tests:** `hard_mode_stays_under_a_low_ceiling` (ceiling 0.5, gain 4) and `both_limiter_modes_reach_the_same_ceiling` (ceiling 0.7: both peak in 0.65–0.7) run the real output stage. Both failed before the fix.
 > - **Defaults unchanged:** every factory preset stores 0.9661, and `factory_preset_is_bit_identical_at_the_default_ceiling` checks the output is bit-identical to the old fixed clamp. `LIMITER_THRESHOLD` stays as the default ceiling for offline tools.
@@ -320,7 +321,7 @@ clipper already clips at `analog_ceiling` *before* output gain — so output gai
 making the "analog ceiling" a soft suggestion in Hard mode.
 
 ### ~~H8. `get_state`/`load_state` are dead and dangerous~~ — FIXED
-> **Status: FIXED** (2026-11-07, branch `claude/zen-dirac-vq38u4`): OpenSpec change [`h08-remove-dead-state-functions`](openspec/changes/h08-remove-dead-state-functions/proposal.md). Both methods are deleted; nothing called them. Host state save and restore still go through nih-plug's `Params` derive, and the preset schema migration stays in `Preset::from_json_str`. The only remaining `get_state` is nih-plug's `GuiContext` trait method on the editor tests' `NullGui`.
+> **Status: FIXED** (2026-11-07, branch `claude/zen-dirac-vq38u4`): OpenSpec change [`h08-remove-dead-state-functions`](openspec/changes/archive/2026-11-08-h08-remove-dead-state-functions/proposal.md). Both methods are deleted; nothing called them. Host state save and restore still go through nih-plug's `Params` derive, and the preset schema migration stays in `Preset::from_json_str`. The only remaining `get_state` is nih-plug's `GuiContext` trait method on the editor tests' `NullGui`.
 
 lib.rs:761-783. Nothing calls them (nih-plug persists params via the `Params`
 derive). If anything ever did call `load_state`, the `self.params = Arc::new(...)`
@@ -328,7 +329,7 @@ swap would disconnect the host and GUI (which hold the original Arc from
 `params()`) from the audio thread's parameter set. Delete or rewrite via setters.
 
 ### ~~H9. `position_envelope` doesn't do what it says~~ — FIXED
-> **Status: FIXED** (2026-11-07, branch `claude/zen-dirac-vq38u4`): OpenSpec change [`h09-route-envelope-to-strike-position`](openspec/changes/h09-route-envelope-to-strike-position/proposal.md).
+> **Status: FIXED** (2026-11-07, branch `claude/zen-dirac-vq38u4`): OpenSpec change [`h09-route-envelope-to-strike-position`](openspec/changes/archive/2026-11-08-h09-route-envelope-to-strike-position/proposal.md).
 > - **Routing:** the effective strike position is `strike_position + position_envelope · envelope · 0.5` (plus wander), clamped to 0..1, every sample. The voice sets the offset from its force envelope before the resonator prepares the sample (`force_envelope_moves_the_strike_position`: 0.2 → 0.7 on a Bow swell; `position_envelope_is_audible_without_wander`).
 > - **Wander Rate:** a new `position_wander_rate` parameter (0.1–5 Hz, default 0.1, skewed) sets the wander's rate, independent of Position Envelope (`wander_period_follows_wander_rate`). The editor has a Wander Rate fader beside Wander.
 > - **Presets:** a preset without the field loads `0.1 + position_envelope · 4.9` Hz and Position Envelope 0, so it sounds as before (`preset_without_wander_rate_keeps_its_wander`). The 50 factory presets only gained the field at its default.
@@ -342,7 +343,7 @@ Actually (`core.rs:644-649`) it sets the **rate of the wander LFO**
 With `position_wander = 0`, `position_envelope` does nothing.
 
 ### ~~H10. Sample-rate dependence throughout the space section~~ — FIXED
-> **Status: FIXED** (2026-11-07, branch `claude/zen-dirac-vq38u4`): OpenSpec change [`h10-scale-space-effects-with-sample-rate`](openspec/changes/h10-scale-space-effects-with-sample-rate/proposal.md).
+> **Status: FIXED** (2026-11-07, branch `claude/zen-dirac-vq38u4`): OpenSpec change [`h10-scale-space-effects-with-sample-rate`](openspec/changes/archive/2026-11-08-h10-scale-space-effects-with-sample-rate/proposal.md).
 > - **Time-defined delays:** the Factory combs and allpasses, the spring tank, the echo and the HRTF delay are tuned at 48 kHz and scaled by `fs / 48 000`, so 48 kHz delays are the tuned values before any clamp.
 > - **Buffers for 192 kHz,** allocated in `new()` (about 1.8 MB per post chain), so no knob position clamps: the combs stay distinct at every size, Delay Time reaches 0.8 s at every rate, and the spring and HRTF keep their timing.
 > - **Tests:** Factory T30 is 0.616–0.617 s at 44.1/48/96/192 kHz (was 0.610/0.560/0.280/0.140 s); the 0.8 s echo arrives within a sample at every rate; the 96 kHz Delay Time sweep rises from 0.02 to 0.8 s; the spring's tank-1 echo is 0.120 s at 48 and 192 kHz; HRTF's 1 ms holds at 192 kHz.
@@ -360,7 +361,7 @@ With `position_wander = 0`, `position_envelope` does nothing.
   (silently clamped via `.min(63)`).
 
 ### ~~H11. Modal banks generate modes above Nyquist and with negative decay formulas~~ — FIXED
-> **Status: FIXED** (2026-11-07, branch `claude/zen-dirac-vq38u4`): OpenSpec change [`h11-prune-unsoundable-modes`](openspec/changes/h11-prune-unsoundable-modes/proposal.md).
+> **Status: FIXED** (2026-11-07, branch `claude/zen-dirac-vq38u4`): OpenSpec change [`h11-prune-unsoundable-modes`](openspec/changes/archive/2026-11-08-h11-prune-unsoundable-modes/proposal.md).
 > - **Aliasing half:** already fixed by `resolve-exciter-tradeoffs`, whose top-of-band fade silences every mode at or above `min(20 kHz, 0.45·fs)`, so out-of-band modes no longer alias.
 > - **Wasted modes:** note-on now drops every mode at or above 80 kHz (the band top at the lowest reachable pitch) or with a decay under 0.1 ms (the rescued negative-decay modes), so they no longer cost a mode update every sample or feed the one-sample direct path. Kept modes keep their brightness weights, and a bent note keeps its whole bank.
 > - **Tests:** the small high Pipe at Render, a sweep over every object, quality and damage, a 24-semitone retune, and a pruned-vs-full level comparison (largest change +0.003 dB). The golden fixture changes only for the three Pipe Render cases that lose modes. Render is no slower; at normal sizes only Pipe and SheetMetal lose modes, so the CPU saving is modest outside small sizes.
@@ -377,7 +378,7 @@ With `position_wander = 0`, `position_envelope` does nothing.
   modes — silent second-order sections that still burn CPU every sample.
 
 ### ~~H12. Per-sample coefficient rebuild for dynamic objects and bent notes~~ — FIXED
-> **Status: FIXED** (2026-11-08, branch `claude/zen-dirac-vq38u4`): OpenSpec change [`h12-skip-redundant-mode-retunes`](openspec/changes/h12-skip-redundant-mode-retunes/proposal.md).
+> **Status: FIXED** (2026-11-08, branch `claude/zen-dirac-vq38u4`): OpenSpec change [`h12-skip-redundant-mode-retunes`](openspec/changes/archive/2026-11-08-h12-skip-redundant-mode-retunes/proposal.md).
 > - **Skip:** the bank remembers the pitch factor its coefficients were built for and skips the rebuild while the factor stays within 0.05 cents. A held bend is free after its first sample, and bit-identical to rebuilding every sample.
 > - **Incremental rotation:** a moving factor (TautCable tension drop, SheetMetal warp, a bend in motion) rotates each mode's cached sine and cosine with a Taylor step, with no transcendental call or division, refreshing exactly every 256 steps. Every mode's frequency and pole angle stay within 0.05 cents of the target at every sample.
 > - **Cost (median of 5 runs, `scripts/bench_ratios.py`):** 16 bent Render voices cost about 1.06× unbent (was about 5×); 16 TautCable voices with tension drop cost about 1.56× their static twin (bound 1.6×). The static twin itself went from 43 ms to about 11 ms.
@@ -391,7 +392,7 @@ and pitch bend makes it apply to *all* objects, not just the two dynamic ones.
 Should be rate-limited (per block) or use incremental rotation.
 
 ### ~~H13. Shipped preset renders bypass the post chain~~ — FIXED
-> **Status: FIXED** (2026-11-08, branch `claude/nice-mccarthy-9fm1p6`): OpenSpec change [`h13-render-presets-through-post-chain`](openspec/changes/h13-render-presets-through-post-chain/proposal.md).
+> **Status: FIXED** (2026-11-08, branch `claude/nice-mccarthy-9fm1p6`): OpenSpec change [`h13-render-presets-through-post-chain`](openspec/changes/archive/2026-11-08-h13-render-presets-through-post-chain/proposal.md).
 > - **One output path:** `process()`'s per-buffer code is `Corrosion::begin_block` + `Corrosion::process_block` (voices → master drive → post chain → output gain → limiter). `process()` calls it with the host's buffer; `offline::render_preset` calls it with a real plugin instance holding the preset, in 512-sample blocks.
 > - **Tools and tests use it:** `render_presets` writes stereo WAVs through it (the private drive/body/limiter path is gone), and the preset level checks measure it (`preset_levels_are_sane` and `preset_levels_table` print the same numbers as before).
 > - **Proof:** `offline_render_equals_plugin_path_for_a_post_chain_preset` (Space + master drive + BODY + Lorenz drive) and `offline_render_equals_plugin_path_with_the_lookahead_limiter` (also checks the limiter's delay) are bit-identical against a host-style `process_block` driver; `written_wav_equals_the_quantized_offline_render` checks the WAV writer. `output/*.wav` is re-rendered.
@@ -404,7 +405,7 @@ why C1 — now FIXED — was never heard). The renderer's own comment says it ex
 auditioned "as the plugin would sound".
 
 ### ~~H14. Kit-mode notes ignore per-slot pitch documentation and wrap oddly~~ — FIXED
-> **Status: FIXED** (2026-11-08, branch `claude/nice-mccarthy-9fm1p6`): OpenSpec change [`h14-wrap-low-kit-notes`](openspec/changes/h14-wrap-low-kit-notes/proposal.md). `note_to_kit_object` is `(note − 24).div_euclid(10).rem_euclid(9)`: the 10-note slots repeat below MIDI 24 as they do above the block (14–23 → object 8, 4–13 → 7, 0–3 → 6), and notes from 24 up map as before. Proven by `kit_notes_inside_the_block_map_to_their_slot`, `kit_notes_above_the_block_wrap` and `kit_notes_below_the_block_wrap` (which failed before: MIDI 23 played Pipe). The doc comment and README describe the wrap. Per-slot pitch handling stays out of scope (design non-goal).
+> **Status: FIXED** (2026-11-08, branch `claude/nice-mccarthy-9fm1p6`): OpenSpec change [`h14-wrap-low-kit-notes`](openspec/changes/archive/2026-11-08-h14-wrap-low-kit-notes/proposal.md). `note_to_kit_object` is `(note − 24).div_euclid(10).rem_euclid(9)`: the 10-note slots repeat below MIDI 24 as they do above the block (14–23 → object 8, 4–13 → 7, 0–3 → 6), and notes from 24 up map as before. Proven by `kit_notes_inside_the_block_map_to_their_slot`, `kit_notes_above_the_block_wrap` and `kit_notes_below_the_block_wrap` (which failed before: MIDI 23 played Pipe). The doc comment and README describe the wrap. Per-slot pitch handling stays out of scope (design non-goal).
 
 `note_to_kit_object` (lib.rs:94-97): `.max(0)` clamps everything below MIDI 24
 into slot 0 (Pipe) rather than "wrapping" as the doc claims; wrapping only happens
