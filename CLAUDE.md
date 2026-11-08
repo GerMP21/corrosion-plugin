@@ -27,9 +27,9 @@ The work follows the code review in `FABLE-CODE-REVIEW-2026-07-07.md`. Each fixe
 | C1–C6 (critical) | Fixed, archived in `openspec/changes/archive/` |
 | H1–H10 | Fixed, merged to `main` (PRs #5, #6). All H changes archived 2026-11-08 |
 | H11 (prune unsoundable modes), H12 (skip redundant retunes) | Fixed, merged to `main` (PR #7). H12 bounds re-verified on `main`: bent 1.019×, dynamics 1.535× (median of 5) |
-| H13 `h13-render-presets-through-post-chain` | Fixed on branch `claude/nice-mccarthy-9fm1p6` (6/6 tasks), **PR #8 open**. Also fixed `reset()`'s unbiased drive start |
-| H14 `h14-wrap-low-kit-notes` | Fixed on branch `claude/nice-mccarthy-9fm1p6` (4/4 tasks), **PR #8 open** |
-| Medium M1–M20 | 7 OpenSpec changes, applied in the order under "Execution order for the M changes" below. **Done:** `m03-m20-start-at-host-rate-and-report-latency` (8/8 tasks, on branch `claude/nice-mccarthy-9fm1p6`, PR #8 open; also restarts four exciters' per-note state). **Next:** `m13-sustain-pedal-and-panic`. M16 fixed with H10; M2 and M19 already resolved (marked by the last change) |
+| H13 `h13-render-presets-through-post-chain` | Fixed on branch `claude/nice-mccarthy-9fm1p6` (6/6 tasks), merged to `main` (PR #8). Also fixed `reset()`'s unbiased drive start |
+| H14 `h14-wrap-low-kit-notes` | Fixed on branch `claude/nice-mccarthy-9fm1p6` (4/4 tasks), merged to `main` (PR #8) |
+| Medium M1–M20 | 7 OpenSpec changes, applied in the order under "Execution order for the M changes" below. **Done:** `m03-m20-start-at-host-rate-and-report-latency` (8/8 tasks, on branch `claude/nice-mccarthy-9fm1p6`, no PR yet; also restarts four exciters' per-note state). **Next:** `m13-sustain-pedal-and-panic`. M16 fixed with H10; M2 and M19 already resolved (marked by the last change) |
 | Backlog | `docs/BACKLOG.md` (P0–P4): Windows CI, DAW smoke automation, GUI tests, benchmark baselines |
 
 **Archived (2026-11-08):** `h01`–`h14`, `resolve-exciter-tradeoffs` and `stabilize-mallet-and-grinding-contact` are in `openspec/changes/archive/2026-11-08-*`, and their delta specs are synced into `openspec/specs/` (22 capabilities). The active changes are the M changes above; finished ones stay active until archived. A new change syncs its specs on archive as usual (`/opsx:archive`).
@@ -120,6 +120,6 @@ When a parameter's meaning changes, migrate both paths:
 
 ## Git and PRs
 
-- PRs #5, #6 and #7 are merged. Branch `claude/nice-mccarthy-9fm1p6` (from `main` after PR #7) carries the H12 re-verification, H13, H14, the spec sync, the archive of every completed change, the M proposals, the editor fix and `m03-m20`; **PR #8** (`main` ← this branch) is open. If the PR for your branch has been merged, restart the branch from the latest `main` and rebase any unmerged commits onto it. Don't stack on merged history.
+- PRs #5–#8 are merged. Branch `claude/nice-mccarthy-9fm1p6` was restarted from `main` after PR #8 and carries the editor fix (window size, resizing, width overflow) and `m03-m20`, with no PR open yet. If the PR for your branch has been merged, restart the branch from the latest `main` and rebase any unmerged commits onto it. Don't stack on merged history.
 - Commit messages: imperative subject naming the finding, e.g. "Skip redundant mode retunes (H12)", and a body saying what changed and why. Add measurements when relevant. Don't put model identifiers in commits, code or PRs.
 - Don't create a PR unless asked. There's no PR template: use Summary / Behaviour changes / Testing sections and say plainly what wasn't tested (Windows build, pluginval, clap-validator, DAW smoke tests haven't been run in these sessions).
