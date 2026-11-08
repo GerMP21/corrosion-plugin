@@ -122,3 +122,18 @@ The spec's ratios are now the median, over 5 runs, of the ratio within each run 
 ### Bounds accepted (task 2.3)
 
 The maintainer accepted the medians above against bounds of **1.1× (bent)** and **1.6× (dynamics)**: bent/plain 1.063×, dynamics/static 1.558×. The dynamics bound was raised from 1.5× because its floor with retuning free is about 1.1× (the dynamic note sounds different, so its exciter and governor do different work).
+
+### Re-verification on `main` after the merge (2026-11-08)
+
+`python3 scripts/bench_ratios.py 5` on merge commit `800ecef` (Rust 1.99.1, `x86_64-unknown-linux-gnu`, Linux container, 4 vCPU). Nothing else ran and `src/` was untouched during the runs. Absolute times are lower than in the session above (a different container), but the ratios are what the spec bounds.
+
+| Run | Bent / plain | Dynamics / static |
+|---|---|---|
+| 1 | 1.014× (14.53 / 14.33 ms) | 1.516× (12.86 / 8.49 ms) |
+| 2 | 1.019× (15.19 / 14.91 ms) | 1.556× (12.81 / 8.24 ms) |
+| 3 | 1.028× (14.87 / 14.46 ms) | 1.544× (13.26 / 8.59 ms) |
+| 4 | 0.955× (14.59 / 15.27 ms) | 1.511× (12.93 / 8.56 ms) |
+| 5 | 1.026× (15.10 / 14.72 ms) | 1.535× (13.07 / 8.51 ms) |
+| **Median** | **1.019× (bound 1.1×): met** | **1.535× (bound 1.6×): met** |
+
+The spread across runs was narrower than before (bent 0.955–1.028×, dynamics 1.511–1.556×). The same commit passed `cargo fmt --check`, clippy with `-D warnings`, `cargo test --workspace --no-default-features` (346 passed) and the GUI lane `cargo test --lib` (304 passed).
