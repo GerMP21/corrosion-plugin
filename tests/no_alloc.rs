@@ -263,3 +263,44 @@ fn reset_with_sounding_voices_is_alloc_free_and_silent() {
         "output must be silent after reset"
     );
 }
+
+/// A host sample-rate change rates every voice, idle ones included, and a
+/// note-on on a voice that played before restarts its exciter from rest;
+/// neither may allocate (`m03-m20-start-at-host-rate-and-report-latency`).
+#[test]
+fn rate_change_and_retrigger_are_alloc_free() {
+    let mut manager = VoiceManager::new();
+    for exciter in EXCITERS {
+        manager.note_on_with_controls(
+            48 + exciter as u8,
+            100.0,
+            ModalProfileId::Plate,
+            1.0,
+            0.0,
+            0.5,
+            exciter,
+            controls(1.0),
+        );
+    }
+    run(&mut manager, 4_800);
+    assert_no_alloc(|| {
+        for rate in [96_000, 44_100, 48_000] {
+            manager.set_sample_rate(rate);
+            for exciter in EXCITERS {
+                manager.note_on_with_controls(
+                    48 + exciter as u8,
+                    100.0,
+                    ModalProfileId::Plate,
+                    1.0,
+                    0.0,
+                    0.5,
+                    exciter,
+                    controls(1.0),
+                );
+                for _ in 0..480 {
+                    let _ = manager.process_sample(rate);
+                }
+            }
+        }
+    });
+}

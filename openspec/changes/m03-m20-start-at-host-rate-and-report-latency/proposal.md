@@ -11,7 +11,8 @@ Two host-integration gaps from the fable review (2026-07-07):
 
 - **Latency is reported when the plugin is initialized**, from the restored Limiter Mode, as well as whenever the mode changes while processing.
 - **Voices learn the host sample rate before they play:** the rate given at initialization, and every rate change seen while processing, reaches every voice, idle ones included. A note-on builds its bank once, at that rate, and a bend before the first sample uses it.
-- No change to the sound at 48 kHz. At other rates, the first samples of a note on a voice that has never played become identical to those of a voice that has.
+- **Each note starts its exciter from rest** (added during implementation, by the maintainer's choice): HeavyGrinding, PneumaticJet, ElectromagneticHum and ParticleRain no longer carry noise-filter state, hum phase or in-flight particles from the previous note on the same voice.
+- No change to the sound at 48 kHz on fresh voices. At other rates, the first samples of a note on a voice that has never played become identical to those of a voice that has.
 
 ## Capabilities
 

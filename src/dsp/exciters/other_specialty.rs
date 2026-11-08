@@ -69,6 +69,9 @@ impl PneumaticJet {
     pub fn trigger(&mut self, velocity: f32) {
         self.active = true;
         self.air_pressure *= 0.3 + velocity * 0.7;
+        // Each note starts from rest, whatever the voice played before
+        // (`m03-m20-start-at-host-rate-and-report-latency`).
+        self.filter_state = 0.0;
     }
 
     /// Processes one sample of jet turbulence and filtered noise.
@@ -145,6 +148,9 @@ impl ElectromagneticHum {
     pub fn trigger(&mut self, velocity: f32) {
         self.active = true;
         self.coil_proximity *= 0.3 + velocity * 0.7;
+        // Each note starts the hum at phase 0, whatever the voice played
+        // before (`m03-m20-start-at-host-rate-and-report-latency`).
+        self.phase = 0.0;
     }
 
     /// Processes one sample of hum fundamental and harmonics.
@@ -374,6 +380,11 @@ impl ParticleRain {
     pub fn trigger(&mut self, velocity: f32) {
         self.active = true;
         self.flow_rate *= 0.3 + velocity * 0.7;
+        // Each note starts with no particles in flight, whatever the voice
+        // played before (`m03-m20-start-at-host-rate-and-report-latency`).
+        // `clear` keeps the preallocated capacity, so this doesn't allocate.
+        self.spawn_accumulator = 0.0;
+        self.particles.clear();
     }
 
     /// Processes one sample of particle spawning and impact decay.

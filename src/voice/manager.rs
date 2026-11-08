@@ -341,6 +341,22 @@ impl VoiceManager {
         }
     }
 
+    /// The host sample rate the voices were last rated for.
+    pub fn sample_rate(&self) -> u32 {
+        self.sample_rate
+    }
+
+    /// Rate every voice, idle ones included, for the host's sample rate, so
+    /// a note-on builds its bank once at that rate and its exciter starts
+    /// at it (`m03-m20-start-at-host-rate-and-report-latency`). Cheap when
+    /// the rate is unchanged; allocation-free.
+    pub fn set_sample_rate(&mut self, sample_rate: u32) {
+        self.sample_rate = sample_rate;
+        for voice in &mut self.voices {
+            voice.set_rate(sample_rate as f32);
+        }
+    }
+
     /// Release the oldest held voice playing `note`, so a pitch started
     /// twice releases first-in, first-out.
     pub fn note_off(&mut self, note: u8) {

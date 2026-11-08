@@ -446,6 +446,14 @@ at mid-step. The Hit envelope's attack is sampled at sample centres.
 
 ### Sample-rate rule
 
+Every voice, idle ones included, is rated for the host rate before it plays:
+`Plugin::initialize` passes `BufferConfig::sample_rate` to
+`VoiceManager::set_sample_rate`, and `begin_block` does again when the rate
+changes. A note-on therefore builds its bank's coefficients once, at the host
+rate, and its exciter starts at that rate; each exciter's `trigger` also
+restarts its per-note state, so a note doesn't depend on what the voice played
+before (`m03-m20-start-at-host-rate-and-report-latency`).
+
 Per-sample constants in the exciters, the voice (output high-pass, peak decay,
 tail frame count), the resonator's velocity and dynamics trackers and the FEM
 body are **48 kHz references**. Each is converted to the host rate through
@@ -575,7 +583,7 @@ The **Analog Ceiling** parameter (0.5–1.0, default 0.9661 ≈ **−0.3 dBFS**)
 the output ceiling. The post-chain clipper clips at it, and after output gain
 the selected limiter stops at it: **Hard** (default) is
 `apply_output_limiter(sample, ceiling)`, a clamp to `±ceiling`; **Lookahead**
-uses it as its threshold (`h07-hard-limiter-honors-analog-ceiling`). So no
+uses it as its threshold (`h07-hard-limiter-honors-analog-ceiling`). The Lookahead limiter's delay (`LOOKAHEAD_LIMITER_SAMPLES`) is reported to the host as latency in `initialize`, from the restored Limiter Mode, and again whenever the mode changes (`Corrosion::latency_change`). So no
 output sample exceeds the ceiling, whatever the gain or mode
 (`hard_mode_stays_under_a_low_ceiling`,
 `both_limiter_modes_reach_the_same_ceiling`). `LIMITER_THRESHOLD = 0.9661` is

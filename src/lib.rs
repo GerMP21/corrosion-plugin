@@ -923,6 +923,23 @@ impl Corrosion {
         );
     }
 
+    /// The latency to report to the host for `limiter_mode` (0 Hard, 1
+    /// Lookahead), or `None` when it equals the last reported value. Hosts
+    /// may re-negotiate buses on every `set_latency_samples` call, so only
+    /// changes are reported.
+    fn latency_change(&mut self, limiter_mode: i32) -> Option<u32> {
+        let target_latency = if limiter_mode == 1 {
+            dsp::LOOKAHEAD_LIMITER_SAMPLES as u32
+        } else {
+            0
+        };
+        if target_latency == self.reported_latency_samples {
+            return None;
+        }
+        self.reported_latency_samples = target_latency;
+        Some(target_latency)
+    }
+
     /// Per-buffer setup, run once at the start of every block before any
     /// sample is rendered: drive and output-gain smoother targets, limiter
     /// configuration, post-chain parameters (with macro biases) and the live
@@ -935,6 +952,10 @@ impl Corrosion {
     /// `process()` and the offline renderer both call it through
     /// `process_block`, so tools and tests run the plugin's exact setup (H13).
     fn begin_block(&mut self, sample_rate: u32, host_tempo: Option<f32>) -> BlockSetup {
+        // Every voice, idle ones included, follows a host rate change.
+        if self.voice_manager.sample_rate() != sample_rate {
+            self.voice_manager.set_sample_rate(sample_rate);
+        }
         let width = self.params.width.value();
         let body_amount = body_mix(self.params.body.value());
 
@@ -1105,9 +1126,23 @@ impl Plugin for Corrosion {
     fn initialize(
         &mut self,
         _audio_io_layout: &AudioIOLayout,
-        _buffer_config: &BufferConfig,
-        _context: &mut impl InitContext<Self>,
+        buffer_config: &BufferConfig,
+        context: &mut impl InitContext<Self>,
     ) -> bool {
+        // Voices learn the host rate before they play
+        // (`m03-m20-start-at-host-rate-and-report-latency`).
+        self.voice_manager
+            .set_sample_rate(buffer_config.sample_rate as u32);
+        // Report the restored Limiter Mode's latency now, before the host's
+        // delay compensation is settled; `process()` reports later changes.
+        let limiter_mode = self.params.limiter_mode.value();
+        let latency = if limiter_mode == 1 {
+            dsp::LOOKAHEAD_LIMITER_SAMPLES as u32
+        } else {
+            0
+        };
+        context.set_latency_samples(latency);
+        self.reported_latency_samples = latency;
         true
     }
 
@@ -1175,14 +1210,8 @@ impl Plugin for Corrosion {
 
         // Report plugin latency to the host. Only update when it changes —
         // hosts may re-negotiate buses on every set_latency_samples call.
-        let target_latency = if block.limiter_mode == 1 {
-            dsp::LOOKAHEAD_LIMITER_SAMPLES as u32
-        } else {
-            0
-        };
-        if target_latency != self.reported_latency_samples {
-            context.set_latency_samples(target_latency);
-            self.reported_latency_samples = target_latency;
+        if let Some(latency) = self.latency_change(block.limiter_mode) {
+            context.set_latency_samples(latency);
         }
 
         ProcessStatus::Normal
@@ -2615,5 +2644,176 @@ mod host_state_tests {
         let mut saved = state(&[("position_wander", 0.3)]);
         Corrosion::filter_state(&mut saved);
         assert!(!saved.params.contains_key("position_wander_rate"));
+    }
+}
+
+/// `m03-m20-start-at-host-rate-and-report-latency`: latency reported at
+/// initialization, and voices rated before they play.
+#[cfg(test)]
+mod host_rate_and_latency_tests {
+    use super::Corrosion;
+    use crate::offline::{OfflineNote, PresetRenderer};
+    use crate::params::{exciter_param, limiter_mode_param, CorrosionParams};
+    use nih_plug::prelude::*;
+    use std::cell::RefCell;
+    use std::sync::Arc;
+
+    /// An `InitContext` that records every latency the plugin reports.
+    #[derive(Default)]
+    struct RecordingInit {
+        latencies: RefCell<Vec<u32>>,
+    }
+
+    impl InitContext<Corrosion> for RecordingInit {
+        fn plugin_api(&self) -> PluginApi {
+            PluginApi::Vst3
+        }
+        fn execute(&self, _task: ()) {}
+        fn set_latency_samples(&self, samples: u32) {
+            self.latencies.borrow_mut().push(samples);
+        }
+        fn set_current_voice_capacity(&self, _capacity: u32) {}
+    }
+
+    fn buffer_config(sample_rate: f32) -> BufferConfig {
+        BufferConfig {
+            sample_rate,
+            min_buffer_size: None,
+            max_buffer_size: 512,
+            process_mode: ProcessMode::Realtime,
+        }
+    }
+
+    fn initialized(params: CorrosionParams, sample_rate: f32) -> (Corrosion, Vec<u32>) {
+        let mut plugin = Corrosion {
+            params: Arc::new(params),
+            ..Corrosion::default()
+        };
+        let mut init = RecordingInit::default();
+        assert!(plugin.initialize(
+            &Corrosion::AUDIO_IO_LAYOUTS[0],
+            &buffer_config(sample_rate),
+            &mut init
+        ));
+        let latencies = init.latencies.into_inner();
+        (plugin, latencies)
+    }
+
+    fn with_limiter(mode: i32) -> CorrosionParams {
+        CorrosionParams {
+            limiter_mode: limiter_mode_param(mode),
+            ..CorrosionParams::default()
+        }
+    }
+
+    /// Spec "Session restored with Lookahead".
+    #[test]
+    fn lookahead_latency_is_reported_at_initialization() {
+        let (mut plugin, latencies) = initialized(with_limiter(1), 48_000.0);
+        assert_eq!(
+            latencies,
+            vec![crate::dsp::LOOKAHEAD_LIMITER_SAMPLES as u32]
+        );
+        // The first block has nothing further to report.
+        assert_eq!(plugin.latency_change(1), None);
+    }
+
+    /// Spec "Session restored with Hard".
+    #[test]
+    fn hard_limiter_reports_no_latency_at_initialization() {
+        let (_, latencies) = initialized(with_limiter(0), 48_000.0);
+        assert!(latencies.iter().all(|&l| l == 0), "reported {latencies:?}");
+    }
+
+    /// Spec "Mode changed while playing": reported once, at the first block
+    /// with the new mode.
+    #[test]
+    fn mode_change_while_playing_is_reported_once() {
+        let (mut plugin, _) = initialized(with_limiter(0), 48_000.0);
+        assert_eq!(plugin.latency_change(0), None);
+        assert_eq!(
+            plugin.latency_change(1),
+            Some(crate::dsp::LOOKAHEAD_LIMITER_SAMPLES as u32)
+        );
+        assert_eq!(plugin.latency_change(1), None);
+        assert_eq!(plugin.latency_change(0), Some(0));
+    }
+
+    /// A renderer for `params` whose plugin was initialized at `sample_rate`
+    /// (as a host does before playback) and, when `primed`, has already
+    /// played a note at that rate and been reset.
+    fn renderer(params: CorrosionParams, sample_rate: u32, primed: bool) -> PresetRenderer {
+        let mut renderer = PresetRenderer::from_params(params);
+        let mut init = RecordingInit::default();
+        assert!(renderer.plugin_mut().initialize(
+            &Corrosion::AUDIO_IO_LAYOUTS[0],
+            &buffer_config(sample_rate as f32),
+            &mut init
+        ));
+        if primed {
+            let _ = renderer.render(&[OfflineNote::on(0, 60, 1.0)], sample_rate, 1_024);
+            renderer.plugin_mut().reset();
+        }
+        renderer
+    }
+
+    /// Spec "First note at 96 kHz": a note renders the same samples on a
+    /// voice that has never played as on one that has played at that rate.
+    #[test]
+    fn first_note_does_not_depend_on_voice_history() {
+        let mut differing = Vec::new();
+        for exciter in 1..=16 {
+            let params = || CorrosionParams {
+                exciter: exciter_param(exciter),
+                ..CorrosionParams::default()
+            };
+            let notes = [OfflineNote::on(0, 60, 1.0)];
+            let fresh = renderer(params(), 96_000, false)
+                .render(&notes, 96_000, 4_096)
+                .pre_limiter;
+            let primed = renderer(params(), 96_000, true)
+                .render(&notes, 96_000, 4_096)
+                .pre_limiter;
+            if let Some(first) = fresh.iter().zip(&primed).position(|(a, b)| a != b) {
+                differing.push(format!("exciter {exciter} from frame {first}"));
+            }
+        }
+        assert!(
+            differing.is_empty(),
+            "fresh and primed renders differ: {differing:?}"
+        );
+    }
+
+    /// Spec "Bend before the first sample": a bend in the same block as the
+    /// note-on, before its first sample, is applied at the host's rate. A
+    /// voice that has played at 44.1 kHz is the reference.
+    #[test]
+    fn bend_before_first_sample_uses_the_host_rate() {
+        let render = |primed: bool| {
+            let mut renderer = renderer(CorrosionParams::default(), 44_100, primed);
+            let plugin = renderer.plugin_mut();
+            super::handle_note_event(
+                plugin,
+                NoteEvent::NoteOn {
+                    timing: 0,
+                    voice_id: None,
+                    channel: 0,
+                    note: 60,
+                    velocity: 1.0,
+                },
+            );
+            super::handle_note_event(
+                plugin,
+                NoteEvent::MidiPitchBend {
+                    timing: 0,
+                    channel: 0,
+                    value: 1.0,
+                },
+            );
+            renderer.render(&[], 44_100, 4_096).pre_limiter
+        };
+        let (fresh, primed) = (render(false), render(true));
+        let first = fresh.iter().zip(&primed).position(|(a, b)| a != b);
+        assert_eq!(first, None, "the bent note differs from frame {first:?}");
     }
 }

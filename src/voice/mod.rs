@@ -1076,6 +1076,7 @@ impl Voice {
             controls.res_brightness,
             controls.character,
             controls.mode_count_scale,
+            self.sample_rate as u32,
         );
         self.resonator.set_interaction_params(
             controls.strike_position,
@@ -1461,8 +1462,11 @@ impl Voice {
     }
 
     /// Track the host sample rate, re-deriving per-sample constants when it
-    /// changes. Cheap when unchanged (one comparison).
-    fn set_rate(&mut self, sample_rate: f32) {
+    /// changes. Cheap when unchanged (one comparison). Called every sample
+    /// while the voice renders, and by `VoiceManager::set_sample_rate` for
+    /// every voice, idle ones included, so a voice that has never played
+    /// starts its first note at the host's rate.
+    pub(crate) fn set_rate(&mut self, sample_rate: f32) {
         self.sample_rate = sample_rate;
         if self.rate.sample_rate != sample_rate {
             self.rate = VoiceRateConstants::for_rate(sample_rate);

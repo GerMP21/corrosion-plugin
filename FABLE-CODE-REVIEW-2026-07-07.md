@@ -424,13 +424,13 @@ above the block. Minor, but the doc and tests promise symmetric behavior.
   AR one-shot (voice/mod.rs:540-547) — attack then immediate release, even while
   the key is held. The GUI shows full ADSR knobs for hit exciters; Decay/Sustain
   do nothing there (only Specialty uses them).
-- **M3. Hard-coded 48 kHz at note-on.**
+- ~~**M3. Hard-coded 48 kHz at note-on.**
   `with_algorithm_controls_and_note` → `set_live_resonator_controls(damping,
   brightness, 48_000)` (core.rs:569-571). Coefficients are wrong for one call at
   other rates (self-heals on first `process` via the cached-rate check, but the
   live-controls path also caches `Some(48_000)`, masking the first rebuild).
   Similarly `Voice::set_pitch_bend_semitones` uses `self.sample_rate`, which is
-  48 kHz until the first sample renders.
+  48 kHz until the first sample renders.~~ — FIXED (2026-11-08, branch `claude/nice-mccarthy-9fm1p6`, [`m03-m20-start-at-host-rate-and-report-latency`](openspec/changes/m03-m20-start-at-host-rate-and-report-latency/proposal.md)): voices are rated for the host rate at initialization and on rate changes, and a note-on builds its coefficients once at that rate (96 kHz: 624 → 416 builds for 16 notes, as at 48 kHz). `first_note_does_not_depend_on_voice_history` also found four exciters carrying state between notes; each now restarts from rest on trigger.
 - **M4. Duplicate parameter display names.** Two params named "Wire Stiffness"
   (`brush_wire_stiffness`, `wire_stiffness`), two named "Brightness"
   (`res_brightness`, `macro_brightness`), plus "Mass" (macro) vs the many masses.
@@ -501,11 +501,11 @@ above the block. Minor, but the doc and tests promise symmetric behavior.
   usize`** — the six bands are uneven at the edges (band boundaries at 0.05 +
   k·0.158…), and there's no triplet/dotted support; fine, but the param tooltip
   doesn't tell the user where the boundaries are (and there's no UI at all, H5).
-- **M20. Latency is only reported when limiter mode changes** (lib.rs:897-905) —
+- ~~**M20. Latency is only reported when limiter mode changes** (lib.rs:897-905) —
   correct, but the initial `reported_latency_samples = 0` means a session loaded
   with Lookahead already active reports latency only on the first `process()`
   call, after the host has typically finished PDC negotiation. Report it in
-  `initialize()` too.
+  `initialize()` too.~~ — FIXED (2026-11-08, same change): `initialize` reports the restored Limiter Mode's latency (`lookahead_latency_is_reported_at_initialization`).
 
 ---
 
