@@ -3500,6 +3500,95 @@ mod tests {
         );
     }
 
+    // --- Unsoundable modes (h11-prune-unsoundable-modes) ---
+
+    /// RMS of a HandStrike note at velocity 100 (one second held, one
+    /// released, 48 kHz), and how many modes its bank holds.
+    fn strike_rms(
+        profile: ModalProfileId,
+        note: u8,
+        size: f32,
+        mode_count_scale: f32,
+        prune: bool,
+    ) -> (f32, usize) {
+        let mut voice = Voice::new();
+        voice.resonator.prune_enabled = prune;
+        voice.note_on_with_controls(
+            note,
+            100.0,
+            profile,
+            0,
+            size,
+            0.0,
+            0.0,
+            2,
+            VoiceControls {
+                mode_count_scale,
+                ..VoiceControls::default()
+            },
+        );
+        let modes = voice.resonator.modes.len();
+        let output: Vec<f32> = (0..96_000)
+            .map(|i| {
+                if i == 48_000 {
+                    voice.note_off();
+                }
+                voice.process_sample(48_000)
+            })
+            .collect();
+        (rms(&output), modes)
+    }
+
+    #[test]
+    fn pruning_does_not_change_how_loud_notes_are() {
+        let mut failures = Vec::new();
+        let mut pruned_any = false;
+        let mut largest = (0.0f32, String::new());
+        for profile in ALL_PROFILES {
+            for note in [36u8, 60, 84] {
+                for size in [1.0, 0.05] {
+                    let (full, full_modes) = strike_rms(profile, note, size, 2.0, false);
+                    let (kept, kept_modes) = strike_rms(profile, note, size, 2.0, true);
+                    pruned_any |= kept_modes < full_modes;
+                    // A note pitched above the band (C6 at the smallest
+                    // size is about 21 kHz) is silent with the full bank
+                    // too; it must stay silent.
+                    if full < 1e-7 {
+                        if kept >= 1e-7 {
+                            failures.push(format!(
+                                "{profile:?} note {note} size {size}: silent bank now sounds"
+                            ));
+                        }
+                        continue;
+                    }
+                    let diff = 20.0 * (kept / full).log10();
+                    if diff.abs() > largest.0.abs() {
+                        largest = (
+                            diff,
+                            format!("{profile:?} note {note} size {size}, {kept_modes} of {full_modes} kept"),
+                        );
+                    }
+                    if diff.abs() > 0.5 || !diff.is_finite() {
+                        failures.push(format!(
+                            "{profile:?} note {note} size {size}: {diff:+.2} dB \
+                             ({kept_modes} of {full_modes} modes kept)"
+                        ));
+                    }
+                }
+            }
+        }
+        println!(
+            "PRUNE LEVEL largest change {:+.3} dB: {}",
+            largest.0, largest.1
+        );
+        assert!(pruned_any, "no bank lost a mode, so nothing was compared");
+        assert!(
+            failures.is_empty(),
+            "pruned vs full bank, HandStrike at velocity 100, Render:\n{}",
+            failures.join("\n")
+        );
+    }
+
     // --- Strike position (h09-route-envelope-to-strike-position) ---
 
     /// A held Bow note on Pipe C4 at velocity 127, peak level 1: per sample,

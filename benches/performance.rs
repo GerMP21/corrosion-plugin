@@ -1,4 +1,6 @@
-use corrosion::dsp::{ModalProfileId, ModalResonator, PostProcessingChain, SpaceMode, WireBrush};
+use corrosion::dsp::{
+    CharacterParams, ModalProfileId, ModalResonator, PostProcessingChain, SpaceMode, WireBrush,
+};
 use corrosion::offline::{OfflineRenderer, RenderConfig};
 use corrosion::voice::manager::VoiceManager;
 use corrosion::voice::VoiceControls;
@@ -89,6 +91,84 @@ fn bench_sixteen_voice_manager_render(c: &mut Criterion) {
 
             black_box(sum)
         })
+    });
+}
+
+/// The Render benchmark's 16 damaged Plate voices, held with a +2-semitone
+/// pitch bend. Its plain twin is `voice_manager_sixteen_voices_render`
+/// (`h12-skip-redundant-mode-retunes`).
+fn bench_sixteen_voice_manager_bent(c: &mut Criterion) {
+    c.bench_function("voice_manager_sixteen_voices_bent", |b| {
+        b.iter(|| {
+            let mut manager = VoiceManager::new();
+            for note in 52..68 {
+                manager.note_on_with_controls(
+                    note,
+                    110.0,
+                    ModalProfileId::Plate,
+                    1.0,
+                    0.3,
+                    1.0,
+                    2,
+                    VoiceControls {
+                        mode_count_scale: 2.0,
+                        ..VoiceControls::default()
+                    },
+                );
+            }
+            manager.set_pitch_bend_semitones(2.0);
+
+            let mut sum = 0.0_f32;
+            for _ in 0..4_096 {
+                let (left, right) = manager.process_sample_stereo(48_000, 0.5);
+                sum += left + right;
+            }
+
+            black_box(sum)
+        })
+    });
+}
+
+/// 16 ringing TautCable voices at Render with Cable Tension Drop at
+/// `tension_drop`: 0.4 (the default) moves every mode's pitch with the
+/// ring's amplitude each sample; 0 holds it still.
+fn sixteen_cable_voices(tension_drop: f32) -> f32 {
+    let mut manager = VoiceManager::new();
+    for note in 52..68 {
+        manager.note_on_with_controls(
+            note,
+            110.0,
+            ModalProfileId::TautCable,
+            1.0,
+            0.0,
+            0.0,
+            2,
+            VoiceControls {
+                mode_count_scale: 2.0,
+                character: CharacterParams {
+                    cable_tension_drop: tension_drop,
+                    ..CharacterParams::default()
+                },
+                ..VoiceControls::default()
+            },
+        );
+    }
+    let mut sum = 0.0_f32;
+    for _ in 0..4_096 {
+        let (left, right) = manager.process_sample_stereo(48_000, 0.5);
+        sum += left + right;
+    }
+    sum
+}
+
+/// TautCable with its tension-drop dynamics, next to its static twin
+/// (`h12-skip-redundant-mode-retunes`).
+fn bench_sixteen_voice_manager_cable_dynamics(c: &mut Criterion) {
+    c.bench_function("voice_manager_sixteen_voices_cable_dynamics", |b| {
+        b.iter(|| black_box(sixteen_cable_voices(0.4)))
+    });
+    c.bench_function("voice_manager_sixteen_voices_cable_static", |b| {
+        b.iter(|| black_box(sixteen_cable_voices(0.0)))
     });
 }
 
@@ -224,6 +304,8 @@ criterion_group!(
     bench_eight_voice_manager,
     bench_sixteen_voice_manager,
     bench_sixteen_voice_manager_render,
+    bench_sixteen_voice_manager_bent,
+    bench_sixteen_voice_manager_cable_dynamics,
     bench_wire_brush,
     bench_post_chain,
     bench_post_chain_eco,

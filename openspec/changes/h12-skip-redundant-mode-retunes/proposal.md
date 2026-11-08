@@ -17,7 +17,7 @@ When an object has per-sample pitch dynamics (TautCable, SheetMetal), **or any n
 <!-- none -->
 
 ### Modified Capabilities
-- `realtime-safety`: adds a requirement that bent and dynamic notes don't cost much more CPU than plain notes.
+- `realtime-safety`: adds a requirement that bent and dynamic notes don't cost much more CPU than plain notes (bent at most 1.1×, dynamics at most 1.6× their twins, as the median of 5 benchmark runs).
 
 ## Impact
 
