@@ -40,7 +40,7 @@ Each object is driven by an algorithmic resonator generator (the single resonato
 - **Sound**: `Exciter`, `Object`, `Size`, `Rust`, `Damage`, `Drive`, `Output`, `Width`, `Body`. Master **Drive** (0–5) fades from clean to fully shaped over 0–1; above 1 it pushes the shaper harder (more saturation, not more level).
 - **Global exciter controls** (under the exciter selector, each neutral at its default): **Pressure** trims every exciter's force by −12 to +12 dB and follows automation on held notes; **Speed** scales motion speeds ×0.5 to ×2 (bow, scrape, grind, drag, pull, particle flow); **Roughness** scales grit and randomness ×0 to ×3.33 (rosin grip, surface grit, slip, turbulence, brush and rattle randomness, particle mass variance). Speed and Roughness apply at note-on. Exciters with no motion or grit parameter ignore them.
 - **Macros** (PRD §12, neutral midpoint at 0.5): `Mass`, `Corrosion`, `Violence`, `Brightness`. Each layers a bias across a cluster of related destinations (mass macro hits the exciter mass cluster + resonator size; corrosion adds damping and rust; violence pushes drive/chaos/damage; brightness opens the post-chain filter).
-- **Play mode**: `Tonal` (default — note → pitch), `Kit` (MIDI note range → object family, 10 notes per kit slot), `Drone` (force MSEG loop on for friction voices so notes ring until release).
+- **Play mode**: `Tonal` (default — note → pitch), `Kit` (MIDI note range → object family, 10 notes per kit slot from MIDI 24, repeating above and below that block so every object is reachable at both ends of the keyboard), `Drone` (force MSEG loop on for friction voices so notes ring until release).
 - **Quality**: `Eco` / `Normal` / `High` / `Render`. Controls both post-chain oversampling factor (1×/4×/8×/16×) **and** per-voice modal density (0.5×/1.0×/1.5×/2.0× the object's base mode count). Every mode runs the full post chain (Eco no longer skips body, spread or Space), so quality modes trade fidelity and CPU, not effects.
 - **Limiter**: `Hard` (default zero-latency hard clamp at ≈−0.3 dBFS) or `Lookahead` (48-sample window, instant attack, 50 ms release; reports its 1 ms latency to the host).
 - **Post chain**: per-channel WDF-style 4-pole ladder filter → Lorenz drive (dual-mono, so the voice engine's stereo image survives), plus the FEM body resonance added in parallel on the mono sum → HRTF spread → Space (Factory / Spring / Echo) → oversampled clipper. **BODY** (0–5) sets the body's mix level; **Chassis Volume** only sets its size (larger = lower resonances, which also ring a little louder at the same BODY). Cutoff, resonance, and master drive are smoothed at audio rate (~20 ms tau) with a first-call snap so static configurations are unchanged.
@@ -74,7 +74,7 @@ The editor's **Save** writes the current sound as a named preset (every paramete
 
 Every change is sent to the host as a normal parameter edit, so host undo applies.
 
-The factory presets are placeholders, to be replaced by real ones. Their levels follow a light rule: none hits the limiter, and none is more than 12 dB below the bank's median (`preset_levels_are_sane`; per-preset numbers in `openspec/changes/resolve-exciter-tradeoffs/levels.md`).
+The factory presets are placeholders, to be replaced by real ones. Their levels follow a light rule: none hits the limiter, and none is more than 12 dB below the bank's median (`preset_levels_are_sane`; per-preset numbers in `openspec/changes/archive/2026-11-08-resolve-exciter-tradeoffs/levels.md`).
 
 **Loudness.**
 - Every object's mode bank is normalized at note-on to one strike level, so objects, registers (C2–C6), quality modes and damage settings land within a few dB of each other.
@@ -106,7 +106,7 @@ The factory presets are placeholders, to be replaced by real ones. Their levels 
 │   ├── gui/               egui editor (feature-gated)
 │   └── bin/
 │       ├── render.rs          --suite family|rust|damage|aliasing|all
-│       ├── render_presets.rs  Batch-render presets to WAV + manifest
+│       ├── render_presets.rs  Batch-render presets to WAV + manifest (plugin output path)
 │       └── seed_presets.rs    Regenerate the 50 factory presets
 ├── tests/                 no_alloc, automation_stress, preset_roundtrip, body,
 │                          drive_dynamics, stereo_width, velocity_*,
@@ -133,8 +133,11 @@ cargo build --target x86_64-unknown-linux-gnu
 # Offline debug renderer (suites: family, rust, damage, aliasing, all)
 cargo run --target x86_64-unknown-linux-gnu --bin render -- --suite all
 
-# Render all presets to WAV + manifest
-cargo run --target x86_64-unknown-linux-gnu --bin render_presets
+# Render all presets to stereo WAVs + manifest in output/, through the plugin's
+# own output path (voices, drive, post chain, output gain, limiter). Defaults:
+# note 60, velocity 127, released at 1 s, 2 s long, 48 kHz. Options: --note,
+# --velocity, --note-off, --duration, --sample-rate, --contains, --limit, --out-dir
+cargo run --release --target x86_64-unknown-linux-gnu --bin render_presets
 
 # Regenerate the 50 factory presets
 cargo run --bin seed_presets

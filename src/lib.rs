@@ -88,11 +88,15 @@ pub use params::{CorrosionParams, Object, PlayMode, QualityMode};
 pub use presets::Preset;
 
 /// Map an incoming MIDI note to a kit-slot object when `PlayMode::Kit` is
-/// active. Each object family gets a contiguous block of ~10 MIDI notes
-/// across the playable range; outside the C1..D9 block the mapping wraps so
-/// the player can still trigger every family at extreme registers.
+/// active. Each object gets a 10-note slot, in object order, starting at
+/// MIDI 24 (C1): 24–33 is object 0, 34–43 object 1, … 104–113 object 8.
+/// Outside that block the slots repeat in both directions, so every object
+/// can be played at extreme registers: 114–123 is object 0 again, and below
+/// the block 14–23 is object 8, 4–13 object 7 and 0–3 object 6 (H14).
 fn note_to_kit_object(note: u8) -> Object {
-    let slot = ((note as i32 - 24).max(0) / 10).rem_euclid(9);
+    // `div_euclid` floors toward negative infinity, so the notes below 24
+    // continue the slot pattern downward in full 10-note slots.
+    let slot = (note as i32 - 24).div_euclid(10).rem_euclid(9);
     Object::from_int(slot)
 }
 
@@ -788,6 +792,18 @@ pub struct Corrosion {
     reported_latency_samples: u32,
 }
 
+/// The per-block values `Corrosion::begin_block` resolves and each
+/// output frame of that block reads.
+#[derive(Clone, Copy, Debug)]
+struct BlockSetup {
+    sample_rate: u32,
+    width: f32,
+    /// 0 Hard, 1 Lookahead.
+    limiter_mode: i32,
+    /// The Analog Ceiling, which both limiter modes target.
+    limiter_threshold: f32,
+}
+
 impl Default for Corrosion {
     /// Creates a default plugin instance with initialized subsystems.
     fn default() -> Self {
@@ -820,33 +836,6 @@ impl Corrosion {
         self.lookahead_left.set_threshold(limiter_threshold);
         self.lookahead_right.set_threshold(limiter_threshold);
         (limiter_mode, limiter_threshold)
-    }
-
-    /// The last stage of the signal: output gain, then the selected limiter.
-    /// Hard (default) clamps each sample; Lookahead introduces ~1 ms of delay
-    /// and pulls peaks back via the smoothed gain reduction in
-    /// `LookaheadLimiter`. Both stop at `limiter_threshold`, the Analog
-    /// Ceiling, so it is the output ceiling whatever the gain.
-    fn output_stage(
-        &mut self,
-        left: f32,
-        right: f32,
-        gain: f32,
-        limiter_mode: i32,
-        limiter_threshold: f32,
-    ) -> (f32, f32) {
-        let (left, right) = (left * gain, right * gain);
-        if limiter_mode == 1 {
-            (
-                self.lookahead_left.process(left),
-                self.lookahead_right.process(right),
-            )
-        } else {
-            (
-                apply_output_limiter(left, limiter_threshold),
-                apply_output_limiter(right, limiter_threshold),
-            )
-        }
     }
 
     /// Push the current parameter values (plus macro biases) into the post
@@ -933,6 +922,141 @@ impl Corrosion {
             self.params.diode_softness.value(),
         );
     }
+
+    /// Per-buffer setup, run once at the start of every block before any
+    /// sample is rendered: drive and output-gain smoother targets, limiter
+    /// configuration, post-chain parameters (with macro biases) and the live
+    /// controls of held voices. These setters recompute coefficients (filter
+    /// tan(), FEM freqs, reverb delays) that must not run at audio rate, and
+    /// the per-sample version compounded the FactoryReverb comb delays. Host
+    /// automation is applied at buffer granularity, so per-buffer updates are
+    /// sufficient.
+    ///
+    /// `process()` and the offline renderer both call it through
+    /// `process_block`, so tools and tests run the plugin's exact setup (H13).
+    fn begin_block(&mut self, sample_rate: u32, host_tempo: Option<f32>) -> BlockSetup {
+        let width = self.params.width.value();
+        let body_amount = body_mix(self.params.body.value());
+
+        // Resolve the macro bias once for the whole buffer so per-buffer DSP
+        // setters and per-buffer held-note automation see the same numbers.
+        let bias = resolve_macro_bias(&self.params);
+
+        self.drive_smoother.set_sample_rate(sample_rate as f32);
+        self.drive_smoother
+            .set_target((self.params.drive.value() + bias.drive_offset).clamp(0.0, 5.0));
+        self.output_gain_smoother
+            .set_sample_rate(sample_rate as f32);
+        self.output_gain_smoother
+            .set_target(self.params.output.value());
+
+        let (limiter_mode, limiter_threshold) = self.configure_output_limiters(sample_rate);
+
+        self.apply_post_chain_params(sample_rate, host_tempo, &bias, body_amount);
+
+        // Push subset of controls into still-held voices so sustaining notes
+        // respond to damping / brightness / strike-position automation. Drive
+        // is already live above (captured each buffer into `drive`). Macros
+        // bias damping/brightness here so a Corrosion or Brightness twist also
+        // tracks held notes, not just new ones.
+        let live_damping =
+            (self.params.res_damping.value() + bias.res_damping_offset).clamp(0.0, 1.0);
+        let live_brightness =
+            (self.params.res_brightness.value() + bias.res_brightness_offset).clamp(0.0, 1.0);
+        self.voice_manager.update_live_controls(
+            live_damping,
+            live_brightness,
+            self.params.strike_position.value(),
+            self.params.coupling_stiffness.value(),
+            self.params.position_wander.value(),
+            self.params.position_envelope.value(),
+            self.params.position_wander_rate.value(),
+            self.params.fundamental_anchor.value(),
+            self.params.exciter_pressure.value(),
+            sample_rate,
+        );
+
+        BlockSetup {
+            sample_rate,
+            width,
+            limiter_mode,
+            limiter_threshold,
+        }
+    }
+
+    /// One output frame before the limiter: voices, master drive (smoothed
+    /// per sample), the post chain, then the smoothed output gain.
+    #[inline]
+    fn render_frame_unlimited(&mut self, block: &BlockSetup) -> (f32, f32) {
+        // Generate stereo audio from all active voices
+        let (left, right) = self
+            .voice_manager
+            .process_sample_stereo(block.sample_rate, block.width);
+
+        // Apply drive/saturation with per-sample smoothed master drive.
+        let drive_smoothed = self.drive_smoother.next();
+        let left = apply_drive(left, drive_smoothed);
+        let right = apply_drive(right, drive_smoothed);
+
+        // Apply post-processing chain
+        let (left, right) = self.post_chain.process(left, right);
+
+        let gain = self.output_gain_smoother.next();
+        (left * gain, right * gain)
+    }
+
+    /// The selected output limiter. Hard (default) clamps each sample;
+    /// Lookahead introduces ~1 ms of delay and pulls peaks back via the
+    /// smoothed gain reduction in `LookaheadLimiter`. Both stop at the Analog
+    /// Ceiling, so it is the output ceiling whatever the gain.
+    #[inline]
+    fn limit_frame(&mut self, left: f32, right: f32, block: &BlockSetup) -> (f32, f32) {
+        if block.limiter_mode == 1 {
+            (
+                self.lookahead_left.process(left),
+                self.lookahead_right.process(right),
+            )
+        } else {
+            (
+                apply_output_limiter(left, block.limiter_threshold),
+                apply_output_limiter(right, block.limiter_threshold),
+            )
+        }
+    }
+
+    /// One host block: `begin_block`, then for each sample the MIDI events
+    /// due at it and one output frame. `write` receives each sample's index
+    /// in the block, its output frame (`render_frame_unlimited`, then
+    /// `limit_frame`) and the same frame before the limiter
+    /// (which level measurements use to count limiter hits).
+    ///
+    /// This is the plugin's whole audio path below the host API: `process()`
+    /// calls it with the host's buffer and events, `offline::render_preset`
+    /// with its own (H13). Returns the block's setup so `process()` can report
+    /// the limiter latency.
+    fn process_block<F, W>(
+        &mut self,
+        block_len: usize,
+        sample_rate: u32,
+        host_tempo: Option<f32>,
+        next_event: &mut Option<NoteEvent<()>>,
+        mut fetch_next: F,
+        mut write: W,
+    ) -> BlockSetup
+    where
+        F: FnMut() -> Option<NoteEvent<()>>,
+        W: FnMut(usize, (f32, f32), (f32, f32)),
+    {
+        let block = self.begin_block(sample_rate, host_tempo);
+        for sample_id in 0..block_len {
+            // Handle any MIDI events scheduled for this sample
+            process_pending_events(self, sample_id as u32, next_event, &mut fetch_next);
+            let (left, right) = self.render_frame_unlimited(&block);
+            let limited = self.limit_frame(left, right, &block);
+            write(sample_id, limited, (left, right));
+        }
+        block
+    }
 }
 
 impl Plugin for Corrosion {
@@ -994,7 +1118,12 @@ impl Plugin for Corrosion {
     fn reset(&mut self) {
         self.voice_manager.reset();
         self.post_chain.reset();
-        self.drive_smoother = OnePoleSmoother::new(self.params.drive.value());
+        // Start the master drive where `begin_block` aims it (Drive plus the
+        // Violence bias), so the first note after a reset isn't driven by a
+        // ramp from the unbiased Drive (H13).
+        let bias = resolve_macro_bias(&self.params);
+        self.drive_smoother =
+            OnePoleSmoother::new((self.params.drive.value() + bias.drive_offset).clamp(0.0, 5.0));
         self.output_gain_smoother = OnePoleSmoother::new(self.params.output.value());
         self.lookahead_left.reset();
         self.lookahead_right.reset();
@@ -1018,35 +1147,35 @@ impl Plugin for Corrosion {
         _aux: &mut AuxiliaryBuffers,
         context: &mut impl ProcessContext<Self>,
     ) -> ProcessStatus {
-        // Get first MIDI event and sample rate from host
+        // Get first MIDI event, sample rate and tempo from the host
         let mut next_event = context.next_event();
         let sample_rate = context.transport().sample_rate as u32;
+        let host_tempo = context.transport().tempo.map(|t| t as f32);
 
-        // Read parameter values and configure the post-processing chain once per
-        // buffer. These setters recompute coefficients (filter tan(), FEM freqs,
-        // reverb delays) that must not run at audio rate, and the per-sample
-        // version compounded the FactoryReverb comb delays. Host automation is
-        // applied at buffer granularity, so per-buffer updates are sufficient.
-        let width = self.params.width.value();
-        let body_amount = body_mix(self.params.body.value());
-
-        // Resolve the macro bias once for the whole buffer so per-buffer DSP
-        // setters and per-buffer held-note automation see the same numbers.
-        let bias = resolve_macro_bias(&self.params);
-
-        self.drive_smoother.set_sample_rate(sample_rate as f32);
-        self.drive_smoother
-            .set_target((self.params.drive.value() + bias.drive_offset).clamp(0.0, 5.0));
-        self.output_gain_smoother
-            .set_sample_rate(sample_rate as f32);
-        self.output_gain_smoother
-            .set_target(self.params.output.value());
-
-        let (limiter_mode, limiter_threshold) = self.configure_output_limiters(sample_rate);
+        // Everything from here to the output samples is `process_block`,
+        // shared with the offline renderer (`offline::render_preset`, H13).
+        let block_len = buffer.samples();
+        let outputs = buffer.as_slice();
+        let block = self.process_block(
+            block_len,
+            sample_rate,
+            host_tempo,
+            &mut next_event,
+            || context.next_event(),
+            |sample_id, (left, right), _unlimited| {
+                for (idx, channel) in outputs.iter_mut().enumerate() {
+                    if idx == 0 {
+                        channel[sample_id] = left;
+                    } else if idx == 1 {
+                        channel[sample_id] = right;
+                    }
+                }
+            },
+        );
 
         // Report plugin latency to the host. Only update when it changes —
         // hosts may re-negotiate buses on every set_latency_samples call.
-        let target_latency = if limiter_mode == 1 {
+        let target_latency = if block.limiter_mode == 1 {
             dsp::LOOKAHEAD_LIMITER_SAMPLES as u32
         } else {
             0
@@ -1054,74 +1183,6 @@ impl Plugin for Corrosion {
         if target_latency != self.reported_latency_samples {
             context.set_latency_samples(target_latency);
             self.reported_latency_samples = target_latency;
-        }
-
-        let host_tempo = context.transport().tempo.map(|t| t as f32);
-        self.apply_post_chain_params(sample_rate, host_tempo, &bias, body_amount);
-
-        // Push subset of controls into still-held voices so sustaining notes
-        // respond to damping / brightness / strike-position automation. Drive
-        // is already live above (captured each buffer into `drive`). Macros
-        // bias damping/brightness here so a Corrosion or Brightness twist also
-        // tracks held notes, not just new ones.
-        let live_damping =
-            (self.params.res_damping.value() + bias.res_damping_offset).clamp(0.0, 1.0);
-        let live_brightness =
-            (self.params.res_brightness.value() + bias.res_brightness_offset).clamp(0.0, 1.0);
-        self.voice_manager.update_live_controls(
-            live_damping,
-            live_brightness,
-            self.params.strike_position.value(),
-            self.params.coupling_stiffness.value(),
-            self.params.position_wander.value(),
-            self.params.position_envelope.value(),
-            self.params.position_wander_rate.value(),
-            self.params.fundamental_anchor.value(),
-            self.params.exciter_pressure.value(),
-            sample_rate,
-        );
-
-        // Process each sample in the buffer
-        for (sample_id, channel_samples) in buffer.iter_samples().enumerate() {
-            // Handle any MIDI events scheduled for this sample
-            process_pending_events(self, sample_id as u32, &mut next_event, || {
-                context.next_event()
-            });
-
-            // Generate stereo audio from all active voices
-            let (left_sample, right_sample) =
-                self.voice_manager.process_sample_stereo(sample_rate, width);
-
-            let mut left = left_sample;
-            let mut right = right_sample;
-
-            // Apply drive/saturation with per-sample smoothed master drive.
-            let drive_smoothed = self.drive_smoother.next();
-            left = apply_drive(left, drive_smoothed);
-            right = apply_drive(right, drive_smoothed);
-
-            // Apply post-processing chain
-            let (post_left, post_right) = self.post_chain.process(left, right);
-            left = post_left;
-            right = post_right;
-
-            let output_gain_smoothed = self.output_gain_smoother.next();
-            (left, right) = self.output_stage(
-                left,
-                right,
-                output_gain_smoothed,
-                limiter_mode,
-                limiter_threshold,
-            );
-
-            // Write output to buffer channels
-            for (idx, channel_sample) in channel_samples.into_iter().enumerate() {
-                if idx == 0 {
-                    *channel_sample = left;
-                } else if idx == 1 {
-                    *channel_sample = right;
-                }
-            }
         }
 
         ProcessStatus::Normal
@@ -1146,12 +1207,50 @@ impl Plugin for Corrosion {
 #[cfg(test)]
 mod tests {
     use super::{
-        apply_drive, apply_output_limiter, handle_note_event,
-        note_event_velocity_to_voice_velocity, process_pending_events, Corrosion, Object,
+        handle_note_event, note_event_velocity_to_voice_velocity, process_pending_events,
+        Corrosion, Object,
     };
     use crate::params::object_param;
     use nih_plug::prelude::NoteEvent;
     use std::sync::Arc;
+
+    /// H13: after `reset()` the master drive starts where `begin_block`
+    /// aims it, Drive plus the Violence bias (clamped), so the first note
+    /// after a host reset is driven like every later one instead of ramping
+    /// from the unbiased Drive. The offline renderer starts from a reset, so
+    /// this also keeps its renders equal to a settled plugin.
+    #[test]
+    fn reset_starts_the_drive_smoother_at_the_biased_drive() {
+        use nih_plug::prelude::Plugin;
+        let path = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/presets/factory/chain_whip_snap.corrosion-preset"
+        );
+        let base = crate::presets::Preset::load(std::path::Path::new(path)).expect("load preset");
+        for (violence, drive) in [(0.75, base.drive), (0.2, base.drive), (1.0, 5.0)] {
+            let mut preset = base.clone();
+            preset.extra.macro_violence = violence;
+            preset.drive = drive;
+            let mut plugin = Corrosion {
+                params: Arc::new(preset.into_params()),
+                ..Corrosion::default()
+            };
+            plugin.reset();
+            let bias = super::resolve_macro_bias(&plugin.params);
+            assert!(
+                bias.drive_offset != 0.0,
+                "Violence {violence}: no drive bias"
+            );
+            let target = (plugin.params.drive.value() + bias.drive_offset).clamp(0.0, 5.0);
+            plugin.begin_block(48_000, None);
+            let first = plugin.drive_smoother.next();
+            assert_eq!(
+                first.to_bits(),
+                target.to_bits(),
+                "Violence {violence}, Drive {drive}: first drive {first}, target {target}"
+            );
+        }
+    }
 
     /// C3 follow-up: `Plugin::reset` with notes ringing through Echo and
     /// Spring must not allocate (checked in debug builds, where the checking
@@ -1174,42 +1273,18 @@ mod tests {
                 env!("CARGO_MANIFEST_DIR")
             );
             let preset = crate::presets::Preset::load(std::path::Path::new(&path)).unwrap();
-            let mut plugin = Corrosion {
-                params: Arc::new(preset.into_params()),
-                ..Corrosion::default()
-            };
-            let params = plugin.params.clone();
-            let bias = super::resolve_macro_bias(&params);
-            let body_amount = super::body_mix(params.body.value());
-            let width = params.width.value();
-            plugin.apply_post_chain_params(48_000, None, &bias, body_amount);
-            for note in [48, 55, 60, 67] {
-                handle_note_event(
-                    &mut plugin,
-                    NoteEvent::NoteOn {
-                        timing: 0,
-                        voice_id: None,
-                        channel: 0,
-                        note,
-                        velocity: 1.0,
-                    },
-                );
-            }
-            let render = |plugin: &mut Corrosion| {
-                let (l, r) = plugin.voice_manager.process_sample_stereo(48_000, width);
-                plugin.post_chain.process(l, r)
-            };
-            let mut loudest = 0.0_f32;
-            for _ in 0..24_000 {
-                let (l, r) = render(&mut plugin);
-                loudest = loudest.max(l.abs()).max(r.abs());
-            }
+            // Through the plugin's own output path (`process_block`, H13).
+            let mut renderer = crate::offline::PresetRenderer::new(&preset);
+            let notes = [48, 55, 60, 67].map(|note| crate::offline::OfflineNote::on(0, note, 1.0));
+            let before = renderer.render(&notes, 48_000, 24_000).output;
+            let loudest = before
+                .iter()
+                .fold(0.0_f32, |m, &(l, r)| m.max(l.abs()).max(r.abs()));
             assert!(loudest > 0.01, "{file}: nothing sounding before reset");
 
-            assert_no_alloc::assert_no_alloc(|| plugin.reset());
-            plugin.apply_post_chain_params(48_000, None, &bias, body_amount);
-            for i in 0..48_000 {
-                let (l, r) = render(&mut plugin);
+            assert_no_alloc::assert_no_alloc(|| renderer.plugin_mut().reset());
+            let after = renderer.render(&[], 48_000, 48_000).output;
+            for (i, &(l, r)) in after.iter().enumerate() {
                 assert!(
                     l == 0.0 && r == 0.0,
                     "{file}: sample {i} after reset = ({l}, {r})"
@@ -1322,39 +1397,15 @@ mod tests {
 
     #[test]
     fn hosted_normalized_note_velocity_reaches_output_chain() {
-        let mut plugin = Corrosion::default();
-        handle_note_event(
-            &mut plugin,
-            NoteEvent::NoteOn {
-                timing: 0,
-                voice_id: None,
-                channel: 0,
-                note: 60,
-                velocity: 1.0,
-            },
-        );
-
-        let sample_rate = 48_000u32;
-        // Same parameter → post-chain wiring as `process()` (space mode is
-        // already Off by default).
-        let bias = super::resolve_macro_bias(&plugin.params);
-        let body_amount = super::body_mix(plugin.params.body.value());
-        plugin.apply_post_chain_params(sample_rate, None, &bias, body_amount);
-        let mut peak = 0.0f32;
-        for _ in 0..4096 {
-            let (left_sample, right_sample) = plugin
-                .voice_manager
-                .process_sample_stereo(sample_rate, plugin.params.width.value());
-
-            let mut left = apply_drive(left_sample, plugin.params.drive.value());
-            let mut right = apply_drive(right_sample, plugin.params.drive.value());
-
-            (left, right) = plugin.post_chain.process(left, right);
-            let ceiling = plugin.params.analog_ceiling.value();
-            left = apply_output_limiter(left * plugin.params.output.value(), ceiling);
-            right = apply_output_limiter(right * plugin.params.output.value(), ceiling);
-            peak = peak.max(left.abs()).max(right.abs());
-        }
+        // The default patch through the plugin's own output path
+        // (`process_block`, H13): a host note at velocity 1.0.
+        let mut renderer =
+            crate::offline::PresetRenderer::from_params(crate::params::CorrosionParams::default());
+        let peak = renderer
+            .render(&[crate::offline::OfflineNote::on(0, 60, 1.0)], 48_000, 4096)
+            .output
+            .iter()
+            .fold(0.0f32, |m, &(l, r)| m.max(l.abs()).max(r.abs()));
 
         eprintln!("hosted normalized note peak={peak:.6}");
         // Level guard: within ±6 dB of the 0.452 reference. It was 0.118
@@ -1655,6 +1706,36 @@ mod tests {
             super::note_to_kit_object(34),
             "notes that cross a slot boundary should map to different objects"
         );
+    }
+
+    /// Kit slots for (note, expected object), checked one by one.
+    fn assert_kit_slots(cases: &[(u8, i32)]) {
+        for &(note, object) in cases {
+            assert_eq!(
+                super::note_to_kit_object(note).to_int(),
+                object,
+                "MIDI {note} should play object {object}"
+            );
+        }
+    }
+
+    /// H14 spec "Inside the main block".
+    #[test]
+    fn kit_notes_inside_the_block_map_to_their_slot() {
+        assert_kit_slots(&[(24, 0), (33, 0), (34, 1), (113, 8)]);
+    }
+
+    /// H14 spec "Above the block": the slots repeat upward.
+    #[test]
+    fn kit_notes_above_the_block_wrap() {
+        assert_kit_slots(&[(114, 0), (127, 1)]);
+    }
+
+    /// H14 spec "Below the block": the slots repeat downward too, instead of
+    /// every note under MIDI 24 playing Pipe.
+    #[test]
+    fn kit_notes_below_the_block_wrap() {
+        assert_kit_slots(&[(23, 8), (14, 8), (13, 7), (4, 7), (3, 6), (0, 6)]);
     }
 
     #[test]
@@ -2093,15 +2174,16 @@ mod c5_measurements {
         }
     }
 
-    /// Render one preset through the current chain with BODY forced to
-    /// `body_amount` (0–1), the same note pattern as `measure_preset`.
-    /// Returns (peak, rms, limiter hits).
+    /// Render one preset through the plugin's output path with BODY forced
+    /// to `body` (0–5) and its output scaled by `output_scale`: note 60 at
+    /// full velocity, released at 1 s, 2 s total. Returns (peak, rms, limiter
+    /// hits).
     pub(crate) fn render_preset(
         path: &std::path::Path,
-        body_amount: f32,
+        body: f32,
         output_scale: f32,
     ) -> (f32, f32, usize) {
-        frame_stats(&render_preset_frames(path, body_amount, output_scale))
+        frame_stats(&render_preset_frames(path, body, output_scale))
     }
 
     /// (peak, rms, limiter hits) of rendered frames, after the hard limiter.
@@ -2126,60 +2208,24 @@ mod c5_measurements {
     /// note pattern `render_preset` measures: note on, note off at 1 s, 2 s total.
     pub(crate) fn render_preset_frames(
         path: &std::path::Path,
-        body_amount: f32,
+        body: f32,
         output_scale: f32,
     ) -> Vec<(f32, f32)> {
-        render_frames(
-            Preset::load(path).expect("load preset"),
-            body_amount,
-            output_scale,
-        )
+        render_frames(Preset::load(path).expect("load preset"), body, output_scale)
     }
 
-    fn render_frames(preset: Preset, body_amount: f32, output_scale: f32) -> Vec<(f32, f32)> {
-        let mut plugin = Corrosion {
-            params: Arc::new(preset.into_params()),
-            ..Corrosion::default()
-        };
-        let params = plugin.params.clone();
-        let bias = resolve_macro_bias(&params);
-        plugin.apply_post_chain_params(SAMPLE_RATE, None, &bias, body_amount);
-        handle_note_event(
-            &mut plugin,
-            NoteEvent::NoteOn {
-                timing: 0,
-                voice_id: None,
-                channel: 0,
-                note: 60,
-                velocity: 1.0,
-            },
-        );
-        let master_drive = (params.drive.value() + bias.drive_offset).clamp(0.0, 5.0);
-        let (width, output) = (params.width.value(), params.output.value() * output_scale);
-        let total = SAMPLE_RATE as usize * 2;
-        (0..total)
-            .map(|i| {
-                if i == total / 2 {
-                    handle_note_event(
-                        &mut plugin,
-                        NoteEvent::NoteOff {
-                            timing: 0,
-                            voice_id: None,
-                            channel: 0,
-                            note: 60,
-                            velocity: 0.0,
-                        },
-                    );
-                }
-                let (l, r) = plugin
-                    .voice_manager
-                    .process_sample_stereo(SAMPLE_RATE, width);
-                let (pl, pr) = plugin
-                    .post_chain
-                    .process(apply_drive(l, master_drive), apply_drive(r, master_drive));
-                (pl * output, pr * output)
-            })
-            .collect()
+    /// `preset` with BODY set to `body` (0–5) and its output scaled by
+    /// `output_scale`, rendered by the offline renderer (the plugin's own
+    /// output path, H13). Returns the frames before the output limiter, so
+    /// the level checks can count limiter hits.
+    fn render_frames(mut preset: Preset, body: f32, output_scale: f32) -> Vec<(f32, f32)> {
+        preset.body = body;
+        preset.output *= output_scale;
+        let notes = [
+            crate::offline::OfflineNote::on(0, 60, 1.0),
+            crate::offline::OfflineNote::off(SAMPLE_RATE as usize, 60),
+        ];
+        crate::offline::render_preset_pre_limiter(&preset, &notes, SAMPLE_RATE, 2.0)
     }
 
     /// The default patch: BODY whose default-note peak (the
@@ -2188,33 +2234,20 @@ mod c5_measurements {
     #[test]
     #[ignore]
     fn c5_default_body() {
+        // Through the plugin's own output path (`process_block`, H13); the
+        // default output is 1, so the pre-limiter frames are the post chain's.
         let peak_at = |amount: f32| {
-            let mut plugin = Corrosion::default();
-            let params = plugin.params.clone();
-            let bias = resolve_macro_bias(&params);
-            plugin.apply_post_chain_params(SAMPLE_RATE, None, &bias, amount);
-            handle_note_event(
-                &mut plugin,
-                NoteEvent::NoteOn {
-                    timing: 0,
-                    voice_id: None,
-                    channel: 0,
-                    note: 60,
-                    velocity: 1.0,
-                },
-            );
-            let md = (params.drive.value() + bias.drive_offset).clamp(0.0, 5.0);
-            (0..4_096)
-                .map(|_| {
-                    let (l, r) = plugin
-                        .voice_manager
-                        .process_sample_stereo(SAMPLE_RATE, params.width.value());
-                    let (pl, pr) = plugin
-                        .post_chain
-                        .process(apply_drive(l, md), apply_drive(r, md));
-                    pl.abs().max(pr.abs())
-                })
-                .fold(0.0_f32, f32::max)
+            let mut params = crate::params::CorrosionParams::default();
+            params.body = crate::params::float_param_for_test("Body", amount * 5.0, 0.0, 5.0);
+            crate::offline::PresetRenderer::from_params(params)
+                .render(
+                    &[crate::offline::OfflineNote::on(0, 60, 1.0)],
+                    SAMPLE_RATE,
+                    4_096,
+                )
+                .pre_limiter
+                .iter()
+                .fold(0.0_f32, |m, &(l, r)| m.max(l.abs()).max(r.abs()))
         };
         let (mut lo, mut hi) = (0.0_f32, 1.0_f32);
         for _ in 0..16 {
@@ -2242,7 +2275,7 @@ mod c5_measurements {
             .into_iter()
             .map(|path| {
                 let preset = Preset::load(&path).unwrap();
-                let (peak, rms, hits) = render_preset(&path, preset.body / 5.0, 1.0);
+                let (peak, rms, hits) = render_preset(&path, preset.body, 1.0);
                 (preset.name, preset.body, preset.output, peak, rms, hits)
             })
             .collect()
@@ -2273,7 +2306,7 @@ mod c5_measurements {
                         .into_iter()
                         .find(|p| Preset::load(p).unwrap().name == name)
                         .unwrap();
-                    let (peak, rms, hits) = render_preset(&path, body / 5.0, 1.0 / output);
+                    let (peak, rms, hits) = render_preset(&path, body, 1.0 / output);
                     (name, body, 1.0, peak, rms, hits)
                 } else {
                     (name, body, output, peak, rms, hits)
@@ -2293,11 +2326,11 @@ mod c5_measurements {
             if rms0 < floor {
                 scale *= floor / rms0.max(1e-9);
             }
-            let mut result = render_preset(&path, body / 5.0, scale);
+            let mut result = render_preset(&path, body, scale);
             let mut steps = 0;
             while result.2 > 0 && steps < 200 {
                 scale *= 0.95;
-                result = render_preset(&path, body / 5.0, scale);
+                result = render_preset(&path, body, scale);
                 steps += 1;
             }
             let out = ((stored * scale) * 1000.0).round() / 1000.0;
@@ -2374,12 +2407,11 @@ mod c5_measurements {
         println!("|---|---|---|---|---|---|---|---|");
         for path in spring_presets {
             let preset = Preset::load(&path).unwrap();
-            let amount = preset.body / 5.0;
-            let frames = render_preset_frames(&path, amount, 1.0);
+            let frames = render_preset_frames(&path, preset.body, 1.0);
             let (peak, rms, hits) = frame_stats(&frames);
             let mut dry_preset = Preset::load(&path).unwrap();
             dry_preset.extra.space_amount = 0.0;
-            let dry = render_frames(dry_preset, amount, 1.0);
+            let dry = render_frames(dry_preset, preset.body, 1.0);
             let wet: Vec<(f32, f32)> = frames
                 .iter()
                 .zip(&dry)
@@ -2414,7 +2446,7 @@ mod c5_measurements {
                 };
                 let params = plugin.params.clone();
                 let bias = resolve_macro_bias(&params);
-                plugin.apply_post_chain_params(SAMPLE_RATE, None, &bias, amount);
+                plugin.apply_post_chain_params(SAMPLE_RATE, None, &bias, preset.body / 5.0);
                 (0..SAMPLE_RATE as usize / 4)
                     .map(|i| {
                         let x = if i == 0 { 0.1 } else { 0.0 };
@@ -2441,15 +2473,16 @@ mod c5_measurements {
 /// The output ceiling in both limiter modes (`h07-hard-limiter-honors-analog-ceiling`).
 #[cfg(test)]
 mod output_ceiling_tests {
-    use super::{apply_drive, handle_note_event, resolve_macro_bias, Corrosion, LIMITER_THRESHOLD};
+    use super::{Corrosion, LIMITER_THRESHOLD};
     use crate::params::{limiter_mode_param, CorrosionParams};
-    use nih_plug::prelude::{FloatParam, FloatRange, NoteEvent};
+    use nih_plug::prelude::{FloatParam, FloatRange};
     use std::sync::Arc;
 
     const SAMPLE_RATE: u32 = 48_000;
 
     /// A full-velocity C4 through the whole plugin path (voices, master
-    /// drive, post chain, output stage) at `ceiling`, output `gain` and
+    /// drive, post chain, output gain, limiter; `process_block`) at `ceiling`,
+    /// output `gain` and
     /// limiter `mode`: half a second, 48 kHz.
     fn render(ceiling: f32, gain: f32, mode: i32) -> Vec<(f32, f32)> {
         let params = CorrosionParams {
@@ -2459,40 +2492,16 @@ mod output_ceiling_tests {
                 FloatRange::Linear { min: 0.5, max: 1.0 },
             ),
             limiter_mode: limiter_mode_param(mode),
+            output: crate::params::float_param_for_test("Output", gain, 0.0, 100.0),
             ..CorrosionParams::default()
         };
-        let mut plugin = Corrosion {
-            params: Arc::new(params),
-            ..Corrosion::default()
-        };
-        let params = plugin.params.clone();
-        let bias = resolve_macro_bias(&params);
-        let body = super::body_mix(params.body.value());
-        plugin.apply_post_chain_params(SAMPLE_RATE, None, &bias, body);
-        let (limiter_mode, threshold) = plugin.configure_output_limiters(SAMPLE_RATE);
-        handle_note_event(
-            &mut plugin,
-            NoteEvent::NoteOn {
-                timing: 0,
-                voice_id: None,
-                channel: 0,
-                note: 60,
-                velocity: 1.0,
-            },
-        );
-        let drive = (params.drive.value() + bias.drive_offset).clamp(0.0, 5.0);
-        let width = params.width.value();
-        (0..SAMPLE_RATE as usize / 2)
-            .map(|_| {
-                let (l, r) = plugin
-                    .voice_manager
-                    .process_sample_stereo(SAMPLE_RATE, width);
-                let (l, r) = plugin
-                    .post_chain
-                    .process(apply_drive(l, drive), apply_drive(r, drive));
-                plugin.output_stage(l, r, gain, limiter_mode, threshold)
-            })
-            .collect()
+        crate::offline::PresetRenderer::from_params(params)
+            .render(
+                &[crate::offline::OfflineNote::on(0, 60, 1.0)],
+                SAMPLE_RATE,
+                SAMPLE_RATE as usize / 2,
+            )
+            .output
     }
 
     fn peak(frames: &[(f32, f32)]) -> f32 {
@@ -2529,12 +2538,18 @@ mod output_ceiling_tests {
             ..Corrosion::default()
         };
         let (mode, threshold) = plugin.configure_output_limiters(SAMPLE_RATE);
+        let block = super::BlockSetup {
+            sample_rate: SAMPLE_RATE,
+            width: 1.0,
+            limiter_mode: mode,
+            limiter_threshold: threshold,
+        };
         // Frames after output gain, before the limiter. Output ×4 so the
         // clamp is exercised, not just passed through.
-        let frames = super::c5_measurements::render_preset_frames(path, 0.5, 4.0);
+        let frames = super::c5_measurements::render_preset_frames(path, 2.5, 4.0);
         let mut over = 0;
         for &(l, r) in &frames {
-            let (ol, or) = plugin.output_stage(l, r, 1.0, mode, threshold);
+            let (ol, or) = plugin.limit_frame(l, r, &block);
             let fixed = (
                 l.clamp(-LIMITER_THRESHOLD, LIMITER_THRESHOLD),
                 r.clamp(-LIMITER_THRESHOLD, LIMITER_THRESHOLD),

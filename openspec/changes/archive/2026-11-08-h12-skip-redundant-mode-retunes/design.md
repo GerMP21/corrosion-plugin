@@ -35,6 +35,7 @@
 2. **A cheaper retune.**
    - `SecondOrderMode::retune(frequency, fs)` keeps the cached `r` and recomputes only the angle-dependent terms (in f64, as now).
    - It halves the transcendental calls (no `exp`). A full `for_mode` still runs when the decay or `fs` changes.
+   - *As built:* there is no `SecondOrderMode::retune`. It was replaced by two functions over a per-mode `RetuneCache` kept off the modes (a parallel `Vec` on `ModalResonator`, so the per-sample loop's data stays small). `retune_exact` serves a held bend: it reuses the cached radius and calls `sin_cos`, bit-identical to `for_mode`. `retune_incremental` serves a factor that moves every sample: it rotates the cached sine and cosine with a fifth-order Taylor step and no transcendental call, with an exact refresh every 256 steps. The cache-and-skip alone left dynamics at about 1.9× static; see "Incremental retune" under Measurements.
 3. **Benchmarks for the worst case:** a held-bend case and a TautCable dynamics case, at 16 voices, Normal and Render. The spec ratios compare each with its plain twin in the same run, so machine speed cancels.
 
 ## Risks / Trade-offs
@@ -122,3 +123,18 @@ The spec's ratios are now the median, over 5 runs, of the ratio within each run 
 ### Bounds accepted (task 2.3)
 
 The maintainer accepted the medians above against bounds of **1.1× (bent)** and **1.6× (dynamics)**: bent/plain 1.063×, dynamics/static 1.558×. The dynamics bound was raised from 1.5× because its floor with retuning free is about 1.1× (the dynamic note sounds different, so its exciter and governor do different work).
+
+### Re-verification on `main` after the merge (2026-11-08)
+
+`python3 scripts/bench_ratios.py 5` on merge commit `800ecef` (Rust 1.99.1, `x86_64-unknown-linux-gnu`, Linux container, 4 vCPU). Nothing else ran and `src/` was untouched during the runs. Absolute times are lower than in the session above (a different container), but the ratios are what the spec bounds.
+
+| Run | Bent / plain | Dynamics / static |
+|---|---|---|
+| 1 | 1.014× (14.53 / 14.33 ms) | 1.516× (12.86 / 8.49 ms) |
+| 2 | 1.019× (15.19 / 14.91 ms) | 1.556× (12.81 / 8.24 ms) |
+| 3 | 1.028× (14.87 / 14.46 ms) | 1.544× (13.26 / 8.59 ms) |
+| 4 | 0.955× (14.59 / 15.27 ms) | 1.511× (12.93 / 8.56 ms) |
+| 5 | 1.026× (15.10 / 14.72 ms) | 1.535× (13.07 / 8.51 ms) |
+| **Median** | **1.019× (bound 1.1×): met** | **1.535× (bound 1.6×): met** |
+
+The spread across runs was narrower than before (bent 0.955–1.028×, dynamics 1.511–1.556×). The same commit passed `cargo fmt --check`, clippy with `-D warnings`, `cargo test --workspace --no-default-features` (346 passed) and the GUI lane `cargo test --lib` (304 passed).

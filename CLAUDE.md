@@ -25,14 +25,28 @@ The work follows the code review in `FABLE-CODE-REVIEW-2026-07-07.md`. Each fixe
 | Findings | State |
 |---|---|
 | C1–C6 (critical) | Fixed, archived in `openspec/changes/archive/` |
-| H1–H10 | Fixed, merged to `main` (PRs #5, #6) |
-| H11 (prune unsoundable modes), H12 (skip redundant retunes) | Fixed on branch `claude/zen-dirac-vq38u4`, **PR #7 open** |
-| H13 `h13-render-presets-through-post-chain` | **Next**, proposal/design/specs/tasks written, 0 tasks done |
-| H14 `h14-wrap-low-kit-notes` | Pending, artifacts written |
-| Medium M1–M20 | Open except M16 (fixed with H10). No OpenSpec changes yet |
+| H1–H10 | Fixed, merged to `main` (PRs #5, #6). All H changes archived 2026-11-08 |
+| H11 (prune unsoundable modes), H12 (skip redundant retunes) | Fixed, merged to `main` (PR #7). H12 bounds re-verified on `main`: bent 1.019×, dynamics 1.535× (median of 5) |
+| H13 `h13-render-presets-through-post-chain` | Fixed on branch `claude/nice-mccarthy-9fm1p6` (6/6 tasks), **PR #8 open**. Also fixed `reset()`'s unbiased drive start |
+| H14 `h14-wrap-low-kit-notes` | Fixed on branch `claude/nice-mccarthy-9fm1p6` (4/4 tasks), **PR #8 open** |
+| Medium M1–M20 | **Next**: 7 OpenSpec changes proposed (artifacts written, 0 tasks done); apply them in the order under "Execution order for the M changes" below, starting with `m03-m20-start-at-host-rate-and-report-latency`. M16 fixed with H10; M2 and M19 already resolved (marked by the last change) |
 | Backlog | `docs/BACKLOG.md` (P0–P4): Windows CI, DAW smoke automation, GUI tests, benchmark baselines |
 
-**Not yet archived:** `h01`–`h12`, `resolve-exciter-tradeoffs` and `stabilize-mallet-and-grinding-contact` are complete (all tasks checked) but still in `openspec/changes/`. Archive them with `/opsx:archive` or `/opsx:bulk-archive` when the maintainer asks.
+**Archived (2026-11-08):** `h01`–`h14`, `resolve-exciter-tradeoffs` and `stabilize-mallet-and-grinding-contact` are in `openspec/changes/archive/2026-11-08-*`, and their delta specs are synced into `openspec/specs/` (22 capabilities). The active changes are the seven M changes above. A new change syncs its specs on archive as usual (`/opsx:archive`).
+
+### Execution order for the M changes
+
+Apply them one at a time, in this order, each closed out (tests, docs, review status, this file) before the next. The order puts cheap host fixes first and the BREAKING change late, and keeps changes that touch the same code apart.
+
+| # | Change | Findings | Notes |
+|---|---|---|---|
+| 1 | `m03-m20-start-at-host-rate-and-report-latency` | M3, M20 | Latency at `initialize`; voices rated before they play. No sound change at 48 kHz. Stop and ask if an exciter turns out to depend on the rate at trigger time. |
+| 2 | `m13-sustain-pedal-and-panic` | M13 | CC64, CC120 (5 ms panic fade in the output path), CC121, CC123; new stealing tier. |
+| 3 | `m07-m08-interpolate-echo-and-tidy-spread` | M7, M8 | Echo sound changes; the spread stays bit-identical (maintainer's choice). |
+| 4 | `m06-m09-smooth-starvation-and-oversample-clipper` | M6, M9 | Half-band IIR clipper (maintainer's choice). Stop and ask if Render is more than 20 % slower, or if the alias bounds (40 dB Normal, 60 dB Render) don't hold. |
+| 5 | `m01-m04-m05-clarify-parameters` | M1, M4, M5 | Onset Level with preset and host migrations; unique names; Output in dB, +40 dB kept. **BREAKING** for Output automation. Regenerate the factory presets. |
+| 6 | `m12-per-note-expression` | M12 | Voice-ID addressing, PolyTuning, Choke. Channel MPE out of scope. |
+| 7 | `m10-m18-tidy-dead-code-and-docs` | M10, M11, M14, M15, M17, M18 | Sound-neutral cleanup (prove with render hashes); also marks M2 and M19, already resolved. |
 
 ## OpenSpec workflow
 
@@ -44,6 +58,7 @@ How each change has been done, and what the maintainer expects:
 3. **Record numbers in the change's `design.md`** (a `## Measurements` section): before/after values, benchmark tables, anything the proposal guessed wrong. When the implementation differs from a design decision, add an *As built* note rather than leaving the design stale.
 4. **Docs:** update `docs/ARCHITECTURE.md` (and the README when users see the change), and mark the finding FIXED in `FABLE-CODE-REVIEW-2026-07-07.md` with date, branch, change link and what proves it.
 5. **Close out:** `cargo fmt --check`, clippy with `-D warnings`, the full test suite, then commit and push.
+6. **Update "Current state" in this file** when a change is finished, without being asked: the date in its heading, the change's row (fixed, on which branch, PR number and whether it is merged), what is next, and the "Not yet archived" list. Also keep the branch and PR line in "Git and PRs" current. Commit it with the change's close-out.
 
 ## Build and test
 
@@ -105,6 +120,6 @@ When a parameter's meaning changes, migrate both paths:
 
 ## Git and PRs
 
-- Branch `claude/zen-dirac-vq38u4` carries the current work; PR #7 (`main` ← this branch) is open. If the PR for your branch has been merged, restart the branch from the latest `main` and rebase any unmerged commits onto it. Don't stack on merged history.
+- PRs #5, #6 and #7 are merged. Branch `claude/nice-mccarthy-9fm1p6` (from `main` after PR #7) carries the H12 re-verification, H13, H14, the spec sync, the archive of every completed change and the M proposals; **PR #8** (`main` ← this branch) is open. If the PR for your branch has been merged, restart the branch from the latest `main` and rebase any unmerged commits onto it. Don't stack on merged history.
 - Commit messages: imperative subject naming the finding, e.g. "Skip redundant mode retunes (H12)", and a body saying what changed and why. Add measurements when relevant. Don't put model identifiers in commits, code or PRs.
 - Don't create a PR unless asked. There's no PR template: use Summary / Behaviour changes / Testing sections and say plainly what wasn't tested (Windows build, pluginval, clap-validator, DAW smoke tests haven't been run in these sessions).

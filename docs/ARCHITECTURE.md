@@ -20,6 +20,18 @@ The audio path is a strict per-sample loop inside the host `process()` callback
 (`src/lib.rs`). The exciter↔resonator interaction is per-sample by design; the
 global post chain is **also** per-sample today (see §9).
 
+Below the host API the path is one function, `Corrosion::process_block`:
+`begin_block` (per-buffer setup: drive and output-gain smoother targets,
+limiter configuration, post-chain parameters with macro biases, live controls
+of held voices), then for each sample the MIDI events due at it,
+`render_frame_unlimited` (voices → master drive → post chain → output gain) and
+`limit_frame`. `process()` calls it with the host's buffer and events, and
+`offline::PresetRenderer` / `offline::render_preset` with a real plugin
+instance holding a preset, in 512-sample blocks. So `render_presets`, the audition WAVs in `output/` and the
+preset level checks hear exactly what the plugin outputs
+(`h13-render-presets-through-post-chain`). `reset()` starts the master-drive
+smoother at Drive plus the Violence bias, where `begin_block` aims it.
+
 ```text
 MIDI Note Event
       │
@@ -130,11 +142,13 @@ src/
   offline/
     mod.rs            OfflineRenderer, comparison/rust/damage suites,
                       AliasingReport + analyze_post_chain_aliasing (DFT residual proxy)
+    preset.rs         render_preset: a preset through the plugin's own output
+                      path (Corrosion::process_block, 512-sample blocks)
   randomizer/
     mod.rs            Parameter randomization helpers
   bin/
     render.rs         CLI: --suite family|rust|damage|all|aliasing
-    render_presets.rs CLI: preset batch renderer (auto-discovered bin)
+    render_presets.rs CLI: preset batch renderer → stereo WAVs via offline::render_preset
 ```
 
 ---
@@ -191,6 +205,13 @@ Idle ──note_on──▶ Active(rendering) ──note_off──▶ Tail(rende
   voice stops costing CPU. (`is_rendering()` is the idle-CPU optimization.)
 - **Stealing**: `VoiceManager` prefers an inactive (`!is_rendering`) slot; if none,
   it steals the lowest `peak_hold`, breaking ties toward the oldest `start_frame`.
+- **Object per note** (`handle_note_event`): in Tonal and Drone play modes the
+  Object parameter picks the object. In **Kit** mode the note does
+  (`note_to_kit_object`): 10-note slots in object order from MIDI 24, repeating
+  in both directions, slot = `(note − 24).div_euclid(10).rem_euclid(9)`. So
+  114–123 is Pipe again, and below the block 14–23 is object 8, 4–13 object 7
+  and 0–3 object 6 (`h14-wrap-low-kit-notes`; every note under 24 used to play
+  Pipe).
 
 ---
 
@@ -569,7 +590,7 @@ parameter.
 | `scripts/verify-local.sh` | local mirror of CI |
 | `scripts/validate-plugins.sh` | optional `pluginval` + `clap-validator` wrapper |
 | `scripts/check_wav.py` / `analyze_wav.py` / `check_clicks.py` | offline artifact validation |
-| `benches/performance.rs` | Criterion harness (voice, dense excitation, post chain, idle, offline) |
+| `benches/performance.rs` | Criterion harness (voice, dense excitation, post chain, idle, offline, the plugin's whole output path via `offline::PresetRenderer`) |
 | `tests/` | integration tests: no_alloc, automation_stress, preset_roundtrip, body, drive, stereo, velocity, chain distinctness, limiter, damage rattle, bow, plugin metrics |
 | `src/bin/render.rs` | offline QA renderer incl. `--suite aliasing` → `aliasing_report.txt` |
 

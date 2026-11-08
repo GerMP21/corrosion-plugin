@@ -1,3 +1,10 @@
+mod preset;
+
+pub use preset::{
+    render_preset, render_preset_pre_limiter, OfflineNote, OfflineNoteKind, PresetRenderer,
+    RenderedFrames, OFFLINE_BLOCK_SIZE,
+};
+
 use std::fs;
 use std::io;
 use std::path::Path;
