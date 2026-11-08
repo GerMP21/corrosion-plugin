@@ -35,6 +35,7 @@
 2. **A cheaper retune.**
    - `SecondOrderMode::retune(frequency, fs)` keeps the cached `r` and recomputes only the angle-dependent terms (in f64, as now).
    - It halves the transcendental calls (no `exp`). A full `for_mode` still runs when the decay or `fs` changes.
+   - *As built:* there is no `SecondOrderMode::retune`. It was replaced by two functions over a per-mode `RetuneCache` kept off the modes (a parallel `Vec` on `ModalResonator`, so the per-sample loop's data stays small). `retune_exact` serves a held bend: it reuses the cached radius and calls `sin_cos`, bit-identical to `for_mode`. `retune_incremental` serves a factor that moves every sample: it rotates the cached sine and cosine with a fifth-order Taylor step and no transcendental call, with an exact refresh every 256 steps. The cache-and-skip alone left dynamics at about 1.9× static; see "Incremental retune" under Measurements.
 3. **Benchmarks for the worst case:** a held-bend case and a TautCable dynamics case, at 16 voices, Normal and Render. The spec ratios compare each with its plain twin in the same run, so machine speed cancels.
 
 ## Risks / Trade-offs

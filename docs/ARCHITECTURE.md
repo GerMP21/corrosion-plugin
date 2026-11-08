@@ -26,8 +26,8 @@ limiter configuration, post-chain parameters with macro biases, live controls
 of held voices), then for each sample the MIDI events due at it,
 `render_frame_unlimited` (voices → master drive → post chain → output gain) and
 `limit_frame`. `process()` calls it with the host's buffer and events, and
-`offline::render_preset` with a real plugin instance holding a preset, in
-512-sample blocks. So `render_presets`, the audition WAVs in `output/` and the
+`offline::PresetRenderer` / `offline::render_preset` with a real plugin
+instance holding a preset, in 512-sample blocks. So `render_presets`, the audition WAVs in `output/` and the
 preset level checks hear exactly what the plugin outputs
 (`h13-render-presets-through-post-chain`). `reset()` starts the master-drive
 smoother at Drive plus the Violence bias, where `begin_block` aims it.
@@ -590,7 +590,7 @@ parameter.
 | `scripts/verify-local.sh` | local mirror of CI |
 | `scripts/validate-plugins.sh` | optional `pluginval` + `clap-validator` wrapper |
 | `scripts/check_wav.py` / `analyze_wav.py` / `check_clicks.py` | offline artifact validation |
-| `benches/performance.rs` | Criterion harness (voice, dense excitation, post chain, idle, offline) |
+| `benches/performance.rs` | Criterion harness (voice, dense excitation, post chain, idle, offline, the plugin's whole output path via `offline::PresetRenderer`) |
 | `tests/` | integration tests: no_alloc, automation_stress, preset_roundtrip, body, drive, stereo, velocity, chain distinctness, limiter, damage rattle, bow, plugin metrics |
 | `src/bin/render.rs` | offline QA renderer incl. `--suite aliasing` → `aliasing_report.txt` |
 

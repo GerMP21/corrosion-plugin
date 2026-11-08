@@ -1,10 +1,11 @@
 use corrosion::dsp::{
     CharacterParams, ModalProfileId, ModalResonator, PostProcessingChain, SpaceMode, WireBrush,
 };
-use corrosion::offline::{OfflineRenderer, RenderConfig};
+use corrosion::offline::{OfflineNote, OfflineRenderer, PresetRenderer, RenderConfig};
+use corrosion::presets::Preset;
 use corrosion::voice::manager::VoiceManager;
 use corrosion::voice::VoiceControls;
-use criterion::{black_box, criterion_group, criterion_main, Criterion};
+use criterion::{black_box, criterion_group, criterion_main, BatchSize, Criterion};
 
 /// Benchmark one active voice through the mono voice manager path.
 fn bench_single_voice_manager(c: &mut Criterion) {
@@ -298,6 +299,28 @@ fn bench_idle_post_chain(c: &mut Criterion) {
     });
 }
 
+/// The plugin's whole output path (`Corrosion::process_block`: voices,
+/// master drive, post chain, output gain, limiter) for 16 notes of a preset
+/// with Space, BODY and master drive, 4 096 samples in 512-sample blocks.
+/// The plugin is built outside the timed part (H13).
+fn bench_plugin_output_path(c: &mut Criterion) {
+    let path = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/presets/factory/sheet_lightning.corrosion-preset"
+    );
+    let preset = Preset::load(std::path::Path::new(path)).expect("load preset");
+    let notes: Vec<OfflineNote> = (52..68)
+        .map(|note| OfflineNote::on(0, note, 0.85))
+        .collect();
+    c.bench_function("plugin_output_path_sixteen_voices", |b| {
+        b.iter_batched(
+            || PresetRenderer::new(&preset),
+            |mut renderer| black_box(renderer.render(&notes, 48_000, 4_096)),
+            BatchSize::LargeInput,
+        )
+    });
+}
+
 criterion_group!(
     benches,
     bench_single_voice_manager,
@@ -311,6 +334,7 @@ criterion_group!(
     bench_post_chain_eco,
     bench_offline_renderer,
     bench_idle_voice_manager,
+    bench_plugin_output_path,
     bench_idle_post_chain
 );
 criterion_main!(benches);

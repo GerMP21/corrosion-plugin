@@ -11,7 +11,7 @@ use std::sync::Arc;
 use nih_plug::prelude::{NoteEvent, Plugin};
 
 use crate::presets::Preset;
-use crate::Corrosion;
+use crate::{Corrosion, CorrosionParams};
 
 /// The block size the offline renderer runs `process_block` with: a typical
 /// host buffer, so per-block parameter updates happen as they would in a host.
@@ -77,28 +77,68 @@ impl OfflineNote {
     }
 }
 
-/// A fresh plugin instance with `preset` loaded, reset as a host resets it
-/// before playback (smoothers start at the preset's drive and output).
-pub(crate) fn plugin_for_preset(preset: &Preset) -> Corrosion {
-    let mut plugin = Corrosion {
-        params: Arc::new(preset.clone().into_params()),
-        ..Corrosion::default()
-    };
-    plugin.reset();
-    plugin
+/// The frames of one offline render.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct RenderedFrames {
+    /// The plugin's output.
+    pub output: Vec<(f32, f32)>,
+    /// The same frames before the output limiter (after output gain), for
+    /// level measurements that count how often the limiter would act.
+    pub pre_limiter: Vec<(f32, f32)>,
 }
 
-/// The frames of one offline render.
-pub(crate) struct RenderedFrames {
-    /// The plugin's output.
-    pub(crate) output: Vec<(f32, f32)>,
-    /// The same frames before the output limiter (after output gain).
-    pub(crate) pre_limiter: Vec<(f32, f32)>,
+/// A plugin instance with a preset loaded, rendered offline through the
+/// plugin's own output path (`Corrosion::process_block`). State carries over
+/// between [`render`](Self::render) calls, as between host buffers.
+pub struct PresetRenderer {
+    plugin: Corrosion,
+}
+
+impl PresetRenderer {
+    /// A fresh plugin instance with `preset` loaded, reset as a host resets
+    /// it before playback (smoothers start at the preset's values).
+    pub fn new(preset: &Preset) -> Self {
+        Self::from_params(preset.clone().into_params())
+    }
+
+    /// A fresh plugin instance with `params`, reset as a host resets it.
+    pub(crate) fn from_params(params: CorrosionParams) -> Self {
+        let mut plugin = Corrosion {
+            params: Arc::new(params),
+            ..Corrosion::default()
+        };
+        plugin.reset();
+        Self { plugin }
+    }
+
+    /// The plugin instance, for tests that act on it between renders.
+    #[cfg(test)]
+    pub(crate) fn plugin_mut(&mut self) -> &mut Corrosion {
+        &mut self.plugin
+    }
+
+    /// Render the next `frame_count` frames in [`OFFLINE_BLOCK_SIZE`]
+    /// blocks, delivering `notes` (sorted by frame, frames counted from the
+    /// start of this call) at their frames.
+    pub fn render(
+        &mut self,
+        notes: &[OfflineNote],
+        sample_rate: u32,
+        frame_count: usize,
+    ) -> RenderedFrames {
+        render_blocks(
+            &mut self.plugin,
+            notes,
+            sample_rate,
+            frame_count,
+            OFFLINE_BLOCK_SIZE,
+        )
+    }
 }
 
 /// Render `frame_count` frames of `plugin` in host-sized blocks, delivering
 /// `notes` (sorted by frame) at their frames.
-pub(crate) fn render_blocks(
+fn render_blocks(
     plugin: &mut Corrosion,
     notes: &[OfflineNote],
     sample_rate: u32,
@@ -157,15 +197,9 @@ pub fn render_preset(
     sample_rate: u32,
     seconds: f32,
 ) -> Vec<(f32, f32)> {
-    let mut plugin = plugin_for_preset(preset);
-    render_blocks(
-        &mut plugin,
-        notes,
-        sample_rate,
-        frame_count(sample_rate, seconds),
-        OFFLINE_BLOCK_SIZE,
-    )
-    .output
+    PresetRenderer::new(preset)
+        .render(notes, sample_rate, frame_count(sample_rate, seconds))
+        .output
 }
 
 /// [`render_preset`]'s frames before the output limiter (after output gain),
@@ -176,15 +210,9 @@ pub fn render_preset_pre_limiter(
     sample_rate: u32,
     seconds: f32,
 ) -> Vec<(f32, f32)> {
-    let mut plugin = plugin_for_preset(preset);
-    render_blocks(
-        &mut plugin,
-        notes,
-        sample_rate,
-        frame_count(sample_rate, seconds),
-        OFFLINE_BLOCK_SIZE,
-    )
-    .pre_limiter
+    PresetRenderer::new(preset)
+        .render(notes, sample_rate, frame_count(sample_rate, seconds))
+        .pre_limiter
 }
 
 #[cfg(test)]
