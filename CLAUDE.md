@@ -27,12 +27,12 @@ The work follows the code review in `FABLE-CODE-REVIEW-2026-07-07.md`. Each fixe
 | C1–C6 (critical) | Fixed, archived in `openspec/changes/archive/` |
 | H1–H10 | Fixed, merged to `main` (PRs #5, #6) |
 | H11 (prune unsoundable modes), H12 (skip redundant retunes) | Fixed, merged to `main` (PR #7). H12 bounds re-verified on `main`: bent 1.019×, dynamics 1.535× (median of 5) |
-| H13 `h13-render-presets-through-post-chain` | **Next**, proposal/design/specs/tasks written, 0 tasks done |
-| H14 `h14-wrap-low-kit-notes` | Pending, artifacts written |
+| H13 `h13-render-presets-through-post-chain` | Fixed on branch `claude/nice-mccarthy-9fm1p6` (6/6 tasks), no PR yet. Also fixed `reset()`'s unbiased drive start |
+| H14 `h14-wrap-low-kit-notes` | **Next**, artifacts written, 0 tasks done |
 | Medium M1–M20 | Open except M16 (fixed with H10). No OpenSpec changes yet |
 | Backlog | `docs/BACKLOG.md` (P0–P4): Windows CI, DAW smoke automation, GUI tests, benchmark baselines |
 
-**Not yet archived:** `h01`–`h12`, `resolve-exciter-tradeoffs` and `stabilize-mallet-and-grinding-contact` are complete (all tasks checked) but still in `openspec/changes/`. Archive them with `/opsx:archive` or `/opsx:bulk-archive` when the maintainer asks.
+**Not yet archived:** `h01`–`h13`, `resolve-exciter-tradeoffs` and `stabilize-mallet-and-grinding-contact` are complete (all tasks checked) but still in `openspec/changes/`. Archive them with `/opsx:archive` or `/opsx:bulk-archive` when the maintainer asks.
 
 ## OpenSpec workflow
 
@@ -106,6 +106,6 @@ When a parameter's meaning changes, migrate both paths:
 
 ## Git and PRs
 
-- PRs #5, #6 and #7 are merged. Branch `claude/nice-mccarthy-9fm1p6` (from `main` after PR #7) carries the current work, with no PR open yet. If the PR for your branch has been merged, restart the branch from the latest `main` and rebase any unmerged commits onto it. Don't stack on merged history.
+- PRs #5, #6 and #7 are merged. Branch `claude/nice-mccarthy-9fm1p6` (from `main` after PR #7) carries the H12 re-verification and H13, with no PR open yet. If the PR for your branch has been merged, restart the branch from the latest `main` and rebase any unmerged commits onto it. Don't stack on merged history.
 - Commit messages: imperative subject naming the finding, e.g. "Skip redundant mode retunes (H12)", and a body saying what changed and why. Add measurements when relevant. Don't put model identifiers in commits, code or PRs.
 - Don't create a PR unless asked. There's no PR template: use Summary / Behaviour changes / Testing sections and say plainly what wasn't tested (Windows build, pluginval, clap-validator, DAW smoke tests haven't been run in these sessions).

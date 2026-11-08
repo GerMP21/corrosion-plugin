@@ -106,7 +106,7 @@ The factory presets are placeholders, to be replaced by real ones. Their levels 
 │   ├── gui/               egui editor (feature-gated)
 │   └── bin/
 │       ├── render.rs          --suite family|rust|damage|aliasing|all
-│       ├── render_presets.rs  Batch-render presets to WAV + manifest
+│       ├── render_presets.rs  Batch-render presets to WAV + manifest (plugin output path)
 │       └── seed_presets.rs    Regenerate the 50 factory presets
 ├── tests/                 no_alloc, automation_stress, preset_roundtrip, body,
 │                          drive_dynamics, stereo_width, velocity_*,
@@ -133,8 +133,11 @@ cargo build --target x86_64-unknown-linux-gnu
 # Offline debug renderer (suites: family, rust, damage, aliasing, all)
 cargo run --target x86_64-unknown-linux-gnu --bin render -- --suite all
 
-# Render all presets to WAV + manifest
-cargo run --target x86_64-unknown-linux-gnu --bin render_presets
+# Render all presets to stereo WAVs + manifest in output/, through the plugin's
+# own output path (voices, drive, post chain, output gain, limiter). Defaults:
+# note 60, velocity 127, released at 1 s, 2 s long, 48 kHz. Options: --note,
+# --velocity, --note-off, --duration, --sample-rate, --contains, --limit, --out-dir
+cargo run --release --target x86_64-unknown-linux-gnu --bin render_presets
 
 # Regenerate the 50 factory presets
 cargo run --bin seed_presets

@@ -20,6 +20,18 @@ The audio path is a strict per-sample loop inside the host `process()` callback
 (`src/lib.rs`). The exciter↔resonator interaction is per-sample by design; the
 global post chain is **also** per-sample today (see §9).
 
+Below the host API the path is one function, `Corrosion::process_block`:
+`begin_block` (per-buffer setup: drive and output-gain smoother targets,
+limiter configuration, post-chain parameters with macro biases, live controls
+of held voices), then for each sample the MIDI events due at it,
+`render_frame_unlimited` (voices → master drive → post chain → output gain) and
+`limit_frame`. `process()` calls it with the host's buffer and events, and
+`offline::render_preset` with a real plugin instance holding a preset, in
+512-sample blocks. So `render_presets`, the audition WAVs in `output/` and the
+preset level checks hear exactly what the plugin outputs
+(`h13-render-presets-through-post-chain`). `reset()` starts the master-drive
+smoother at Drive plus the Violence bias, where `begin_block` aims it.
+
 ```text
 MIDI Note Event
       │
@@ -130,11 +142,13 @@ src/
   offline/
     mod.rs            OfflineRenderer, comparison/rust/damage suites,
                       AliasingReport + analyze_post_chain_aliasing (DFT residual proxy)
+    preset.rs         render_preset: a preset through the plugin's own output
+                      path (Corrosion::process_block, 512-sample blocks)
   randomizer/
     mod.rs            Parameter randomization helpers
   bin/
     render.rs         CLI: --suite family|rust|damage|all|aliasing
-    render_presets.rs CLI: preset batch renderer (auto-discovered bin)
+    render_presets.rs CLI: preset batch renderer → stereo WAVs via offline::render_preset
 ```
 
 ---

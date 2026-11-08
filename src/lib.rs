@@ -1114,7 +1114,12 @@ impl Plugin for Corrosion {
     fn reset(&mut self) {
         self.voice_manager.reset();
         self.post_chain.reset();
-        self.drive_smoother = OnePoleSmoother::new(self.params.drive.value());
+        // Start the master drive where `begin_block` aims it (Drive plus the
+        // Violence bias), so the first note after a reset isn't driven by a
+        // ramp from the unbiased Drive (H13).
+        let bias = resolve_macro_bias(&self.params);
+        self.drive_smoother =
+            OnePoleSmoother::new((self.params.drive.value() + bias.drive_offset).clamp(0.0, 5.0));
         self.output_gain_smoother = OnePoleSmoother::new(self.params.output.value());
         self.lookahead_left.reset();
         self.lookahead_right.reset();
@@ -1204,6 +1209,44 @@ mod tests {
     use crate::params::object_param;
     use nih_plug::prelude::NoteEvent;
     use std::sync::Arc;
+
+    /// H13: after `reset()` the master drive starts where `begin_block`
+    /// aims it, Drive plus the Violence bias (clamped), so the first note
+    /// after a host reset is driven like every later one instead of ramping
+    /// from the unbiased Drive. The offline renderer starts from a reset, so
+    /// this also keeps its renders equal to a settled plugin.
+    #[test]
+    fn reset_starts_the_drive_smoother_at_the_biased_drive() {
+        use nih_plug::prelude::Plugin;
+        let path = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/presets/factory/chain_whip_snap.corrosion-preset"
+        );
+        let base = crate::presets::Preset::load(std::path::Path::new(path)).expect("load preset");
+        for (violence, drive) in [(0.75, base.drive), (0.2, base.drive), (1.0, 5.0)] {
+            let mut preset = base.clone();
+            preset.extra.macro_violence = violence;
+            preset.drive = drive;
+            let mut plugin = Corrosion {
+                params: Arc::new(preset.into_params()),
+                ..Corrosion::default()
+            };
+            plugin.reset();
+            let bias = super::resolve_macro_bias(&plugin.params);
+            assert!(
+                bias.drive_offset != 0.0,
+                "Violence {violence}: no drive bias"
+            );
+            let target = (plugin.params.drive.value() + bias.drive_offset).clamp(0.0, 5.0);
+            plugin.begin_block(48_000, None);
+            let first = plugin.drive_smoother.next();
+            assert_eq!(
+                first.to_bits(),
+                target.to_bits(),
+                "Violence {violence}, Drive {drive}: first drive {first}, target {target}"
+            );
+        }
+    }
 
     /// C3 follow-up: `Plugin::reset` with notes ringing through Echo and
     /// Spring must not allocate (checked in debug builds, where the checking

@@ -390,7 +390,13 @@ For a Render-quality bank (2× modes, ×8 voices) this is an enormous CPU cliff 
 and pitch bend makes it apply to *all* objects, not just the two dynamic ones.
 Should be rate-limited (per block) or use incremental rotation.
 
-### H13. Shipped preset renders bypass the post chain
+### ~~H13. Shipped preset renders bypass the post chain~~ — FIXED
+> **Status: FIXED** (2026-11-08, branch `claude/nice-mccarthy-9fm1p6`): OpenSpec change [`h13-render-presets-through-post-chain`](openspec/changes/h13-render-presets-through-post-chain/proposal.md).
+> - **One output path:** `process()`'s per-buffer code is `Corrosion::begin_block` + `Corrosion::process_block` (voices → master drive → post chain → output gain → limiter). `process()` calls it with the host's buffer; `offline::render_preset` calls it with a real plugin instance holding the preset, in 512-sample blocks.
+> - **Tools and tests use it:** `render_presets` writes stereo WAVs through it (the private drive/body/limiter path is gone), and the preset level checks measure it (`preset_levels_are_sane` and `preset_levels_table` print the same numbers as before).
+> - **Proof:** `offline_render_equals_plugin_path_for_a_post_chain_preset` (Space + master drive + BODY + Lorenz drive) and `offline_render_equals_plugin_path_with_the_lookahead_limiter` (also checks the limiter's delay) are bit-identical against a host-style `process_block` driver; `written_wav_equals_the_quantized_offline_render` checks the WAV writer. `output/*.wav` is re-rendered.
+> - **Also fixed:** `reset()` started the master-drive smoother at Drive without the Violence bias, so the first ~60 ms after a host reset ramped the drive (`reset_starts_the_drive_smoother_at_the_biased_drive`).
+
 `src/bin/render_presets.rs` renders `VoiceManager` + a standalone body resonator
 only — no `PostProcessingChain`, no master drive, no limiter. The `output/*.wav`
 audition set therefore does not represent what the plugin outputs (and is exactly
