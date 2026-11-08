@@ -88,11 +88,15 @@ pub use params::{CorrosionParams, Object, PlayMode, QualityMode};
 pub use presets::Preset;
 
 /// Map an incoming MIDI note to a kit-slot object when `PlayMode::Kit` is
-/// active. Each object family gets a contiguous block of ~10 MIDI notes
-/// across the playable range; outside the C1..D9 block the mapping wraps so
-/// the player can still trigger every family at extreme registers.
+/// active. Each object gets a 10-note slot, in object order, starting at
+/// MIDI 24 (C1): 24–33 is object 0, 34–43 object 1, … 104–113 object 8.
+/// Outside that block the slots repeat in both directions, so every object
+/// can be played at extreme registers: 114–123 is object 0 again, and below
+/// the block 14–23 is object 8, 4–13 object 7 and 0–3 object 6 (H14).
 fn note_to_kit_object(note: u8) -> Object {
-    let slot = ((note as i32 - 24).max(0) / 10).rem_euclid(9);
+    // `div_euclid` floors toward negative infinity, so the notes below 24
+    // continue the slot pattern downward in full 10-note slots.
+    let slot = (note as i32 - 24).div_euclid(10).rem_euclid(9);
     Object::from_int(slot)
 }
 
@@ -1750,6 +1754,36 @@ mod tests {
             super::note_to_kit_object(34),
             "notes that cross a slot boundary should map to different objects"
         );
+    }
+
+    /// Kit slots for (note, expected object), checked one by one.
+    fn assert_kit_slots(cases: &[(u8, i32)]) {
+        for &(note, object) in cases {
+            assert_eq!(
+                super::note_to_kit_object(note).to_int(),
+                object,
+                "MIDI {note} should play object {object}"
+            );
+        }
+    }
+
+    /// H14 spec "Inside the main block".
+    #[test]
+    fn kit_notes_inside_the_block_map_to_their_slot() {
+        assert_kit_slots(&[(24, 0), (33, 0), (34, 1), (113, 8)]);
+    }
+
+    /// H14 spec "Above the block": the slots repeat upward.
+    #[test]
+    fn kit_notes_above_the_block_wrap() {
+        assert_kit_slots(&[(114, 0), (127, 1)]);
+    }
+
+    /// H14 spec "Below the block": the slots repeat downward too, instead of
+    /// every note under MIDI 24 playing Pipe.
+    #[test]
+    fn kit_notes_below_the_block_wrap() {
+        assert_kit_slots(&[(23, 8), (14, 8), (13, 7), (4, 7), (3, 6), (0, 6)]);
     }
 
     #[test]

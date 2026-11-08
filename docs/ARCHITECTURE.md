@@ -205,6 +205,13 @@ Idle ──note_on──▶ Active(rendering) ──note_off──▶ Tail(rende
   voice stops costing CPU. (`is_rendering()` is the idle-CPU optimization.)
 - **Stealing**: `VoiceManager` prefers an inactive (`!is_rendering`) slot; if none,
   it steals the lowest `peak_hold`, breaking ties toward the oldest `start_frame`.
+- **Object per note** (`handle_note_event`): in Tonal and Drone play modes the
+  Object parameter picks the object. In **Kit** mode the note does
+  (`note_to_kit_object`): 10-note slots in object order from MIDI 24, repeating
+  in both directions, slot = `(note − 24).div_euclid(10).rem_euclid(9)`. So
+  114–123 is Pipe again, and below the block 14–23 is object 8, 4–13 object 7
+  and 0–3 object 6 (`h14-wrap-low-kit-notes`; every note under 24 used to play
+  Pipe).
 
 ---
 

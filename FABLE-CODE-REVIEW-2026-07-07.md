@@ -403,7 +403,9 @@ audition set therefore does not represent what the plugin outputs (and is exactl
 why C1 — now FIXED — was never heard). The renderer's own comment says it exists so presets are
 auditioned "as the plugin would sound".
 
-### H14. Kit-mode notes ignore per-slot pitch documentation and wrap oddly
+### ~~H14. Kit-mode notes ignore per-slot pitch documentation and wrap oddly~~ — FIXED
+> **Status: FIXED** (2026-11-08, branch `claude/nice-mccarthy-9fm1p6`): OpenSpec change [`h14-wrap-low-kit-notes`](openspec/changes/h14-wrap-low-kit-notes/proposal.md). `note_to_kit_object` is `(note − 24).div_euclid(10).rem_euclid(9)`: the 10-note slots repeat below MIDI 24 as they do above the block (14–23 → object 8, 4–13 → 7, 0–3 → 6), and notes from 24 up map as before. Proven by `kit_notes_inside_the_block_map_to_their_slot`, `kit_notes_above_the_block_wrap` and `kit_notes_below_the_block_wrap` (which failed before: MIDI 23 played Pipe). The doc comment and README describe the wrap. Per-slot pitch handling stays out of scope (design non-goal).
+
 `note_to_kit_object` (lib.rs:94-97): `.max(0)` clamps everything below MIDI 24
 into slot 0 (Pipe) rather than "wrapping" as the doc claims; wrapping only happens
 above the block. Minor, but the doc and tests promise symmetric behavior.
