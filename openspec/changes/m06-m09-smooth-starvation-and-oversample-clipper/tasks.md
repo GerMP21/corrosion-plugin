@@ -2,8 +2,8 @@
 
 ## 1. Bias Starvation
 
-- [ ] 1.1 Add the starvation tests (no-clicks bound at 48 kHz, starvation-off bit-identity, the bound at 44.1 and 96 kHz). Verify the no-clicks tests fail on the current code and the bit-identity test passes.
-- [ ] 1.2 Smooth the gate with a 5 ms one-pole follower (skipped at starvation 0) and remove `tube_state`. Verify the 1.1 tests and the existing `post-chain-drive` tests pass.
+- [x] 1.1 Add the starvation tests (no-clicks bound at 48 kHz over Bias Starvation 0.1–1, starvation-off bit-identity, the bound at 44.1 and 96 kHz, starved share within 1–99 % and rising). Verify the no-clicks and range tests fail on the current code and the bit-identity test passes.
+- [x] 1.2 Smooth the gate with a 5 ms one-pole follower (skipped at starvation 0), rescale the threshold to `z > 38 − 22·starvation`, and remove `tube_state`. Verify the 1.1 tests and the existing `post-chain-drive` tests pass.
 
 ## 2. Clipper tests and filters
 
