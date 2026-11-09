@@ -430,7 +430,7 @@ above the block. Minor, but the doc and tests promise symmetric behavior.
   other rates (self-heals on first `process` via the cached-rate check, but the
   live-controls path also caches `Some(48_000)`, masking the first rebuild).
   Similarly `Voice::set_pitch_bend_semitones` uses `self.sample_rate`, which is
-  48 kHz until the first sample renders.~~ — FIXED (2026-11-08, branch `claude/nice-mccarthy-9fm1p6`, [`m03-m20-start-at-host-rate-and-report-latency`](openspec/changes/m03-m20-start-at-host-rate-and-report-latency/proposal.md)): voices are rated for the host rate at initialization and on rate changes, and a note-on builds its coefficients once at that rate (96 kHz: 624 → 416 builds for 16 notes, as at 48 kHz). `first_note_does_not_depend_on_voice_history` also found four exciters carrying state between notes; each now restarts from rest on trigger.
+  48 kHz until the first sample renders.~~ — FIXED (2026-11-08, branch `claude/nice-mccarthy-9fm1p6`, [`m03-m20-start-at-host-rate-and-report-latency`](openspec/changes/archive/2026-11-09-m03-m20-start-at-host-rate-and-report-latency/proposal.md)): voices are rated for the host rate at initialization and on rate changes, and a note-on builds its coefficients once at that rate (96 kHz: 624 → 416 builds for 16 notes, as at 48 kHz). `first_note_does_not_depend_on_voice_history` also found four exciters carrying state between notes; each now restarts from rest on trigger.
 - **M4. Duplicate parameter display names.** Two params named "Wire Stiffness"
   (`brush_wire_stiffness`, `wire_stiffness`), two named "Brightness"
   (`res_brightness`, `macro_brightness`), plus "Mass" (macro) vs the many masses.
@@ -447,7 +447,7 @@ above the block. Minor, but the doc and tests promise symmetric behavior.
 - ~~**M7. `FactoryEcho` modulated delay is un-interpolated** (space.rs:273) —
   integer-truncated read index with a moving modulation produces zipper noise as
   `machinery_movement` increases. `high_frequency_damping` is a broadband wet gain,
-  not a filter — the name promises air absorption; it just turns the echo down.~~ — FIXED (2026-11-09, branch `claude/nice-mccarthy-9fm1p6`, [`m07-m08-interpolate-echo-and-tidy-spread`](openspec/changes/m07-m08-interpolate-echo-and-tidy-spread/proposal.md)): modulated reads use Hermite interpolation (largest step of a swept 1 kHz sine 0.242 → 0.077, vs 0.066 for the dry sine), and High Frequency Damping is a low-pass in the feedback loop (at 1, 8 kHz repeats 14 dB below 200 Hz; 200 Hz level unchanged within 0.1 dB), proven by `echo_modulation_glides` and the HF Damping tests in `space.rs`.
+  not a filter — the name promises air absorption; it just turns the echo down.~~ — FIXED (2026-11-09, branch `claude/nice-mccarthy-9fm1p6`, [`m07-m08-interpolate-echo-and-tidy-spread`](openspec/changes/archive/2026-11-09-m07-m08-interpolate-echo-and-tidy-spread/proposal.md)): modulated reads use Hermite interpolation (largest step of a swept 1 kHz sine 0.242 → 0.077, vs 0.066 for the dry sine), and High Frequency Damping is a low-pass in the feedback loop (at 1, 8 kHz repeats 14 dB below 200 Hz; 200 Hz level unchanged within 0.1 dB), proven by `echo_modulation_glides` and the HF Damping tests in `space.rs`.
 - ~~**M8. `HrtfSpread` ITD is dead code.** Both delay buffers store the same mono
   signal and are read at the same index (hrtf_spread.rs:66-73): `delayed_left ==
   delayed_right` always, so there is no interaural time difference; width comes
@@ -474,7 +474,7 @@ above the block. Minor, but the doc and tests promise symmetric behavior.
   mentioning it).
 - ~~**M13. No sustain pedal (CC64), no all-notes-off (CC123) handling** — CC1 is the
   only CC routed (lib.rs:636-638). For a physical-modeling instrument, missing
-  sustain-pedal handling is a real playability gap.~~ — FIXED (2026-11-09, branch `claude/nice-mccarthy-9fm1p6`, [`m13-sustain-pedal-and-panic`](openspec/changes/m13-sustain-pedal-and-panic/proposal.md)): CC64 sustain with a pedal-held stealing tier, CC123 All Notes Off, CC120 All Sound Off (5 ms fade, then voices and tails cleared) and CC121 Reset All Controllers, proven by `midi_control_tests` (11 tests, including an allocation check).
+  sustain-pedal handling is a real playability gap.~~ — FIXED (2026-11-09, branch `claude/nice-mccarthy-9fm1p6`, [`m13-sustain-pedal-and-panic`](openspec/changes/archive/2026-11-09-m13-sustain-pedal-and-panic/proposal.md)): CC64 sustain with a pedal-held stealing tier, CC123 All Notes Off, CC120 All Sound Off (5 ms fade, then voices and tails cleared) and CC121 Reset All Controllers, proven by `midi_control_tests` (11 tests, including an allocation check).
 - **M14. Quality mode affects voices only at note-on** (`mode_count_scale`
   captured into the bank), but the post chain switches instantly — flipping
   Eco↔Render mid-note changes the space topology immediately while held notes

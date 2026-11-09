@@ -43,7 +43,7 @@ The work follows the code review in `FABLE-CODE-REVIEW-2026-07-07.md`. Each fixe
 | Rust, Damage, Heat (reported by the maintainer, not in the review) | Fixed by `fix-rust-damage-heat-response`: Rust and Damage no longer silence notes or lose the fundamental (worst −3.2 dB across their ranges); Heat darkens spectrally and warbles. Open question in its design: softening the exciter for Heat |
 | Backlog | `docs/BACKLOG.md` (P0–P4): Windows CI, DAW smoke automation, GUI tests, benchmark baselines |
 
-**Archived (2026-11-08):** `h01`–`h14`, `resolve-exciter-tradeoffs` and `stabilize-mallet-and-grinding-contact` are in `openspec/changes/archive/2026-11-08-*`, and their delta specs are synced into `openspec/specs/` (22 capabilities). The active changes are the M changes above; finished ones stay active until archived. A new change syncs its specs on archive as usual (`/opsx:archive`).
+**Archived:** `h01`–`h14`, `resolve-exciter-tradeoffs` and `stabilize-mallet-and-grinding-contact` (2026-11-08), and `m03-m20-start-at-host-rate-and-report-latency`, `m13-sustain-pedal-and-panic` and `m07-m08-interpolate-echo-and-tidy-spread` (2026-11-09), are in `openspec/changes/archive/`, and their delta specs are synced into `openspec/specs/` (23 capabilities, `midi-control` new). The active changes are the remaining M changes and the two feature changes; finished ones stay active until archived (`m06-m09-smooth-starvation-and-oversample-clipper` is finished and must be archived before `add-asymmetric-diode-stage`). A new change syncs its specs on archive as usual (`/opsx:archive`).
 
 ### Execution order for the M changes (and two feature changes)
 
