@@ -83,8 +83,10 @@ pub struct VoiceControls {
     pub env_sustain: f32,
     /// Release time for hit and specialty envelopes, in seconds.
     pub env_release: f32,
-    /// Onset stage level for the friction MSEG.
+    /// Onset stage time for the friction MSEG, in seconds.
     pub mseg_onset: f32,
+    /// Onset stage level for the friction MSEG (0–1).
+    pub mseg_onset_level: f32,
     /// Attack stage time for the friction MSEG, in seconds.
     pub mseg_attack: f32,
     /// Hold stage time for the friction MSEG, in seconds.
@@ -280,6 +282,7 @@ impl Default for VoiceControls {
             env_sustain: 0.7,
             env_release: 0.5,
             mseg_onset: 0.01,
+            mseg_onset_level: crate::params::DEFAULT_MSEG_ONSET_LEVEL,
             mseg_attack: 0.05,
             mseg_hold: 0.02,
             mseg_decay: 0.3,
@@ -821,7 +824,7 @@ impl Voice {
                 let peak_level =
                     (0.5 + controls.velocity_to_peak.clamp(0.0, 1.0) * 0.5).clamp(0.0, 1.0);
                 mseg.set_stage_levels(
-                    controls.mseg_onset.clamp(0.0, 1.0),
+                    controls.mseg_onset_level,
                     peak_level,
                     controls.mseg_sustain,
                     0.0,
@@ -1912,6 +1915,72 @@ mod tests {
                 "{sample_rate}: area {area:.4e}, continuous {expected:.4e}"
             );
         }
+    }
+
+    /// Triggers a Bow note's friction MSEG at 48 kHz with `controls` and
+    /// returns the Onset stage's length in samples and the level it reached.
+    fn friction_onset(controls: VoiceControls) -> (usize, f32) {
+        use crate::dsp::Stage;
+        let mut voice = Voice::new();
+        voice.set_rate(48_000.0);
+        // No velocity-to-time scaling, so the stage lasts exactly its time.
+        let controls = VoiceControls {
+            velocity_to_time: 0.0,
+            ..controls
+        };
+        voice.configure_envelope(1, 0.8, controls);
+        let mut samples = 0;
+        let mut level = 0.0f32;
+        while samples < 200_000 {
+            let _ = voice.process_force_envelope();
+            if voice.mseg.stage() != Stage::Onset {
+                break;
+            }
+            level = voice.mseg.current_level();
+            samples += 1;
+        }
+        (samples, level)
+    }
+
+    #[test]
+    fn onset_time_and_level_are_separate() {
+        // `m01-m04-m05-clarify-parameters` (M1): Onset Time sets only the
+        // stage's length, Onset Level only its level.
+        let with_time = |time: f32| {
+            friction_onset(VoiceControls {
+                mseg_onset: time,
+                mseg_onset_level: 0.2,
+                ..VoiceControls::default()
+            })
+        };
+        let (short_len, short_level) = with_time(0.01);
+        let (long_len, long_level) = with_time(0.5);
+        assert!(
+            (short_level - 0.2).abs() < 1e-3 && (long_level - 0.2).abs() < 1e-3,
+            "onset levels {short_level} and {long_level}, want 0.2"
+        );
+        assert!(
+            (short_len as i64 - 480).abs() <= 1 && (long_len as i64 - 24_000).abs() <= 1,
+            "onset lengths {short_len} and {long_len} samples"
+        );
+    }
+
+    #[test]
+    fn default_onset_level_is_the_old_shared_level() {
+        // The old code took the onset level from Onset (time) clamped to
+        // 0–1. The new default keeps that level, so the default patch is
+        // bit-identical (verified by render hash, see the change's design).
+        let controls = VoiceControls::default();
+        assert_eq!(
+            controls.mseg_onset_level,
+            controls.mseg_onset.clamp(0.0, 1.0)
+        );
+        let params = crate::params::CorrosionParams::default();
+        assert_eq!(
+            params.mseg_onset_level.value(),
+            params.mseg_onset.value().clamp(0.0, 1.0)
+        );
+        assert_eq!(params.mseg_onset.value(), controls.mseg_onset);
     }
 
     #[test]

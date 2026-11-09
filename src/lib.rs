@@ -362,6 +362,25 @@ fn migrate_host_wander_rate(
     params.insert("position_envelope".into(), ParamValue::F32(0.0));
 }
 
+/// Host state saved before Onset Level existed has no `mseg_onset_level`;
+/// Onset set the friction MSEG's onset level too, so restore that level
+/// (`m01-m04-m05-clarify-parameters`).
+fn migrate_host_onset_level(
+    params: &mut std::collections::BTreeMap<String, nih_plug::wrapper::state::ParamValue>,
+) {
+    use nih_plug::wrapper::state::ParamValue;
+    if params.contains_key("mseg_onset_level") {
+        return;
+    }
+    let Some(&ParamValue::F32(onset)) = params.get("mseg_onset") else {
+        return;
+    };
+    params.insert(
+        "mseg_onset_level".into(),
+        ParamValue::F32(presets::legacy_onset_level(onset)),
+    );
+}
+
 /// Maximum drive-amount-to-gain multiplier in `apply_drive`. A drive of `1.0`
 /// brings the input up by `1 + DRIVE_GAIN_SCALE` before the waveshaper.
 const DRIVE_GAIN_SCALE: f32 = 4.0;
@@ -530,6 +549,7 @@ fn handle_note_event(plugin: &mut Corrosion, event: NoteEvent<()>) {
                 env_sustain: plugin.params.env_sustain.value(),
                 env_release: plugin.params.env_release.value(),
                 mseg_onset: plugin.params.mseg_onset.value(),
+                mseg_onset_level: plugin.params.mseg_onset_level.value(),
                 mseg_attack: plugin.params.mseg_attack.value(),
                 mseg_hold: plugin.params.mseg_hold.value(),
                 mseg_decay: plugin.params.mseg_decay.value(),
@@ -1177,6 +1197,7 @@ impl Plugin for Corrosion {
     /// so this applies the preset migrations that would otherwise be skipped.
     fn filter_state(state: &mut PluginState) {
         migrate_host_wander_rate(&mut state.params);
+        migrate_host_onset_level(&mut state.params);
     }
 
     /// Called once when plugin is instantiated.
@@ -2663,7 +2684,7 @@ mod output_ceiling_tests {
 #[cfg(test)]
 mod host_state_tests {
     use super::Corrosion;
-    use nih_plug::prelude::{Plugin, PluginState};
+    use nih_plug::prelude::{Param, Plugin, PluginState};
     use nih_plug::wrapper::state::ParamValue;
 
     fn state(params: &[(&str, f32)]) -> PluginState {
@@ -2699,6 +2720,37 @@ mod host_state_tests {
         Corrosion::filter_state(&mut saved);
         assert_eq!(f32_param(&saved, "position_wander_rate"), 1.5);
         assert_eq!(f32_param(&saved, "position_envelope"), 0.5);
+    }
+
+    #[test]
+    fn old_host_state_keeps_its_onset_level() {
+        // `m01-m04-m05-clarify-parameters` (M1): Onset used to set the onset
+        // stage's level too (clamped to 0–1).
+        let mut saved = state(&[("mseg_onset", 0.4)]);
+        Corrosion::filter_state(&mut saved);
+        assert_eq!(f32_param(&saved, "mseg_onset"), 0.4);
+        assert_eq!(f32_param(&saved, "mseg_onset_level"), 0.4);
+    }
+
+    #[test]
+    fn current_host_onset_level_is_left_alone() {
+        let mut saved = state(&[("mseg_onset", 0.4), ("mseg_onset_level", 0.2)]);
+        Corrosion::filter_state(&mut saved);
+        assert_eq!(f32_param(&saved, "mseg_onset_level"), 0.2);
+    }
+
+    #[test]
+    fn old_project_keeps_its_output_gain() {
+        // The host stores Output's plain value, the gain, so the taper change
+        // keeps a saved project's level (`m01-m04-m05-clarify-parameters`).
+        let mut saved = state(&[("output", 2.0)]);
+        Corrosion::filter_state(&mut saved);
+        assert_eq!(f32_param(&saved, "output"), 2.0);
+        let params = crate::params::CorrosionParams::default();
+        let restored = params
+            .output
+            .preview_plain(params.output.preview_normalized(2.0));
+        assert!((restored - 2.0).abs() < 1e-4, "restored gain {restored}");
     }
 
     #[test]

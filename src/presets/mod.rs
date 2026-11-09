@@ -5,7 +5,7 @@ use std::path::Path;
 use serde::{Deserialize, Serialize};
 
 use crate::params::{object_param, CorrosionParams, Object};
-use nih_plug::prelude::{util, FloatParam, FloatRange, IntParam, IntRange};
+use nih_plug::prelude::{FloatParam, FloatRange, IntParam, IntRange};
 
 /// Preset schema version. Bumped whenever the JSON shape changes in a way
 /// that requires a migration step beyond what serde defaults can patch.
@@ -67,7 +67,39 @@ pub fn migrate_preset_json(mut value: serde_json::Value) -> serde_json::Value {
         }
     }
     migrate_wander_rate(&mut value);
+    migrate_onset_level(&mut value);
     value
+}
+
+/// The onset level an old patch got from Onset before Onset Level existed:
+/// Onset's value, a time in seconds, clamped to 0–1. Shared by the preset
+/// and host-state migrations (`m01-m04-m05-clarify-parameters`).
+pub fn legacy_onset_level(onset: f32) -> f32 {
+    onset.clamp(0.0, 1.0)
+}
+
+/// Before `mseg_onset_level` existed, Onset set both the friction MSEG's
+/// onset time and its level. A preset without the field gets that level, so
+/// it sounds as it did. A preset without `mseg_onset` either keeps both
+/// defaults, which already agree. The field is optional, so the schema
+/// version stays at 4.
+fn migrate_onset_level(value: &mut serde_json::Value) {
+    let Some(extra) = value
+        .get_mut("extra")
+        .and_then(serde_json::Value::as_object_mut)
+    else {
+        return;
+    };
+    if extra.contains_key("mseg_onset_level") {
+        return;
+    }
+    let Some(onset) = extra.get("mseg_onset").and_then(serde_json::Value::as_f64) else {
+        return;
+    };
+    extra.insert(
+        "mseg_onset_level".into(),
+        serde_json::json!(legacy_onset_level(onset as f32)),
+    );
 }
 
 /// Before `position_wander_rate` existed, Position Envelope set the wander's
@@ -112,6 +144,7 @@ pub struct PresetParameters {
     pub env_sustain: f32,
     pub env_release: f32,
     pub mseg_onset: f32,
+    pub mseg_onset_level: f32,
     pub mseg_attack: f32,
     pub mseg_hold: f32,
     pub mseg_decay: f32,
@@ -276,6 +309,7 @@ impl PresetParameters {
             env_sustain: params.env_sustain.value(),
             env_release: params.env_release.value(),
             mseg_onset: params.mseg_onset.value(),
+            mseg_onset_level: params.mseg_onset_level.value(),
             mseg_attack: params.mseg_attack.value(),
             mseg_hold: params.mseg_hold.value(),
             mseg_decay: params.mseg_decay.value(),
@@ -415,7 +449,8 @@ impl PresetParameters {
         params.env_decay = float_param("Decay", self.env_decay, 0.01, 5.0);
         params.env_sustain = float_param("Sustain", self.env_sustain, 0.0, 1.0);
         params.env_release = float_param("Release", self.env_release, 0.01, 5.0);
-        params.mseg_onset = float_param("Onset", self.mseg_onset, 0.001, 1.0);
+        params.mseg_onset = float_param("Onset Time", self.mseg_onset, 0.001, 1.0);
+        params.mseg_onset_level = crate::params::mseg_onset_level_param(self.mseg_onset_level);
         params.mseg_attack = float_param("MSEG Attack", self.mseg_attack, 0.001, 2.0);
         params.mseg_hold = float_param("Hold", self.mseg_hold, 0.0, 2.0);
         params.mseg_decay = float_param("MSEG Decay", self.mseg_decay, 0.01, 5.0);
@@ -461,7 +496,7 @@ impl PresetParameters {
         params.wire_density = float_param("Wire Density", self.wire_density, 10.0, 130.0);
         params.spread_duration = float_param("Spread Duration", self.spread_duration, 10.0, 250.0);
         params.brush_wire_stiffness =
-            float_param("Wire Stiffness", self.brush_wire_stiffness, 0.0, 1.0);
+            float_param("Brush Wire Stiffness", self.brush_wire_stiffness, 0.0, 1.0);
         params.amplitude_randomization = float_param(
             "Amplitude Randomization",
             self.amplitude_randomization,
@@ -530,7 +565,7 @@ impl PresetParameters {
         params.fundamental_anchor =
             float_param("Fundamental Anchor", self.fundamental_anchor, 0.0, 1.0);
         params.res_damping = float_param("Damping", self.res_damping, 0.0, 1.0);
-        params.res_brightness = float_param("Brightness", self.res_brightness, 0.0, 1.0);
+        params.res_brightness = float_param("Resonator Brightness", self.res_brightness, 0.0, 1.0);
         params.thickness = float_param("Thickness", self.thickness, 0.0, 1.0);
         params.heat = float_param("Heat", self.heat, 0.0, 1.0);
         params.sludge = float_param("Sludge", self.sludge, 0.0, 1.0);
@@ -569,7 +604,7 @@ impl PresetParameters {
             float_param("Machinery Clutter", self.machinery_clutter, 0.0, 1.0);
         params.wall_impedance = float_param("Wall Impedance", self.wall_impedance, 0.0, 1.0);
         params.spring_tension = float_param("Spring Tension", self.spring_tension, 0.0, 1.0);
-        params.wire_stiffness = float_param("Wire Stiffness", self.wire_stiffness, 0.0, 1.0);
+        params.wire_stiffness = float_param("Spring Wire Stiffness", self.wire_stiffness, 0.0, 1.0);
         params.spring_tank_size = float_param("Spring Tank Size", self.spring_tank_size, 0.0, 1.0);
         params.delay_time = float_param("Delay Time", self.delay_time, 0.0, 1.0);
         params.machinery_movement =
@@ -585,7 +620,7 @@ impl PresetParameters {
         params.macro_mass = float_param("Mass", self.macro_mass, 0.0, 1.0);
         params.macro_corrosion = float_param("Corrosion", self.macro_corrosion, 0.0, 1.0);
         params.macro_violence = float_param("Violence", self.macro_violence, 0.0, 1.0);
-        params.macro_brightness = float_param("Brightness", self.macro_brightness, 0.0, 1.0);
+        params.macro_brightness = float_param("Macro Brightness", self.macro_brightness, 0.0, 1.0);
         params.limiter_mode = crate::params::limiter_mode_param(self.limiter_mode);
     }
 }
@@ -677,7 +712,7 @@ impl Preset {
         params.rust = float_param("Rust", self.rust, 0.0, 5.0);
         params.damage = float_param("Damage", self.damage, 0.0, 10.0);
         params.drive = float_param("Drive", self.drive, 0.0, 5.0);
-        params.output = float_param("Output", self.output, 0.0, util::db_to_gain(40.0));
+        params.output = crate::params::output_param(self.output);
         params.width = float_param("Width", self.width, -2.0, 3.0);
         params.body = float_param("Body", self.body, 0.0, 5.0);
         params.quality_mode = crate::params::quality_mode_param(self.quality_mode);

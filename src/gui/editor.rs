@@ -2623,18 +2623,32 @@ fn render_envelope(
                     .color(MUTED_GREY),
             );
             ui.add_space(height_pct(scale, 0.0052083335));
+            // Four faders on the first row (Onset Time and Onset Level side
+            // by side, `m01-m04-m05-clarify-parameters`), three on the
+            // second, at the ADSR panel's spacing.
             let fader_w = width_pct(scale, 0.055555556);
-            let gap = width_pct(scale, 0.011111112);
+            let gap = width_pct(scale, 0.0074074073);
             let avail = ui.available_width();
-            let total = 3.0 * fader_w + 2.0 * gap;
-            let offset = ((avail - total) / 2.0).max(0.0);
+            let offset_for =
+                |faders: f32| ((avail - (faders * fader_w + (faders - 1.0) * gap)) / 2.0).max(0.0);
             ui.horizontal(|ui| {
-                ui.add_space(offset);
+                ui.add_space(offset_for(4.0));
                 industrial_vfader(
                     ui,
                     "Onset",
                     &params.mseg_onset,
                     0.001,
+                    1.0,
+                    setter,
+                    SAFETY_YELLOW,
+                    scale,
+                );
+                ui.add_space(gap);
+                industrial_vfader(
+                    ui,
+                    "Onset Lvl",
+                    &params.mseg_onset_level,
+                    0.0,
                     1.0,
                     setter,
                     SAFETY_YELLOW,
@@ -2664,7 +2678,7 @@ fn render_envelope(
                 );
             });
             ui.horizontal(|ui| {
-                ui.add_space(offset);
+                ui.add_space(offset_for(3.0));
                 industrial_vfader(
                     ui,
                     "Decay",

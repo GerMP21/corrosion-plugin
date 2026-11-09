@@ -346,6 +346,14 @@ force-envelope choice:
 | Friction | Bow, StiffPoint, HeavyGrinding, CorrugatedDrag, TensionRise | 6-stage MSEG (loopable) |
 | Specialty | PneumaticJet, ElectromagneticHum, TensionSnap, ParticleRain | ADSR |
 
+The friction MSEG's onset stage rises from 0 to **Onset Level**
+(`mseg_onset_level`, 0–1, default 0.01) over **Onset Time** (`mseg_onset`,
+0.001–1 s). Onset Time used to set the level too, clamped to 0–1; the new
+default keeps that level, so default notes are bit-identical
+(`m01-m04-m05-clarify-parameters`). Presets (`migrate_preset_json`) and saved
+host state (`Plugin::filter_state`) without Onset Level get
+`legacy_onset_level(mseg_onset)`, the level they had.
+
 The per-exciter DSP models implement the formulas in
 `docs/detailed-specs/exciter-algorithms.md` (Kelvin–Voigt, Hertzian contact,
 micro-bouncing, Poisson impulse clusters, Stribeck friction, etc.).
@@ -593,6 +601,23 @@ the default hard clamp too (`clipper_alias_bounds_hold`,
 −60 dB Render). No fixed margin can keep every overshoot under the clamp: with
 extreme drive in the top octaves, peaks reach 1.7× the curve's threshold and
 the clamp clips them.
+
+### Output gain and parameter names
+
+**Output** (`output_param`, shared by the live parameters and
+`Preset::into_params`) stores the linear gain, 0 to +40 dB, so presets and
+host state keep their level. It's shown and typed in dB
+(`v2s_f32_gain_to_db` / `s2v_f32_gain_to_db`, −inf at gain 0), with a
+gain-skewed taper (`gain_skew_factor(−60, 40)`): −10 dB at the middle of the
+travel, 0 dB at 0.575, −20 to +6 dB across 0.189 (it was 0.010 and 0.019 with
+the linear range). Host automation of Output recorded before the change maps
+to different gains (BREAKING, not migratable).
+
+Every parameter's display name is unique (`parameter_names_are_unique`), and
+`into_params` builds them with the live names
+(`into_params_uses_the_live_names_and_output_range`): Resonator / Macro
+Brightness, Brush / Spring Wire Stiffness, Onset Time / Onset Level
+(`m01-m04-m05-clarify-parameters`).
 
 ### Output protection
 

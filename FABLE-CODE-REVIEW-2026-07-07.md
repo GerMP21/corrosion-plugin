@@ -415,11 +415,11 @@ above the block. Minor, but the doc and tests promise symmetric behavior.
 
 ## MEDIUM
 
-- **M1. `mseg_onset` doubles as time and level.** `voice/mod.rs:561-575` passes
+- ~~**M1. `mseg_onset` doubles as time and level.** `voice/mod.rs:561-575` passes
   `controls.mseg_onset` (a 0.001–1.0 s *time*) to both `set_stage_times` *and*
   `set_stage_levels` (as the onset *level*, clamped 0..1). The VoiceControls doc
   even calls it "Onset stage *level*" while params.rs calls it "onset *time*". One
-  knob silently controls two unrelated things.
+  knob silently controls two unrelated things.~~ — FIXED (2026-11-09, [`m01-m04-m05-clarify-parameters`](openspec/changes/m01-m04-m05-clarify-parameters/proposal.md)): new parameter Onset Level (`mseg_onset_level`, default 0.01) sets the onset stage's level, and Onset (now "Onset Time") only its length. The default keeps the old level, so all 16 exciters' default 48 kHz renders hash identically before and after. Older presets (`migrate_preset_json`) and host state (`filter_state`) get `clamp(mseg_onset, 0, 1)`. Proven by `onset_time_and_level_are_separate`, `default_onset_level_is_the_old_shared_level`, `old_host_state_keeps_its_onset_level` and `preset_without_onset_level_keeps_its_onset`.
 - **M2. Hit-family envelope ignores `env_decay`/`env_sustain`.** Hits use a pure
   AR one-shot (voice/mod.rs:540-547) — attack then immediate release, even while
   the key is held. The GUI shows full ADSR knobs for hit exciters; Decay/Sustain
@@ -431,15 +431,15 @@ above the block. Minor, but the doc and tests promise symmetric behavior.
   live-controls path also caches `Some(48_000)`, masking the first rebuild).
   Similarly `Voice::set_pitch_bend_semitones` uses `self.sample_rate`, which is
   48 kHz until the first sample renders.~~ — FIXED (2026-11-08, branch `claude/nice-mccarthy-9fm1p6`, [`m03-m20-start-at-host-rate-and-report-latency`](openspec/changes/archive/2026-11-09-m03-m20-start-at-host-rate-and-report-latency/proposal.md)): voices are rated for the host rate at initialization and on rate changes, and a note-on builds its coefficients once at that rate (96 kHz: 624 → 416 builds for 16 notes, as at 48 kHz). `first_note_does_not_depend_on_voice_history` also found four exciters carrying state between notes; each now restarts from rest on trigger.
-- **M4. Duplicate parameter display names.** Two params named "Wire Stiffness"
+- ~~**M4. Duplicate parameter display names.** Two params named "Wire Stiffness"
   (`brush_wire_stiffness`, `wire_stiffness`), two named "Brightness"
   (`res_brightness`, `macro_brightness`), plus "Mass" (macro) vs the many masses.
   IDs are unique so state is safe, but host automation lists show
-  indistinguishable duplicates.
-- **M5. `output` param is linear-in-gain 0..100 (0 → −∞, 100 → +40 dB), default
+  indistinguishable duplicates.~~ — FIXED (2026-11-09, [`m01-m04-m05-clarify-parameters`](openspec/changes/m01-m04-m05-clarify-parameters/proposal.md)): "Resonator Brightness" / "Macro Brightness" and "Brush Wire Stiffness" / "Spring Wire Stiffness", also in `into_params`. "Mass" was already unique (the other masses are "Pipe Mass", "Hand Mass", …), so it stays. Proven by `parameter_names_are_unique` and `into_params_uses_the_live_names_and_output_range`.
+- ~~**M5. `output` param is linear-in-gain 0..100 (0 → −∞, 100 → +40 dB), default
   1.0.** No dB display/units, and the linear taper means the useful −20..+6 dB
   region occupies ~1 % of the knob travel. Also +40 dB of clean digital gain into
-  a clipper is an odd ceiling.
+  a clipper is an odd ceiling.~~ — FIXED (2026-11-09, [`m01-m04-m05-clarify-parameters`](openspec/changes/m01-m04-m05-clarify-parameters/proposal.md)): Output is shown and typed in dB with a gain-skewed taper; 0 dB moved from 1.0 % to 57.5 % of the travel and −20..+6 dB from 1.9 % to 18.9 %. The stored value is still the gain, so presets and projects keep their level; the +40 dB maximum stays (maintainer's choice). BREAKING for existing Output automation. Proven by `output_is_shown_in_decibels`, `output_accepts_typed_decibels`, `output_taper_reaches_the_useful_range` and `old_project_keeps_its_output_gain`.
 - ~~**M6. `LorenzDrive` bias-starvation gate is a hard 1.0↔0.3 gain switch**
   (lorenz_drive.rs:98-107) keyed off the chaotic z state — produces stepped gain
   discontinuities (clicks/crackle), which may be intended "circuit starvation" but
