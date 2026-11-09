@@ -508,16 +508,21 @@ fn aliasing_report(output: &[f32], input_bin: usize, sample_rate: u32) -> Aliasi
 }
 
 /// The post chain's final clipper on its own, at `quality_mode`'s factor and
-/// the default ceiling (0.9661) and softness (0.5).
+/// the default ceiling (0.9661), Diode Softness (0.5) and Diode Asymmetry
+/// (0.25), at 48 kHz.
 fn output_clipper(quality_mode: PostQualityMode) -> OversampledClipper {
     let mut clipper = OversampledClipper::new();
-    clipper.set_parameters(0.9661, 0.5);
+    clipper.set_sample_rate(48_000.0);
+    clipper.set_parameters(0.9661, 0.5, 0.25);
     clipper.set_oversample_factor(quality_mode.clipper_oversample_factor());
     clipper
 }
 
-/// Runs a bin-centred sine through the clipper alone: `frame_count` frames of
-/// warm-up, then `frame_count` frames returned with the input.
+/// Runs a bin-centred sine through the clipper alone: about a second of
+/// warm-up (whole windows, so the phase runs on), then `frame_count` frames
+/// returned with the input. The warm-up lets the DC blocker settle (time
+/// constant 80 ms): a decaying offset would leak into the low bins and read
+/// as fold-back (`add-asymmetric-diode-stage`).
 fn clipper_sine(
     frame_count: usize,
     quality_mode: PostQualityMode,
@@ -528,7 +533,8 @@ fn clipper_sine(
     let step = std::f64::consts::TAU * input_bin as f64 / frame_count as f64;
     let sine =
         |frame: usize| (amplitude as f64 * (step * (frame % frame_count) as f64).sin()) as f32;
-    for frame in 0..frame_count {
+    let warm_up = frame_count * 48_000_usize.div_ceil(frame_count);
+    for frame in 0..warm_up {
         clipper.process(sine(frame));
     }
     let input: Vec<f32> = (0..frame_count).map(sine).collect();
@@ -624,7 +630,7 @@ pub fn analyze_post_chain_aliasing_at_quality(
     chain.set_spread_params(0.0, 0.0);
     chain.set_space_mode(SpaceMode::Off);
     chain.set_space_amount(0.0);
-    chain.set_clipper_params(0.9661, 0.5);
+    chain.set_clipper_params(0.9661, 0.5, 0.25);
 
     let warmup_frames = frame_count / 2;
     for frame in 0..warmup_frames {
@@ -932,15 +938,15 @@ mod tests {
     /// Frame count for the clipper measurements (bins 11.7 Hz apart at 48 kHz).
     const CLIPPER_FRAMES: usize = 4_096;
 
-    /// `output-clipper`: sines at 0.5 (below the threshold: the 0.9661
-    /// ceiling in Eco, ÷ 1.3 ≈ 0.743 when oversampling) come out within
-    /// 0.1 dB in every quality mode.
+    /// `output-clipper`: sines at 0.3, under the knee at the default Diode
+    /// Softness and Asymmetry in every quality mode, come out within 0.1 dB
+    /// (`add-asymmetric-diode-stage`).
     #[test]
     fn clipper_is_transparent_below_its_threshold() {
         let mut off = Vec::new();
         for mode in ALL_QUALITIES {
             for hz in [100.0, 1_000.0, 10_000.0, 18_000.0] {
-                let r = measure_clipper_response(48_000, CLIPPER_FRAMES, mode, hz, 0.5);
+                let r = measure_clipper_response(48_000, CLIPPER_FRAMES, mode, hz, 0.3);
                 if r.gain_db.abs() > 0.1 {
                     off.push((mode, r.frequency_hz, r.gain_db));
                 }
@@ -999,13 +1005,15 @@ mod tests {
     }
 
     /// `output-clipper`: a delay small enough not to report, under eight
-    /// samples at 1 kHz in every mode.
+    /// samples at 1 kHz in every mode. The DC blocker's 2 Hz high-pass leads
+    /// by about 0.015 samples at 1 kHz, so Eco's "lag" can be a hair below 0
+    /// (`add-asymmetric-diode-stage`).
     #[test]
     fn clipper_delays_less_than_eight_samples() {
         for mode in ALL_QUALITIES {
             let r = measure_clipper_response(48_000, CLIPPER_FRAMES, mode, 1_000.0, 0.5);
             assert!(
-                (0.0..8.0).contains(&r.lag_samples),
+                (-0.05..8.0).contains(&r.lag_samples),
                 "{mode:?} lag at {:.0} Hz is {:.3} samples",
                 r.frequency_hz,
                 r.lag_samples

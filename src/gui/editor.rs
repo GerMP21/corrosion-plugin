@@ -27,6 +27,21 @@ thread_local! {
         std::cell::RefCell::new(std::collections::HashSet::new());
 }
 
+#[cfg(test)]
+thread_local! {
+    /// The colour the brickwall panel's dot was last drawn in (tests only).
+    static DRAWN_DIODE_DOT: std::cell::Cell<Option<egui::Color32>> =
+        const { std::cell::Cell::new(None) };
+}
+
+/// Records the colour the diode dot was drawn in (tests only; a no-op
+/// otherwise).
+#[inline]
+fn note_diode_dot(_colour: egui::Color32) {
+    #[cfg(test)]
+    DRAWN_DIODE_DOT.with(|dot| dot.set(Some(_colour)));
+}
+
 /// Records that a widget drew `param` (tests only; a no-op otherwise).
 #[inline]
 fn note_drawn(_param: ParamPtr) {
@@ -84,6 +99,8 @@ struct EditorUiState {
     /// sound) and its randomness, seeded when the editor opens.
     randomizer_mode: crate::randomizer::RandomizerMode,
     randomizer_noise: crate::dsp::utils::noise::Noise,
+    /// The diode stage's reduction, published by the audio thread.
+    diode_meter: Arc<crate::dsp::DiodeMeter>,
 }
 
 impl EditorUiState {
@@ -99,6 +116,7 @@ impl EditorUiState {
             save_name: String::new(),
             confirm_overwrite: false,
             save_message: None,
+            diode_meter: Arc::new(crate::dsp::DiodeMeter::new()),
             randomizer_mode: crate::randomizer::RandomizerMode::Safe,
             randomizer_noise: crate::dsp::utils::noise::Noise::new(
                 std::time::SystemTime::now()
@@ -893,6 +911,7 @@ const INDUSTRIAL_COG_RESONATOR_CONTROLS: &[ResonatorControlSpec] = &[
 pub fn create_editor(
     params: Arc<CorrosionParams>,
     editor_state: Arc<EguiState>,
+    diode_meter: Arc<crate::dsp::DiodeMeter>,
 ) -> Option<Box<dyn Editor>> {
     let initial_scale = params.ui_scale.value();
     let initial_size = scaled_editor_size(ui_scale_factor(initial_scale));
@@ -900,7 +919,10 @@ pub fn create_editor(
     let resize_state = editor_state.clone();
     create_egui_editor(
         editor_state,
-        EditorUiState::new(initial_scale, initial_size),
+        EditorUiState {
+            diode_meter,
+            ..EditorUiState::new(initial_scale, initial_size)
+        },
         |_, _| {},
         move |egui_ctx, setter, state| {
             let ui_scale = params.ui_scale.value();
@@ -3405,10 +3427,12 @@ fn render_processing_column(
                         ),
                         egui::Sense::hover(),
                     );
+                    let colour = DANGER_RED.linear_multiply(0.3);
+                    note_diode_dot(colour);
                     ui.painter().circle_filled(
                         dot_rect.center(),
                         height_pct(scale, 0.0052083335),
-                        DANGER_RED.linear_multiply(0.3),
+                        colour,
                     );
                 });
             });
@@ -3959,6 +3983,94 @@ mod tests {
         assert_eq!(super::layout_scale(0.75, 1080.0), 0.75);
         assert!((super::layout_scale(1.0, 810.0) - 0.75).abs() < 1e-6);
         assert_eq!(super::layout_scale(1.0, 0.0), 1.0);
+    }
+
+    // --- The limiter panel's diode dot (`add-asymmetric-diode-stage`) ---
+
+    /// Renders one editor frame at `time` seconds and returns the colour the
+    /// diode dot was drawn in.
+    fn draw_dot(state: &mut super::EditorUiState, time: f64) -> nih_plug_egui::egui::Color32 {
+        let params = crate::params::CorrosionParams::default();
+        let gui = NullGui;
+        let setter = nih_plug::prelude::ParamSetter::new(&gui);
+        super::DRAWN_DIODE_DOT.with(|dot| dot.set(None));
+        let ctx = nih_plug_egui::egui::Context::default();
+        let input = nih_plug_egui::egui::RawInput {
+            screen_rect: Some(nih_plug_egui::egui::Rect::from_min_size(
+                nih_plug_egui::egui::Pos2::ZERO,
+                nih_plug_egui::egui::vec2(super::editor_width(1.0), super::editor_height(1.0)),
+            )),
+            time: Some(time),
+            ..Default::default()
+        };
+        let _ = ctx.run(input, |ctx| {
+            nih_plug_egui::egui::CentralPanel::default().show(ctx, |ui| {
+                super::render_ui(ui, &params, &setter, state, 1.0);
+            });
+        });
+        super::DRAWN_DIODE_DOT
+            .with(|dot| dot.get())
+            .expect("the limiter panel draws its dot")
+    }
+
+    fn dot_state() -> super::EditorUiState {
+        super::EditorUiState::new(2, (super::BASE_EDITOR_WIDTH, super::BASE_EDITOR_HEIGHT))
+    }
+
+    /// Runs a 200 Hz sine at `amplitude` through a default Render clipper for
+    /// 0.1 s and publishes its reduction to `meter`, as the plugin does.
+    fn clip_into(meter: &crate::dsp::DiodeMeter, amplitude: f32) {
+        let mut clipper = crate::dsp::OversampledClipper::new();
+        clipper.set_sample_rate(48_000.0);
+        clipper.set_oversample_factor(16);
+        clipper.set_parameters(0.9661, 0.5, 0.25);
+        clipper.reset();
+        for i in 0..4_800 {
+            let x = amplitude * (std::f32::consts::TAU * 200.0 * i as f32 / 48_000.0).sin();
+            clipper.process(x);
+        }
+        meter.publish(clipper.take_block_reduction_db());
+    }
+
+    fn resting() -> nih_plug_egui::egui::Color32 {
+        super::DANGER_RED.linear_multiply(0.3)
+    }
+
+    #[test]
+    fn diode_dot_rests_when_the_signal_stays_under_the_knee() {
+        let mut state = dot_state();
+        clip_into(&state.diode_meter, 0.2);
+        assert_eq!(draw_dot(&mut state, 0.0), resting());
+    }
+
+    #[test]
+    fn diode_dot_is_full_when_the_stage_clips_hard() {
+        let mut state = dot_state();
+        // A sine at eight times the ceiling loses well over 6 dB.
+        clip_into(&state.diode_meter, 8.0 * 0.9661);
+        assert_eq!(draw_dot(&mut state, 0.0), super::DANGER_RED);
+    }
+
+    #[test]
+    fn diode_dot_falls_back_within_a_second() {
+        let mut state = dot_state();
+        clip_into(&state.diode_meter, 8.0 * 0.9661);
+        assert_eq!(draw_dot(&mut state, 0.0), super::DANGER_RED);
+        // No more reduction: the dot dims frame by frame, steadily, and is
+        // back at rest within a second.
+        let mut previous = super::DANGER_RED.r();
+        let mut at_rest = None;
+        for frame in 1..=60 {
+            let time = f64::from(frame) / 60.0;
+            let colour = draw_dot(&mut state, time);
+            assert!(colour.r() <= previous, "brightened at {time:.3} s");
+            previous = colour.r();
+            if colour == resting() && at_rest.is_none() {
+                at_rest = Some(time);
+            }
+        }
+        let at_rest = at_rest.expect("back at rest within a second");
+        assert!(at_rest > 0.1, "dropped to rest at once ({at_rest:.3} s)");
     }
 
     /// IDs of the parameters the editor draws a widget for, rendering one

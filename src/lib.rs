@@ -838,6 +838,9 @@ pub struct Corrosion {
     /// (`m13-sustain-pedal-and-panic`).
     panic_gain: f32,
     panic_step: f32,
+    /// The diode stage's reduction, published once per block for the
+    /// editor's limiter dot (`add-asymmetric-diode-stage`).
+    diode_meter: Arc<dsp::DiodeMeter>,
 }
 
 /// The per-block values `Corrosion::begin_block` resolves and each
@@ -870,6 +873,7 @@ impl Default for Corrosion {
             reported_latency_samples: 0,
             panic_gain: 1.0,
             panic_step: 0.0,
+            diode_meter: Arc::new(dsp::DiodeMeter::new()),
         }
     }
 }
@@ -970,6 +974,7 @@ impl Corrosion {
         self.post_chain.set_clipper_params(
             self.params.analog_ceiling.value(),
             self.params.diode_softness.value(),
+            self.params.diode_asymmetry.value(),
         );
     }
 
@@ -1291,6 +1296,9 @@ impl Plugin for Corrosion {
             },
         );
 
+        self.diode_meter
+            .publish(self.post_chain.take_clipper_reduction_db());
+
         // Report plugin latency to the host. Only update when it changes —
         // hosts may re-negotiate buses on every set_latency_samples call.
         if let Some(latency) = self.latency_change(block.limiter_mode) {
@@ -1307,7 +1315,11 @@ impl Plugin for Corrosion {
     fn editor(&mut self, _async_executor: AsyncExecutor<Self>) -> Option<Box<dyn Editor>> {
         #[cfg(feature = "gui")]
         {
-            gui::create_editor(self.params.clone(), self.params.editor_state.clone())
+            gui::create_editor(
+                self.params.clone(),
+                self.params.editor_state.clone(),
+                self.diode_meter.clone(),
+            )
         }
         #[cfg(not(feature = "gui"))]
         {
@@ -2751,6 +2763,24 @@ mod host_state_tests {
             .output
             .preview_plain(params.output.preview_normalized(2.0));
         assert!((restored - 2.0).abs() < 1e-4, "restored gain {restored}");
+    }
+
+    #[test]
+    fn old_host_state_loads_the_old_clipper() {
+        // `add-asymmetric-diode-stage`: state saved before Diode Asymmetry
+        // gets the hard, symmetric knee closest to the old clipper.
+        let mut saved = state(&[("diode_softness", 0.7)]);
+        Corrosion::filter_state(&mut saved);
+        assert_eq!(f32_param(&saved, "diode_softness"), 0.0);
+        assert_eq!(f32_param(&saved, "diode_asymmetry"), 0.0);
+    }
+
+    #[test]
+    fn current_host_diode_state_is_left_alone() {
+        let mut saved = state(&[("diode_softness", 0.7), ("diode_asymmetry", 0.4)]);
+        Corrosion::filter_state(&mut saved);
+        assert_eq!(f32_param(&saved, "diode_softness"), 0.7);
+        assert_eq!(f32_param(&saved, "diode_asymmetry"), 0.4);
     }
 
     #[test]

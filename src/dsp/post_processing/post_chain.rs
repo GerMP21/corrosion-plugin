@@ -114,6 +114,7 @@ impl PostProcessingChain {
         self.spring_left.set_sample_rate(sample_rate);
         self.spring_right.set_sample_rate(sample_rate);
         self.factory_echo.set_sample_rate(sample_rate);
+        self.clipper.set_sample_rate(sample_rate);
     }
 
     /// Sets the WDF filter controls.
@@ -184,9 +185,14 @@ impl PostProcessingChain {
             .set_parameters(delay_time, machinery_movement, high_frequency_damping);
     }
 
-    /// Sets the final clipper ceiling and knee softness.
-    pub fn set_clipper_params(&mut self, ceiling: f32, softness: f32) {
-        self.clipper.set_parameters(ceiling, softness);
+    /// Sets the final clipper's ceiling, knee softness and asymmetry.
+    pub fn set_clipper_params(&mut self, ceiling: f32, softness: f32, asymmetry: f32) {
+        self.clipper.set_parameters(ceiling, softness, asymmetry);
+    }
+
+    /// The diode stage's level reduction since the last call, in dB.
+    pub fn take_clipper_reduction_db(&mut self) -> f32 {
+        self.clipper.take_block_reduction_db()
     }
 
     /// Processes one stereo frame through the full stage order.

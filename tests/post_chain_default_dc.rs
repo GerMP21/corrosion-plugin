@@ -34,7 +34,11 @@ fn default_chain(sample_rate: f32) -> PostProcessingChain {
     // Space off so the tail measurement isolates the filter/drive/body path.
     chain.set_space_mode(SpaceMode::Off);
     chain.set_space_amount(params.space_amount.value());
-    chain.set_clipper_params(params.analog_ceiling.value(), params.diode_softness.value());
+    chain.set_clipper_params(
+        params.analog_ceiling.value(),
+        params.diode_softness.value(),
+        params.diode_asymmetry.value(),
+    );
     chain
 }
 

@@ -7,7 +7,7 @@ Defines the output clipper's curve as a sound-shaping control: how Diode Softnes
 ## ADDED Requirements
 
 ### Requirement: Diode Softness sets the knee's width
-Diode Softness SHALL set how far under the curve's limit the clipping starts, from a hard knee at 0 to a knee starting 6 dB under the limit at 1, and the curve's slope SHALL change gradually through the knee at every Softness above 0.
+Diode Softness SHALL set how far under the curve's limit the clipping starts, from a hard knee at 0 to a knee starting 14 dB under the limit at 1, and the curve's slope SHALL change gradually through the knee at every Softness above 0.
 
 #### Scenario: Hard knee at 0
 - **WHEN** Diode Softness and Diode Asymmetry are 0 and a sine at 0.9 of the curve's limit runs through the clipper

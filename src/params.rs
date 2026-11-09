@@ -790,10 +790,17 @@ pub struct CorrosionParams {
     #[id = "analog_ceiling"]
     pub analog_ceiling: FloatParam,
 
-    /// Diode softness (0.0 to 1.0)
-    /// Transition hardness in output clipper
+    /// Diode softness (0.0 to 1.0): the output clipper's knee width, from a
+    /// hard knee at 0 to a knee starting 14 dB under the curve's limit at 1
+    /// (`add-asymmetric-diode-stage`).
     #[id = "diode_softness"]
     pub diode_softness: FloatParam,
+
+    /// Diode asymmetry (0.0 to 1.0): lowers the clipper's negative limit, to
+    /// 6 dB under the positive one at 1, adding even harmonics
+    /// (`add-asymmetric-diode-stage`).
+    #[id = "diode_asymmetry"]
+    pub diode_asymmetry: FloatParam,
 
     // Macro Controls (PRD §12)
     //
@@ -1440,6 +1447,20 @@ pub fn output_param(gain: f32) -> FloatParam {
     .with_string_to_value(formatters::s2v_f32_gain_to_db())
 }
 
+/// Default Diode Asymmetry for new instances: the negative limit 1.5 dB
+/// under the positive one (`add-asymmetric-diode-stage`).
+pub const DEFAULT_DIODE_ASYMMETRY: f32 = 0.25;
+
+/// Build the Diode Asymmetry `FloatParam` (0–1), shared by the live
+/// parameters and `Preset::into_params`.
+pub fn diode_asymmetry_param(value: f32) -> FloatParam {
+    FloatParam::new(
+        "Diode Asymmetry",
+        value.clamp(0.0, 1.0),
+        FloatRange::Linear { min: 0.0, max: 1.0 },
+    )
+}
+
 /// Build the limiter-mode `IntParam` with mappings for Hard / Lookahead.
 pub fn limiter_mode_param(default: i32) -> IntParam {
     IntParam::new("Limiter Mode", default, IntRange::Linear { min: 0, max: 1 })
@@ -1996,6 +2017,7 @@ impl Default for CorrosionParams {
                 0.5,
                 FloatRange::Linear { min: 0.0, max: 1.0 },
             ),
+            diode_asymmetry: diode_asymmetry_param(DEFAULT_DIODE_ASYMMETRY),
 
             // Macro defaults — 0.5 is the neutral midpoint so existing presets
             // sound unchanged until the user actively dials a macro.

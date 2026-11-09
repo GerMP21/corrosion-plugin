@@ -452,3 +452,62 @@ fn into_params_uses_the_live_names_and_output_range() {
         );
     }
 }
+
+#[test]
+fn preset_without_diode_asymmetry_loads_the_old_clipper() {
+    // Before Diode Asymmetry, the clipper had a hard knee; Softness 0 and
+    // Asymmetry 0 are the closest setting, whatever the old Softness
+    // (`add-asymmetric-diode-stage`).
+    let json = r#"
+    {
+        "name": "Old Clipper",
+        "version": "4",
+        "object": "Pipe",
+        "exciter": 2,
+        "size": 1.0,
+        "rust": 0.0,
+        "damage": 0.0,
+        "drive": 0.0,
+        "output": 1.0,
+        "width": 0.5,
+        "body": 1.0,
+        "extra": { "diode_softness": 0.7 }
+    }
+    "#;
+    let loaded = Preset::from_json_str(json).unwrap();
+    assert_eq!(loaded.extra.diode_softness, 0.0);
+    assert_eq!(loaded.extra.diode_asymmetry, 0.0);
+    let params = loaded.into_params();
+    assert_eq!(params.diode_softness.value(), 0.0);
+    assert_eq!(params.diode_asymmetry.value(), 0.0);
+}
+
+#[test]
+fn preset_with_diode_asymmetry_keeps_both_fields() {
+    let json = r#"
+    {
+        "name": "New Clipper",
+        "version": "4",
+        "object": "Pipe",
+        "exciter": 2,
+        "size": 1.0,
+        "rust": 0.0,
+        "damage": 0.0,
+        "drive": 0.0,
+        "output": 1.0,
+        "width": 0.5,
+        "body": 1.0,
+        "extra": { "diode_softness": 0.7, "diode_asymmetry": 0.4 }
+    }
+    "#;
+    let loaded = Preset::from_json_str(json).unwrap();
+    assert_eq!(loaded.extra.diode_softness, 0.7);
+    assert_eq!(loaded.extra.diode_asymmetry, 0.4);
+}
+
+#[test]
+fn new_instances_use_the_new_diode_defaults() {
+    let params = corrosion::CorrosionParams::default();
+    assert_eq!(params.diode_softness.value(), 0.5);
+    assert_eq!(params.diode_asymmetry.value(), 0.25);
+}

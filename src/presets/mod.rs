@@ -272,6 +272,7 @@ pub struct PresetParameters {
     pub high_frequency_damping: f32,
     pub analog_ceiling: f32,
     pub diode_softness: f32,
+    pub diode_asymmetry: f32,
     // Macros (P2.2 — PRD §12). New presets persist these directly; old
     // presets fall back to the `#[serde(default)]` value at the struct
     // level, which yields `0.0` — we override that with the neutral 0.5
@@ -435,6 +436,7 @@ impl PresetParameters {
             high_frequency_damping: params.high_frequency_damping.value(),
             analog_ceiling: params.analog_ceiling.value(),
             diode_softness: params.diode_softness.value(),
+            diode_asymmetry: params.diode_asymmetry.value(),
             macro_mass: params.macro_mass.value(),
             macro_corrosion: params.macro_corrosion.value(),
             macro_violence: params.macro_violence.value(),
@@ -617,6 +619,7 @@ impl PresetParameters {
         );
         params.analog_ceiling = float_param("Analog Ceiling", self.analog_ceiling, 0.5, 1.0);
         params.diode_softness = float_param("Diode Softness", self.diode_softness, 0.0, 1.0);
+        params.diode_asymmetry = crate::params::diode_asymmetry_param(self.diode_asymmetry);
         params.macro_mass = float_param("Mass", self.macro_mass, 0.0, 1.0);
         params.macro_corrosion = float_param("Corrosion", self.macro_corrosion, 0.0, 1.0);
         params.macro_violence = float_param("Violence", self.macro_violence, 0.0, 1.0);

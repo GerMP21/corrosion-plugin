@@ -2,13 +2,13 @@
 
 ## 1. Tests first
 
-- [ ] 1.1 Add the `diode-stage` curve tests (hard knee at 0, wide knee at 1, fewer high harmonics as Softness rises, peak-to-peak per Asymmetry, even harmonics, DC under 0.001 of the ceiling, symmetric curve unfiltered, peaks under the ceiling in every mode, Eco sounds like Render, no click when Asymmetry jumps) and the updated `output-clipper` transparency and Eco scenarios. Verify which fail on the current code, and record today's values in `design.md` under Measurements.
-- [ ] 1.2 Add the migration tests (old preset file, old host state, current state untouched, new-instance defaults) and the editor dot tests (idle, full at 6 dB, release within a second), using a test-only hook for the dot's drawn colour. Verify they fail on the current code.
+- [x] 1.1 Add the `diode-stage` curve tests (hard knee at 0, wide knee at 1, fewer high harmonics as Softness rises, peak-to-peak per Asymmetry, even harmonics, DC under 0.001 of the ceiling, symmetric curve unfiltered, peaks under the ceiling in every mode, Eco sounds like Render, no click when Asymmetry jumps) and the updated `output-clipper` transparency and Eco scenarios. Verify which fail on the current code, and record today's values in `design.md` under Measurements.
+- [x] 1.2 Add the migration tests (old preset file, old host state, current state untouched, new-instance defaults) and the editor dot tests (idle, full at 6 dB, release within a second), using a test-only hook for the dot's drawn colour. Verify they fail on the current code.
 
 ## 2. The curve
 
-- [ ] 2.1 Replace `diode_clip` with the per-polarity tanh knee (decisions 1–3), with smoothed Softness and Asymmetry and constants recomputed only while they move. Use the same limit in every quality mode. Verify the curve tests that don't depend on DC removal or headroom pass.
-- [ ] 2.2 Add the 5 Hz DC blocker with its asymmetry-weighted fade (decision 5). Verify the DC, unfiltered-symmetric and no-click tests pass.
+- [x] 2.1 Replace `diode_clip` with the per-polarity tanh knee (decisions 1–3), with smoothed Softness and Asymmetry and constants recomputed only while they move. Use the same limit in every quality mode. Verify the curve tests that don't depend on DC removal or headroom pass.
+- [x] 2.2 Add the 2 Hz DC blocker (5 Hz in the first draft, see decision 5) with its asymmetry-weighted fade (decision 5). Verify the DC, unfiltered-symmetric and no-click tests pass.
 - [ ] 2.3 Pick the tanh evaluation (table or rational approximation, decision 7) by comparing `plugin_output_path_sixteen_voices_render` within one run; check the error bound with a test.
 
 ## 3. Headroom and cost

@@ -6,9 +6,9 @@ After `m06-m09-smooth-starvation-and-oversample-clipper`, the clipper starts 2.3
 
 ## What Changes
 
-- **A diode-like soft knee:** Diode Softness sets the knee's width, from a hard knee at 0 to a knee that starts 6 dB under the curve's limit at 1. The curve is smooth (no slope jump), so it adds fewer high harmonics than today's.
+- **A diode-like soft knee:** Diode Softness sets the knee's width, from a hard knee at 0 to a knee that starts 14 dB under the curve's limit at 1 (4.4 dB under at the default 0.5). The curve is smooth (no slope jump), so it adds fewer high harmonics than today's.
 - **New parameter Diode Asymmetry** (`diode_asymmetry`, 0–1): the negative half conducts earlier and more firmly than the positive one, as with one diode against two in series. At 1 the negative limit is 6 dB under the positive one. This adds even harmonics. Default 0.25 (negative limit 1.5 dB lower).
-- **No DC:** a 5 Hz DC blocker follows the curve while Diode Asymmetry is above 0, and peaks stay under the Analog Ceiling after it.
+- **No DC:** a 2 Hz DC blocker follows the curve while Diode Asymmetry is above 0, and peaks stay under the Analog Ceiling after it.
 - **The same character in every quality mode:** Eco runs the same curve and headroom as Normal, High and Render; quality only changes how much the clipping aliases. The headroom (today ÷ 1.3) is re-measured for the new curve.
 - **The red dot shows the diode working:** off under 0.1 dB of reduction, brightening to full at 6 dB, with an instant attack and about 300 ms of fall. It's the plugin's first audio-to-editor meter.
 - **Migration:** user presets and saved projects from before this change get Diode Softness 0 and Diode Asymmetry 0, the setting closest to the current sound, on both the preset loader and `filter_state`. New instances and the regenerated factory presets use the new defaults.
