@@ -9,6 +9,7 @@ Current package version: `0.1.0`. Preset schema version: `4` (with backwards-com
 - VST3 and CLAP plugin entrypoints via NIH-plug.
 - Stereo instrument layout (no audio input — audio-in "Effect mode" is on the roadmap, not shipped).
 - **Full MIDI expression**: notes, pitch bend (default ±2 semitones, ±24 safety clamp), channel + polyphonic pressure, and CC1 mod wheel. All routed live to active voices.
+- **Sustain pedal and panic**: CC64 holds released notes until the pedal lifts (re-striking a held note replaces it; pedal-held notes are stolen before held keys). CC123 All Notes Off releases every held key (a down pedal still holds them), CC120 All Sound Off fades everything, Space tails included, to silence in 5 ms, and CC121 Reset All Controllers lifts the pedal and returns mod wheel, bend and pressure to rest.
 - 16-voice polyphony. When the pool is full, released tails are stolen first, then held notes at least 100 ms old (quietest first, oldest on ties); a note that just started is only stolen if every held note is that young. Idle voices cost nothing, while a full pool at Render quality measured about 36 % of one core on the development machine.
 - 130+ host parameters covering exciters, objects, transformations, post-processing, four high-level macros, and three play modes.
 - An egui editor with UI scaling (50/75/100/125/150%), controls for every audible parameter (including play and limiter modes, sync and the four macros), user presets, and a randomizer.
@@ -44,6 +45,7 @@ Each object is driven by an algorithmic resonator generator (the single resonato
 - **Quality**: `Eco` / `Normal` / `High` / `Render`. Controls both post-chain oversampling factor (1×/4×/8×/16×) **and** per-voice modal density (0.5×/1.0×/1.5×/2.0× the object's base mode count). Every mode runs the full post chain (Eco no longer skips body, spread or Space), so quality modes trade fidelity and CPU, not effects.
 - **Limiter**: `Hard` (default zero-latency hard clamp at ≈−0.3 dBFS) or `Lookahead` (48-sample window, instant attack, 50 ms release; reports its 1 ms latency to the host).
 - **Post chain**: per-channel WDF-style 4-pole ladder filter → Lorenz drive (dual-mono, so the voice engine's stereo image survives), plus the FEM body resonance added in parallel on the mono sum → HRTF spread → Space (Factory / Spring / Echo) → oversampled clipper. **BODY** (0–5) sets the body's mix level; **Chassis Volume** only sets its size (larger = lower resonances, which also ring a little louder at the same BODY). Cutoff, resonance, and master drive are smoothed at audio rate (~20 ms tau) with a first-call snap so static configurations are unchanged.
+- **Echo**: Machinery Movement sweeps the delay smoothly (interpolated reads, no zipper). High Frequency Damping darkens the repeats, more with each one, without changing their level: 0 leaves them full-range, 1 rolls them off above about 1.5 kHz.
 - **Tempo sync**: off by default. `sync_rate < 0.05` (shown as "Off") keeps the Echo free-running on Delay Time. Above it, six musical divisions (1/16 → 2/1, shown by name) drive the delay from `context.transport().tempo` when the host reports one. A division longer than the echo's 0.8 s is halved until it fits, so it stays on the beat (1/1 at 120 BPM plays as 1/4).
 - **Per-voice modulation**: damping, brightness, strike position, coupling, position wander and its rate, position envelope, and fundamental anchor automate through to held notes via `Voice::update_live_controls`; tail voices keep their note-on snapshot so decays stay consistent.
 - **Strike position movement**: **Position Envelope** moves the strike point with the note's force envelope (up to half the bar at full envelope), so a strike or a bow swell sweeps the timbre. **Wander** adds a slow drift at its own **Wander Rate** (0.1–5 Hz). Older presets and saved DAW projects that used Position Envelope as the wander's rate load as the equivalent Wander Rate.
@@ -58,6 +60,8 @@ Each object is driven by an algorithmic resonator generator (the single resonato
 Each anchors on a distinct Object × Exciter pair and tunes the relevant character params, exciter parameters, macros, and post-chain choices. Several use `PlayMode::Drone` for sustained drones, one uses `sync_rate` for tempo-synced echo. Regenerate with `cargo run --bin seed_presets`.
 
 ### User Presets and Randomizer
+
+The editor opens at 75 % (810 × 576). The **SCALE** selector (50–150 %) resizes the plugin window in hosts that allow it; the controls always fit the window's width, and taller exciter panels scroll.
 
 The editor's **Save** writes the current sound as a named preset (every parameter except UI Scale) into a per-user folder, and the preset list shows the factory bank followed by your presets. Saving over an existing name asks first. The folder:
 

@@ -129,7 +129,9 @@ src/
                       post_chain (PostProcessingChain + PostQualityMode)
     utils/            budget (mode-count estimates), body, deterministic_excitation
   gui/
-    editor.rs         egui editor: knobs/faders, UI scale (50–150%), quality,
+    editor.rs         egui editor: knobs/faders, UI scale (50–150%, default 75%: 810×576;
+                      a change asks the host to resize; the layout never exceeds the
+                      window's width), quality,
                       play and limiter mode selectors, a macro strip (Mass,
                       Corrosion, Violence, Brightness), resonator Brightness,
                       Thickness, and Sync (shows "Off" or its division).
@@ -205,6 +207,19 @@ Idle ──note_on──▶ Active(rendering) ──note_off──▶ Tail(rende
   voice stops costing CPU. (`is_rendering()` is the idle-CPU optimization.)
 - **Stealing**: `VoiceManager` prefers an inactive (`!is_rendering`) slot; if none,
   it steals the lowest `peak_hold`, breaking ties toward the oldest `start_frame`.
+- **Sustain pedal** (`VoiceManager::set_sustain`, CC64 ≥ 64): a key-up while
+  the pedal is down marks the voice `pedal_held` instead of releasing it, so it
+  stays `active`; lifting the pedal releases every pedal-held voice. A re-strike
+  of a pedal-held note releases the older instance. Stealing tiers are released
+  tails, then pedal-held notes, then held keys past the protection time, then
+  younger held keys. CC123 (`all_notes_off`) releases every held key through the
+  same key-up path, so the pedal still applies.
+- **All Sound Off** (CC120): `Corrosion::start_panic` fades the output over
+  `PANIC_FADE_SECONDS` (5 ms) in `render_frame_unlimited` (an out-of-line branch,
+  skipped when idle), then clears voices (`VoiceManager::silence`, which keeps
+  pedal, mod wheel, bend and pressure), the post chain and the lookahead
+  limiters in place. CC121 lifts the pedal and returns mod wheel, bend and
+  channel pressure to rest (`m13-sustain-pedal-and-panic`).
 - **Object per note** (`handle_note_event`): in Tonal and Drone play modes the
   Object parameter picks the object. In **Kit** mode the note does
   (`note_to_kit_object`): 10-note slots in object order from MIDI 24, repeating
@@ -444,6 +459,14 @@ at mid-step. The Hit envelope's attack is sampled at sample centres.
 
 ### Sample-rate rule
 
+Every voice, idle ones included, is rated for the host rate before it plays:
+`Plugin::initialize` passes `BufferConfig::sample_rate` to
+`VoiceManager::set_sample_rate`, and `begin_block` does again when the rate
+changes. A note-on therefore builds its bank's coefficients once, at the host
+rate, and its exciter starts at that rate; each exciter's `trigger` also
+restarts its per-note state, so a note doesn't depend on what the voice played
+before (`m03-m20-start-at-host-rate-and-report-latency`).
+
 Per-sample constants in the exciters, the voice (output high-pass, peak decay,
 tail frame count), the resonator's velocity and dynamics trackers and the FEM
 body are **48 kHz references**. Each is converted to the host rate through
@@ -546,10 +569,10 @@ Stage summary (as implemented):
 | WDF ladder filter | 4-pole ladder, soft transistor clip, hash-noise "tolerance" — not a Newton-Raphson WDF circuit |
 | Lorenz drive | real Lorenz attractor state used as a mild gain modulator + soft tube curve |
 | FEM body | 8 fixed modal resonators — not a finite-element mesh |
-| HRTF spread | ≤1 ms delay + 1-pole LP/HP + crossfeed — not HRIR convolution |
+| HRTF spread | mid (L+R) delayed ≤1 ms with Width, common to both channels (not an ITD), through 1-pole LP/HP proximity shaping, plus the undelayed side, then crossfeed — not HRIR convolution; one delay buffer (`m07-m08-interpolate-echo-and-tidy-spread`) |
 | Factory reverb | 4 comb + 2 allpass (Schroeder) — not 3D FDTD |
 | Spring reverb | one delay line + 1-pole dispersion per channel — not a helical PDE |
-| Factory echo | modulated stereo delay (gentle Doppler-ish) |
+| Factory echo | modulated stereo delay; Machinery Movement's depth is smoothed (τ 20 ms) so knob changes don't jump the delay; unmodulated reads are whole samples, modulated reads use 4-point Hermite interpolation (no zipper); High Frequency Damping is a one-pole low-pass in the feedback loop (20 kHz bypassed at 0 → 1.5 kHz at 1), so each repeat is darker; wet level fixed at 0.7 (`m07-m08-interpolate-echo-and-tidy-spread`) |
 | Oversampled clipper | soft diode clip; **the oversample factor is currently a no-op** (see code review) |
 
 ### Quality modes (`QualityMode` → `PostQualityMode`)
@@ -573,7 +596,7 @@ The **Analog Ceiling** parameter (0.5–1.0, default 0.9661 ≈ **−0.3 dBFS**)
 the output ceiling. The post-chain clipper clips at it, and after output gain
 the selected limiter stops at it: **Hard** (default) is
 `apply_output_limiter(sample, ceiling)`, a clamp to `±ceiling`; **Lookahead**
-uses it as its threshold (`h07-hard-limiter-honors-analog-ceiling`). So no
+uses it as its threshold (`h07-hard-limiter-honors-analog-ceiling`). The Lookahead limiter's delay (`LOOKAHEAD_LIMITER_SAMPLES`) is reported to the host as latency in `initialize`, from the restored Limiter Mode, and again whenever the mode changes (`Corrosion::latency_change`). So no
 output sample exceeds the ceiling, whatever the gain or mode
 (`hard_mode_stays_under_a_low_ceiling`,
 `both_limiter_modes_reach_the_same_ceiling`). `LIMITER_THRESHOLD = 0.9661` is

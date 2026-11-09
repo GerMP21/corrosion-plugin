@@ -424,13 +424,13 @@ above the block. Minor, but the doc and tests promise symmetric behavior.
   AR one-shot (voice/mod.rs:540-547) — attack then immediate release, even while
   the key is held. The GUI shows full ADSR knobs for hit exciters; Decay/Sustain
   do nothing there (only Specialty uses them).
-- **M3. Hard-coded 48 kHz at note-on.**
+- ~~**M3. Hard-coded 48 kHz at note-on.**
   `with_algorithm_controls_and_note` → `set_live_resonator_controls(damping,
   brightness, 48_000)` (core.rs:569-571). Coefficients are wrong for one call at
   other rates (self-heals on first `process` via the cached-rate check, but the
   live-controls path also caches `Some(48_000)`, masking the first rebuild).
   Similarly `Voice::set_pitch_bend_semitones` uses `self.sample_rate`, which is
-  48 kHz until the first sample renders.
+  48 kHz until the first sample renders.~~ — FIXED (2026-11-08, branch `claude/nice-mccarthy-9fm1p6`, [`m03-m20-start-at-host-rate-and-report-latency`](openspec/changes/m03-m20-start-at-host-rate-and-report-latency/proposal.md)): voices are rated for the host rate at initialization and on rate changes, and a note-on builds its coefficients once at that rate (96 kHz: 624 → 416 builds for 16 notes, as at 48 kHz). `first_note_does_not_depend_on_voice_history` also found four exciters carrying state between notes; each now restarts from rest on trigger.
 - **M4. Duplicate parameter display names.** Two params named "Wire Stiffness"
   (`brush_wire_stiffness`, `wire_stiffness`), two named "Brightness"
   (`res_brightness`, `macro_brightness`), plus "Mass" (macro) vs the many masses.
@@ -444,15 +444,15 @@ above the block. Minor, but the doc and tests promise symmetric behavior.
   (lorenz_drive.rs:98-107) keyed off the chaotic z state — produces stepped gain
   discontinuities (clicks/crackle), which may be intended "circuit starvation" but
   is undocumented and un-smoothed. `tube_state` field is dead.
-- **M7. `FactoryEcho` modulated delay is un-interpolated** (space.rs:273) —
+- ~~**M7. `FactoryEcho` modulated delay is un-interpolated** (space.rs:273) —
   integer-truncated read index with a moving modulation produces zipper noise as
   `machinery_movement` increases. `high_frequency_damping` is a broadband wet gain,
-  not a filter — the name promises air absorption; it just turns the echo down.
-- **M8. `HrtfSpread` ITD is dead code.** Both delay buffers store the same mono
+  not a filter — the name promises air absorption; it just turns the echo down.~~ — FIXED (2026-11-09, branch `claude/nice-mccarthy-9fm1p6`, [`m07-m08-interpolate-echo-and-tidy-spread`](openspec/changes/m07-m08-interpolate-echo-and-tidy-spread/proposal.md)): modulated reads use Hermite interpolation (largest step of a swept 1 kHz sine 0.242 → 0.077, vs 0.066 for the dry sine), and High Frequency Damping is a low-pass in the feedback loop (at 1, 8 kHz repeats 14 dB below 200 Hz; 200 Hz level unchanged within 0.1 dB), proven by `echo_modulation_glides` and the HF Damping tests in `space.rs`.
+- ~~**M8. `HrtfSpread` ITD is dead code.** Both delay buffers store the same mono
   signal and are read at the same index (hrtf_spread.rs:66-73): `delayed_left ==
   delayed_right` always, so there is no interaural time difference; width comes
   only from the side-signal gain and crossfeed. Two 64-float buffers where one
-  would do; the "1 ms ITD" comment is not implemented.
+  would do; the "1 ms ITD" comment is not implemented.~~ — FIXED (2026-11-09, same change): the redundant buffer is gone and the comments describe a common mid delay, not an ITD. The output is bit-identical (render hashes at 44.1, 48 and 192 kHz match the previous code). Keeping the sound, rather than implementing a real ITD, was the maintainer's choice.
 - **M9. `OversampledClipper` isn't oversampling in the DSP sense.** It linearly
   interpolates between two consecutive *input* samples (adds no bandwidth) and
   box-filter decimates (adds ~half-sample delay and HF droop). It's a "transient
@@ -472,9 +472,9 @@ above the block. Minor, but the doc and tests promise symmetric behavior.
   and `channel` are ignored throughout (no MPE per-note pitch bend — only channel
   bend; poly *pressure* is supported, poly *tuning* is not despite comments
   mentioning it).
-- **M13. No sustain pedal (CC64), no all-notes-off (CC123) handling** — CC1 is the
+- ~~**M13. No sustain pedal (CC64), no all-notes-off (CC123) handling** — CC1 is the
   only CC routed (lib.rs:636-638). For a physical-modeling instrument, missing
-  sustain-pedal handling is a real playability gap.
+  sustain-pedal handling is a real playability gap.~~ — FIXED (2026-11-09, branch `claude/nice-mccarthy-9fm1p6`, [`m13-sustain-pedal-and-panic`](openspec/changes/m13-sustain-pedal-and-panic/proposal.md)): CC64 sustain with a pedal-held stealing tier, CC123 All Notes Off, CC120 All Sound Off (5 ms fade, then voices and tails cleared) and CC121 Reset All Controllers, proven by `midi_control_tests` (11 tests, including an allocation check).
 - **M14. Quality mode affects voices only at note-on** (`mode_count_scale`
   captured into the bank), but the post chain switches instantly — flipping
   Eco↔Render mid-note changes the space topology immediately while held notes
@@ -501,11 +501,11 @@ above the block. Minor, but the doc and tests promise symmetric behavior.
   usize`** — the six bands are uneven at the edges (band boundaries at 0.05 +
   k·0.158…), and there's no triplet/dotted support; fine, but the param tooltip
   doesn't tell the user where the boundaries are (and there's no UI at all, H5).
-- **M20. Latency is only reported when limiter mode changes** (lib.rs:897-905) —
+- ~~**M20. Latency is only reported when limiter mode changes** (lib.rs:897-905) —
   correct, but the initial `reported_latency_samples = 0` means a session loaded
   with Lookahead already active reports latency only on the first `process()`
   call, after the host has typically finished PDC negotiation. Report it in
-  `initialize()` too.
+  `initialize()` too.~~ — FIXED (2026-11-08, same change): `initialize` reports the restored Limiter Mode's latency (`lookahead_latency_is_reported_at_initialization`).
 
 ---
 
@@ -533,7 +533,7 @@ above the block. Minor, but the doc and tests promise symmetric behavior.
    user bank directory (GUI loads only the embedded `include_dir` factory bank).~~ — FIXED (H5)
 2. ~~Randomizer — fully implemented module, zero integration (no UI, no param).~~ — FIXED (H5)
 3. MSEG PingPong loop — placeholder (C2/H10 above). *(Not covered by the C2 fix; PingPong remains open.)*
-4. Sustain pedal / CC64, all-sound-off, MPE per-note bend (M12/M13).
+4. ~~Sustain pedal / CC64, all-sound-off~~ (FIXED, M13); MPE per-note bend (M12) still open.
 5. ~~GUI exposure of brightness, thickness, sync rate, play mode, limiter mode,
    macros (H5).~~ — FIXED
 6. ~~Envelope→strike-position routing promised by `position_envelope` (H9).~~ — FIXED

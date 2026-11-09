@@ -1145,6 +1145,7 @@ impl ModalResonator {
             brightness,
             character,
             mode_count_scale,
+            48_000,
         );
         resonator
     }
@@ -1168,6 +1169,7 @@ impl ModalResonator {
         brightness: f32,
         character: CharacterParams,
         mode_count_scale: f32,
+        sample_rate: u32,
     ) {
         let dynamics = Self::generate_algorithm_modes_into(
             profile_id,
@@ -1241,8 +1243,11 @@ impl ModalResonator {
         self.prepared = false;
 
         // Damping/brightness are kept off `base_decay_seconds`/`base_gain` so
-        // held-note automation can re-derive them; apply them here at note-on.
-        self.set_live_resonator_controls(damping, brightness, 48_000);
+        // held-note automation can re-derive them; apply them here at note-on,
+        // building the coefficients once at the voice's rate (it used to be a
+        // fixed 48 kHz, rebuilt again on the first sample at any other rate:
+        // `m03-m20-start-at-host-rate-and-report-latency`).
+        self.set_live_resonator_controls(damping, brightness, sample_rate);
     }
 }
 
@@ -1462,6 +1467,19 @@ impl ModalResonator {
             self.ring.bound = RingBound { level, per_force };
         }
         self.ring.bound
+    }
+
+    /// Test-only: each mode's current frequency and the angle of the pole
+    /// it actually rings at (`m03-m20-start-at-host-rate-and-report-latency`).
+    #[cfg(test)]
+    pub(crate) fn mode_tuning_for_test(&self) -> impl Iterator<Item = (f32, f64)> + '_ {
+        self.modes.iter().map(|mode| {
+            let c = mode.coefficients;
+            (
+                mode.spec.frequency_hz,
+                (c.pole_im as f64).atan2(c.pole_re as f64),
+            )
+        })
     }
 
     /// The pitch factor this sample's `apply_dynamics` aims for: the
@@ -1944,6 +1962,7 @@ mod tests {
                         0.6,
                         CharacterParams::default(),
                         scale,
+                        48_000,
                     );
                     let fresh = note_on_bank(profile, scale, damage);
                     assert_eq!(

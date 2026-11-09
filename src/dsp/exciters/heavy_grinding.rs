@@ -73,6 +73,10 @@ impl HeavyGrinding {
     pub fn trigger(&mut self, velocity: f32) {
         self.active = true;
         self.grind_speed *= 0.3 + velocity * 0.7;
+        // Each note starts from rest, whatever the voice played before
+        // (`m03-m20-start-at-host-rate-and-report-latency`).
+        self.noise_state = 0.0;
+        self.noise_filter_state = 0.0;
     }
 
     /// Processes one sample of friction and tearing noise, given how the

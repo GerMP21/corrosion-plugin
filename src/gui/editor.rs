@@ -904,62 +904,22 @@ pub fn create_editor(
         |_, _| {},
         move |egui_ctx, setter, state| {
             let ui_scale = params.ui_scale.value();
-            let scale = ui_scale_factor(ui_scale);
-            let desired_size = scaled_editor_size(scale);
+            let requested_scale = ui_scale_factor(ui_scale);
 
-            if state.last_ui_scale != ui_scale
-                || state.last_requested_size != desired_size
-                || viewport_size_mismatch(egui_ctx, desired_size)
+            if let Some((width, height)) =
+                request_window_size(state, ui_scale, &resize_state, setter.raw_context)
             {
-                state.last_ui_scale = ui_scale;
-                state.last_requested_size = desired_size;
-                persist_editor_size(&resize_state, desired_size);
-                let (width, height) = desired_size;
                 egui_ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(egui::vec2(
                     width as f32,
                     height as f32,
                 )));
             }
 
-            // Industrial visual style
-            let mut style = (*egui_ctx.style()).clone();
-            style.spacing.item_spacing = egui::vec2(
-                height_pct(scale, 0.0052083335),
-                width_pct(scale, 0.0027777778),
-            );
-            style.spacing.window_margin =
-                egui::Margin::same((width_pct(scale, 0.0074074073)) as i8);
-            style.visuals = egui::Visuals::dark();
-            style.visuals.extreme_bg_color = CHARCOAL;
-            style.visuals.window_fill = DARK_STEEL;
-            style.visuals.panel_fill = DARK_STEEL;
-            style.visuals.faint_bg_color = RECESSED_BG;
-            style.visuals.widgets.inactive.bg_fill = CHARCOAL;
-            style.visuals.widgets.inactive.fg_stroke = egui::Stroke::new(1.0, OFF_WHITE);
-            style.visuals.widgets.inactive.bg_stroke = egui::Stroke::new(1.0, CONCRETE);
-            style.visuals.widgets.hovered.bg_fill = egui::Color32::from_rgb(0x22, 0x22, 0x22);
-            style.visuals.widgets.hovered.fg_stroke = egui::Stroke::new(1.0, OFF_WHITE);
-            style.visuals.widgets.active.bg_fill = egui::Color32::from_rgb(0x33, 0x33, 0x33);
-            style.visuals.widgets.active.fg_stroke = egui::Stroke::new(1.0, SAFETY_YELLOW);
-            style.visuals.selection.bg_fill = SAFETY_YELLOW.linear_multiply(0.3);
-            style.visuals.selection.stroke = egui::Stroke::new(1.0, SAFETY_YELLOW);
-            style.text_styles.insert(
-                egui::TextStyle::Heading,
-                egui::FontId::proportional(width_pct(scale, 0.016666668)),
-            );
-            style.text_styles.insert(
-                egui::TextStyle::Body,
-                egui::FontId::proportional(width_pct(scale, 0.010185185)),
-            );
-            style.text_styles.insert(
-                egui::TextStyle::Button,
-                egui::FontId::proportional(width_pct(scale, 0.010185185)),
-            );
-            style.text_styles.insert(
-                egui::TextStyle::Small,
-                egui::FontId::proportional(width_pct(scale, 0.008333334)),
-            );
-            egui_ctx.set_style(style);
+            // Lay out for the window the editor actually has, never wider
+            // than it: a host that refuses the resize, or a DPI mismatch,
+            // shrinks the layout instead of pushing columns off-screen.
+            let scale = layout_scale(requested_scale, egui_ctx.screen_rect().width());
+            apply_editor_style(egui_ctx, scale);
 
             ResizableWindow::new("corrosion-editor-window")
                 .min_size(egui::vec2(
@@ -980,6 +940,65 @@ pub fn create_editor(
     )
 }
 
+/// The editor's visual style at layout scale `scale`: colours, fonts and
+/// spacing. Shared by the editor and its headless layout tests.
+fn apply_editor_style(ctx: &egui::Context, scale: f32) {
+    // Industrial visual style
+    let mut style = egui::Style::default();
+    // egui's own widget sizes (combo boxes, buttons, icons, scroll bars) are
+    // fixed in points; scale them with the layout so the editor keeps its
+    // proportions at every UI scale instead of growing taller than its window
+    // at small scales.
+    let defaults = egui::style::Spacing::default();
+    style.spacing.interact_size = defaults.interact_size * scale;
+    style.spacing.button_padding = defaults.button_padding * scale;
+    style.spacing.icon_width = defaults.icon_width * scale;
+    style.spacing.icon_width_inner = defaults.icon_width_inner * scale;
+    style.spacing.icon_spacing = defaults.icon_spacing * scale;
+    style.spacing.combo_width = defaults.combo_width * scale;
+    style.spacing.slider_width = defaults.slider_width * scale;
+    style.spacing.indent = defaults.indent * scale;
+    style.spacing.menu_margin =
+        egui::Margin::same((defaults.menu_margin.left as f32 * scale).round() as i8);
+    style.spacing.scroll.bar_width = defaults.scroll.bar_width * scale;
+    style.spacing.item_spacing = egui::vec2(
+        height_pct(scale, 0.0052083335),
+        width_pct(scale, 0.0027777778),
+    );
+    style.spacing.window_margin = egui::Margin::same((width_pct(scale, 0.0074074073)) as i8);
+    style.visuals = egui::Visuals::dark();
+    style.visuals.extreme_bg_color = CHARCOAL;
+    style.visuals.window_fill = DARK_STEEL;
+    style.visuals.panel_fill = DARK_STEEL;
+    style.visuals.faint_bg_color = RECESSED_BG;
+    style.visuals.widgets.inactive.bg_fill = CHARCOAL;
+    style.visuals.widgets.inactive.fg_stroke = egui::Stroke::new(1.0, OFF_WHITE);
+    style.visuals.widgets.inactive.bg_stroke = egui::Stroke::new(1.0, CONCRETE);
+    style.visuals.widgets.hovered.bg_fill = egui::Color32::from_rgb(0x22, 0x22, 0x22);
+    style.visuals.widgets.hovered.fg_stroke = egui::Stroke::new(1.0, OFF_WHITE);
+    style.visuals.widgets.active.bg_fill = egui::Color32::from_rgb(0x33, 0x33, 0x33);
+    style.visuals.widgets.active.fg_stroke = egui::Stroke::new(1.0, SAFETY_YELLOW);
+    style.visuals.selection.bg_fill = SAFETY_YELLOW.linear_multiply(0.3);
+    style.visuals.selection.stroke = egui::Stroke::new(1.0, SAFETY_YELLOW);
+    style.text_styles.insert(
+        egui::TextStyle::Heading,
+        egui::FontId::proportional(width_pct(scale, 0.016666668)),
+    );
+    style.text_styles.insert(
+        egui::TextStyle::Body,
+        egui::FontId::proportional(width_pct(scale, 0.010185185)),
+    );
+    style.text_styles.insert(
+        egui::TextStyle::Button,
+        egui::FontId::proportional(width_pct(scale, 0.010185185)),
+    );
+    style.text_styles.insert(
+        egui::TextStyle::Small,
+        egui::FontId::proportional(width_pct(scale, 0.008333334)),
+    );
+    ctx.set_style(style);
+}
+
 // ---------------------------------------------------------------------------
 // Utility functions (unchanged)
 // ---------------------------------------------------------------------------
@@ -992,6 +1011,41 @@ fn ui_scale_factor(value: i32) -> f32 {
         3 => 1.25,
         4 => 1.50,
         _ => 1.00,
+    }
+}
+
+/// Ask the host to resize the editor when the UI Scale setting changes.
+///
+/// The host reads the new size from the editor state (`Editor::size`), then
+/// resizes its window. Returns the size to give the embedded window once the
+/// host has agreed, and `None` when nothing changed or the host refused.
+/// Without `request_resize` the host window kept its size and only the
+/// contents shrank or grew.
+fn request_window_size(
+    state: &mut EditorUiState,
+    ui_scale: i32,
+    editor_state: &Arc<EguiState>,
+    context: &dyn nih_plug::prelude::GuiContext,
+) -> Option<(u32, u32)> {
+    let desired_size = scaled_editor_size(ui_scale_factor(ui_scale));
+    if state.last_ui_scale == ui_scale && state.last_requested_size == desired_size {
+        return None;
+    }
+    state.last_ui_scale = ui_scale;
+    state.last_requested_size = desired_size;
+    persist_editor_size(editor_state, desired_size);
+    context.request_resize().then_some(desired_size)
+}
+
+/// The layout scale for a window `window_width` points wide when the UI
+/// Scale setting asks for `requested`: the requested scale, reduced so the
+/// layout is never wider than the window.
+fn layout_scale(requested: f32, window_width: f32) -> f32 {
+    let fits = window_width / BASE_EDITOR_WIDTH as f32;
+    if window_width.is_finite() && window_width > 0.0 && fits < requested {
+        fits.max(0.25)
+    } else {
+        requested
     }
 }
 
@@ -1023,23 +1077,6 @@ fn persist_editor_size(editor_state: &Arc<EguiState>, size: (u32, u32)) {
     if let Ok(state) = serde_json::from_value::<EguiState>(serialized) {
         editor_state.set(state);
     }
-}
-
-fn viewport_size_mismatch(egui_ctx: &egui::Context, desired_size: (u32, u32)) -> bool {
-    egui_ctx.input(|input| {
-        input
-            .viewport()
-            .inner_rect
-            .map(|rect| {
-                let current_size = (rect.width().round() as u32, rect.height().round() as u32);
-                !sizes_match(current_size, desired_size)
-            })
-            .unwrap_or(false)
-    })
-}
-
-fn sizes_match(current_size: (u32, u32), desired_size: (u32, u32)) -> bool {
-    current_size.0.abs_diff(desired_size.0) <= 1 && current_size.1.abs_diff(desired_size.1) <= 1
 }
 
 // ---------------------------------------------------------------------------
@@ -1765,6 +1802,12 @@ fn render_ui(
 
     ui.add_space(height_pct(scale, 0.0052083335));
 
+    // Macros sit between the header and the columns: below the columns
+    // they left an odd gap under the shorter ones.
+    render_macro_strip(ui, params, setter, scale);
+
+    ui.add_space(height_pct(scale, 0.0052083335));
+
     let original_item_spacing_x = ui.spacing().item_spacing.x;
     ui.spacing_mut().item_spacing.x = 0.0;
     ui.columns(3, |columns| {
@@ -1773,8 +1816,6 @@ fn render_ui(
         render_processing_column(&mut columns[2], params, setter, scale);
     });
     ui.spacing_mut().item_spacing.x = original_item_spacing_x;
-
-    render_macro_strip(ui, params, setter, scale);
 
     // Footer
     render_footer(ui, scale);
@@ -1848,75 +1889,106 @@ fn render_header(
 
                 ui.add_space(leading_padding);
 
+                // The four mode selectors share the space left of the faders
+                // as a 2 x 2 grid. They used to sit in one row sized for two,
+                // which made this column, and through `ui.columns` the whole
+                // editor, about 1.7 times wider than the window.
                 ui.allocate_ui_with_layout(
-                    egui::vec2(combo_width, ui.available_height()),
+                    egui::vec2(combo_width * 2.0, ui.available_height()),
                     egui::Layout::top_down(egui::Align::LEFT),
                     |ui| {
-                        industrial_combo(
-                            ui,
-                            "ui-scale-header",
-                            "SCALE",
-                            &params.ui_scale,
-                            &[
-                                (0, "50%"),
-                                (1, "75%"),
-                                (2, "100%"),
-                                (3, "125%"),
-                                (4, "150%"),
-                            ],
-                            setter,
-                            MUTED_GREY,
-                            scale,
-                        );
-                    },
-                );
-                ui.allocate_ui_with_layout(
-                    egui::vec2(combo_width, ui.available_height()),
-                    egui::Layout::top_down(egui::Align::LEFT),
-                    |ui| {
-                        industrial_combo(
-                            ui,
-                            "quality-mode-header",
-                            "MODE",
-                            &params.quality_mode,
-                            &[(0, "Eco"), (1, "Normal"), (2, "High"), (3, "Render")],
-                            setter,
-                            SAFETY_YELLOW,
-                            scale,
-                        );
-                    },
-                );
-                // Play and limiter modes (`h05-expose-missing-gui-controls`).
-                ui.allocate_ui_with_layout(
-                    egui::vec2(combo_width, ui.available_height()),
-                    egui::Layout::top_down(egui::Align::LEFT),
-                    |ui| {
-                        industrial_combo(
-                            ui,
-                            "play-mode-header",
-                            "PLAY",
-                            &params.play_mode,
-                            &[(0, "Tonal"), (1, "Kit"), (2, "Drone")],
-                            setter,
-                            SAFETY_YELLOW,
-                            scale,
-                        );
-                    },
-                );
-                ui.allocate_ui_with_layout(
-                    egui::vec2(combo_width, ui.available_height()),
-                    egui::Layout::top_down(egui::Align::LEFT),
-                    |ui| {
-                        industrial_combo(
-                            ui,
-                            "limiter-mode-header",
-                            "LIMITER",
-                            &params.limiter_mode,
-                            &[(0, "Hard"), (1, "Lookahead")],
-                            setter,
-                            DANGER_RED,
-                            scale,
-                        );
+                        for row in [[0, 1], [2, 3]] {
+                            ui.horizontal(|ui| {
+                                for index in row {
+                                    match index {
+                                        0 => {
+                                            ui.allocate_ui_with_layout(
+                                                egui::vec2(combo_width, ui.available_height()),
+                                                egui::Layout::top_down(egui::Align::LEFT),
+                                                |ui| {
+                                                    industrial_combo(
+                                                        ui,
+                                                        "ui-scale-header",
+                                                        "SCALE",
+                                                        &params.ui_scale,
+                                                        &[
+                                                            (0, "50%"),
+                                                            (1, "75%"),
+                                                            (2, "100%"),
+                                                            (3, "125%"),
+                                                            (4, "150%"),
+                                                        ],
+                                                        setter,
+                                                        MUTED_GREY,
+                                                        scale,
+                                                    );
+                                                },
+                                            );
+                                        }
+                                        1 => {
+                                            ui.allocate_ui_with_layout(
+                                                egui::vec2(combo_width, ui.available_height()),
+                                                egui::Layout::top_down(egui::Align::LEFT),
+                                                |ui| {
+                                                    industrial_combo(
+                                                        ui,
+                                                        "quality-mode-header",
+                                                        "MODE",
+                                                        &params.quality_mode,
+                                                        &[
+                                                            (0, "Eco"),
+                                                            (1, "Normal"),
+                                                            (2, "High"),
+                                                            (3, "Render"),
+                                                        ],
+                                                        setter,
+                                                        SAFETY_YELLOW,
+                                                        scale,
+                                                    );
+                                                },
+                                            );
+                                        }
+                                        2 => {
+                                            ui.allocate_ui_with_layout(
+                                                egui::vec2(combo_width, ui.available_height()),
+                                                egui::Layout::top_down(egui::Align::LEFT),
+                                                |ui| {
+                                                    industrial_combo(
+                                                        ui,
+                                                        "play-mode-header",
+                                                        "PLAY",
+                                                        &params.play_mode,
+                                                        &[(0, "Tonal"), (1, "Kit"), (2, "Drone")],
+                                                        setter,
+                                                        SAFETY_YELLOW,
+                                                        scale,
+                                                    );
+                                                },
+                                            );
+                                        }
+                                        3 => {
+                                            ui.allocate_ui_with_layout(
+                                                egui::vec2(combo_width, ui.available_height()),
+                                                egui::Layout::top_down(egui::Align::LEFT),
+                                                |ui| {
+                                                    industrial_combo(
+                                                        ui,
+                                                        "limiter-mode-header",
+                                                        "LIMITER",
+                                                        &params.limiter_mode,
+                                                        &[(0, "Hard"), (1, "Lookahead")],
+                                                        setter,
+                                                        DANGER_RED,
+                                                        scale,
+                                                    );
+                                                },
+                                            );
+                                        }
+                                        _ => {}
+                                    }
+                                }
+                            });
+                        }
                     },
                 );
                 vfader_global(
@@ -3697,6 +3769,184 @@ mod tests {
         fn set_state(&self, _state: nih_plug::prelude::PluginState) {}
     }
 
+    /// A host that records resize requests and accepts or refuses them.
+    struct ResizeRecordingGui {
+        accept: bool,
+        requests: std::sync::atomic::AtomicUsize,
+    }
+
+    impl nih_plug::prelude::GuiContext for ResizeRecordingGui {
+        fn plugin_api(&self) -> nih_plug::prelude::PluginApi {
+            nih_plug::prelude::PluginApi::Vst3
+        }
+        fn request_resize(&self) -> bool {
+            self.requests
+                .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            self.accept
+        }
+        unsafe fn raw_begin_set_parameter(&self, _param: nih_plug::prelude::ParamPtr) {}
+        unsafe fn raw_set_parameter_normalized(
+            &self,
+            _param: nih_plug::prelude::ParamPtr,
+            _normalized: f32,
+        ) {
+        }
+        unsafe fn raw_end_set_parameter(&self, _param: nih_plug::prelude::ParamPtr) {}
+        fn get_state(&self) -> nih_plug::prelude::PluginState {
+            unimplemented!("not used by resize tests")
+        }
+        fn set_state(&self, _state: nih_plug::prelude::PluginState) {}
+    }
+
+    /// Changing UI Scale asks the host to resize its window (it used to
+    /// only send a viewport command, so the host window kept its size and the
+    /// contents shrank inside it), and the host reads the new size from the
+    /// editor state.
+    #[test]
+    fn ui_scale_change_requests_a_host_resize() {
+        let editor_state = nih_plug_egui::EguiState::from_size(810, 576);
+        let mut state = super::EditorUiState::new(1, (810, 576));
+        let host = ResizeRecordingGui {
+            accept: true,
+            requests: std::sync::atomic::AtomicUsize::new(0),
+        };
+
+        // Same scale: nothing to do.
+        assert_eq!(
+            super::request_window_size(&mut state, 1, &editor_state, &host),
+            None
+        );
+        assert_eq!(host.requests.load(std::sync::atomic::Ordering::Relaxed), 0);
+
+        // 75 % -> 100 %: one request, the new size reported to the host.
+        assert_eq!(
+            super::request_window_size(&mut state, 2, &editor_state, &host),
+            Some((1080, 768))
+        );
+        assert_eq!(host.requests.load(std::sync::atomic::Ordering::Relaxed), 1);
+        assert_eq!(editor_state.size(), (1080, 768));
+
+        // Asked once per change, not every frame.
+        assert_eq!(
+            super::request_window_size(&mut state, 2, &editor_state, &host),
+            None
+        );
+        assert_eq!(host.requests.load(std::sync::atomic::Ordering::Relaxed), 1);
+
+        // A host that refuses: the embedded window isn't resized.
+        let refusing = ResizeRecordingGui {
+            accept: false,
+            requests: std::sync::atomic::AtomicUsize::new(0),
+        };
+        assert_eq!(
+            super::request_window_size(&mut state, 0, &editor_state, &refusing),
+            None
+        );
+        assert_eq!(
+            refusing.requests.load(std::sync::atomic::Ordering::Relaxed),
+            1
+        );
+    }
+
+    /// A new instance opens at 75 % (810 x 576), small enough for a host
+    /// window on a 1080p screen.
+    #[test]
+    fn editor_opens_at_75_percent_by_default() {
+        let params = crate::params::CorrosionParams::default();
+        assert_eq!(params.ui_scale.value(), 1);
+        assert_eq!(params.editor_state.size(), (810, 576));
+        assert_eq!(
+            super::scaled_editor_size(super::ui_scale_factor(1)),
+            (810, 576)
+        );
+    }
+
+    /// Right edge of the editor's content rendered headlessly, with the
+    /// editor's own style, in a window `window` points wide and tall when UI
+    /// Scale asks for `requested`.
+    fn rendered_right_edge(
+        params: &crate::params::CorrosionParams,
+        requested: f32,
+        window: (f32, f32),
+    ) -> f32 {
+        use nih_plug_egui::egui;
+        let gui = NullGui;
+        let setter = nih_plug::prelude::ParamSetter::new(&gui);
+        let mut state = super::EditorUiState::new(1, (810, 576));
+        let scale = super::layout_scale(requested, window.0);
+        let ctx = egui::Context::default();
+        super::apply_editor_style(&ctx, scale);
+        let mut right = 0.0;
+        for _ in 0..2 {
+            let input = egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(
+                    egui::Pos2::ZERO,
+                    egui::vec2(window.0, window.1),
+                )),
+                ..Default::default()
+            };
+            let _ = ctx.run(input, |ctx| {
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    super::render_ui(ui, params, &setter, &mut state, scale);
+                    right = ui.min_rect().max.x;
+                });
+            });
+        }
+        right
+    }
+
+    /// The editor's content is never wider than its window, at every UI
+    /// Scale and for every exciter, and also when the window is narrower
+    /// than the scale asks for (a host that refused the resize, or a DPI
+    /// mismatch). The header's mode selectors used to make it about 1.7
+    /// times wider than the window, pushing the third column off-screen.
+    #[test]
+    fn editor_content_fits_the_window_width() {
+        use crate::params::exciter_param;
+        let mut failures = Vec::new();
+        for exciter in 1..=16 {
+            let params = crate::params::CorrosionParams {
+                exciter: exciter_param(exciter),
+                ..Default::default()
+            };
+            let mut windows: Vec<(String, f32, (f32, f32))> = (0..=4)
+                .map(|ui_scale| {
+                    let requested = super::ui_scale_factor(ui_scale);
+                    let (w, h) = super::scaled_editor_size(requested);
+                    (
+                        format!("UI Scale {ui_scale}"),
+                        requested,
+                        (w as f32, h as f32),
+                    )
+                })
+                .collect();
+            windows.push(("100 % in a 810-wide window".into(), 1.0, (810.0, 576.0)));
+            windows.push((
+                "100 % at 150 % DPI (720 points)".into(),
+                1.0,
+                (720.0, 512.0),
+            ));
+            for (label, requested, window) in windows {
+                let right = rendered_right_edge(&params, requested, window);
+                if right > window.0 + 1.0 {
+                    failures.push(format!(
+                        "exciter {exciter}, {label}: content reaches {right:.0} in a {:.0}-wide window",
+                        window.0
+                    ));
+                }
+            }
+        }
+        assert!(failures.is_empty(), "{}", failures.join("\n"));
+    }
+
+    #[test]
+    fn layout_scale_never_exceeds_the_window() {
+        assert_eq!(super::layout_scale(0.75, 810.0), 0.75);
+        assert_eq!(super::layout_scale(0.75, 1080.0), 0.75);
+        assert!((super::layout_scale(1.0, 810.0) - 0.75).abs() < 1e-6);
+        assert_eq!(super::layout_scale(1.0, 0.0), 1.0);
+    }
+
     /// IDs of the parameters the editor draws a widget for, rendering one
     /// frame of the real editor UI headlessly with `params`.
     fn drawn_parameter_ids(params: &crate::params::CorrosionParams) -> Vec<String> {
@@ -3764,6 +4014,7 @@ mod tests {
         let mut state =
             super::EditorUiState::new(2, (super::BASE_EDITOR_WIDTH, super::BASE_EDITOR_HEIGHT));
         let ctx = nih_plug_egui::egui::Context::default();
+        super::apply_editor_style(&ctx, 1.0);
         let input = nih_plug_egui::egui::RawInput {
             screen_rect: Some(nih_plug_egui::egui::Rect::from_min_size(
                 nih_plug_egui::egui::Pos2::ZERO,
@@ -3902,7 +4153,7 @@ mod tests {
 
     use super::{
         exciter_panel, knob_drag_value, load_factory_presets, persist_editor_size, resonator_panel,
-        scaled_editor_size, sizes_match, ui_scale_factor,
+        scaled_editor_size, ui_scale_factor,
     };
     use crate::params::{exciter_model_items, ExciterType, Object};
     use nih_plug_egui::EguiState;
@@ -3914,13 +4165,6 @@ mod tests {
         assert_eq!(scaled_editor_size(ui_scale_factor(2)), (1080, 768));
         assert_eq!(scaled_editor_size(ui_scale_factor(3)), (1350, 960));
         assert_eq!(scaled_editor_size(ui_scale_factor(4)), (1620, 1152));
-    }
-
-    #[test]
-    fn viewport_resize_tolerates_rounding_noise_only() {
-        assert!(sizes_match((1079, 768), (1080, 768)));
-        assert!(sizes_match((1081, 769), (1080, 768)));
-        assert!(!sizes_match((1440, 1024), (1080, 768)));
     }
 
     #[test]

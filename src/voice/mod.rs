@@ -497,6 +497,9 @@ enum AdsrPhase {
 /// every exciter implementation used by the instrument.
 pub struct Voice {
     active: bool,
+    /// The key is up but the sustain pedal holds the note: the voice stays
+    /// `active` until the pedal lifts (`m13-sustain-pedal-and-panic`).
+    pedal_held: bool,
     rendering: bool,
     note: u8,
     velocity: f32,
@@ -708,6 +711,7 @@ impl Voice {
     pub fn new() -> Self {
         Self {
             active: false,
+            pedal_held: false,
             rendering: false,
             note: 60,
             velocity: 0.0,
@@ -1024,6 +1028,7 @@ impl Voice {
         controls: VoiceControls,
     ) {
         self.active = true;
+        self.pedal_held = false;
         self.rendering = true;
         self.note = note;
         self.velocity = velocity;
@@ -1076,6 +1081,7 @@ impl Voice {
             controls.res_brightness,
             controls.character,
             controls.mode_count_scale,
+            self.sample_rate as u32,
         );
         self.resonator.set_interaction_params(
             controls.strike_position,
@@ -1364,6 +1370,7 @@ impl Voice {
     /// source is told to release immediately.
     pub fn note_off(&mut self) {
         self.active = false;
+        self.pedal_held = false;
         self.release_force_envelope();
         self.bow_exciter.release();
         self.stiff_point.release();
@@ -1374,6 +1381,25 @@ impl Voice {
         self.electromagnetic_hum.release();
         self.tension_snap.release();
         self.particle_rain.release();
+    }
+
+    /// Test-only access to the voice's resonator.
+    #[cfg(test)]
+    pub(crate) fn resonator_for_test(&self) -> &ModalResonator {
+        &self.resonator
+    }
+
+    /// Whether the sustain pedal is holding this note after its key was
+    /// released (the voice is still `active`).
+    pub fn is_pedal_held(&self) -> bool {
+        self.pedal_held
+    }
+
+    /// Mark a held note as kept by the sustain pedal after its key-up.
+    pub(crate) fn hold_by_pedal(&mut self) {
+        if self.active {
+            self.pedal_held = true;
+        }
     }
 
     /// Report whether the voice's note is held (not yet released).
@@ -1395,6 +1421,7 @@ impl Voice {
     /// expression into that note is cleared here.
     pub fn reset(&mut self) {
         self.active = false;
+        self.pedal_held = false;
         self.rendering = false;
         self.excitation_sent = false;
         self.resonator.clear_state();
@@ -1461,8 +1488,11 @@ impl Voice {
     }
 
     /// Track the host sample rate, re-deriving per-sample constants when it
-    /// changes. Cheap when unchanged (one comparison).
-    fn set_rate(&mut self, sample_rate: f32) {
+    /// changes. Cheap when unchanged (one comparison). Called every sample
+    /// while the voice renders, and by `VoiceManager::set_sample_rate` for
+    /// every voice, idle ones included, so a voice that has never played
+    /// starts its first note at the host's rate.
+    pub(crate) fn set_rate(&mut self, sample_rate: f32) {
         self.sample_rate = sample_rate;
         if self.rate.sample_rate != sample_rate {
             self.rate = VoiceRateConstants::for_rate(sample_rate);
