@@ -3785,3 +3785,196 @@ mod tests {
         }
     }
 }
+
+/// `fix-rust-damage-heat-response`: Rust, Damage and Heat across their whole
+/// ranges.
+#[cfg(test)]
+mod material_transform_tests {
+    use super::*;
+
+    const OBJECTS: [ModalProfileId; 9] = [
+        ModalProfileId::Pipe,
+        ModalProfileId::Plate,
+        ModalProfileId::Tank,
+        ModalProfileId::Chain,
+        ModalProfileId::IBeam,
+        ModalProfileId::TautCable,
+        ModalProfileId::CoilSpring,
+        ModalProfileId::SheetMetal,
+        ModalProfileId::IndustrialCog,
+    ];
+
+    /// A HandStrike C4 at velocity 100 on `object`.
+    fn struck(object: ModalProfileId, rust: f32, damage: f32, heat: f32) -> Voice {
+        let mut voice = Voice::new();
+        let controls = VoiceControls {
+            heat,
+            ..VoiceControls::default()
+        };
+        voice.note_on_with_controls(60, 100.0, object, 0, 1.0, rust, damage, 2, controls);
+        voice
+    }
+
+    /// 2 s RMS in dB, and the lowest mode's frequency at note-on.
+    fn level_and_fundamental(
+        object: ModalProfileId,
+        rust: f32,
+        damage: f32,
+        heat: f32,
+    ) -> (f32, f32) {
+        let mut voice = struck(object, rust, damage, heat);
+        let lowest = voice
+            .resonator_for_test()
+            .mode_specs_for_test()
+            .map(|m| m.frequency_hz)
+            .fold(f32::INFINITY, f32::min);
+        let mut sum = 0.0f64;
+        let n = 96_000;
+        for _ in 0..n {
+            let (l, r) = voice.process_sample_stereo(48_000, 1.0);
+            let x = 0.5 * (l + r);
+            sum += (x * x) as f64;
+        }
+        let rms = (sum / n as f64).sqrt();
+        (20.0 * rms.max(1e-15).log10() as f32, lowest)
+    }
+
+    fn semitones(a: f32, b: f32) -> f32 {
+        12.0 * (a / b).log2()
+    }
+
+    /// Sweep one control on every object; collect any render that is silent,
+    /// lost its fundamental or fell more than 6 dB below the control at 0.
+    fn sweep(name: &str, values: &[f32], at: impl Fn(f32) -> (f32, f32, f32)) -> Vec<String> {
+        let mut failures = Vec::new();
+        for object in OBJECTS {
+            let (r0, d0, h0) = at(0.0);
+            let (level0, f0) = level_and_fundamental(object, r0, d0, h0);
+            for &v in values {
+                let (r, d, h) = at(v);
+                let (level, f) = level_and_fundamental(object, r, d, h);
+                let silent = !f.is_finite() || level < -150.0;
+                let shift = if silent {
+                    f32::INFINITY
+                } else {
+                    semitones(f, f0).abs()
+                };
+                if silent || shift > 1.0 || level < level0 - 6.0 {
+                    failures.push(format!(
+                        "{object:?} {name} {v}: {level:.1} dB (vs {level0:.1}), lowest {f:.0} Hz (vs {f0:.0})"
+                    ));
+                }
+            }
+        }
+        failures
+    }
+
+    /// Spec "Rust sweep".
+    #[test]
+    fn rust_never_silences_or_loses_the_fundamental() {
+        let failures = sweep("Rust", &[1.0, 2.0, 3.0, 4.0, 5.0], |v| (v, 0.0, 0.0));
+        assert!(failures.is_empty(), "{}", failures.join("\n"));
+    }
+
+    /// Ratio of the top mode's decay to the fundamental's.
+    fn top_to_fundamental(voice: &Voice, field: impl Fn(crate::dsp::ModalModeSpec) -> f32) -> f32 {
+        let specs: Vec<_> = voice.resonator_for_test().mode_specs_for_test().collect();
+        let low = specs
+            .iter()
+            .min_by(|a, b| a.frequency_hz.total_cmp(&b.frequency_hz))
+            .unwrap();
+        let high = specs
+            .iter()
+            .max_by(|a, b| a.frequency_hz.total_cmp(&b.frequency_hz))
+            .unwrap();
+        field(*high) / field(*low)
+    }
+
+    /// Spec "Rust eats the highs first".
+    #[test]
+    fn rust_shortens_high_modes_more() {
+        for object in OBJECTS {
+            let clean = top_to_fundamental(&struck(object, 0.0, 0.0, 0.0), |m| m.decay_seconds);
+            let rusted = top_to_fundamental(&struck(object, 5.0, 0.0, 0.0), |m| m.decay_seconds);
+            assert!(
+                rusted < clean,
+                "{object:?}: top/fundamental decay {clean} -> {rusted}"
+            );
+        }
+    }
+
+    /// Spec "Damage sweep".
+    #[test]
+    fn damage_keeps_the_note() {
+        let failures = sweep("Damage", &[1.0, 2.0, 4.0, 6.0, 8.0, 10.0], |v| {
+            (0.0, v, 0.0)
+        });
+        assert!(failures.is_empty(), "{}", failures.join("\n"));
+    }
+
+    /// Spec "Damage splits modes".
+    #[test]
+    fn damage_splits_modes() {
+        for object in OBJECTS {
+            let clean = struck(object, 0.0, 0.0, 0.0)
+                .resonator_for_test()
+                .mode_specs_for_test()
+                .count();
+            let damaged = struck(object, 0.0, 5.0, 0.0)
+                .resonator_for_test()
+                .mode_specs_for_test()
+                .count();
+            assert!(damaged > clean, "{object:?}: {clean} -> {damaged} modes");
+        }
+    }
+
+    /// Spec "Darker": Heat tilts the spectrum, within 6 dB of Heat 0.
+    #[test]
+    fn heat_darkens_the_spectrum() {
+        let mut failures = Vec::new();
+        for object in OBJECTS {
+            let tilt = |heat: f32| {
+                20.0 * top_to_fundamental(&struck(object, 0.0, 0.0, heat), |m| m.gain).log10()
+            };
+            let (cold, hot) = (tilt(0.0), tilt(1.0));
+            let (level0, _) = level_and_fundamental(object, 0.0, 0.0, 0.0);
+            let (level1, _) = level_and_fundamental(object, 0.0, 0.0, 1.0);
+            if hot > cold - 6.0 || level1 < level0 - 6.0 {
+                failures.push(format!(
+                    "{object:?}: top/fundamental gain {cold:.1} -> {hot:.1} dB, level {level0:.1} -> {level1:.1} dB"
+                ));
+            }
+        }
+        assert!(failures.is_empty(), "{}", failures.join("\n"));
+    }
+
+    /// Peak-to-peak cents of the fundamental over 3 s of a held note.
+    fn fundamental_wander_cents(heat: f32) -> f32 {
+        let mut voice = struck(ModalProfileId::Pipe, 0.0, 0.0, heat);
+        let fundamental = |v: &Voice| {
+            v.resonator_for_test()
+                .mode_specs_for_test()
+                .map(|m| m.frequency_hz)
+                .fold(f32::INFINITY, f32::min)
+        };
+        let (mut lo, mut hi) = (f32::INFINITY, 0.0f32);
+        for i in 0..144_000 {
+            let _ = voice.process_sample_stereo(48_000, 1.0);
+            if i % 480 == 0 {
+                let f = fundamental(&voice);
+                lo = lo.min(f);
+                hi = hi.max(f);
+            }
+        }
+        1200.0 * (hi / lo).log2()
+    }
+
+    /// Spec "Warble".
+    #[test]
+    fn heat_makes_the_pitch_wander() {
+        let (cold, hot) = (fundamental_wander_cents(0.0), fundamental_wander_cents(1.0));
+        println!("WARBLE heat 0: {cold:.3} cents, heat 1: {hot:.3} cents");
+        assert_eq!(cold, 0.0, "the pitch wanders at Heat 0");
+        assert!(hot >= 4.0, "Heat 1 wanders only {hot:.2} cents");
+    }
+}

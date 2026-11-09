@@ -40,6 +40,7 @@ The work follows the code review in `FABLE-CODE-REVIEW-2026-07-07.md`. Each fixe
 | H13 `h13-render-presets-through-post-chain` | Fixed. Also fixed `reset()`'s unbiased drive start |
 | H14 `h14-wrap-low-kit-notes` | Fixed |
 | Medium M1–M20 | 7 OpenSpec changes, applied in the order under "Execution order for the M changes" below. **Done:** `m03-m20-start-at-host-rate-and-report-latency` (also restarts four exciters' per-note state), `m13-sustain-pedal-and-panic`, `m07-m08-interpolate-echo-and-tidy-spread`. **Next:** `m06-m09-smooth-starvation-and-oversample-clipper`. M16 fixed with H10; M2 and M19 already resolved (marked by the last change) |
+| Rust, Damage, Heat (reported by the maintainer, not in the review) | Fixed by `fix-rust-damage-heat-response`: Rust and Damage no longer silence notes or lose the fundamental (worst −3.2 dB across their ranges); Heat darkens spectrally and warbles. Open question in its design: softening the exciter for Heat |
 | Backlog | `docs/BACKLOG.md` (P0–P4): Windows CI, DAW smoke automation, GUI tests, benchmark baselines |
 
 **Archived (2026-11-08):** `h01`–`h14`, `resolve-exciter-tradeoffs` and `stabilize-mallet-and-grinding-contact` are in `openspec/changes/archive/2026-11-08-*`, and their delta specs are synced into `openspec/specs/` (22 capabilities). The active changes are the M changes above; finished ones stay active until archived. A new change syncs its specs on archive as usual (`/opsx:archive`).
