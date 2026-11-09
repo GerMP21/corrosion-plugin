@@ -9,6 +9,7 @@ Current package version: `0.1.0`. Preset schema version: `4` (with backwards-com
 - VST3 and CLAP plugin entrypoints via NIH-plug.
 - Stereo instrument layout (no audio input — audio-in "Effect mode" is on the roadmap, not shipped).
 - **Full MIDI expression**: notes, pitch bend (default ±2 semitones, ±24 safety clamp), channel + polyphonic pressure, and CC1 mod wheel. All routed live to active voices.
+- **Sustain pedal and panic**: CC64 holds released notes until the pedal lifts (re-striking a held note replaces it; pedal-held notes are stolen before held keys). CC123 All Notes Off releases every held key (a down pedal still holds them), CC120 All Sound Off fades everything, Space tails included, to silence in 5 ms, and CC121 Reset All Controllers lifts the pedal and returns mod wheel, bend and pressure to rest.
 - 16-voice polyphony. When the pool is full, released tails are stolen first, then held notes at least 100 ms old (quietest first, oldest on ties); a note that just started is only stolen if every held note is that young. Idle voices cost nothing, while a full pool at Render quality measured about 36 % of one core on the development machine.
 - 130+ host parameters covering exciters, objects, transformations, post-processing, four high-level macros, and three play modes.
 - An egui editor with UI scaling (50/75/100/125/150%), controls for every audible parameter (including play and limiter modes, sync and the four macros), user presets, and a randomizer.

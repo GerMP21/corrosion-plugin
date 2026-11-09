@@ -18,7 +18,7 @@ The 50 factory presets (`presets/factory/`, seeded by `src/bin/seed_presets.rs`)
 - Keep them loading and passing the existing tests (`preset_levels_are_sane`, `tests/preset_roundtrip.rs`). If a schema change adds a field, regenerate them with `cargo run --bin seed_presets` so they stay valid.
 - **User presets and saved DAW projects still matter: keep their migrations** (see "Migrations" below).
 
-## Current state (2026-11-08)
+## Current state (2026-11-09)
 
 The work follows the code review in `FABLE-CODE-REVIEW-2026-07-07.md`. Each fixed finding there is struck through, with a `Status: FIXED` note naming its OpenSpec change.
 
@@ -29,7 +29,7 @@ The work follows the code review in `FABLE-CODE-REVIEW-2026-07-07.md`. Each fixe
 | H11 (prune unsoundable modes), H12 (skip redundant retunes) | Fixed, merged to `main` (PR #7). H12 bounds re-verified on `main`: bent 1.019×, dynamics 1.535× (median of 5) |
 | H13 `h13-render-presets-through-post-chain` | Fixed on branch `claude/nice-mccarthy-9fm1p6` (6/6 tasks), merged to `main` (PR #8). Also fixed `reset()`'s unbiased drive start |
 | H14 `h14-wrap-low-kit-notes` | Fixed on branch `claude/nice-mccarthy-9fm1p6` (4/4 tasks), merged to `main` (PR #8) |
-| Medium M1–M20 | 7 OpenSpec changes, applied in the order under "Execution order for the M changes" below. **Done:** `m03-m20-start-at-host-rate-and-report-latency` (8/8 tasks, on branch `claude/nice-mccarthy-9fm1p6`, no PR yet; also restarts four exciters' per-note state). **Next:** `m13-sustain-pedal-and-panic`. M16 fixed with H10; M2 and M19 already resolved (marked by the last change) |
+| Medium M1–M20 | 7 OpenSpec changes, applied in the order under "Execution order for the M changes" below. **Done** (on branch `claude/nice-mccarthy-9fm1p6`, no PR yet): `m03-m20-start-at-host-rate-and-report-latency` (8/8 tasks; also restarts four exciters' per-note state), `m13-sustain-pedal-and-panic` (8/8 tasks). **Next:** `m07-m08-interpolate-echo-and-tidy-spread`. M16 fixed with H10; M2 and M19 already resolved (marked by the last change) |
 | Backlog | `docs/BACKLOG.md` (P0–P4): Windows CI, DAW smoke automation, GUI tests, benchmark baselines |
 
 **Archived (2026-11-08):** `h01`–`h14`, `resolve-exciter-tradeoffs` and `stabilize-mallet-and-grinding-contact` are in `openspec/changes/archive/2026-11-08-*`, and their delta specs are synced into `openspec/specs/` (22 capabilities). The active changes are the M changes above; finished ones stay active until archived. A new change syncs its specs on archive as usual (`/opsx:archive`).
@@ -41,7 +41,7 @@ Apply them one at a time, in this order, each closed out (tests, docs, review st
 | # | Change | Findings | Notes |
 |---|---|---|---|
 | 1 ✅ | `m03-m20-start-at-host-rate-and-report-latency` | M3, M20 | Latency at `initialize`; voices rated before they play. No sound change at 48 kHz. Stop and ask if an exciter turns out to depend on the rate at trigger time. |
-| 2 | `m13-sustain-pedal-and-panic` | M13 | CC64, CC120 (5 ms panic fade in the output path), CC121, CC123; new stealing tier. |
+| 2 ✅ | `m13-sustain-pedal-and-panic` | M13 | CC64, CC120 (5 ms panic fade in the output path), CC121, CC123; new stealing tier. |
 | 3 | `m07-m08-interpolate-echo-and-tidy-spread` | M7, M8 | Echo sound changes; the spread stays bit-identical (maintainer's choice). |
 | 4 | `m06-m09-smooth-starvation-and-oversample-clipper` | M6, M9 | Half-band IIR clipper (maintainer's choice). Stop and ask if Render is more than 20 % slower, or if the alias bounds (40 dB Normal, 60 dB Render) don't hold. |
 | 5 | `m01-m04-m05-clarify-parameters` | M1, M4, M5 | Onset Level with preset and host migrations; unique names; Output in dB, +40 dB kept. **BREAKING** for Output automation. Regenerate the factory presets. |
@@ -120,6 +120,6 @@ When a parameter's meaning changes, migrate both paths:
 
 ## Git and PRs
 
-- PRs #5–#8 are merged. Branch `claude/nice-mccarthy-9fm1p6` was restarted from `main` after PR #8 and carries the editor fix (window size, resizing, width overflow) and `m03-m20`, with no PR open yet. If the PR for your branch has been merged, restart the branch from the latest `main` and rebase any unmerged commits onto it. Don't stack on merged history.
+- PRs #5–#8 are merged. Branch `claude/nice-mccarthy-9fm1p6` was restarted from `main` after PR #8 and carries the editor fix (window size, resizing, width overflow), `m03-m20` and `m13`, with no PR open yet. If the PR for your branch has been merged, restart the branch from the latest `main` and rebase any unmerged commits onto it. Don't stack on merged history.
 - Commit messages: imperative subject naming the finding, e.g. "Skip redundant mode retunes (H12)", and a body saying what changed and why. Add measurements when relevant. Don't put model identifiers in commits, code or PRs.
 - Don't create a PR unless asked. There's no PR template: use Summary / Behaviour changes / Testing sections and say plainly what wasn't tested (Windows build, pluginval, clap-validator, DAW smoke tests haven't been run in these sessions).

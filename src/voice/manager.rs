@@ -24,6 +24,9 @@ pub struct VoiceManager {
     pitch_bend_semitones: f32,
     channel_pressure: f32,
     mod_wheel: f32,
+    /// Sustain pedal (CC64) down: key-ups mark voices pedal-held instead of
+    /// releasing them (`m13-sustain-pedal-and-panic`).
+    sustain_down: bool,
 }
 
 /// A held note younger than this is only stolen when every held note is.
@@ -57,6 +60,7 @@ impl VoiceManager {
             pitch_bend_semitones: 0.0,
             channel_pressure: 0.0,
             mod_wheel: 0.0,
+            sustain_down: false,
         }
     }
 
@@ -80,6 +84,17 @@ impl VoiceManager {
         self.pitch_bend_semitones = 0.0;
         self.channel_pressure = 0.0;
         self.mod_wheel = 0.0;
+        self.sustain_down = false;
+    }
+
+    /// Silence every voice in place, as `reset` does, but keep the channel
+    /// state (pedal, mod wheel, bend, pressure): All Sound Off mutes sound,
+    /// it doesn't move controllers (`m13-sustain-pedal-and-panic`).
+    pub fn silence(&mut self) {
+        for voice in &mut self.voices {
+            voice.reset();
+        }
+        self.frame_counter = 0;
     }
 
     /// Trigger a note using default voice controls.
@@ -149,6 +164,14 @@ impl VoiceManager {
         exciter_type: i32,
         controls: VoiceControls,
     ) {
+        // Re-striking a note the pedal is holding releases the older
+        // instance, so repeated notes under the pedal don't pile up.
+        for voice in &mut self.voices {
+            if voice.is_pedal_held() && voice.note() == note {
+                voice.note_off();
+            }
+        }
+
         // First try: find an inactive voice; this keeps the common case
         // deterministic and avoids unnecessary stealing.
         if let Some(idx) = self.voices.iter().position(|v| !v.is_rendering()) {
@@ -188,11 +211,12 @@ impl VoiceManager {
     ///
     /// Voices fall into three tiers, lowest stolen first:
     /// 0. released tails;
-    /// 1. held notes at least [`STEAL_PROTECTION_SECONDS`] old;
-    /// 2. younger held notes.
+    /// 1. notes the sustain pedal holds after their key-up;
+    /// 2. held keys at least [`STEAL_PROTECTION_SECONDS`] old;
+    /// 3. younger held keys.
     ///
-    /// Tiers 0 and 1 give up the quietest voice (`peak_hold`, NaN counting
-    /// as quietest), with the oldest losing ties. Tier 2 gives up the oldest:
+    /// Tiers 0 to 2 give up the quietest voice (`peak_hold`, NaN counting
+    /// as quietest), with the oldest losing ties. Tier 3 gives up the oldest:
     /// a note that just started hasn't reached its peak yet, so its level
     /// says nothing about how audible it will be.
     fn steal_index(&self) -> Option<usize> {
@@ -200,10 +224,12 @@ impl VoiceManager {
         let tier = |voice: &Voice| {
             if !voice.is_active() {
                 0
-            } else if self.frame_counter.saturating_sub(voice.start_frame()) >= protect_frames {
+            } else if voice.is_pedal_held() {
                 1
-            } else {
+            } else if self.frame_counter.saturating_sub(voice.start_frame()) >= protect_frames {
                 2
+            } else {
+                3
             }
         };
         self.voices
@@ -212,7 +238,7 @@ impl VoiceManager {
             .min_by(|(_, a), (_, b)| {
                 let (tier_a, tier_b) = (tier(a), tier(b));
                 tier_a.cmp(&tier_b).then_with(|| {
-                    let by_level = if tier_a == 2 {
+                    let by_level = if tier_a == 3 {
                         std::cmp::Ordering::Equal
                     } else {
                         comparable_peak_hold(a.peak_hold())
@@ -279,6 +305,13 @@ impl VoiceManager {
                 voice.set_mod_wheel(self.mod_wheel);
             }
         }
+    }
+
+    /// Test-only: frames since the last reset or silence (note seeds and
+    /// steal protection derive from it).
+    #[cfg(test)]
+    pub(crate) fn frame_counter_for_test(&self) -> u64 {
+        self.frame_counter
     }
 
     /// Test-only accessor for the underlying voice pool. Crate-internal so
@@ -364,11 +397,49 @@ impl VoiceManager {
             .voices
             .iter()
             .enumerate()
-            .filter(|(_, v)| v.is_active() && v.note() == note)
+            .filter(|(_, v)| v.is_active() && !v.is_pedal_held() && v.note() == note)
             .min_by_key(|(_, v)| v.start_frame())
             .map(|(idx, _)| idx)
         {
+            self.release_key(idx);
+        }
+    }
+
+    /// A key-up on voice `idx`: released, or held by a down sustain pedal.
+    fn release_key(&mut self, idx: usize) {
+        if self.sustain_down {
+            self.voices[idx].hold_by_pedal();
+        } else {
             self.voices[idx].note_off();
+        }
+    }
+
+    /// Sustain pedal (CC64) down or up. Lifting it releases every note the
+    /// pedal was holding; notes whose keys are still down keep sounding.
+    pub fn set_sustain(&mut self, down: bool) {
+        self.sustain_down = down;
+        if !down {
+            for voice in &mut self.voices {
+                if voice.is_pedal_held() {
+                    voice.note_off();
+                }
+            }
+        }
+    }
+
+    /// Whether the sustain pedal is down.
+    pub fn sustain_down(&self) -> bool {
+        self.sustain_down
+    }
+
+    /// All Notes Off (CC123): every held key is released as if lifted, so a
+    /// down pedal still holds them (MIDI 1.0 behaviour).
+    pub fn all_notes_off(&mut self) {
+        for idx in 0..MAX_VOICES {
+            let voice = &self.voices[idx];
+            if voice.is_active() && !voice.is_pedal_held() {
+                self.release_key(idx);
+            }
         }
     }
 

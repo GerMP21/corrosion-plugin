@@ -207,6 +207,19 @@ Idle ──note_on──▶ Active(rendering) ──note_off──▶ Tail(rende
   voice stops costing CPU. (`is_rendering()` is the idle-CPU optimization.)
 - **Stealing**: `VoiceManager` prefers an inactive (`!is_rendering`) slot; if none,
   it steals the lowest `peak_hold`, breaking ties toward the oldest `start_frame`.
+- **Sustain pedal** (`VoiceManager::set_sustain`, CC64 ≥ 64): a key-up while
+  the pedal is down marks the voice `pedal_held` instead of releasing it, so it
+  stays `active`; lifting the pedal releases every pedal-held voice. A re-strike
+  of a pedal-held note releases the older instance. Stealing tiers are released
+  tails, then pedal-held notes, then held keys past the protection time, then
+  younger held keys. CC123 (`all_notes_off`) releases every held key through the
+  same key-up path, so the pedal still applies.
+- **All Sound Off** (CC120): `Corrosion::start_panic` fades the output over
+  `PANIC_FADE_SECONDS` (5 ms) in `render_frame_unlimited` (an out-of-line branch,
+  skipped when idle), then clears voices (`VoiceManager::silence`, which keeps
+  pedal, mod wheel, bend and pressure), the post chain and the lookahead
+  limiters in place. CC121 lifts the pedal and returns mod wheel, bend and
+  channel pressure to rest (`m13-sustain-pedal-and-panic`).
 - **Object per note** (`handle_note_event`): in Tonal and Drone play modes the
   Object parameter picks the object. In **Kit** mode the note does
   (`note_to_kit_object`): 10-note slots in object order from MIDI 24, repeating

@@ -31,6 +31,25 @@
 - **[The fade costs one multiply per sample]** → Only while a panic is in progress; otherwise the gain is exactly 1 and the branch is skipped (keep it out of line, per the hot-loop rules in `CLAUDE.md`).
 - **[Drone mode notes already ring until release]** → The pedal just delays the release, the same as for other notes.
 
+## As built
+
+- **Pedal:** `Voice::pedal_held` (cleared by note-on, note-off and reset) and `VoiceManager::sustain_down`; key-ups go through `VoiceManager::release_key`, which holds or releases. The stealing tiers are as in decision 4.
+- **All Sound Off keeps the controllers:** the end of the fade calls a new `VoiceManager::silence()` instead of `reset()`. Silence resets voices and the frame counter but keeps the pedal, mod wheel, bend and pressure, since All Sound Off mutes sound and doesn't move controllers. `Plugin::reset` cancels a fade in progress.
+- **The fade multiplies the output after output gain**, in `Corrosion::panic_frame` (`#[cold] #[inline(never)]`), reached only while `panic_step > 0`.
+- **No-alloc check location:** the allocation scenario is a lib test (`controller_messages_are_alloc_free`), not `tests/no_alloc.rs`, because the CC routing (`handle_note_event`) is crate-private. It drives `process_block` into a preallocated buffer inside `assert_no_alloc`. A deliberate allocation inside its zone aborts the test process, so the checker is active there.
+
 ## Migration Plan
 
 None: no parameters or saved state change.
+
+## Measurements
+
+### Tests on the code before the change (task 1.1)
+
+With HandStrike (the default exciter) a key-up changes nothing audible, so the pedal and All Notes Off tests use Bow, a sustaining exciter. On the old code, 7 of the 11 tests failed: pedal chord, repeated note, both All Notes Off tests, the panic fade, playing after a panic and Reset All Controllers. Three passed because the old behaviour already matches them: a key held through pedal-up, a pedal pressed with nothing held, and stealing (released notes were tails, stolen first anyway). They guard the new code. The allocation test passed, as task 1.2 asks.
+
+### After the change
+
+- All 11 `midi_control_tests` pass, and the 19 voice-manager tests are unchanged. `tests/no_alloc.rs` (debug) passes 9 of 9.
+- **Playing after a panic:** the first comparison differed from frame 3 703, about 1 100 samples into the note. Each note's noise seed comes from the voice manager's frame counter, which restarts at the end of the fade, mid-block. Comparing against a reset plugin that reaches the note at the same frame count gives bit-identical renders, so no state survives the panic.
+- **No change without the new messages:** a render hash of `sheet_lightning` (16 notes, released at 20 000 samples, 1 s) is `d776c098061dfd55` on the base commit (`9507936`, clean worktree) and on this change.

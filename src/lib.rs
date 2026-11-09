@@ -310,6 +310,10 @@ impl OnePoleSmoother {
 /// and tests that render without the parameter use it as their ceiling.
 pub const LIMITER_THRESHOLD: f32 = 0.9661;
 
+/// How long All Sound Off (CC120) takes to fade the output to silence
+/// (`m13-sustain-pedal-and-panic`).
+const PANIC_FADE_SECONDS: f32 = 0.005;
+
 /// Applies the Hard output limiter to a single sample: clamps it to
 /// `[-ceiling, ceiling]`.
 ///
@@ -689,11 +693,30 @@ fn handle_note_event(plugin: &mut Corrosion, event: NoteEvent<()>) {
         NoteEvent::PolyPressure { note, pressure, .. } => {
             plugin.voice_manager.set_poly_pressure(note, pressure);
         }
-        // CC1 mod wheel is the only CC we currently route. Other CCs are
-        // ignored but reach the plugin so a future expansion can pick them up
-        // without changing MidiConfig.
+        // CC1 mod wheel, CC64 sustain, and the channel-mode messages CC120,
+        // CC121 and CC123 are routed; other CCs reach the plugin and are
+        // ignored.
         NoteEvent::MidiCC { cc: 1, value, .. } => {
             plugin.voice_manager.set_mod_wheel(value);
+        }
+        // Sustain pedal: down at 64 or above (`m13-sustain-pedal-and-panic`).
+        NoteEvent::MidiCC { cc: 64, value, .. } => {
+            plugin.voice_manager.set_sustain(value >= 0.5);
+        }
+        // All Notes Off: every held key released; a down pedal still holds.
+        NoteEvent::MidiCC { cc: 123, .. } => {
+            plugin.voice_manager.all_notes_off();
+        }
+        // All Sound Off: a 5 ms fade, then every voice and tail is cleared.
+        NoteEvent::MidiCC { cc: 120, .. } => {
+            plugin.start_panic();
+        }
+        // Reset All Controllers: pedal up, mod wheel, bend and pressure at rest.
+        NoteEvent::MidiCC { cc: 121, .. } => {
+            plugin.voice_manager.set_sustain(false);
+            plugin.voice_manager.set_mod_wheel(0.0);
+            plugin.voice_manager.set_pitch_bend_semitones(0.0);
+            plugin.voice_manager.set_channel_pressure(0.0);
         }
         _ => {}
     }
@@ -790,6 +813,11 @@ pub struct Corrosion {
     /// `context.set_latency_samples` when the value actually changes (toggling
     /// the limiter mode).
     reported_latency_samples: u32,
+    /// All Sound Off fade: the gain applied to the output, and how much it
+    /// falls per sample. A step of 0 means no panic is in progress
+    /// (`m13-sustain-pedal-and-panic`).
+    panic_gain: f32,
+    panic_step: f32,
 }
 
 /// The per-block values `Corrosion::begin_block` resolves and each
@@ -820,6 +848,8 @@ impl Default for Corrosion {
             lookahead_left: dsp::LookaheadLimiter::new(LIMITER_THRESHOLD),
             lookahead_right: dsp::LookaheadLimiter::new(LIMITER_THRESHOLD),
             reported_latency_samples: 0,
+            panic_gain: 1.0,
+            panic_step: 0.0,
         }
     }
 }
@@ -1023,7 +1053,37 @@ impl Corrosion {
         let (left, right) = self.post_chain.process(left, right);
 
         let gain = self.output_gain_smoother.next();
-        (left * gain, right * gain)
+        let (left, right) = (left * gain, right * gain);
+        if self.panic_step > 0.0 {
+            return self.panic_frame(left, right);
+        }
+        (left, right)
+    }
+
+    /// Start All Sound Off: fade the output to silence over
+    /// `PANIC_FADE_SECONDS`, then clear every voice and the post chain.
+    fn start_panic(&mut self) {
+        let sample_rate = self.voice_manager.sample_rate().max(1) as f32;
+        self.panic_step = 1.0 / (PANIC_FADE_SECONDS * sample_rate);
+    }
+
+    /// One frame of the All Sound Off fade. At the end of the fade the
+    /// voices, post chain and lookahead limiters are cleared in place
+    /// (allocation-free), so the output is exactly zero until a new note.
+    #[cold]
+    #[inline(never)]
+    fn panic_frame(&mut self, left: f32, right: f32) -> (f32, f32) {
+        self.panic_gain -= self.panic_step;
+        if self.panic_gain > 0.0 {
+            return (left * self.panic_gain, right * self.panic_gain);
+        }
+        self.voice_manager.silence();
+        self.post_chain.reset();
+        self.lookahead_left.reset();
+        self.lookahead_right.reset();
+        self.panic_gain = 1.0;
+        self.panic_step = 0.0;
+        (0.0, 0.0)
     }
 
     /// The selected output limiter. Hard (default) clamps each sample;
@@ -1162,6 +1222,8 @@ impl Plugin for Corrosion {
         self.output_gain_smoother = OnePoleSmoother::new(self.params.output.value());
         self.lookahead_left.reset();
         self.lookahead_right.reset();
+        self.panic_gain = 1.0;
+        self.panic_step = 0.0;
     }
 
     /// Main audio processing callback - called for each buffer.
@@ -2815,5 +2877,411 @@ mod host_rate_and_latency_tests {
         let (fresh, primed) = (render(false), render(true));
         let first = fresh.iter().zip(&primed).position(|(a, b)| a != b);
         assert_eq!(first, None, "the bent note differs from frame {first:?}");
+    }
+}
+
+/// `m13-sustain-pedal-and-panic`: the sustain pedal and the channel-mode
+/// messages (All Notes Off, All Sound Off, Reset All Controllers).
+#[cfg(test)]
+mod midi_control_tests {
+    use crate::offline::PresetRenderer;
+    use crate::params::CorrosionParams;
+    use crate::presets::Preset;
+    use nih_plug::prelude::NoteEvent;
+
+    const SR: u32 = 48_000;
+    /// Event frames are multiples of the offline block size, so events land
+    /// at block starts exactly as a host would deliver them there.
+    const BLOCK: usize = crate::offline::OFFLINE_BLOCK_SIZE;
+
+    #[derive(Clone, Copy, Debug)]
+    enum Act {
+        On(u8),
+        Off(u8),
+        Cc(u8, f32),
+    }
+
+    fn apply(plugin: &mut crate::Corrosion, act: Act) {
+        let event = match act {
+            Act::On(note) => NoteEvent::NoteOn {
+                timing: 0,
+                voice_id: None,
+                channel: 0,
+                note,
+                velocity: 1.0,
+            },
+            Act::Off(note) => NoteEvent::NoteOff {
+                timing: 0,
+                voice_id: None,
+                channel: 0,
+                note,
+                velocity: 0.0,
+            },
+            Act::Cc(cc, value) => NoteEvent::MidiCC {
+                timing: 0,
+                channel: 0,
+                cc,
+                value,
+            },
+        };
+        super::handle_note_event(plugin, event);
+    }
+
+    /// Render `blocks` blocks of `renderer`, applying each `(block, act)` at
+    /// the start of its block. Returns the frames before the limiter.
+    fn script(
+        mut renderer: PresetRenderer,
+        blocks: usize,
+        acts: &[(usize, Act)],
+    ) -> (Vec<(f32, f32)>, PresetRenderer) {
+        let mut out = Vec::with_capacity(blocks * BLOCK);
+        for block in 0..blocks {
+            for &(at, act) in acts {
+                if at == block {
+                    apply(renderer.plugin_mut(), act);
+                }
+            }
+            out.extend(renderer.render(&[], SR, BLOCK).pre_limiter);
+        }
+        (out, renderer)
+    }
+
+    fn default_renderer() -> PresetRenderer {
+        PresetRenderer::from_params(CorrosionParams::default())
+    }
+
+    /// A bowed (sustaining) patch: unlike a strike, its sound changes when
+    /// the key is released, so the pedal's effect is audible.
+    fn bowed_renderer() -> PresetRenderer {
+        PresetRenderer::from_params(CorrosionParams {
+            exciter: crate::params::exciter_param(1),
+            ..CorrosionParams::default()
+        })
+    }
+
+    fn assert_identical(a: &[(f32, f32)], b: &[(f32, f32)], what: &str) {
+        assert_eq!(a.len(), b.len());
+        let first = a.iter().zip(b).position(|(x, y)| x != y);
+        assert_eq!(first, None, "{what}: renders differ from frame {first:?}");
+    }
+
+    const PEDAL_DOWN: Act = Act::Cc(64, 1.0);
+    const PEDAL_UP: Act = Act::Cc(64, 0.0);
+    const CHORD: [u8; 3] = [60, 64, 67];
+
+    /// Spec "Chord held by the pedal": keys released under the pedal sound
+    /// as if held until the pedal lifts, then release.
+    #[test]
+    fn pedal_holds_a_released_chord() {
+        let mut pedal = vec![(0, PEDAL_DOWN)];
+        let mut held = Vec::new();
+        for n in CHORD {
+            pedal.push((1, Act::On(n)));
+            pedal.push((10, Act::Off(n)));
+            held.push((1, Act::On(n)));
+            held.push((94, Act::Off(n)));
+        }
+        pedal.push((94, PEDAL_UP));
+        let (with_pedal, _) = script(bowed_renderer(), 188, &pedal);
+        let (keys_held, _) = script(bowed_renderer(), 188, &held);
+        assert_identical(&with_pedal, &keys_held, "pedal-held chord vs keys held");
+    }
+
+    /// Spec "Key still down when the pedal lifts".
+    #[test]
+    fn key_held_through_pedal_up_keeps_sounding() {
+        let acts = [
+            (0, PEDAL_DOWN),
+            (1, Act::On(60)),
+            (40, PEDAL_UP),
+            (90, Act::Off(60)),
+        ];
+        let (with_pedal, _) = script(bowed_renderer(), 140, &acts);
+        let (no_pedal, _) = script(
+            bowed_renderer(),
+            140,
+            &[(1, Act::On(60)), (90, Act::Off(60))],
+        );
+        assert_identical(&with_pedal, &no_pedal, "key held across pedal-up");
+    }
+
+    /// Spec "Pedal up without notes": a released tail is unaffected.
+    #[test]
+    fn pedal_without_held_notes_changes_nothing() {
+        let tail = [(0, Act::On(60)), (2, Act::Off(60))];
+        let mut with_pedal = tail.to_vec();
+        with_pedal.extend([(10, PEDAL_DOWN), (30, PEDAL_UP)]);
+        let (a, _) = script(bowed_renderer(), 60, &tail);
+        let (b, _) = script(bowed_renderer(), 60, &with_pedal);
+        assert_identical(&a, &b, "tail with and without an empty pedal");
+    }
+
+    /// Spec "Repeated note under the pedal": at most one pedal-held voice per
+    /// note, and the last strike is still held by the pedal.
+    #[test]
+    fn repeated_note_under_the_pedal_keeps_one_voice() {
+        let mut acts = vec![(0, PEDAL_DOWN)];
+        for i in 0..10 {
+            acts.push((1 + 2 * i, Act::On(60)));
+            acts.push((2 + 2 * i, Act::Off(60)));
+        }
+        let (_, mut renderer) = script(bowed_renderer(), 24, &acts);
+        let held = renderer
+            .plugin_mut()
+            .voice_manager
+            .voices_for_test()
+            .iter()
+            .filter(|v| v.is_active() && v.note() == 60)
+            .count();
+        assert_eq!(held, 1, "voices still held for note 60 under the pedal");
+    }
+
+    /// Spec "Stuck notes": All Notes Off releases every held key at once.
+    #[test]
+    fn all_notes_off_releases_held_keys() {
+        let notes = [48u8, 55, 60, 64];
+        let mut cc = Vec::new();
+        let mut offs = Vec::new();
+        for n in notes {
+            cc.push((1, Act::On(n)));
+            offs.push((1, Act::On(n)));
+            offs.push((20, Act::Off(n)));
+        }
+        cc.push((20, Act::Cc(123, 0.0)));
+        let (a, _) = script(bowed_renderer(), 60, &cc);
+        let (b, _) = script(bowed_renderer(), 60, &offs);
+        assert_identical(&a, &b, "All Notes Off vs four note-offs");
+    }
+
+    /// Spec "Pedal down": All Notes Off doesn't override the pedal.
+    #[test]
+    fn all_notes_off_respects_the_pedal() {
+        let notes = [48u8, 55, 60, 64];
+        let mut cc = vec![(0, PEDAL_DOWN)];
+        let mut held = Vec::new();
+        for n in notes {
+            cc.push((1, Act::On(n)));
+            held.push((1, Act::On(n)));
+            held.push((60, Act::Off(n)));
+        }
+        cc.push((20, Act::Cc(123, 0.0)));
+        cc.push((60, PEDAL_UP));
+        let (a, _) = script(bowed_renderer(), 100, &cc);
+        let (b, _) = script(bowed_renderer(), 100, &held);
+        assert_identical(
+            &a,
+            &b,
+            "All Notes Off under the pedal vs keys held to pedal-up",
+        );
+    }
+
+    fn space_renderer() -> PresetRenderer {
+        let path = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/presets/factory/plate_resonance_bath.corrosion-preset"
+        );
+        PresetRenderer::new(&Preset::load(std::path::Path::new(path)).expect("load preset"))
+    }
+
+    /// Spec "Panic with a reverb tail": silence within 10 ms, by a fade, and
+    /// silence until a new note.
+    #[test]
+    fn all_sound_off_fades_to_silence() {
+        let panic_block = 40;
+        let acts = [
+            (0, Act::On(48)),
+            (0, Act::On(60)),
+            (10, Act::Off(48)),
+            (10, Act::Off(60)),
+            (panic_block, Act::Cc(120, 0.0)),
+        ];
+        let (out, _) = script(space_renderer(), 100, &acts);
+        let start = panic_block * BLOCK;
+        let ten_ms = SR as usize / 100;
+        assert!(
+            out[start - ten_ms..start]
+                .iter()
+                .any(|&(l, r)| l.abs() > 1e-3 || r.abs() > 1e-3),
+            "nothing ringing before the panic"
+        );
+        let step = |w: &[(f32, f32)]| {
+            w.windows(2).fold(0.0f32, |m, p| {
+                m.max((p[1].0 - p[0].0).abs()).max((p[1].1 - p[0].1).abs())
+            })
+        };
+        let before = step(&out[start - ten_ms..=start]);
+        let during = step(&out[start..start + ten_ms]);
+        assert!(
+            during <= before,
+            "fade step {during} > step before {before}"
+        );
+        let silent_from = out[start..]
+            .iter()
+            .position(|&(l, r)| l == 0.0 && r == 0.0)
+            .map(|i| start + i)
+            .expect("never silent");
+        assert!(
+            silent_from <= start + ten_ms,
+            "silent only at {silent_from}"
+        );
+        assert!(
+            out[silent_from..]
+                .iter()
+                .all(|&(l, r)| l == 0.0 && r == 0.0),
+            "sound after the panic finished"
+        );
+    }
+
+    /// Spec "Playing after a panic": a note after All Sound Off renders as
+    /// on a freshly reset plugin.
+    #[test]
+    fn playing_after_a_panic_is_like_after_a_reset() {
+        use nih_plug::prelude::Plugin;
+        let (_, mut panicked) = script(
+            space_renderer(),
+            30,
+            &[(0, Act::On(60)), (20, Act::Cc(120, 0.0))],
+        );
+        // The fade ended mid-block and restarted the voice manager's frame
+        // counter, which seeds each note's noise. The reset plugin plays its
+        // note at the same count, so only state left behind could differ.
+        let since_silence = panicked.plugin_mut().voice_manager.frame_counter_for_test() as usize;
+        assert!(since_silence > 0 && since_silence < 10 * BLOCK);
+        apply(panicked.plugin_mut(), Act::On(62));
+        let after_panic = panicked.render(&[], SR, 20 * BLOCK).pre_limiter;
+        let mut fresh = space_renderer();
+        fresh.plugin_mut().reset();
+        let _ = fresh.render(&[], SR, since_silence);
+        apply(fresh.plugin_mut(), Act::On(62));
+        let after_reset = fresh.render(&[], SR, 20 * BLOCK).pre_limiter;
+        assert_identical(
+            &after_panic,
+            &after_reset,
+            "note after panic vs after reset",
+        );
+    }
+
+    /// Spec "Controllers left set": Reset All Controllers lifts the pedal and
+    /// returns mod wheel, bend and pressure to rest.
+    #[test]
+    fn reset_all_controllers_returns_controls_to_rest() {
+        let acts = [
+            (0, PEDAL_DOWN),
+            (0, Act::Cc(1, 1.0)),
+            (1, Act::On(60)),
+            (2, Act::Off(60)),
+            (5, Act::Cc(121, 0.0)),
+        ];
+        let (_, mut renderer) = script(default_renderer(), 6, &acts);
+        let held = renderer
+            .plugin_mut()
+            .voice_manager
+            .voices_for_test()
+            .iter()
+            .filter(|v| v.is_active())
+            .count();
+        assert_eq!(held, 0, "pedal-held notes not released");
+
+        // Mod wheel, bend and channel pressure left set, then reset: the next
+        // note renders as on a plugin whose controllers were never touched.
+        let mut set = default_renderer();
+        apply(set.plugin_mut(), Act::Cc(1, 1.0));
+        for event in [
+            NoteEvent::MidiPitchBend {
+                timing: 0,
+                channel: 0,
+                value: 1.0,
+            },
+            NoteEvent::MidiChannelPressure {
+                timing: 0,
+                channel: 0,
+                pressure: 1.0,
+            },
+        ] {
+            super::handle_note_event(set.plugin_mut(), event);
+        }
+        apply(set.plugin_mut(), Act::Cc(121, 0.0));
+        let (after, _) = script(set, 20, &[(0, Act::On(64))]);
+        let (rest, _) = script(default_renderer(), 20, &[(0, Act::On(64))]);
+        assert_identical(&after, &rest, "note after Reset All Controllers vs at rest");
+    }
+
+    /// Spec "Pedal and panic in a checked zone": handling the pedal, All
+    /// Notes Off, All Sound Off and Reset All Controllers, and rendering
+    /// through them, doesn't allocate (checked in debug builds).
+    #[test]
+    fn controller_messages_are_alloc_free() {
+        let mut renderer = bowed_renderer();
+        let plugin = renderer.plugin_mut();
+        let mut buffer = vec![(0.0f32, 0.0f32); BLOCK];
+        let mut block = |plugin: &mut crate::Corrosion| {
+            let mut next = None;
+            plugin.process_block(
+                BLOCK,
+                SR,
+                None,
+                &mut next,
+                || None,
+                |i, frame, _| {
+                    buffer[i] = frame;
+                },
+            );
+        };
+        for n in [48u8, 55, 60, 64] {
+            apply(plugin, Act::On(n));
+        }
+        block(plugin);
+        assert_no_alloc::assert_no_alloc(|| {
+            apply(plugin, PEDAL_DOWN);
+            for n in [48u8, 55, 60, 64] {
+                apply(plugin, Act::Off(n));
+            }
+            block(plugin);
+            apply(plugin, Act::On(60));
+            apply(plugin, Act::Off(60));
+            apply(plugin, PEDAL_UP);
+            block(plugin);
+            for n in [50u8, 57] {
+                apply(plugin, Act::On(n));
+            }
+            apply(plugin, Act::Cc(123, 0.0));
+            block(plugin);
+            apply(plugin, PEDAL_DOWN);
+            apply(plugin, Act::Cc(1, 1.0));
+            apply(plugin, Act::Cc(121, 0.0));
+            block(plugin);
+            apply(plugin, Act::On(62));
+            apply(plugin, Act::Cc(120, 0.0));
+            for _ in 0..4 {
+                block(plugin);
+            }
+        });
+    }
+
+    /// Spec "Full pool under the pedal": a pedal-held note is stolen before a
+    /// held key.
+    #[test]
+    fn pedal_held_notes_are_stolen_before_held_keys() {
+        let mut acts = vec![(0, PEDAL_DOWN)];
+        for n in 0..16u8 {
+            acts.push((1, Act::On(40 + n)));
+        }
+        for n in 0..8u8 {
+            acts.push((30, Act::Off(40 + n)));
+        }
+        acts.push((31, Act::On(80)));
+        let (_, mut renderer) = script(bowed_renderer(), 32, &acts);
+        let sounding: Vec<u8> = renderer
+            .plugin_mut()
+            .voice_manager
+            .sounding_notes()
+            .collect();
+        let missing: Vec<u8> = (40..56).filter(|n| !sounding.contains(n)).collect();
+        assert_eq!(missing.len(), 1, "sounding {sounding:?}");
+        assert!(
+            missing[0] < 48,
+            "stole held key {} instead of a pedal-held note",
+            missing[0]
+        );
     }
 }

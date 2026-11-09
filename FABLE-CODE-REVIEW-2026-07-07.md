@@ -472,9 +472,9 @@ above the block. Minor, but the doc and tests promise symmetric behavior.
   and `channel` are ignored throughout (no MPE per-note pitch bend — only channel
   bend; poly *pressure* is supported, poly *tuning* is not despite comments
   mentioning it).
-- **M13. No sustain pedal (CC64), no all-notes-off (CC123) handling** — CC1 is the
+- ~~**M13. No sustain pedal (CC64), no all-notes-off (CC123) handling** — CC1 is the
   only CC routed (lib.rs:636-638). For a physical-modeling instrument, missing
-  sustain-pedal handling is a real playability gap.
+  sustain-pedal handling is a real playability gap.~~ — FIXED (2026-11-09, branch `claude/nice-mccarthy-9fm1p6`, [`m13-sustain-pedal-and-panic`](openspec/changes/m13-sustain-pedal-and-panic/proposal.md)): CC64 sustain with a pedal-held stealing tier, CC123 All Notes Off, CC120 All Sound Off (5 ms fade, then voices and tails cleared) and CC121 Reset All Controllers, proven by `midi_control_tests` (11 tests, including an allocation check).
 - **M14. Quality mode affects voices only at note-on** (`mode_count_scale`
   captured into the bank), but the post chain switches instantly — flipping
   Eco↔Render mid-note changes the space topology immediately while held notes
@@ -533,7 +533,7 @@ above the block. Minor, but the doc and tests promise symmetric behavior.
    user bank directory (GUI loads only the embedded `include_dir` factory bank).~~ — FIXED (H5)
 2. ~~Randomizer — fully implemented module, zero integration (no UI, no param).~~ — FIXED (H5)
 3. MSEG PingPong loop — placeholder (C2/H10 above). *(Not covered by the C2 fix; PingPong remains open.)*
-4. Sustain pedal / CC64, all-sound-off, MPE per-note bend (M12/M13).
+4. ~~Sustain pedal / CC64, all-sound-off~~ (FIXED, M13); MPE per-note bend (M12) still open.
 5. ~~GUI exposure of brightness, thickness, sync rate, play mode, limiter mode,
    macros (H5).~~ — FIXED
 6. ~~Envelope→strike-position routing promised by `position_envelope` (H9).~~ — FIXED
