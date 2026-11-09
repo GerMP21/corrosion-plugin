@@ -45,7 +45,7 @@ The work follows the code review in `FABLE-CODE-REVIEW-2026-07-07.md`. Each fixe
 
 **Archived (2026-11-08):** `h01`–`h14`, `resolve-exciter-tradeoffs` and `stabilize-mallet-and-grinding-contact` are in `openspec/changes/archive/2026-11-08-*`, and their delta specs are synced into `openspec/specs/` (22 capabilities). The active changes are the M changes above; finished ones stay active until archived. A new change syncs its specs on archive as usual (`/opsx:archive`).
 
-### Execution order for the M changes
+### Execution order for the M changes (and add-parameter-tooltips)
 
 Apply them one at a time, in this order, each closed out (tests, docs, review status, this file) before the next. The order puts cheap host fixes first and the BREAKING change late, and keeps changes that touch the same code apart.
 
@@ -56,8 +56,9 @@ Apply them one at a time, in this order, each closed out (tests, docs, review st
 | 3 ✅ | `m07-m08-interpolate-echo-and-tidy-spread` | M7, M8 | Echo sound changes; the spread stays bit-identical (maintainer's choice). |
 | 4 | `m06-m09-smooth-starvation-and-oversample-clipper` | M6, M9 | Half-band IIR clipper (maintainer's choice). Stop and ask if Render is more than 20 % slower, or if the alias bounds (40 dB Normal, 60 dB Render) don't hold. |
 | 5 | `m01-m04-m05-clarify-parameters` | M1, M4, M5 | Onset Level with preset and host migrations; unique names; Output in dB, +40 dB kept. **BREAKING** for Output automation. Regenerate the factory presets. |
-| 6 | `m12-per-note-expression` | M12 | Voice-ID addressing, PolyTuning, Choke. Channel MPE out of scope. |
-| 7 | `m10-m18-tidy-dead-code-and-docs` | M10, M11, M14, M15, M17, M18 | Sound-neutral cleanup (prove with render hashes); also marks M2 and M19, already resolved. |
+| 6 | `add-parameter-tooltips` | (maintainer request) | GUI only: ⓘ badge (painted 1 px circle and "i" in `MUTED_GREY`) right of each label, hover on the badge only, 1–2 sentences; selector help is a removable trial. After m01 so texts use the final names. |
+| 7 | `m12-per-note-expression` | M12 | Voice-ID addressing, PolyTuning, Choke. Channel MPE out of scope. |
+| 8 | `m10-m18-tidy-dead-code-and-docs` | M10, M11, M14, M15, M17, M18 | Sound-neutral cleanup (prove with render hashes); also marks M2 and M19, already resolved. |
 
 ## OpenSpec workflow
 
