@@ -319,6 +319,16 @@ fn bench_plugin_output_path(c: &mut Criterion) {
             BatchSize::LargeInput,
         )
     });
+    // The same in Render quality (more modes per voice, 16× clipper).
+    let mut render = preset.clone();
+    render.quality_mode = 3;
+    c.bench_function("plugin_output_path_sixteen_voices_render", |b| {
+        b.iter_batched(
+            || PresetRenderer::new(&render),
+            |mut renderer| black_box(renderer.render(&notes, 48_000, 4_096)),
+            BatchSize::LargeInput,
+        )
+    });
 }
 
 criterion_group!(
