@@ -142,3 +142,14 @@ Whole chain (`analyze_post_chain_aliasing_at_quality`, drive 2.5 with starvation
 
 `body_level_tracks_body_amount` now feeds 0.01 instead of 0.02: at BODY amount 0.8 the body peaks near 37× its input (0.75), past the new 0.743 threshold.
 
+### CPU (task 3.2, 2026-11-09)
+
+`plugin_output_path_sixteen_voices` (preset `sheet_lightning`, Normal) and a new Render twin (`_render`, same preset at quality 3), new code against a clean worktree at `5944d5b` (before this change, with the same benchmark file), interleaved, five runs, ratio new/base within each run:
+
+| Benchmark | Run 1 | Run 2 | Run 3 | Run 4 | Run 5 | Median |
+|---|---|---|---|---|---|---|
+| Normal | 1.057 | 0.965 | 1.046 | 1.031 | 1.017 | **1.031** |
+| Render | 1.051 | 0.963 | 1.008 | 0.942 | 0.992 | **0.992** |
+
+Absolute medians are about 34 ms (Normal) and 72 ms (Render) per 4 096 frames for both builds. Both ratios sit inside this container's ±10–15 % noise and far under the 20 % stop line: the 16 voices dominate the output path, so the shorter fallback filters (decision 6) aren't needed.
+

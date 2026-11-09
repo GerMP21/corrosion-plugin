@@ -932,10 +932,11 @@ mod tests {
     /// Frame count for the clipper measurements (bins 11.7 Hz apart at 48 kHz).
     const CLIPPER_FRAMES: usize = 4_096;
 
-    /// `output-clipper`: sines at 0.5 (below the 0.9661 ceiling) come out
-    /// within 0.1 dB in every quality mode.
+    /// `output-clipper`: sines at 0.5 (below the threshold: the 0.9661
+    /// ceiling in Eco, ÷ 1.3 ≈ 0.743 when oversampling) come out within
+    /// 0.1 dB in every quality mode.
     #[test]
-    fn clipper_is_transparent_below_its_ceiling() {
+    fn clipper_is_transparent_below_its_threshold() {
         let mut off = Vec::new();
         for mode in ALL_QUALITIES {
             for hz in [100.0, 1_000.0, 10_000.0, 18_000.0] {
