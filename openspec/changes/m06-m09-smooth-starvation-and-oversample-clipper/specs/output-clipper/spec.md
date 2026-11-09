@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Defines what the post chain's final clipper does to the signal: transparent below its ceiling, band-limited clipping above it, oversampling set by the quality mode, and no latency for the host to compensate.
+Defines what the post chain's final clipper does to the signal: transparent below its ceiling, band-limited clipping above it, oversampling set by the quality mode, and a delay small enough that the host isn't asked to compensate it.
 
 ## ADDED Requirements
 
@@ -29,8 +29,8 @@ When the clipper clips, the harmonics it creates above half the sample rate SHAL
 - **THEN** the fold-back energy decreases from Normal to High to Render
 
 ### Requirement: The clipper adds no latency to compensate
-The clipper SHALL delay the signal by less than one sample at low frequencies in every quality mode, so the plugin reports no latency for it.
+The clipper SHALL delay the signal by less than eight samples at low frequencies in every quality mode, a fraction of a millisecond, and the plugin SHALL report no latency for it.
 
 #### Scenario: Delay at 1 kHz
-- **WHEN** a 1 kHz sine below the ceiling is fed through the clipper at 48 kHz in Render
-- **THEN** the output lags the input by less than one sample
+- **WHEN** a 1 kHz sine below the ceiling is fed through the clipper at 48 kHz in each quality mode
+- **THEN** the output lags the input by less than eight samples

@@ -7,8 +7,8 @@
 
 ## 2. Clipper tests and filters
 
-- [ ] 2.1 Add a clipper-only measurement and the `output-clipper` tests (transparency per quality, Eco plain clipping, hard-driven sine bounds, quality ordering, delay at 1 kHz). Record today's values for each in `design.md` under Measurements, and verify which fail.
-- [ ] 2.2 Implement the half-band IIR designer and a 2× up/down stage, with a test that checks each stage's stop-band rejection (about 90 dB) and pass-band flatness directly. Verify it passes.
+- [x] 2.1 Add a clipper-only measurement and the `output-clipper` tests (transparency per quality, Eco plain clipping, hard-driven sine bounds, quality ordering, delay at 1 kHz). Record today's values for each in `design.md` under Measurements, and verify which fail.
+- [x] 2.2 Implement the half-band IIR designer and a 2× up/down stage, with a test that checks each stage's stop-band rejection (about 90 dB) and pass-band flatness directly. Verify it passes.
 
 ## 3. Clipper
 

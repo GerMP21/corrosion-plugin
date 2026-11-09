@@ -3,6 +3,7 @@
 //! This module exposes the real-time-safe post stage used after voice mixing:
 //! filtering, drive, body resonance, stereo spread, space, and final limiting.
 pub mod fem_body;
+pub mod half_band;
 pub mod hrtf_spread;
 pub mod lookahead_limiter;
 pub mod lorenz_drive;
