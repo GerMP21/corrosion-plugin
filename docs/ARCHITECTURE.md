@@ -535,7 +535,7 @@ note.
 | Size | `f /= scale`, `decay *= scale`, low-mode gain tilt |
 | Rust | damping increase: `decay /= 1 + rust·(0.2 + 0.54·w²)`, `gain /= 1 + rust·0.6·w^1.5` (`w` = mode position, 0 fundamental → 1 top); never reaches zero, highs die first, the fundamental always rings (`fix-rust-damage-heat-response`) |
 | Thickness | stiffness `√(1 + (t−0.5)·0.15·n²)` raises/inharmonicizes partials |
-| Heat | pitch drop (`·(1 − heat·0.05)`), spectral darkening (`gain /= 1 + heat·2·w^1.5`, `decay /= 1 + heat·0.5·w`) and a thermal warble (pitch dynamic, about ±7 cents at Heat 1, two LFOs at 0.37 and 0.83 Hz) |
+| Heat | pitch drop (`·(1 − heat·0.05)`), spectral darkening (`gain /= 1 + heat·2·w^1.5`, `decay /= 1 + heat·0.5·w`) and a thermal warble (pitch dynamic, up to about ±8 cents at Heat 1, two LFOs at 0.37 and 0.83 Hz) |
 | Sludge | mass loading `f·√(1/(1+sludge))` + broadband damping |
 | Damage | mode splitting into detuned pairs, driven by a saturating amount `3·(1 − e^(−d/3))` so the fundamental keeps its note and no decay reaches zero, + amplitude-gated rattle (in the voice) |
 
