@@ -214,6 +214,39 @@ mod tests {
         }
     }
 
+    /// Largest sample-to-sample step of the drive's output for a 100 Hz
+    /// sine at amplitude 0.5, Drive Amount 2.5, chaos off, over two seconds.
+    fn largest_step(starvation: f32, sample_rate: f32) -> f32 {
+        let mut drive = LorenzDrive::new();
+        drive.set_sample_rate(sample_rate);
+        drive.set_parameters(2.5, starvation, 0.0);
+        let frames = (2.0 * sample_rate) as usize;
+        let mut prev = 0.0f32;
+        let mut largest = 0.0f32;
+        for i in 0..frames {
+            let t = i as f32 / sample_rate;
+            let y = drive.process(0.5 * (std::f32::consts::TAU * 100.0 * t).sin());
+            largest = largest.max((y - prev).abs());
+            prev = y;
+        }
+        largest
+    }
+
+    #[test]
+    #[ignore = "measurement: prints the largest output step per starvation value"]
+    fn print_starvation_steps() {
+        for sr in [44_100.0, 48_000.0, 96_000.0] {
+            for s in [0.0, 0.1, 0.25, 0.35, 0.5, 0.75, 1.0] {
+                let step = largest_step(s, sr);
+                let base = largest_step(0.0, sr);
+                println!(
+                    "sr {sr} starvation {s:.2}: step {step:.5} ratio {:.3}",
+                    step / base
+                );
+            }
+        }
+    }
+
     #[test]
     fn no_nan_produced() {
         let mut drive = LorenzDrive::new();
