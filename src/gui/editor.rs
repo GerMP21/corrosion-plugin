@@ -1802,6 +1802,12 @@ fn render_ui(
 
     ui.add_space(height_pct(scale, 0.0052083335));
 
+    // Macros sit between the header and the columns: below the columns
+    // they left an odd gap under the shorter ones.
+    render_macro_strip(ui, params, setter, scale);
+
+    ui.add_space(height_pct(scale, 0.0052083335));
+
     let original_item_spacing_x = ui.spacing().item_spacing.x;
     ui.spacing_mut().item_spacing.x = 0.0;
     ui.columns(3, |columns| {
@@ -1810,8 +1816,6 @@ fn render_ui(
         render_processing_column(&mut columns[2], params, setter, scale);
     });
     ui.spacing_mut().item_spacing.x = original_item_spacing_x;
-
-    render_macro_strip(ui, params, setter, scale);
 
     // Footer
     render_footer(ui, scale);
