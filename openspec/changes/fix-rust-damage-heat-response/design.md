@@ -11,7 +11,7 @@
 **Non-Goals:**
 - Changing ranges, IDs or the order of the transforms.
 - Sludge and Thickness (not reported; Sludge's uniform gain loss is also cancelled by normalization, noted for later).
-- Softening the exciter for Heat (the specification's `Exciter_Stiffness · (1 − 0.3·heat)`). A filter between the exciter and the resonator would bypass the implicit contact solver that keeps mallets and grinders stable (`stabilize-mallet-and-grinding-contact`). It is left as an open question for the maintainer.
+- Softening the exciter for Heat (the specification's `Exciter_Stiffness · (1 − 0.3·heat)`). A filter between the exciter and the resonator would bypass the implicit contact solver that keeps mallets and grinders stable (`stabilize-mallet-and-grinding-contact`). Dropped by the maintainer (2026-11-09): Heat stays spectral darkening plus warble.
 
 ## Decisions
 
@@ -36,7 +36,7 @@
 
 ## Open Questions
 
-- Exciter softening for Heat: implement inside each exciter's contact model in a follow-up, or drop it?
+- None. Exciter softening for Heat was dropped by the maintainer (2026-11-09).
 
 ## Measurements
 
