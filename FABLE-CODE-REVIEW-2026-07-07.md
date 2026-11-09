@@ -440,10 +440,10 @@ above the block. Minor, but the doc and tests promise symmetric behavior.
   1.0.** No dB display/units, and the linear taper means the useful −20..+6 dB
   region occupies ~1 % of the knob travel. Also +40 dB of clean digital gain into
   a clipper is an odd ceiling.
-- **M6. `LorenzDrive` bias-starvation gate is a hard 1.0↔0.3 gain switch**
+- ~~**M6. `LorenzDrive` bias-starvation gate is a hard 1.0↔0.3 gain switch**
   (lorenz_drive.rs:98-107) keyed off the chaotic z state — produces stepped gain
   discontinuities (clicks/crackle), which may be intended "circuit starvation" but
-  is undocumented and un-smoothed. `tube_state` field is dead.
+  is undocumented and un-smoothed. `tube_state` field is dead.~~ — FIXED (2026-11-09, [`m06-m09-smooth-starvation-and-oversample-clipper`](openspec/changes/m06-m09-smooth-starvation-and-oversample-clipper/proposal.md)): a 5 ms one-pole follower ramps the gain, so the largest output step is 0.99–1.005× the starvation-0 step at 44.1, 48 and 96 kHz (it was up to 28× at 48 kHz and 57× at 96 kHz); starvation 0 is bit-identical to the drive without the stage; `tube_state` is gone. Measuring it also showed the gate only switched for Bias Starvation of about 0.2–0.7 (a fixed −10.5 dB cut above 0.71); the threshold now spans the attractor's `z` range, starved 5 % of the time at 0.1 to 87 % at 1 (maintainer's choice). Proven by `starvation_does_not_click`, `starvation_does_not_click_at_other_rates`, `starvation_off_is_bit_identical`, `starvation_keeps_switching_across_its_range` and `more_starvation_starves_more_often` in `lorenz_drive.rs`.
 - ~~**M7. `FactoryEcho` modulated delay is un-interpolated** (space.rs:273) —
   integer-truncated read index with a moving modulation produces zipper noise as
   `machinery_movement` increases. `high_frequency_damping` is a broadband wet gain,
@@ -453,11 +453,11 @@ above the block. Minor, but the doc and tests promise symmetric behavior.
   delayed_right` always, so there is no interaural time difference; width comes
   only from the side-signal gain and crossfeed. Two 64-float buffers where one
   would do; the "1 ms ITD" comment is not implemented.~~ — FIXED (2026-11-09, same change): the redundant buffer is gone and the comments describe a common mid delay, not an ITD. The output is bit-identical (render hashes at 44.1, 48 and 192 kHz match the previous code). Keeping the sound, rather than implementing a real ITD, was the maintainer's choice.
-- **M9. `OversampledClipper` isn't oversampling in the DSP sense.** It linearly
+- ~~**M9. `OversampledClipper` isn't oversampling in the DSP sense.** It linearly
   interpolates between two consecutive *input* samples (adds no bandwidth) and
   box-filter decimates (adds ~half-sample delay and HF droop). It's a "transient
   smoother", not the true-peak/anti-aliasing stage the docs describe. Its
-  `set_sample_rate` stores a value that is never used.
+  `set_sample_rate` stores a value that is never used.~~ — FIXED (2026-11-09, same change): the clipper up-samples through cascaded 2× half-band IIR stages, clips at the high rate and comes back down (Normal/High/Render use 2/3/4 stages); `set_sample_rate` is gone. Flat to 20 kHz (0.000 dB; the box filter lost 8 dB at 18 kHz in Render); a 5 kHz sine at twice the ceiling folds back at −51.0 dB in Normal and −75.8 dB in Render (−32.4 and −33.0 before), also through the default hard clamp, because the oversampled curve starts at the ceiling ÷ 1.3 (maintainer's choice). The half-bands delay 1 kHz by 4.2–5.0 samples, not reported (maintainer's choice). Proven by `clipper_is_transparent_below_its_ceiling`, `clipper_alias_bounds_hold`, `clipper_alias_bounds_hold_through_the_hard_clamp`, `clipper_fold_back_falls_with_quality`, `clipper_delays_less_than_eight_samples` (`offline/mod.rs`), `eco_is_plain_clipping` and the half-band stage test in `half_band.rs`.
 - **M10. `InteractionState.exciter_force` is write-only** (`set_exciter_force`
   is called each sample; nothing reads the field). The "bidirectional" bus is
   feed-forward: exciters read displacement/velocity, but the force distribution

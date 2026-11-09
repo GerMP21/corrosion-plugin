@@ -67,7 +67,7 @@ MIDI Note Event
 │  L/R: WDF filter → Lorenz drive (one pair per channel) ─┐             │
 │  FEM body on (L+R)/2, × BODY amount, added to both ─────┤             │
 │  → HRTF spread → Space(Factory|Spring|Echo) →            │             │
-│  OversampledClipper (per channel)      (all quality modes)             │
+│  OversampledClipper (per channel, half-band IIR 1/4/8/16×)            │
 └─────────────────────────────────────────────────────────────────────┘
                                        │
                                        ▼
@@ -567,33 +567,38 @@ Stage summary (as implemented):
 | Stage | Reality |
 |---|---|
 | WDF ladder filter | 4-pole ladder, soft transistor clip, hash-noise "tolerance" — not a Newton-Raphson WDF circuit |
-| Lorenz drive | real Lorenz attractor state used as a mild gain modulator + soft tube curve |
+| Lorenz drive | real Lorenz attractor state used as a mild gain modulator + soft tube curve. Bias Starvation starves the input gain to 0.3 while the attractor's `z` is above `38 − 22·starvation` (starved about 5 % of the time at 0.1, 87 % at 1, switching at every value), through a 5 ms one-pole follower so it sags rather than clicks; at 0 the stage is bit-identical to no starvation (`m06-m09-smooth-starvation-and-oversample-clipper`) |
 | FEM body | 8 fixed modal resonators — not a finite-element mesh |
 | HRTF spread | mid (L+R) delayed ≤1 ms with Width, common to both channels (not an ITD), through 1-pole LP/HP proximity shaping, plus the undelayed side, then crossfeed — not HRIR convolution; one delay buffer (`m07-m08-interpolate-echo-and-tidy-spread`) |
 | Factory reverb | 4 comb + 2 allpass (Schroeder) — not 3D FDTD |
 | Spring reverb | one delay line + 1-pole dispersion per channel — not a helical PDE |
 | Factory echo | modulated stereo delay; Machinery Movement's depth is smoothed (τ 20 ms) so knob changes don't jump the delay; unmodulated reads are whole samples, modulated reads use 4-point Hermite interpolation (no zipper); High Frequency Damping is a one-pole low-pass in the feedback loop (20 kHz bypassed at 0 → 1.5 kHz at 1), so each repeat is darker; wet level fixed at 0.7 (`m07-m08-interpolate-echo-and-tidy-spread`) |
-| Oversampled clipper | soft diode clip; **the oversample factor is currently a no-op** (see code review) |
+| Oversampled clipper | soft diode clip run at 4/8/16× through cascaded 2× polyphase half-band IIR stages (`half_band.rs`: elliptic design, 9/5/4/4 all-pass coefficients, flat to 22/48 of the host rate, 93–107 dB stop band), up → curve → down; Eco clips at the host rate. When oversampling, the curve starts at the ceiling ÷ 1.3, so the filters' overshoot stays under the output limiter. The half-bands delay low frequencies by 4–5 samples (not reported as latency) (`m06-m09-smooth-starvation-and-oversample-clipper`) |
 
 ### Quality modes (`QualityMode` → `PostQualityMode`)
 
-| Mode | Oversample factor requested | Chain behavior |
-|---|---|---|
-| Eco | 1× | full chain |
-| Normal (default) | 4× | full chain |
-| High | 8× | full chain |
-| Render | 16× | full chain |
+| Mode | Clipper | Clips from | Alias, 5 kHz at 2× ceiling | Delay at 1 kHz |
+|---|---|---|---|---|
+| Eco | 1× (curve at the host rate) | ceiling | −25.4 dB | 0 |
+| Normal (default) | 4× (2 half-band stages) | ceiling ÷ 1.3 | −51.0 dB | 4.2 samples |
+| High | 8× (3 stages) | ceiling ÷ 1.3 | −64.1 dB | 4.7 samples |
+| Render | 16× (4 stages) | ceiling ÷ 1.3 | −75.8 dB | 5.0 samples |
 
-The mapping is wired end-to-end (param → `set_quality_mode` → `set_oversample_factor`),
-and every mode runs the same stages. **However the clipper's
-oversampling math does not actually oversample** (it zero-order-holds a single
-input and averages identical copies), so Normal/High/Render are sonically
-identical at the clipper. This is the top defect in `docs/code-review.md`.
+The mapping is wired end-to-end (param → `set_quality_mode` →
+`PostQualityMode::clipper_oversample_factor` → `set_oversample_factor`), and
+every mode runs the same stages. Below its threshold the clipper is flat
+(0.000 dB to 20 kHz at 48 kHz in every mode). The alias figures hold through
+the default hard clamp too (`clipper_alias_bounds_hold`,
+`clipper_alias_bounds_hold_through_the_hard_clamp`; bounds −40 dB Normal,
+−60 dB Render). No fixed margin can keep every overshoot under the clamp: with
+extreme drive in the top octaves, peaks reach 1.7× the curve's threshold and
+the clamp clips them.
 
 ### Output protection
 
 The **Analog Ceiling** parameter (0.5–1.0, default 0.9661 ≈ **−0.3 dBFS**) is
-the output ceiling. The post-chain clipper clips at it, and after output gain
+the output ceiling. The post-chain clipper clips at it in Eco and at it ÷ 1.3
+when oversampling (headroom for the half-bands' overshoot), and after output gain
 the selected limiter stops at it: **Hard** (default) is
 `apply_output_limiter(sample, ceiling)`, a clamp to `±ceiling`; **Lookahead**
 uses it as its threshold (`h07-hard-limiter-honors-analog-ceiling`). The Lookahead limiter's delay (`LOOKAHEAD_LIMITER_SAMPLES`) is reported to the host as latency in `initialize`, from the restored Limiter Mode, and again whenever the mode changes (`Corrosion::latency_change`). So no
@@ -627,7 +632,7 @@ bundle/validator flow uses `x86_64-unknown-linux-gnu`.
 | Feature | Status | Evidence |
 |---|---|---|
 | Quality modes (Eco/Normal/High/Render) | Implemented | `params.rs` `QualityMode`, `post_chain.rs` `set_quality_mode`, `lib.rs` mapping |
-| Configurable oversampling 1/4/8/16 | Wired but **ineffective** | `oversampled_clipper.rs` factor is a no-op (see code review) |
+| Configurable oversampling 1/4/8/16 | Implemented | `oversampled_clipper.rs` + `half_band.rs`: half-band IIR up/down (`m06-m09-smooth-starvation-and-oversample-clipper`) |
 | Idle rendering optimization | Implemented | `Voice::rendering` flag + `is_rendering()` gating in `manager.rs` |
 | Aliasing measurement | Implemented (DFT proxy) | `offline/mod.rs::analyze_post_chain_aliasing`, `render --suite aliasing` |
 | Output ceiling −0.3 dBFS | Implemented | `analog_ceiling` (default 0.9661 = `LIMITER_THRESHOLD`) is the ceiling in both limiter modes |
@@ -649,9 +654,11 @@ bundle/validator flow uses `x86_64-unknown-linux-gnu`.
 - **Approximate post DSP.** The post/space/output stages are intentionally
   cheaper than `detailed-specs/post-processing.md`. Treat that spec as a design
   target, not a description of shipped behavior.
-- **Oversampled clipper is effectively a soft clipper.** Until the no-op is fixed,
-  nonlinear-stage aliasing is unmitigated (and is exactly what the aliasing
-  harness measures).
+- **Only the clipper is oversampled.** The Lorenz drive and the WDF filter's
+  soft clip run at the host rate, so their aliasing is part of the sound: the
+  whole-chain aliasing harness (drive 2.5) measures about −23 dB in every
+  oversampled mode, the drive's own figure, while the clipper alone reaches
+  −51 to −76 dB.
 - **Single algorithmic resonator path.** The former dual path was retired
   (implemented 2026-05-27, see §5 and `docs/backlog.md`): `complex_algo` is gone,
   the per-object algorithmic generators are the sole engine, 14 per-object
