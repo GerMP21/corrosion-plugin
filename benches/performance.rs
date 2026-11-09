@@ -331,59 +331,6 @@ fn bench_plugin_output_path(c: &mut Criterion) {
     });
 }
 
-// TEMPORARY (add-asymmetric-diode-stage task 2.3): tanh variants, twins
-// within one run.
-fn bench_tanh_variants(c: &mut Criterion) {
-    use corrosion::dsp::post_processing::oversampled_clipper::TANH_VARIANT;
-    use std::sync::atomic::Ordering;
-    for (variant, name) in [(0u8, "libm"), (1, "rational"), (2, "table")] {
-        c.bench_function(&format!("diode_stage_hot_render_{name}"), |b| {
-            TANH_VARIANT.store(variant, Ordering::Relaxed);
-            let mut clipper = corrosion::dsp::OversampledClipper::new();
-            clipper.set_oversample_factor(16);
-            b.iter(|| {
-                let mut acc = 0.0f32;
-                for i in 0..4_096 {
-                    let x = 1.93 * (i as f32 * 0.6545).sin();
-                    let (l, r) = clipper.process_stereo(x, -x);
-                    acc += l + r;
-                }
-                black_box(acc)
-            })
-        });
-    }
-}
-
-fn bench_plugin_output_path_named(c: &mut Criterion, name: &str) {
-    let path = concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/presets/factory/sheet_lightning.corrosion-preset"
-    );
-    let mut preset = Preset::load(std::path::Path::new(path)).expect("load preset");
-    preset.quality_mode = 3;
-    let notes: Vec<OfflineNote> = (52..68)
-        .map(|note| OfflineNote::on(0, note, 0.85))
-        .collect();
-    c.bench_function(&format!("plugin_output_path_render_tanh_{name}"), |b| {
-        b.iter_batched(
-            || PresetRenderer::new(&preset),
-            |mut renderer| black_box(renderer.render(&notes, 48_000, 4_096)),
-            BatchSize::LargeInput,
-        )
-    });
-}
-
-fn bench_plugin_output_path_tanh(c: &mut Criterion) {
-    use corrosion::dsp::post_processing::oversampled_clipper::TANH_VARIANT;
-    use std::sync::atomic::Ordering;
-    for (variant, name) in [(0u8, "libm"), (1, "rational"), (2, "table")] {
-        TANH_VARIANT.store(variant, Ordering::Relaxed);
-        bench_plugin_output_path_named(c, name);
-    }
-}
-
-criterion_group!(tanh, bench_tanh_variants, bench_plugin_output_path_tanh);
-
 criterion_group!(
     benches,
     bench_single_voice_manager,
@@ -400,4 +347,4 @@ criterion_group!(
     bench_plugin_output_path,
     bench_idle_post_chain
 );
-criterion_main!(benches, tanh);
+criterion_main!(benches);

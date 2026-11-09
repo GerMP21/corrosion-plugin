@@ -81,36 +81,31 @@ const DC_CUTOFF_HZ: f32 = 2.0;
 /// blocker fades in with the asymmetry.
 const DC_FULL_ASYMMETRY: f32 = 0.05;
 
-// TEMPORARY (task 2.3): tanh variants compared in one benchmark run.
-#[doc(hidden)]
-pub static TANH_VARIANT: std::sync::atomic::AtomicU8 = std::sync::atomic::AtomicU8::new(0);
-const TABLE_POINTS: usize = 513;
-const TABLE_MAX: f32 = 8.0;
-static TANH_TABLE: std::sync::OnceLock<[f32; TABLE_POINTS]> = std::sync::OnceLock::new();
-fn tanh_table() -> &'static [f32; TABLE_POINTS] {
+/// Points in the tanh table, over `[0, TANH_TABLE_MAX]`.
+const TANH_TABLE_POINTS: usize = 513;
+/// Past this the table returns its last point (tanh(8) = 1 − 2.3e-7).
+const TANH_TABLE_MAX: f32 = 8.0;
+static TANH_TABLE: std::sync::OnceLock<[f32; TANH_TABLE_POINTS]> = std::sync::OnceLock::new();
+
+/// The tanh table, built once (from `OversampledClipper::new`, off the audio
+/// thread; no heap allocation).
+fn tanh_table() -> &'static [f32; TANH_TABLE_POINTS] {
     TANH_TABLE.get_or_init(|| {
         std::array::from_fn(|i| {
-            (f64::from(TABLE_MAX) * i as f64 / (TABLE_POINTS - 1) as f64).tanh() as f32
+            (f64::from(TANH_TABLE_MAX) * i as f64 / (TANH_TABLE_POINTS - 1) as f64).tanh() as f32
         })
     })
 }
+
+/// tanh of `x` (0 or more) by linear interpolation in the table: error under
+/// 2.5e-5, monotonic, and the same on every libm. It took 0.63× libm's time
+/// for the clipper alone at 16× (`add-asymmetric-diode-stage`, task 2.3).
 #[inline(always)]
-fn tanh_v<const V: u8>(x: f32, table: &[f32; TABLE_POINTS]) -> f32 {
-    match V {
-        0 => x.tanh(),
-        1 => {
-            let x2 = x * x;
-            let r = x * (135_135.0 + x2 * (17_325.0 + x2 * (378.0 + x2)))
-                / (135_135.0 + x2 * (62_370.0 + x2 * (3_150.0 + 28.0 * x2)));
-            r.min(1.0)
-        }
-        _ => {
-            let u = x.min(TABLE_MAX) * ((TABLE_POINTS - 1) as f32 / TABLE_MAX);
-            let i = (u as usize).min(TABLE_POINTS - 2);
-            let f = u - i as f32;
-            table[i] + (table[i + 1] - table[i]) * f
-        }
-    }
+fn table_tanh(x: f32, table: &[f32; TANH_TABLE_POINTS]) -> f32 {
+    let position = x.min(TANH_TABLE_MAX) * ((TANH_TABLE_POINTS - 1) as f32 / TANH_TABLE_MAX);
+    let index = (position as usize).min(TANH_TABLE_POINTS - 2);
+    let fraction = position - index as f32;
+    table[index] + (table[index + 1] - table[index]) * fraction
 }
 
 /// One polarity of the curve: linear up to `knee`, then
@@ -135,16 +130,11 @@ impl Knee {
 
     /// The curve on a magnitude `x` (0 or more).
     #[inline(always)]
-    fn apply(&self, x: f32) -> f32 {
-        self.apply_v::<0>(x, tanh_table())
-    }
-
-    #[inline(always)]
-    fn apply_v<const V: u8>(&self, x: f32, table: &[f32; TABLE_POINTS]) -> f32 {
+    fn apply(&self, x: f32, table: &[f32; TANH_TABLE_POINTS]) -> f32 {
         if x <= self.knee {
             x
         } else {
-            self.knee + self.span * tanh_v::<V>((x - self.knee) * self.inv_span, table)
+            self.knee + self.span * table_tanh((x - self.knee) * self.inv_span, table)
         }
     }
 }
@@ -152,6 +142,9 @@ impl Knee {
 /// The output clipper: the diode curve, oversampled per quality mode.
 pub struct OversampledClipper {
     ceiling: f32,
+    /// The ceiling ÷ this is the curve's limit (`CEILING_HEADROOM`; tests
+    /// sweep it).
+    headroom: f32,
     /// Diode Softness and Asymmetry: targets and smoothed values.
     softness_target: f32,
     asymmetry_target: f32,
@@ -197,8 +190,11 @@ impl OversampledClipper {
             let transition = 0.25 - PASS_EDGE / f64::from(2u32 << stage);
             HalfBandCoefs::design(STAGE_ATTENUATION_DB, transition)
         });
+        // Build the shared tanh table here, not on the audio thread.
+        let _ = tanh_table();
         let mut clipper = Self {
             ceiling: 0.9661,
+            headroom: CEILING_HEADROOM,
             softness_target: 0.5,
             asymmetry_target: 0.25,
             softness: 0.5,
@@ -249,7 +245,15 @@ impl OversampledClipper {
 
     /// The curve's positive limit, the same in every quality mode.
     pub fn limit(&self) -> f32 {
-        self.ceiling / CEILING_HEADROOM
+        self.ceiling / self.headroom
+    }
+
+    /// Test-only: a different headroom, for the sweep that sets
+    /// `CEILING_HEADROOM`.
+    #[cfg(test)]
+    pub(crate) fn set_headroom_for_test(&mut self, headroom: f32) {
+        self.headroom = headroom;
+        self.update_curve();
     }
 
     /// Sets the oversampling factor: 1, 2, 4, 8 or 16 (others round down to
@@ -272,66 +276,10 @@ impl OversampledClipper {
     /// Processes a stereo frame, each channel through its own filters.
     pub fn process_stereo(&mut self, left: f32, right: f32) -> (f32, f32) {
         self.advance_controls();
-        match TANH_VARIANT.load(std::sync::atomic::Ordering::Relaxed) {
-            0 => (
-                self.process_channel_v::<0>(left, 0),
-                self.process_channel_v::<0>(right, 1),
-            ),
-            1 => (
-                self.process_channel_v::<1>(left, 0),
-                self.process_channel_v::<1>(right, 1),
-            ),
-            _ => (
-                self.process_channel_v::<2>(left, 0),
-                self.process_channel_v::<2>(right, 1),
-            ),
-        }
-    }
-
-    fn process_channel_v<const V: u8>(&mut self, input: f32, channel: usize) -> f32 {
-        let table = tanh_table();
-        if self.stages == 0 {
-            let clipped = self.clip_v::<V>(input, table);
-            return self.remove_dc(clipped, channel);
-        }
-        let mut a = [0.0f32; MAX_FACTOR];
-        let mut b = [0.0f32; MAX_FACTOR];
-        a[0] = input;
-        let mut len = 1;
-        for stage in 0..self.stages {
-            let (coefs, state) = (&self.coefs[stage], &mut self.up[channel][stage]);
-            for i in 0..len {
-                let pair = state.upsample(coefs, a[i]);
-                b[2 * i] = pair[0];
-                b[2 * i + 1] = pair[1];
-            }
-            len *= 2;
-            std::mem::swap(&mut a, &mut b);
-        }
-        for i in 0..len {
-            a[i] = self.clip_v::<V>(a[i], table);
-        }
-        for stage in (0..self.stages).rev() {
-            let (coefs, state) = (&self.coefs[stage], &mut self.down[channel][stage]);
-            len /= 2;
-            for i in 0..len {
-                b[i] = state.downsample(coefs, [a[2 * i], a[2 * i + 1]]);
-            }
-            std::mem::swap(&mut a, &mut b);
-        }
-        self.remove_dc(a[0], channel)
-    }
-
-    #[inline(always)]
-    fn clip_v<const V: u8>(&mut self, x: f32, table: &[f32; TABLE_POINTS]) -> f32 {
-        let y = if x >= 0.0 {
-            self.positive.apply_v::<V>(x, table)
-        } else {
-            -self.negative.apply_v::<V>(-x, table)
-        };
-        self.peak_in = self.peak_in.max(x.abs());
-        self.peak_out = self.peak_out.max(y.abs());
-        y
+        (
+            self.process_channel(left, 0),
+            self.process_channel(right, 1),
+        )
     }
 
     /// The level reduction since the last call, in dB: the curve input's
@@ -415,8 +363,9 @@ impl OversampledClipper {
     /// high-rate sample, down-samples back through the stages in reverse,
     /// and removes the DC.
     fn process_channel(&mut self, input: f32, channel: usize) -> f32 {
+        let table = tanh_table();
         if self.stages == 0 {
-            let clipped = self.clip_and_meter(input);
+            let clipped = self.clip_and_meter(input, table);
             return self.remove_dc(clipped, channel);
         }
 
@@ -436,7 +385,7 @@ impl OversampledClipper {
         }
 
         for i in 0..len {
-            a[i] = self.clip_and_meter(a[i]);
+            a[i] = self.clip_and_meter(a[i], table);
         }
 
         for stage in (0..self.stages).rev() {
@@ -452,19 +401,19 @@ impl OversampledClipper {
 
     /// The curve on one sample, tracking the meter's peaks.
     #[inline(always)]
-    fn clip_and_meter(&mut self, x: f32) -> f32 {
-        let y = self.diode_clip(x);
+    fn clip_and_meter(&mut self, x: f32, table: &[f32; TANH_TABLE_POINTS]) -> f32 {
+        let y = self.diode_clip(x, table);
         self.peak_in = self.peak_in.max(x.abs());
         self.peak_out = self.peak_out.max(y.abs());
         y
     }
 
     #[inline(always)]
-    fn diode_clip(&self, x: f32) -> f32 {
+    fn diode_clip(&self, x: f32, table: &[f32; TANH_TABLE_POINTS]) -> f32 {
         if x >= 0.0 {
-            self.positive.apply(x)
+            self.positive.apply(x, table)
         } else {
-            -self.negative.apply(-x)
+            -self.negative.apply(-x, table)
         }
     }
 
@@ -489,7 +438,7 @@ impl OversampledClipper {
     /// DC removal or any filtering.
     #[cfg(test)]
     pub(crate) fn curve(&self, x: f32) -> f32 {
-        self.diode_clip(x)
+        self.diode_clip(x, tanh_table())
     }
 }
 
@@ -504,6 +453,23 @@ mod tests {
     use super::*;
 
     // --- `diode-stage` (`add-asymmetric-diode-stage`) ---
+
+    #[test]
+    fn table_tanh_is_accurate_and_monotonic() {
+        // Decision 7: error under 1e-4 and monotonic, checked densely past
+        // the table's end.
+        let table = tanh_table();
+        let mut worst = 0.0f64;
+        let mut previous = 0.0f32;
+        for i in 0..=1_200_000 {
+            let x = i as f32 * 1e-5;
+            let y = table_tanh(x, table);
+            worst = worst.max((f64::from(y) - f64::from(x).tanh()).abs());
+            assert!(y >= previous, "not monotonic at {x}");
+            previous = y;
+        }
+        assert!(worst < 1e-4, "worst error {worst:.2e}");
+    }
 
     /// Eco, Normal, High and Render.
     const FACTORS: [usize; 4] = [1, 4, 8, 16];

@@ -68,7 +68,27 @@ pub fn migrate_preset_json(mut value: serde_json::Value) -> serde_json::Value {
     }
     migrate_wander_rate(&mut value);
     migrate_onset_level(&mut value);
+    migrate_diode_stage(&mut value);
     value
+}
+
+/// Before `diode_asymmetry` existed, the clipper had a hard, symmetric knee
+/// and Diode Softness barely moved it. A preset without the field gets
+/// Diode Softness 0 and Diode Asymmetry 0, the setting closest to that,
+/// whatever its old Softness (`add-asymmetric-diode-stage`). The field is
+/// optional, so the schema version stays at 4.
+fn migrate_diode_stage(value: &mut serde_json::Value) {
+    let Some(extra) = value
+        .get_mut("extra")
+        .and_then(serde_json::Value::as_object_mut)
+    else {
+        return;
+    };
+    if extra.contains_key("diode_asymmetry") {
+        return;
+    }
+    extra.insert("diode_softness".into(), serde_json::json!(0.0));
+    extra.insert("diode_asymmetry".into(), serde_json::json!(0.0));
 }
 
 /// The onset level an old patch got from Onset before Onset Level existed:

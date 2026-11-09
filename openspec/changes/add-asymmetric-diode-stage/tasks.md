@@ -9,11 +9,11 @@
 
 - [x] 2.1 Replace `diode_clip` with the per-polarity tanh knee (decisions 1–3), with smoothed Softness and Asymmetry and constants recomputed only while they move. Use the same limit in every quality mode. Verify the curve tests that don't depend on DC removal or headroom pass.
 - [x] 2.2 Add the 2 Hz DC blocker (5 Hz in the first draft, see decision 5) with its asymmetry-weighted fade (decision 5). Verify the DC, unfiltered-symmetric and no-click tests pass.
-- [ ] 2.3 Pick the tanh evaluation (table or rational approximation, decision 7) by comparing `plugin_output_path_sixteen_voices_render` within one run; check the error bound with a test.
+- [x] 2.3 Pick the tanh evaluation (table or rational approximation, decision 7) by comparing `plugin_output_path_sixteen_voices_render` within one run; check the error bound with a test.
 
 ## 3. Headroom and cost
 
-- [ ] 3.1 Sweep the headroom `H` (decision 4) and set it. Verify the peak test in every mode at Asymmetry 0, 0.25 and 1, and the `output-clipper` alias bounds (alone and through the hard clamp) at Softness 0 and at the defaults. Record the sweep. Stop and ask if `H` must exceed 1.3 or one constant can't satisfy both.
+- [x] 3.1 Sweep the headroom `H` (decision 4) and set it. Verify the peak test in every mode at Asymmetry 0, 0.25 and 1, and the `output-clipper` alias bounds (alone and through the hard clamp) at Softness 0 and at the defaults. Record the sweep. Stop and ask if `H` must exceed 1.3 or one constant can't satisfy both.
 - [ ] 3.2 Measure `plugin_output_path_sixteen_voices` and its Render twin against a clean worktree (median of 5 within-run ratios). Record them; stop and ask if Render is more than 20 % slower.
 
 ## 4. Parameter, migration and editor

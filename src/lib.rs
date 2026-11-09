@@ -381,6 +381,22 @@ fn migrate_host_onset_level(
     );
 }
 
+/// Host state saved before Diode Asymmetry existed has no
+/// `diode_asymmetry`; its clipper had a hard, symmetric knee, so restore
+/// Diode Softness 0 and Diode Asymmetry 0, the closest setting
+/// (`add-asymmetric-diode-stage`). An empty state (nothing saved) is left to
+/// the defaults.
+fn migrate_host_diode_stage(
+    params: &mut std::collections::BTreeMap<String, nih_plug::wrapper::state::ParamValue>,
+) {
+    use nih_plug::wrapper::state::ParamValue;
+    if params.is_empty() || params.contains_key("diode_asymmetry") {
+        return;
+    }
+    params.insert("diode_softness".into(), ParamValue::F32(0.0));
+    params.insert("diode_asymmetry".into(), ParamValue::F32(0.0));
+}
+
 /// Maximum drive-amount-to-gain multiplier in `apply_drive`. A drive of `1.0`
 /// brings the input up by `1 + DRIVE_GAIN_SCALE` before the waveshaper.
 const DRIVE_GAIN_SCALE: f32 = 4.0;
@@ -1203,6 +1219,7 @@ impl Plugin for Corrosion {
     fn filter_state(state: &mut PluginState) {
         migrate_host_wander_rate(&mut state.params);
         migrate_host_onset_level(&mut state.params);
+        migrate_host_diode_stage(&mut state.params);
     }
 
     /// Called once when plugin is instantiated.

@@ -529,7 +529,21 @@ fn clipper_sine(
     input_bin: usize,
     amplitude: f32,
 ) -> (Vec<f32>, Vec<f32>) {
-    let mut clipper = output_clipper(quality_mode);
+    clipper_sine_through(
+        output_clipper(quality_mode),
+        frame_count,
+        input_bin,
+        amplitude,
+    )
+}
+
+/// [`clipper_sine`] through a given clipper.
+fn clipper_sine_through(
+    mut clipper: OversampledClipper,
+    frame_count: usize,
+    input_bin: usize,
+    amplitude: f32,
+) -> (Vec<f32>, Vec<f32>) {
     let step = std::f64::consts::TAU * input_bin as f64 / frame_count as f64;
     let sine =
         |frame: usize| (amplitude as f64 * (step * (frame % frame_count) as f64).sin()) as f32;
@@ -970,26 +984,35 @@ mod tests {
     }
 
     /// `output-clipper`: the same bounds through the default output path,
-    /// the clipper followed by the hard clamp at the same ceiling.
+    /// the clipper followed by the hard clamp at the same ceiling, at the
+    /// default Diode Softness and Asymmetry and at Softness 0 / Asymmetry 0,
+    /// the setting migrated state loads with (`add-asymmetric-diode-stage`).
     #[test]
     fn clipper_alias_bounds_hold_through_the_hard_clamp() {
-        let through_clamp = |mode: PostQualityMode| {
+        let through_clamp = |mode: PostQualityMode, softness: f32, asymmetry: f32| {
             let input_bin = 427; // 5004 Hz at 48 kHz, as in analyze_clipper_aliasing
-            let (_, out) = super::clipper_sine(CLIPPER_FRAMES, mode, input_bin, 2.0 * 0.9661);
+            let mut clipper = super::output_clipper(mode);
+            clipper.set_parameters(0.9661, softness, asymmetry);
+            clipper.reset();
+            let (_, out) =
+                super::clipper_sine_through(clipper, CLIPPER_FRAMES, input_bin, 2.0 * 0.9661);
             let clamped: Vec<f32> = out
                 .iter()
                 .map(|y| crate::apply_output_limiter(*y, crate::LIMITER_THRESHOLD))
                 .collect();
             super::aliasing_report(&clamped, input_bin, 48_000).alias_ratio_db
         };
-        let (normal, render) = (
-            through_clamp(PostQualityMode::Normal),
-            through_clamp(PostQualityMode::Render),
-        );
-        assert!(
-            normal <= -40.0 && render <= -60.0,
-            "through the hard clamp: Normal {normal:.1} dB (bound -40), Render {render:.1} dB (bound -60)"
-        );
+        for (softness, asymmetry) in [(0.5, 0.25), (0.0, 0.0)] {
+            let (normal, render) = (
+                through_clamp(PostQualityMode::Normal, softness, asymmetry),
+                through_clamp(PostQualityMode::Render, softness, asymmetry),
+            );
+            assert!(
+                normal <= -40.0 && render <= -60.0,
+                "Softness {softness}, Asymmetry {asymmetry}, through the hard clamp: \
+                 Normal {normal:.1} dB (bound -40), Render {render:.1} dB (bound -60)"
+            );
+        }
     }
 
     #[test]
@@ -1017,6 +1040,79 @@ mod tests {
                 "{mode:?} lag at {:.0} Hz is {:.3} samples",
                 r.frequency_hz,
                 r.lag_samples
+            );
+        }
+    }
+
+    /// Task 3.1: the headroom sweep that sets `CEILING_HEADROOM`. Per
+    /// headroom: the worst peak over the ceiling (5 kHz at twice the
+    /// ceiling, Softness 0.5, Asymmetry 0 / 0.25 / 1, every mode, after the
+    /// DC removal; a peak sweep over 50 Hz–19 kHz too), and the alias
+    /// through the hard clamp in Normal and Render at Softness 0 /
+    /// Asymmetry 0 (migrated state) and at the defaults.
+    #[test]
+    #[ignore = "measurement: headroom sweep for the diode stage"]
+    fn print_headroom_sweep() {
+        let ceiling = crate::LIMITER_THRESHOLD;
+        let clipper = |mode: PostQualityMode, headroom: f32, softness: f32, asymmetry: f32| {
+            let mut c = super::OversampledClipper::new();
+            c.set_sample_rate(48_000.0);
+            c.set_oversample_factor(mode.clipper_oversample_factor());
+            c.set_parameters(ceiling, softness, asymmetry);
+            c.set_headroom_for_test(headroom);
+            c.reset();
+            c
+        };
+        for headroom in [1.1f32, 1.15, 1.2, 1.25, 1.3] {
+            let mut worst_5k = 0.0f32;
+            let mut worst_any = (0.0f32, 0.0f32, 0.0f32);
+            for mode in ALL_QUALITIES {
+                for asymmetry in [0.0f32, 0.25, 1.0] {
+                    for hz in [
+                        50.0f32, 200.0, 1_000.0, 3_000.0, 5_000.0, 7_000.0, 10_000.0, 15_000.0,
+                        19_000.0,
+                    ] {
+                        let mut c = clipper(mode, headroom, 0.5, asymmetry);
+                        let step = std::f64::consts::TAU * f64::from(hz) / 48_000.0;
+                        let peak = (0..48_000)
+                            .map(|i| {
+                                let x = 2.0 * f64::from(ceiling) * (step * i as f64).sin();
+                                c.process(x as f32).abs()
+                            })
+                            .fold(0.0f32, f32::max)
+                            / ceiling;
+                        if hz == 5_000.0 {
+                            worst_5k = worst_5k.max(peak);
+                        }
+                        if peak > worst_any.0 {
+                            worst_any = (peak, hz, asymmetry);
+                        }
+                    }
+                }
+            }
+            let alias = |mode: PostQualityMode, softness: f32, asymmetry: f32| {
+                let (_, out) = super::clipper_sine_through(
+                    clipper(mode, headroom, softness, asymmetry),
+                    CLIPPER_FRAMES,
+                    427,
+                    2.0 * ceiling,
+                );
+                let clamped: Vec<f32> = out
+                    .iter()
+                    .map(|y| crate::apply_output_limiter(*y, ceiling))
+                    .collect();
+                super::aliasing_report(&clamped, 427, 48_000).alias_ratio_db
+            };
+            println!(
+                "H {headroom:.2}: 5 kHz worst peak {worst_5k:.4}x ceiling; any-frequency worst {:.4}x at {} Hz, asymmetry {}; \
+                 alias through clamp, Softness 0/Asym 0: Normal {:.1} Render {:.1}; defaults: Normal {:.1} Render {:.1} dB",
+                worst_any.0,
+                worst_any.1,
+                worst_any.2,
+                alias(PostQualityMode::Normal, 0.0, 0.0),
+                alias(PostQualityMode::Render, 0.0, 0.0),
+                alias(PostQualityMode::Normal, 0.5, 0.25),
+                alias(PostQualityMode::Render, 0.5, 0.25),
             );
         }
     }

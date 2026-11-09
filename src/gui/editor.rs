@@ -101,9 +101,50 @@ struct EditorUiState {
     randomizer_noise: crate::dsp::utils::noise::Noise,
     /// The diode stage's reduction, published by the audio thread.
     diode_meter: Arc<crate::dsp::DiodeMeter>,
+    /// The reduction the limiter dot shows (dB, capped at full brightness)
+    /// and the editor time it was last updated.
+    diode_dot_db: f32,
+    diode_dot_time: Option<f64>,
+}
+
+/// Reductions under this leave the limiter dot at rest.
+const DIODE_DOT_REST_DB: f32 = 0.1;
+/// The reduction at which the dot is at full brightness.
+const DIODE_DOT_FULL_DB: f32 = 6.0;
+/// How fast the dot falls back: from full to rest in about 300 ms.
+const DIODE_DOT_RELEASE_DB_PER_SECOND: f32 = 20.0;
+/// The dot's brightness at rest, as before it was a meter.
+const DIODE_DOT_REST_BRIGHTNESS: f32 = 0.3;
+
+/// The dot's colour for a shown reduction: resting under 0.1 dB, then
+/// brightening linearly to full `DANGER_RED` at 6 dB
+/// (`add-asymmetric-diode-stage`).
+fn diode_dot_colour(reduction_db: f32) -> egui::Color32 {
+    if reduction_db < DIODE_DOT_REST_DB {
+        DANGER_RED.linear_multiply(DIODE_DOT_REST_BRIGHTNESS)
+    } else if reduction_db >= DIODE_DOT_FULL_DB {
+        DANGER_RED
+    } else {
+        let t = (reduction_db - DIODE_DOT_REST_DB) / (DIODE_DOT_FULL_DB - DIODE_DOT_REST_DB);
+        DANGER_RED.linear_multiply(DIODE_DOT_REST_BRIGHTNESS + (1.0 - DIODE_DOT_REST_BRIGHTNESS) * t)
+    }
 }
 
 impl EditorUiState {
+    /// Takes the reduction the audio thread published since the last frame
+    /// and returns what the dot shows at editor time `now` (seconds): rising
+    /// at once, falling back at `DIODE_DOT_RELEASE_DB_PER_SECOND`.
+    fn advance_diode_dot(&mut self, now: f64) -> f32 {
+        let fresh = self.diode_meter.take().min(DIODE_DOT_FULL_DB);
+        let elapsed = self
+            .diode_dot_time
+            .map_or(0.0, |previous| (now - previous).max(0.0)) as f32;
+        self.diode_dot_time = Some(now);
+        let released = (self.diode_dot_db - DIODE_DOT_RELEASE_DB_PER_SECOND * elapsed).max(0.0);
+        self.diode_dot_db = fresh.max(released);
+        self.diode_dot_db
+    }
+
     fn new(last_ui_scale: i32, last_requested_size: (u32, u32)) -> Self {
         let mut state = Self {
             last_ui_scale,
@@ -117,6 +158,8 @@ impl EditorUiState {
             confirm_overwrite: false,
             save_message: None,
             diode_meter: Arc::new(crate::dsp::DiodeMeter::new()),
+            diode_dot_db: 0.0,
+            diode_dot_time: None,
             randomizer_mode: crate::randomizer::RandomizerMode::Safe,
             randomizer_noise: crate::dsp::utils::noise::Noise::new(
                 std::time::SystemTime::now()
@@ -1830,12 +1873,21 @@ fn render_ui(
 
     ui.add_space(height_pct(scale, 0.0052083335));
 
+    // The limiter panel's dot shows the diode stage's reduction; keep
+    // repainting while it's lit, so it falls back to rest on its own.
+    let now = ui.ctx().input(|input| input.time);
+    let dot_db = state.advance_diode_dot(now);
+    if dot_db > DIODE_DOT_REST_DB {
+        ui.ctx().request_repaint();
+    }
+    let dot_colour = diode_dot_colour(dot_db);
+
     let original_item_spacing_x = ui.spacing().item_spacing.x;
     ui.spacing_mut().item_spacing.x = 0.0;
     ui.columns(3, |columns| {
         render_exciter_column(&mut columns[0], params, setter, scale);
         render_resonator_column(&mut columns[1], params, setter, scale);
-        render_processing_column(&mut columns[2], params, setter, scale);
+        render_processing_column(&mut columns[2], params, setter, scale, dot_colour);
     });
     ui.spacing_mut().item_spacing.x = original_item_spacing_x;
 
@@ -3093,6 +3145,7 @@ fn render_processing_column(
     params: &CorrosionParams,
     setter: &ParamSetter,
     scale: f32,
+    dot_colour: egui::Color32,
 ) {
     let panel = metal_panel(scale);
     panel.show(ui, |ui| {
@@ -3427,12 +3480,11 @@ fn render_processing_column(
                         ),
                         egui::Sense::hover(),
                     );
-                    let colour = DANGER_RED.linear_multiply(0.3);
-                    note_diode_dot(colour);
+                    note_diode_dot(dot_colour);
                     ui.painter().circle_filled(
                         dot_rect.center(),
                         height_pct(scale, 0.0052083335),
-                        colour,
+                        dot_colour,
                     );
                 });
             });
@@ -3456,6 +3508,16 @@ fn render_processing_column(
                 ui,
                 "Softness",
                 &params.diode_softness,
+                0.0,
+                1.0,
+                setter,
+                OFF_WHITE,
+                scale,
+            );
+            industrial_fader(
+                ui,
+                "Asymmetry",
+                &params.diode_asymmetry,
                 0.0,
                 1.0,
                 setter,

@@ -87,4 +87,29 @@ The same figures through the hard clamp (the clipper's peaks, 0.89 at most, stay
 
 *As built (code):* Softness and Asymmetry snap to their targets until the first sample is processed, and `reset()` snaps them too, so a preset loaded before playback doesn't glide in. The meter tracks the curve's input and output peaks on the high-rate samples.
 
+### tanh evaluation (task 2.3)
+
+Medians of five within-run ratios against libm's `tanhf`:
+
+| Variant | Error | Clipper alone, 16×, stereo, every sample in the knee | Whole output path, Render |
+|---|---|---|---|
+| Rational (Lambert 7/6, clamped at 1) | 9.6e-5 | 0.654× | 1.020× (noise) |
+| Table, 513 points on [0, 8], linear | 2.3e-5 | 0.629× | 1.035× (noise) |
+
+Chosen: the table (decision 7). It is the cheaper, its error is a quarter of the bound, it is monotonic by construction, and it doesn't depend on the libm, so gnu and musl compute the same curve. It is built once, in `OversampledClipper::new`, off the audio thread. `table_tanh_is_accurate_and_monotonic` checks it over [0, 12] in 1e-5 steps.
+
+### Headroom sweep (task 3.1)
+
+`print_headroom_sweep` (release build). Peaks after the DC removal, Softness 0.5, Asymmetry 0 / 0.25 / 1, every mode; alias through the hard clamp:
+
+| H | 5 kHz at 2 · ceiling, worst peak | Any frequency 50 Hz–19 kHz, worst peak | Alias, Softness 0 / Asym 0, Normal / Render | Alias, defaults, Normal / Render |
+|---|---|---|---|---|
+| 1.10 | 1.125× ceiling | 1.383× (7 kHz) | −28.9 / −28.9 dB | −36.8 / −36.7 dB |
+| 1.15 | 1.088× | 1.338× | −31.5 / −31.4 | −46.1 / −45.9 |
+| 1.20 | 1.052× | 1.295× | −35.5 / −35.4 | −70.3 / −105.8 |
+| 1.25 | 1.019× | 1.254× | −43.2 / −43.5 | −68.3 / −105.4 |
+| **1.30** | **0.987×** | 1.215× | **−50.7 / −75.5** | **−67.0 / −104.9** |
+
+`H` stays at 1.3: it's the smallest swept value that keeps the 5 kHz test tone under the ceiling, and it holds the alias bounds (−40 / −60 dB) at Softness 0 as well as at the defaults. It can't drop for the soft default (Open Question 1): at 1.25 the test tone peaks 1.9 % over the ceiling. As with m06, no headroom covers every frequency: at 7 kHz the half-bands' overshoot still reaches 1.21× the ceiling, which the output limiter clamps; the spec only bounds the 5 kHz test tone. `clipper_alias_bounds_hold_through_the_hard_clamp` now checks Softness 0 / Asymmetry 0 too.
+
 *As built (test):* "Limits per polarity" is measured in Eco; in the oversampled modes the half-bands ring on the clipped edges and add several percent to the peak-to-peak span.
