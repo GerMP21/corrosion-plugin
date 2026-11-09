@@ -31,6 +31,7 @@
 
 - **Unmodulated reads stay whole samples:** with Machinery Movement 0 the delay is rounded as before, so repeats are single samples at the configured time (`unmodulated_echo_is_a_single_sample`). With movement above 0 the read is fractional (Hermite, `t = 0` returns the stored sample). The delay is clamped to at least 2 samples so the interpolator's newest point is always written.
 - **Damping filter:** coefficient `1 − exp(−2π·fc/fs)`, re-derived in `set_parameters` and `set_sample_rate`; exactly bypassed (coefficient 1) at 0, where the old gain law and the new one differ only by the fixed wet level.
+- **Machinery Movement is smoothed (added after verification):** the verification suggested measuring the switch from whole-sample to fractional reads when the knob leaves 0. The read switch itself moves the delay by under half a sample. The measurement found a larger, older problem: the LFO's phase runs even at Movement 0, so turning the knob jumped the delay to the LFO's current position, by tens of samples at Delay Time 1 even for 0.01. The modulation depth now follows the knob through a one-pole smoother (τ 20 ms, coefficient from the rate), and snaps to exactly 0 once the knob is at 0, so the whole-sample read and the single-sample scenario still hold.
 - **Spread:** `delay_buffer_left`/`delay_buffer_right` became one `delay_buffer`; both channels' proximity filters read the same delayed mid, as before.
 
 ## Migration Plan
@@ -60,3 +61,16 @@ The glide margin is small (1.17 against 1.2). The rest of the wet signal's steps
 ### Spread (task 3.1)
 
 Hashes of 48 000 samples of stereo noise (Width 1, proximity 0.7) through `HrtfSpread`, on the base commit (`32ff176`, clean worktree) and after the change: 44.1 kHz `9f0d356e2027f7b3`, 48 kHz `294286414e810dfc`, 192 kHz `04ae045bb796a881`, identical on both.
+
+### After verification
+
+- **Changing Machinery Movement:** a 1 kHz sine with Movement switched from 0 to 0.01 at Delay Time 1 stepped the wet signal by 0.197, against 0.061 before the switch: a tick from the delay jumping to the LFO's position. With the smoother:
+
+  | Change | Step before | Steady at new setting | Step after the change |
+  |---|---|---|---|
+  | 0 → 0.01, Delay Time 1, 48 kHz | 0.0605 | 0.0645 | 0.0650 |
+  | 0 → 1, Delay Time 0.25, 48 kHz | 0.0602 | 0.0765 | 0.0586 |
+  | 0.2 → 0.8, Delay Time 0.37, 44.1 kHz | 0.0550 | 0.0836 | 0.0669 |
+
+  The glide scenario is unchanged (1.17).
+- **Cost:** a release render of `hanging_chain_echo` with Movement 0.5 (16 notes, 2 s, median of 9) against the base commit (`9507936`, clean worktree), in three alternating rounds: after/before 1.044, 0.996, 1.023 (median 1.023, within this container's noise). The output differs, as intended.

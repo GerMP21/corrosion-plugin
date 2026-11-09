@@ -13,6 +13,8 @@
 
 - [x] 3.1 Remove the redundant spread buffer and rewrite the comments to describe the mid delay. Verify bit-identity with a one-off render hash of a Width 1 stereo scenario against a clean worktree, and record the hashes in Measurements.
 
+- [x] 3.2 *(Added after verification.)* Smooth Machinery Movement's modulation depth (τ 20 ms, snapping to exactly 0 at 0) so changing the knob can't jump the delay to the free-running LFO's position. Verify `changing_machinery_movement_does_not_tick` passes, and that the echo's cost stays within noise of the base.
+
 ## 4. Docs and close-out
 
 - [x] 4.1 Update the README's Echo controls and `docs/ARCHITECTURE.md`'s post-chain section; mark M7 and M8 FIXED in `FABLE-CODE-REVIEW-2026-07-07.md`. Run fmt, clippy `-D warnings` and the full suite, and verify all are green.

@@ -53,3 +53,9 @@ With HandStrike (the default exciter) a key-up changes nothing audible, so the p
 - All 11 `midi_control_tests` pass, and the 19 voice-manager tests are unchanged. `tests/no_alloc.rs` (debug) passes 9 of 9.
 - **Playing after a panic:** the first comparison differed from frame 3 703, about 1 100 samples into the note. Each note's noise seed comes from the voice manager's frame counter, which restarts at the end of the fade, mid-block. Comparing against a reset plugin that reaches the note at the same frame count gives bit-identical renders, so no state survives the panic.
 - **No change without the new messages:** a render hash of `sheet_lightning` (16 notes, released at 20 000 samples, 1 s) is `d776c098061dfd55` on the base commit (`9507936`, clean worktree) and on this change.
+
+### After verification
+
+- **Repeated note:** `repeated_note_under_the_pedal_keeps_one_voice` now counts pedal-held voices for the note after every strike and every release (at most one each time), and still requires the last strike to be held at the end.
+- **`Plugin::reset` lifts the pedal:** new test `plugin_reset_lifts_the_pedal`. It fails when `VoiceManager::reset` stops clearing `sustain_down` (checked by removing that line).
+- **Cost of the panic branch:** a release render of `sheet_lightning` (16 notes, 2 s, median of 9) against the base commit (`9507936`, clean worktree), in three alternating rounds: after/before 0.995, 0.986, 1.011, with identical output hashes.

@@ -1469,6 +1469,19 @@ impl ModalResonator {
         self.ring.bound
     }
 
+    /// Test-only: each mode's current frequency and the angle of the pole
+    /// it actually rings at (`m03-m20-start-at-host-rate-and-report-latency`).
+    #[cfg(test)]
+    pub(crate) fn mode_tuning_for_test(&self) -> impl Iterator<Item = (f32, f64)> + '_ {
+        self.modes.iter().map(|mode| {
+            let c = mode.coefficients;
+            (
+                mode.spec.frequency_hz,
+                (c.pole_im as f64).atan2(c.pole_re as f64),
+            )
+        })
+    }
+
     /// The pitch factor this sample's `apply_dynamics` aims for: the
     /// object's dynamic factor times the pitch bend.
     pub(crate) fn target_pitch_factor(&self) -> f32 {

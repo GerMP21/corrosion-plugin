@@ -572,7 +572,7 @@ Stage summary (as implemented):
 | HRTF spread | mid (L+R) delayed ≤1 ms with Width, common to both channels (not an ITD), through 1-pole LP/HP proximity shaping, plus the undelayed side, then crossfeed — not HRIR convolution; one delay buffer (`m07-m08-interpolate-echo-and-tidy-spread`) |
 | Factory reverb | 4 comb + 2 allpass (Schroeder) — not 3D FDTD |
 | Spring reverb | one delay line + 1-pole dispersion per channel — not a helical PDE |
-| Factory echo | modulated stereo delay; unmodulated reads are whole samples, modulated reads use 4-point Hermite interpolation (no zipper); High Frequency Damping is a one-pole low-pass in the feedback loop (20 kHz bypassed at 0 → 1.5 kHz at 1), so each repeat is darker; wet level fixed at 0.7 (`m07-m08-interpolate-echo-and-tidy-spread`) |
+| Factory echo | modulated stereo delay; Machinery Movement's depth is smoothed (τ 20 ms) so knob changes don't jump the delay; unmodulated reads are whole samples, modulated reads use 4-point Hermite interpolation (no zipper); High Frequency Damping is a one-pole low-pass in the feedback loop (20 kHz bypassed at 0 → 1.5 kHz at 1), so each repeat is darker; wet level fixed at 0.7 (`m07-m08-interpolate-echo-and-tidy-spread`) |
 | Oversampled clipper | soft diode clip; **the oversample factor is currently a no-op** (see code review) |
 
 ### Quality modes (`QualityMode` → `PostQualityMode`)

@@ -1383,6 +1383,12 @@ impl Voice {
         self.particle_rain.release();
     }
 
+    /// Test-only access to the voice's resonator.
+    #[cfg(test)]
+    pub(crate) fn resonator_for_test(&self) -> &ModalResonator {
+        &self.resonator
+    }
+
     /// Whether the sustain pedal is holding this note after its key was
     /// released (the voice is still `active`).
     pub fn is_pedal_held(&self) -> bool {

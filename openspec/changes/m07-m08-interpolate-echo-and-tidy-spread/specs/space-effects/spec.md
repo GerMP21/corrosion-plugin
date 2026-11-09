@@ -13,6 +13,10 @@ As Machinery Movement modulates the echo's delay, the echo SHALL read between sa
 - **WHEN** Machinery Movement is 0
 - **THEN** the echo's first repeat of an impulse is a single sample at the configured delay, as before
 
+#### Scenario: Changing Machinery Movement
+- **WHEN** Machinery Movement changes while a 1 kHz sine plays through the echo (0 to 0.01 at Delay Time 1, 0 to 1 at Delay Time 0.25, and 0.2 to 0.8 at 44.1 kHz)
+- **THEN** in the 100 ms after the change, no sample-to-sample step of the wet signal exceeds 1.2 times the larger of the step before the change and the step of a steady echo at the new setting
+
 ### Requirement: High Frequency Damping darkens the repeats
 High Frequency Damping SHALL low-pass the echo's repeats, more strongly at higher settings and more with each repeat, and SHALL NOT change the level of their low frequencies.
 

@@ -13,6 +13,8 @@
 - [x] 2.4 Compare a 48 kHz render hash of `plugin_output_path_sixteen_voices`'s scenario against a clean worktree, and count coefficient builds per note-on at 96 kHz before and after (temporary counter). Record both in Measurements.
 - [x] 2.5 *(Added: the maintainer chose to fix it here.)* Restart HeavyGrinding, PneumaticJet, ElectromagneticHum and ParticleRain from rest on every trigger (noise filter states, hum phase, particle accumulator and in-flight particles), so the fresh-versus-primed test passes for all 16 exciters. Verify `tests/no_alloc.rs` covers a retrigger on used voices.
 
+- [x] 2.6 *(Added after verification.)* Check the bend-before-first-sample scenario on the bank's pole angles directly, and confirm the check fails on a plugin that wasn't told the rate. Verify it passes.
+
 ## 3. Docs and close-out
 
 - [x] 3.1 Update `docs/ARCHITECTURE.md` (sample-rate rule: voices are rated at initialization; latency reporting) and mark M3 and M20 FIXED in `FABLE-CODE-REVIEW-2026-07-07.md`. Run fmt, clippy `-D warnings` and the full suite, and verify all are green.

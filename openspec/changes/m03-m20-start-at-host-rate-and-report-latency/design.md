@@ -61,3 +61,7 @@ None: no parameter or state changes.
 
   At 96 kHz every mode was built three times (bank fill, live controls at 48 kHz, rebuild on the first sample); now twice, as at 48 kHz.
 - `tests/no_alloc.rs` (debug): 9 pass, including the new `rate_change_and_retrigger_are_alloc_free`. CI lane: 360 tests pass; the golden mode-bank fixture is unchanged.
+
+### After verification
+
+The "Bend before the first sample" test now also checks the bank directly (`bend_before_first_sample_tunes_the_poles_for_the_host_rate`): after a note-on and a +2-semitone bend at 44.1 kHz, before any sample, every mode's pole angle is within 0.0001 cents of its bent frequency at 44.1 kHz. The same check on a plugin that wasn't told the rate, which is how the code behaved before this change, finds poles up to 146.7 cents off, so the test detects the problem the scenario names. The earlier render comparison couldn't, because the first sample's rebuild hid it.

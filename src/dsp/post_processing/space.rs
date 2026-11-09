@@ -292,6 +292,13 @@ pub struct FactoryEcho {
     /// (`m07-m08-interpolate-echo-and-tidy-spread`).
     damping_coeff: f32,
     damping_state: [f32; 2],
+    /// Machinery Movement as the modulation actually uses it, smoothed
+    /// toward the knob (`ECHO_MOVEMENT_SMOOTHING_SECONDS`), and the
+    /// smoother's per-sample coefficient. Without it, changing the knob
+    /// jumped the delay to wherever the free-running LFO was: tens of
+    /// samples, an audible tick.
+    movement_smoothed: f32,
+    movement_coeff: f32,
 }
 
 /// The echo's wet level. It was `1 − 0.6 · HF Damping` (the old broadband
@@ -301,6 +308,8 @@ const ECHO_WET_GAIN: f32 = 0.7;
 /// High Frequency Damping's low-pass cutoff at 0 (bypassed) and at 1.
 const ECHO_DAMPING_CUTOFF_OPEN_HZ: f32 = 20_000.0;
 const ECHO_DAMPING_CUTOFF_DARK_HZ: f32 = 1_500.0;
+/// Time constant of the Machinery Movement smoother (as the master drive's).
+const ECHO_MOVEMENT_SMOOTHING_SECONDS: f32 = 0.02;
 
 /// 4-point, 3rd-order Hermite interpolation between `x0` and `x1` at `t`
 /// (0..1), with neighbours `xm1` and `x2`. Returns `x0` exactly at `t = 0`.
@@ -326,13 +335,26 @@ impl FactoryEcho {
             phase: 0.0,
             damping_coeff: 1.0,
             damping_state: [0.0; 2],
+            movement_smoothed: 0.0,
+            movement_coeff: 1.0,
         }
         .with_damping_updated()
+        .with_movement_smoother_updated()
     }
 
     fn with_damping_updated(mut self) -> Self {
         self.update_damping();
         self
+    }
+
+    fn with_movement_smoother_updated(mut self) -> Self {
+        self.update_movement_smoother();
+        self
+    }
+
+    fn update_movement_smoother(&mut self) {
+        self.movement_coeff =
+            1.0 - (-1.0 / (ECHO_MOVEMENT_SMOOTHING_SECONDS * self.sample_rate.max(1.0))).exp();
     }
 
     /// Re-derive the damping low-pass coefficient from the knob and the
@@ -367,17 +389,28 @@ impl FactoryEcho {
     pub fn set_sample_rate(&mut self, sample_rate: f32) {
         self.sample_rate = sample_rate;
         self.update_damping();
+        self.update_movement_smoother();
     }
 
     /// Processes one stereo frame through the echo lines.
     pub fn process_stereo(&mut self, left: f32, right: f32) -> (f32, f32) {
         let base_delay = (0.02 + self.delay_time * 0.78) * self.sample_rate;
-        self.phase += (0.05 + self.machinery_movement * 2.0) / self.sample_rate;
+        // The modulation follows the knob through a smoother, so turning
+        // Machinery Movement (or automating it) moves the delay gradually.
+        // It snaps to exactly 0 once the knob is at 0 and the remainder is
+        // inaudible, so an unmodulated echo reads whole samples again.
+        self.movement_smoothed +=
+            self.movement_coeff * (self.machinery_movement - self.movement_smoothed);
+        if self.machinery_movement == 0.0 && self.movement_smoothed < 1e-6 {
+            self.movement_smoothed = 0.0;
+        }
+        let movement = self.movement_smoothed;
+        self.phase += (0.05 + movement * 2.0) / self.sample_rate;
         if self.phase >= 1.0 {
             self.phase -= 1.0;
         }
 
-        let modulation = (self.phase * std::f32::consts::TAU).sin() * self.machinery_movement * 0.1;
+        let modulation = (self.phase * std::f32::consts::TAU).sin() * movement * 0.1;
         // Unmodulated, the delay is rounded to a whole sample (f32 puts 0.8 s
         // at 38 399.998 samples at 48 kHz), so repeats stay single samples at
         // the configured time. Modulated, it is read between samples with a
@@ -385,7 +418,7 @@ impl FactoryEcho {
         // skipping samples (`m07-m08-interpolate-echo-and-tidy-spread`). The
         // clamp is a guard only: the longest delay fits at every supported
         // rate, and 2 samples keep the interpolator's newest point written.
-        let delay = if self.machinery_movement > 0.0 {
+        let delay = if movement > 0.0 {
             base_delay * (1.0 + modulation)
         } else {
             base_delay.round()
@@ -434,6 +467,7 @@ impl FactoryEcho {
         self.write_index = 0;
         self.phase = 0.0;
         self.damping_state = [0.0; 2];
+        self.movement_smoothed = 0.0;
     }
 }
 
@@ -840,6 +874,52 @@ mod tests {
                 db(level / reference).abs() <= 1.0,
                 "{sr} Hz: {:.2} dB from 48 kHz",
                 db(level / reference)
+            );
+        }
+    }
+
+    /// Changing Machinery Movement (from 0, or by automation) doesn't
+    /// tick: the modulation depth is smoothed, so the delay can't jump to
+    /// wherever the free-running LFO is. Before the smoother, switching from
+    /// 0 to 0.01 at Delay Time 1 stepped the delay by tens of samples.
+    #[test]
+    fn changing_machinery_movement_does_not_tick() {
+        for (sr, delay_time, from, to) in [
+            (48_000.0f32, 1.0f32, 0.0f32, 0.01f32),
+            (48_000.0, 0.25, 0.0, 1.0),
+            (44_100.0, 0.37, 0.2, 0.8),
+        ] {
+            let sine = |i: usize| 0.5 * (std::f32::consts::TAU * 1_000.0 * i as f32 / sr).sin();
+            let mut echo = FactoryEcho::new();
+            echo.set_sample_rate(sr);
+            echo.set_parameters(delay_time, from, 0.0);
+            let switch = 3 * echo_delay(sr, delay_time);
+            let window = (0.1 * sr) as usize;
+            let wet: Vec<f32> = (0..switch + window)
+                .map(|i| {
+                    if i == switch {
+                        echo.set_parameters(delay_time, to, 0.0);
+                    }
+                    echo.process_stereo(sine(i), 0.0).0
+                })
+                .collect();
+            let before = max_step(&wet[switch - window..switch]);
+            let after = max_step(&wet[switch..]);
+            // More movement means more Doppler shift and larger steps, so
+            // the reference also includes a steady echo at the new setting,
+            // over one full LFO period.
+            let period = (sr / (0.05 + to * 2.0)) as usize;
+            let steady = echo_run(sr, delay_time, to, 0.0, switch + period, sine);
+            let steady_to = max_step(&steady[switch..]);
+            let reference = before.max(steady_to);
+            println!(
+                "MOVEMENT {sr} Hz, {from} -> {to}: step {before:.4} before, \
+                 {steady_to:.4} steady at {to}, {after:.4} after the change"
+            );
+            assert!(
+                after <= 1.2 * reference,
+                "{sr} Hz, Delay Time {delay_time}, movement {from} -> {to}: \
+                 step {after:.4} after vs {reference:.4} reference"
             );
         }
     }

@@ -2846,6 +2846,64 @@ mod host_rate_and_latency_tests {
         );
     }
 
+    /// Spec "Bend before the first sample", checked on the bank itself: after
+    /// a note-on and a +2-semitone bend, before any sample is rendered, every
+    /// mode's pole angle is its bent frequency's angle at 44.1 kHz.
+    #[test]
+    fn bend_before_first_sample_tunes_the_poles_for_the_host_rate() {
+        let offsets = bent_pole_errors(true);
+        assert!(
+            offsets.iter().all(|&cents| cents <= 0.05),
+            "pole angles off by up to {:.3} cents",
+            offsets.iter().cloned().fold(0.0, f64::max)
+        );
+    }
+
+    /// Pole-angle error, in cents, of every mode of a note bent +2 semitones
+    /// before its first sample at 44.1 kHz, on a plugin that was (or wasn't)
+    /// initialized at that rate.
+    fn bent_pole_errors(initialize: bool) -> Vec<f64> {
+        let mut renderer = if initialize {
+            renderer(CorrosionParams::default(), 44_100, false)
+        } else {
+            PresetRenderer::from_params(CorrosionParams::default())
+        };
+        let plugin = renderer.plugin_mut();
+        super::handle_note_event(
+            plugin,
+            NoteEvent::NoteOn {
+                timing: 0,
+                voice_id: None,
+                channel: 0,
+                note: 60,
+                velocity: 1.0,
+            },
+        );
+        super::handle_note_event(
+            plugin,
+            NoteEvent::MidiPitchBend {
+                timing: 0,
+                channel: 0,
+                value: 1.0,
+            },
+        );
+        let voice = plugin
+            .voice_manager
+            .voices_for_test()
+            .iter()
+            .find(|v| v.is_active())
+            .expect("a voice plays the note");
+        voice
+            .resonator_for_test()
+            .mode_tuning_for_test()
+            .filter_map(|(frequency, angle)| {
+                let expected = std::f64::consts::TAU * frequency as f64 / 44_100.0;
+                (expected < std::f64::consts::PI)
+                    .then(|| (angle / expected).ln().abs() / std::f64::consts::LN_2 * 1200.0)
+            })
+            .collect()
+    }
+
     /// Spec "Bend before the first sample": a bend in the same block as the
     /// note-on, before its first sample, is applied at the host's rate. A
     /// voice that has played at 44.1 kHz is the reference.
@@ -3020,20 +3078,58 @@ mod midi_control_tests {
     /// note, and the last strike is still held by the pedal.
     #[test]
     fn repeated_note_under_the_pedal_keeps_one_voice() {
-        let mut acts = vec![(0, PEDAL_DOWN)];
-        for i in 0..10 {
-            acts.push((1 + 2 * i, Act::On(60)));
-            acts.push((2 + 2 * i, Act::Off(60)));
+        let mut renderer = bowed_renderer();
+        let pedal_held = |renderer: &mut PresetRenderer| {
+            renderer
+                .plugin_mut()
+                .voice_manager
+                .voices_for_test()
+                .iter()
+                .filter(|v| v.is_pedal_held() && v.note() == 60)
+                .count()
+        };
+        apply(renderer.plugin_mut(), PEDAL_DOWN);
+        for strike in 0..10 {
+            for act in [Act::On(60), Act::Off(60)] {
+                apply(renderer.plugin_mut(), act);
+                let _ = renderer.render(&[], SR, BLOCK);
+                let held = pedal_held(&mut renderer);
+                assert!(
+                    held <= 1,
+                    "strike {strike}, {act:?}: {held} pedal-held voices"
+                );
+            }
         }
-        let (_, mut renderer) = script(bowed_renderer(), 24, &acts);
-        let held = renderer
+        let active = renderer
             .plugin_mut()
             .voice_manager
             .voices_for_test()
             .iter()
             .filter(|v| v.is_active() && v.note() == 60)
             .count();
-        assert_eq!(held, 1, "voices still held for note 60 under the pedal");
+        assert_eq!(active, 1, "the last strike is still held by the pedal");
+    }
+
+    /// `Plugin::reset` lifts the pedal (design decision 8): after a reset, a
+    /// key-up releases its note even though the pedal went down before.
+    #[test]
+    fn plugin_reset_lifts_the_pedal() {
+        use nih_plug::prelude::Plugin;
+        let mut renderer = bowed_renderer();
+        apply(renderer.plugin_mut(), PEDAL_DOWN);
+        renderer.plugin_mut().reset();
+        assert!(!renderer.plugin_mut().voice_manager.sustain_down());
+        apply(renderer.plugin_mut(), Act::On(60));
+        let _ = renderer.render(&[], SR, BLOCK);
+        apply(renderer.plugin_mut(), Act::Off(60));
+        let active = renderer
+            .plugin_mut()
+            .voice_manager
+            .voices_for_test()
+            .iter()
+            .filter(|v| v.is_active())
+            .count();
+        assert_eq!(active, 0, "the note is held after a reset");
     }
 
     /// Spec "Stuck notes": All Notes Off releases every held key at once.
