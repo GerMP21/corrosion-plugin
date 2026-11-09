@@ -21,11 +21,11 @@ After `m06-m09-smooth-starvation-and-oversample-clipper`, the clipper starts 2.3
 - `diode-stage`: the clipper's curve as a sound-shaping control: knee width (Diode Softness), polarity asymmetry (Diode Asymmetry), DC removal, the same character in every quality mode, the red dot's activity indicator, and how older state maps onto the new controls.
 
 ### Modified Capabilities
-- `output-clipper`: the threshold is the same in every quality mode, and Eco is no longer the bare curve on each sample (it applies the curve's headroom, and the DC blocker when asymmetric). This capability is created by `m06-m09-smooth-starvation-and-oversample-clipper`, which must be archived before this change.
+- `output-clipper`: the threshold is the same in every quality mode, and Eco is no longer the bare curve on each sample (it applies the curve's headroom, and the DC blocker when asymmetric). This capability was created by `m06-m09-smooth-starvation-and-oversample-clipper` (archived 2026-11-09).
 
 ## Impact
 
-- **Order:** after `m01-m04-m05-clarify-parameters` (which settles parameter display names) and before `add-parameter-tooltips` (so its texts describe the final controls). Requires `m06-m09-smooth-starvation-and-oversample-clipper` archived first.
+- **Order:** after `m01-m04-m05-clarify-parameters` (which settles parameter display names) and before `add-parameter-tooltips` (so its texts describe the final controls). `m06-m09-smooth-starvation-and-oversample-clipper` is archived (2026-11-09), so `openspec/specs/output-clipper/` exists for the MODIFIED delta.
 - **Code:** `src/dsp/post_processing/oversampled_clipper.rs` (curve, asymmetry, smoothing, DC blocker, reduction meter), `src/dsp/post_processing/post_chain.rs` (parameters, meter read-out), `src/params.rs` (new parameter), `src/lib.rs` (wiring, the shared meter, `filter_state` migration), `src/presets/mod.rs` (field, `migrate_preset_json`), `src/gui/editor.rs` (Asymmetry fader, the dot), the randomizer (range for the new control), `src/bin/seed_presets.rs` (regenerate the factory bank).
 - **Sound:** every patch that reaches the clipper changes: softer knee, even harmonics by default, the same in Eco. Migrated presets and projects stay close to the current sound (hard knee, symmetric).
 - **CPU:** the curve runs at up to 16× per channel; measured with `plugin_output_path_sixteen_voices` and its Render twin.

@@ -29,5 +29,5 @@
 
 ## Workflow follow-up
 
-- Archive `m06-m09-smooth-starvation-and-oversample-clipper` before archiving this change: its `output-clipper` spec must exist for this change's MODIFIED delta.
+- ~~Archive `m06-m09-smooth-starvation-and-oversample-clipper` before archiving this change~~: done 2026-11-09; `openspec/specs/output-clipper/` exists for this change's MODIFIED delta.
 - Judge the knee by ear once built (design Open Questions) and adjust the defaults if needed before archive.
