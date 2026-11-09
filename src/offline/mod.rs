@@ -962,6 +962,29 @@ mod tests {
         );
     }
 
+    /// `output-clipper`: the same bounds through the default output path,
+    /// the clipper followed by the hard clamp at the same ceiling.
+    #[test]
+    fn clipper_alias_bounds_hold_through_the_hard_clamp() {
+        let through_clamp = |mode: PostQualityMode| {
+            let input_bin = 427; // 5004 Hz at 48 kHz, as in analyze_clipper_aliasing
+            let (_, out) = super::clipper_sine(CLIPPER_FRAMES, mode, input_bin, 2.0 * 0.9661);
+            let clamped: Vec<f32> = out
+                .iter()
+                .map(|y| crate::apply_output_limiter(*y, crate::LIMITER_THRESHOLD))
+                .collect();
+            super::aliasing_report(&clamped, input_bin, 48_000).alias_ratio_db
+        };
+        let (normal, render) = (
+            through_clamp(PostQualityMode::Normal),
+            through_clamp(PostQualityMode::Render),
+        );
+        assert!(
+            normal <= -40.0 && render <= -60.0,
+            "through the hard clamp: Normal {normal:.1} dB (bound -40), Render {render:.1} dB (bound -60)"
+        );
+    }
+
     #[test]
     fn clipper_fold_back_falls_with_quality() {
         let ratios: Vec<f32> = OVERSAMPLED_QUALITIES
@@ -1022,96 +1045,6 @@ mod tests {
                 r.alias_ratio_db, r.strongest_alias_frequency_hz
             );
         }
-        // Output paths at several drive levels: clipper alone, + hard clamp,
-        // + lookahead limiter, and the old box-filter clipper + hard clamp.
-        let ceiling = 0.9661f32;
-        let input_bin = 427;
-        let sine = |i: usize, amp: f32| {
-            amp * (std::f64::consts::TAU * ((input_bin * i) % CLIPPER_FRAMES) as f64
-                / CLIPPER_FRAMES as f64)
-                .sin() as f32
-        };
-        for over in [1.1f32, 1.5, 2.0] {
-            for mode in ALL_QUALITIES {
-                let mut clipper = super::output_clipper(mode);
-                let mut look = crate::dsp::LookaheadLimiter::new(crate::LIMITER_THRESHOLD);
-                let factor = mode.clipper_oversample_factor();
-                let mut prev = 0.0f32;
-                let diode = |x: f32| {
-                    let a = x.abs();
-                    if a <= ceiling {
-                        x
-                    } else {
-                        let e = a - ceiling;
-                        x.signum() * (ceiling + e / (1.0 + e * 3.5) * (1.0 - ceiling) * 0.1)
-                    }
-                };
-                let mut old = |x: f32| {
-                    if factor <= 1 {
-                        prev = x;
-                        return diode(x);
-                    }
-                    let mut sum = 0.0;
-                    for k in 1..=factor {
-                        sum += diode(prev + (x - prev) * k as f32 / factor as f32);
-                    }
-                    prev = x;
-                    sum / factor as f32
-                };
-                let (mut alone, mut hard, mut ahead, mut old_hard) =
-                    (Vec::new(), Vec::new(), Vec::new(), Vec::new());
-                for i in 0..3 * CLIPPER_FRAMES {
-                    let x = sine(i, over * ceiling);
-                    let y = clipper.process(x);
-                    let z = look.process(y);
-                    let o = crate::apply_output_limiter(old(x), crate::LIMITER_THRESHOLD);
-                    if i >= 2 * CLIPPER_FRAMES {
-                        alone.push(y);
-                        hard.push(crate::apply_output_limiter(y, crate::LIMITER_THRESHOLD));
-                        ahead.push(z);
-                        old_hard.push(o);
-                    }
-                }
-                let db = |v: &Vec<f32>| super::aliasing_report(v, input_bin, 48_000).alias_ratio_db;
-                println!(
-                    "{over}x ceiling {mode:?}: alone {:.1}, +hard {:.1}, +lookahead {:.1}, old+hard {:.1} dB",
-                    db(&alone), db(&hard), db(&ahead), db(&old_hard)
-                );
-            }
-        }
-        // Headroom trial: the curve clips at ceiling / h, then the hard clamp.
-        for h in [1.0f32, 1.15, 1.2, 1.25, 1.3, 1.4] {
-            for mode in [PostQualityMode::Normal, PostQualityMode::Render] {
-                let mut line = format!("headroom {h:.2} {mode:?}:");
-                for over in [1.1f32, 1.5, 2.0, 3.0, 4.0] {
-                    let mut c = super::output_clipper(mode);
-                    c.set_parameters(ceiling / h, 0.5);
-                    let mut reference = super::output_clipper(mode);
-                    let (mut out, mut ref_out) = (Vec::new(), Vec::new());
-                    for i in 0..3 * CLIPPER_FRAMES {
-                        let x = sine(i, over * ceiling);
-                        let y = crate::apply_output_limiter(c.process(x), crate::LIMITER_THRESHOLD);
-                        let r = crate::apply_output_limiter(
-                            reference.process(x),
-                            crate::LIMITER_THRESHOLD,
-                        );
-                        if i >= 2 * CLIPPER_FRAMES {
-                            out.push(y);
-                            ref_out.push(r);
-                        }
-                    }
-                    let rms = |v: &Vec<f32>| {
-                        (v.iter().map(|y| (y * y) as f64).sum::<f64>() / v.len() as f64).sqrt()
-                    };
-                    line += &format!(
-                        " {over}x {:.1} dB ({:+.2} dB)",
-                        super::aliasing_report(&out, input_bin, 48_000).alias_ratio_db,
-                        20.0 * (rms(&out) / rms(&ref_out)).log10()
-                    );
-                }
-                println!("{line}");
-            }
-        }
         for mode in ALL_QUALITIES {
             let chain = analyze_post_chain_aliasing_at_quality(48_000, 4_096, mode);
             println!("whole chain {mode:?}: alias {:.2} dB", chain.alias_ratio_db);
@@ -1141,7 +1074,9 @@ mod tests {
     fn render_mode_alias_ratio_stays_within_budget() {
         // Empirically the Render-mode ratio sits well below -10 dB; the budget
         // is the regression line, not the current measured value.
-        const ALIAS_RATIO_BUDGET_DB: f32 = -10.0;
+        // Measured -22.8 dB after `m06-m09` (the clipper no longer low-passes
+        // the drive's own aliasing); the budget keeps a 5 dB margin.
+        const ALIAS_RATIO_BUDGET_DB: f32 = -18.0;
 
         let report = analyze_post_chain_aliasing_at_quality(48_000, 4_096, PostQualityMode::Render);
         assert!(

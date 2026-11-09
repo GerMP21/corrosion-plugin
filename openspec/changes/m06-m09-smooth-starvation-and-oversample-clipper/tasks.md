@@ -12,7 +12,7 @@
 
 ## 3. Clipper
 
-- [ ] 3.1 Rebuild `OversampledClipper` as up → diode curve → down over 2, 3 or 4 stages per quality mode (Eco unchanged), with per-channel fixed state; drop the unused `sample_rate`. Verify the 2.1 tests pass, the existing aliasing tests pass (tighten Render's budget to the new value with margin), and `tests/no_alloc.rs` passes in debug.
+- [x] 3.1 Rebuild `OversampledClipper` as up → diode curve → down over 2, 3 or 4 stages per quality mode (Eco unchanged), with per-channel fixed state; drop the unused `sample_rate`. Verify the 2.1 tests pass, the existing aliasing tests pass (tighten Render's budget to the new value with margin), and `tests/no_alloc.rs` passes in debug.
 - [ ] 3.2 Measure `plugin_output_path_sixteen_voices` against a clean worktree (median of 5 within-run ratios) in Normal and Render. Record the numbers; if Render is more than 20 % slower, stop and ask before continuing.
 
 ## 4. Docs and close-out

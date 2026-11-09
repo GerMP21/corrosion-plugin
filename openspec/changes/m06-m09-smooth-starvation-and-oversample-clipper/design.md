@@ -23,6 +23,7 @@
    *As built (2026-11-09):* the half-bands are not "well under a sample". A polyphase half-band is `0.5·(A0(z²) + z⁻¹·A1(z²))`, so it carries half a sample of structural delay, and the elliptic steepness adds more: about 3.5 base samples for the first stage, about 5 (Normal) to 6 (Render) for the whole up/down chain at 1 kHz. A filter soft enough to stay under a sample lets the 5 kHz test sine's 5th harmonic (25 kHz) fold back to 23 kHz above the −60 dB bound. The maintainer chose to keep the IIR and not report the delay (0.1–0.125 ms at 48 kHz, not note-dependent); the spec's bound is now eight samples in every mode.
 3b. **Pass band to 22 kHz (relative to 48 kHz):** the first stage's transition band runs from 22 to 26 kHz (normalised width 0.0208 at its rate), so the 5th harmonic of a 5 kHz tone (25 kHz) is rejected by about 110 dB instead of 36 dB with a 20 kHz pass band, for 9 coefficients instead of 8. Later stages keep the same pass edge, which leaves them wide transitions: 5, 4 and 4 coefficients at about 90 dB. All widths are fractions of the stage rate, so the filters scale with the host rate.
 4. **Eco stays 1×:** `diode_clip` on the input, bit-identical to today's Eco.
+4b. **Headroom for the output limiter (added 2026-11-09, maintainer's choice):** band-limiting a clipped signal removes the harmonics that held its peaks at the ceiling, so the clipper's output overshoots (1.19× the ceiling for a 5 kHz tone at twice the ceiling). The default output limiter (Hard) clamps at the same Analog Ceiling at the host rate, which recreated the aliasing: −26 dB through clipper and clamp in every oversampled mode, worse than the old clipper's −33 dB. When oversampling, the curve now clips at the ceiling ÷ 1.3, chosen from a sweep (see Measurements). No fixed margin guarantees it: with extreme drive in the top octaves only the fundamental and 3rd harmonic of the clipped wave survive and peaks reach 1.73× the curve's threshold. *Alternatives:* leave it and document that Lookahead keeps the improvement; make Lookahead the default (48 samples of latency).
 5. **Spec bounds checked on the clipper alone:** a dedicated measurement drives a sine past the ceiling straight into the clipper (no Lorenz drive), so the alias figure isolates M9. The existing whole-chain tests stay as regression lines.
 6. **CPU budget:** if Render costs more than 20 % above today in `plugin_output_path_sixteen_voices` (median of 5 runs, within-run comparison against a clean worktree), stop and ask before going further. Shorter filters for the later stages (which see only the first stage's residue) are the first fallback.
 
@@ -98,4 +99,46 @@ Designed at 90 dB, pass edge 22/48 of the base rate (`print_stage_responses`, le
 | 2 (4×) | 0.1354 | 5 | −0.000 dB | −103.8 dB |
 | 3 (8×) | 0.1927 | 4 | −0.0013 dB (at 0.2 of its rate, past the 22 kHz edge) | −107.2 dB |
 | 4 (16×) | 0.2214 | 4 | −0.0025 dB (likewise) | −107.2 dB |
+
+### Clipper after the change (task 3.1, 2026-11-09)
+
+Same measurements as task 2.1 (`print_clipper_measurements`, release build). Gain at 105 Hz–20 kHz is 0.0000 dB in every mode (bound 0.1 dB). Lag at 1 kHz: Normal 4.22, High 4.75, Render 5.02 samples (bound 8). Alias ratio for the 5004 Hz sine at twice the ceiling:
+
+| Mode | Eco | Normal | High | Render |
+|---|---|---|---|---|
+| Clipper alone, before | −25.42 | −32.39 | −32.87 | −32.99 dB |
+| Clipper alone, no headroom | −25.42 | −55.10 | −65.96 | −79.00 dB |
+| Clipper + hard clamp, no headroom | −25.39 | −26.18 | −26.14 | −26.13 dB |
+| Clipper alone, headroom 1.3 (as built) | −25.42 | −50.98 | −64.06 | −75.80 dB |
+| Clipper + hard clamp, headroom 1.3 (as built) | −25.39 | −50.98 | −64.06 | −75.80 dB |
+| Clipper peak, headroom 1.3 | 0.9668 | 0.9630 | 0.9642 | 0.9639 |
+
+Through the output paths at other drive levels (headroom 1.3; old = box-filter clipper + hard clamp):
+
+| Input | Mode | Clipper alone | + hard clamp | + lookahead | Old + hard clamp |
+|---|---|---|---|---|---|
+| 1.1× ceiling | Normal | −57.8 | −57.8 | −57.8 | −41.7 dB |
+| 1.1× ceiling | Render | −82.2 | −82.2 | −82.2 | −43.5 dB |
+| 1.5× ceiling | Normal | −55.3 | −55.3 | −55.3 | −35.7 dB |
+| 1.5× ceiling | Render | −78.5 | −78.5 | −78.5 | −36.0 dB |
+| 2× ceiling | Normal | −51.0 | −51.0 | −51.0 | −32.4 dB |
+| 2× ceiling | Render | −75.8 | −75.8 | −75.5 | −33.0 dB |
+
+Headroom sweep, clipper + hard clamp (alias dB, and level change of the output vs no headroom):
+
+| Headroom | Mode | 1.1× | 1.5× | 2× | 3× | 4× |
+|---|---|---|---|---|---|---|
+| 1.00 | Render | −38.6 (0.00) | −30.4 (0.00) | −26.1 (0.00) | −23.7 (0.00) | −22.9 (0.00) |
+| 1.15 | Render | −84.2 (−0.61) | −41.7 (−0.65) | −31.2 (−0.67) | −27.5 (−0.69) | −26.5 (−0.70) |
+| 1.20 | Render | −84.0 (−0.86) | −77.2 (−0.91) | −34.9 (−0.91) | −29.9 (−0.92) | −28.6 (−0.93) |
+| 1.25 | Render | −82.5 (−1.10) | −79.4 (−1.20) | −41.9 (−1.16) | −33.3 (−1.15) | −31.6 (−1.16) |
+| **1.30** | Render | −82.2 (−1.34) | −78.5 (−1.48) | −75.8 (−1.42) | −39.3 (−1.40) | −36.2 (−1.39) |
+| 1.30 | Normal | −57.8 (−1.34) | −55.3 (−1.49) | −51.0 (−1.43) | −39.1 (−1.40) | −35.8 (−1.40) |
+| 1.40 | Render | −80.9 (−1.82) | −77.5 (−2.02) | −74.9 (−2.00) | −71.0 (−1.95) | −68.5 (−1.93) |
+
+Worst overshoot over a sweep (1–16× the threshold, 50 Hz–19 kHz, softness 0/0.5/1; `print_overshoot_sweep`): 1.73× the threshold at 4×, 1.71× at 8× and 16×, all at 16× drive and 7 kHz.
+
+Whole chain (`analyze_post_chain_aliasing_at_quality`, drive 2.5 with starvation 0.35): Eco −19.55, Normal −22.87, High −22.74, Render −22.79 dB (−27.52/−29.58/−30.31 with the old clipper). The old clipper's box filter low-passed the Lorenz drive's own aliasing (−2 dB at 10 kHz, −8 dB at 18 kHz), which the transparent clipper no longer hides; the drive isn't oversampled (a non-goal). `render_mode_alias_ratio_stays_within_budget` moves from −10 dB to −18 dB.
+
+`body_level_tracks_body_amount` now feeds 0.01 instead of 0.02: at BODY amount 0.8 the body peaks near 37× its input (0.75), past the new 0.743 threshold.
 
