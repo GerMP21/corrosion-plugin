@@ -122,6 +122,6 @@ When a parameter's meaning changes, migrate both paths:
 
 ## Git and PRs
 
-- **All work happens on `dev`** (see "Working with the maintainer"). PRs #5–#9 are merged; `dev` was fast-forwarded to `main` after PR #9 and carries all new work from there. Open a PR from `dev` to `main` only when asked; after it merges, bring `dev` up to date with `main` (fast-forward when possible) before continuing.
+- **All work happens on `dev`** (see "Working with the maintainer"). PRs #5–#9 are merged; `dev` was fast-forwarded to `main` after PR #9 and carries all new work from there. **PR #10** (`main` ← `dev`, this workflow note) is open. Open a PR from `dev` to `main` only when asked; after it merges, bring `dev` up to date with `main` (fast-forward when possible) before continuing.
 - Commit messages: imperative subject naming the finding, e.g. "Skip redundant mode retunes (H12)", and a body saying what changed and why. Add measurements when relevant. Don't put model identifiers in commits, code or PRs.
 - Don't create a PR unless asked. There's no PR template: use Summary / Behaviour changes / Testing sections and say plainly what wasn't tested (Windows build, pluginval, clap-validator, DAW smoke tests haven't been run in these sessions).
