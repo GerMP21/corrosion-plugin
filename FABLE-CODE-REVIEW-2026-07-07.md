@@ -444,15 +444,15 @@ above the block. Minor, but the doc and tests promise symmetric behavior.
   (lorenz_drive.rs:98-107) keyed off the chaotic z state — produces stepped gain
   discontinuities (clicks/crackle), which may be intended "circuit starvation" but
   is undocumented and un-smoothed. `tube_state` field is dead.
-- **M7. `FactoryEcho` modulated delay is un-interpolated** (space.rs:273) —
+- ~~**M7. `FactoryEcho` modulated delay is un-interpolated** (space.rs:273) —
   integer-truncated read index with a moving modulation produces zipper noise as
   `machinery_movement` increases. `high_frequency_damping` is a broadband wet gain,
-  not a filter — the name promises air absorption; it just turns the echo down.
-- **M8. `HrtfSpread` ITD is dead code.** Both delay buffers store the same mono
+  not a filter — the name promises air absorption; it just turns the echo down.~~ — FIXED (2026-11-09, branch `claude/nice-mccarthy-9fm1p6`, [`m07-m08-interpolate-echo-and-tidy-spread`](openspec/changes/m07-m08-interpolate-echo-and-tidy-spread/proposal.md)): modulated reads use Hermite interpolation (largest step of a swept 1 kHz sine 0.242 → 0.077, vs 0.066 for the dry sine), and High Frequency Damping is a low-pass in the feedback loop (at 1, 8 kHz repeats 14 dB below 200 Hz; 200 Hz level unchanged within 0.1 dB), proven by `echo_modulation_glides` and the HF Damping tests in `space.rs`.
+- ~~**M8. `HrtfSpread` ITD is dead code.** Both delay buffers store the same mono
   signal and are read at the same index (hrtf_spread.rs:66-73): `delayed_left ==
   delayed_right` always, so there is no interaural time difference; width comes
   only from the side-signal gain and crossfeed. Two 64-float buffers where one
-  would do; the "1 ms ITD" comment is not implemented.
+  would do; the "1 ms ITD" comment is not implemented.~~ — FIXED (2026-11-09, same change): the redundant buffer is gone and the comments describe a common mid delay, not an ITD. The output is bit-identical (render hashes at 44.1, 48 and 192 kHz match the previous code). Keeping the sound, rather than implementing a real ITD, was the maintainer's choice.
 - **M9. `OversampledClipper` isn't oversampling in the DSP sense.** It linearly
   interpolates between two consecutive *input* samples (adds no bandwidth) and
   box-filter decimates (adds ~half-sample delay and HF droop). It's a "transient

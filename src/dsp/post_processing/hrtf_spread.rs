@@ -1,20 +1,21 @@
 //! HRTF-inspired stereo spread stage.
 //!
-//! The spreader applies short delay, simple spectral shaping, and crossfeed to
-//! widen the stereo image while keeping the signal coherent.
+//! The spreader delays the mid (L + R) signal by up to 1 ms with Width,
+//! shapes it with proximity filters, adds back the undelayed side signal, and
+//! crossfeeds the channels. The mid delay is common to both channels: it is
+//! not an interaural time difference (`m07-m08-interpolate-echo-and-tidy-spread`).
 /// Delay buffer length: 1 ms at `space::MAX_SAMPLE_RATE` (192 samples),
 /// rounded up, so the full 1 ms delay fits at every supported rate
 /// (`h10-scale-space-effects-with-sample-rate`).
 const DELAY_CAPACITY: usize = 256;
 
-/// Stereo spreader with delay-based width and proximity shaping.
+/// Stereo spreader: delayed, proximity-shaped mid plus side and crossfeed.
 pub struct HrtfSpread {
     spread_width: f32,
     listener_proximity: f32,
 
-    // Delay lines for spatialization
-    delay_buffer_left: [f32; DELAY_CAPACITY],
-    delay_buffer_right: [f32; DELAY_CAPACITY],
+    // Mid-signal delay line, shared by both channels.
+    delay_buffer: [f32; DELAY_CAPACITY],
     delay_index: usize,
 
     // Filter states for HRTF approximation
@@ -32,8 +33,7 @@ impl HrtfSpread {
         Self {
             spread_width: 0.5,
             listener_proximity: 0.5,
-            delay_buffer_left: [0.0; DELAY_CAPACITY],
-            delay_buffer_right: [0.0; DELAY_CAPACITY],
+            delay_buffer: [0.0; DELAY_CAPACITY],
             delay_index: 0,
             left_lpf: 0.0,
             right_lpf: 0.0,
@@ -63,20 +63,20 @@ impl HrtfSpread {
         let mono = (left + right) * 0.5;
         let stereo_diff = (left - right) * 0.5;
 
-        // Calculate delay based on width (interaural time difference)
+        // Delay the mid signal by up to 1 ms with Width (common to both
+        // channels, so not an interaural time difference).
         let max_delay_samples = (self.sample_rate * 0.001) as usize; // 1ms max
         let delay_samples = (max_delay_samples as f32 * self.spread_width) as usize;
 
-        // Store in delay buffers
-        self.delay_buffer_left[self.delay_index] = mono;
-        self.delay_buffer_right[self.delay_index] = mono;
+        self.delay_buffer[self.delay_index] = mono;
 
         // Read delayed samples. The capacity guard never binds: 1 ms fits up
         // to 192 kHz.
         let delay_samples = delay_samples.min(DELAY_CAPACITY - 1);
         let read_index = (self.delay_index + DELAY_CAPACITY - delay_samples) % DELAY_CAPACITY;
-        let delayed_left = self.delay_buffer_left[read_index];
-        let delayed_right = self.delay_buffer_right[read_index];
+        // The same delayed mid feeds both channels' proximity filters.
+        let delayed_left = self.delay_buffer[read_index];
+        let delayed_right = delayed_left;
 
         self.delay_index = (self.delay_index + 1) % DELAY_CAPACITY;
 
@@ -111,8 +111,7 @@ impl HrtfSpread {
 
     /// Clears delay and filter state.
     pub fn reset(&mut self) {
-        self.delay_buffer_left.fill(0.0);
-        self.delay_buffer_right.fill(0.0);
+        self.delay_buffer.fill(0.0);
         self.delay_index = 0;
         self.left_lpf = 0.0;
         self.right_lpf = 0.0;

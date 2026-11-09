@@ -287,6 +287,29 @@ pub struct FactoryEcho {
     write_index: usize,
     sample_rate: f32,
     phase: f32,
+    /// One-pole low-pass in the feedback path (High Frequency Damping): its
+    /// coefficient, 1 when bypassed, and its per-channel state
+    /// (`m07-m08-interpolate-echo-and-tidy-spread`).
+    damping_coeff: f32,
+    damping_state: [f32; 2],
+}
+
+/// The echo's wet level. It was `1 − 0.6 · HF Damping` (the old broadband
+/// "damping"); this is that gain at the default 0.5, so the repeats' low end
+/// is unchanged at the default and the knob now sets tone only.
+const ECHO_WET_GAIN: f32 = 0.7;
+/// High Frequency Damping's low-pass cutoff at 0 (bypassed) and at 1.
+const ECHO_DAMPING_CUTOFF_OPEN_HZ: f32 = 20_000.0;
+const ECHO_DAMPING_CUTOFF_DARK_HZ: f32 = 1_500.0;
+
+/// 4-point, 3rd-order Hermite interpolation between `x0` and `x1` at `t`
+/// (0..1), with neighbours `xm1` and `x2`. Returns `x0` exactly at `t = 0`.
+#[inline]
+fn hermite(xm1: f32, x0: f32, x1: f32, x2: f32, t: f32) -> f32 {
+    let c1 = 0.5 * (x1 - xm1);
+    let c2 = xm1 - 2.5 * x0 + 2.0 * x1 - 0.5 * x2;
+    let c3 = 0.5 * (x2 - xm1) + 1.5 * (x0 - x1);
+    ((c3 * t + c2) * t + c1) * t + x0
 }
 
 impl FactoryEcho {
@@ -301,7 +324,30 @@ impl FactoryEcho {
             write_index: 0,
             sample_rate: 48000.0,
             phase: 0.0,
+            damping_coeff: 1.0,
+            damping_state: [0.0; 2],
         }
+        .with_damping_updated()
+    }
+
+    fn with_damping_updated(mut self) -> Self {
+        self.update_damping();
+        self
+    }
+
+    /// Re-derive the damping low-pass coefficient from the knob and the
+    /// rate: the cutoff falls exponentially from 20 kHz (filter bypassed,
+    /// coefficient exactly 1, at 0) to 1.5 kHz at 1, and the coefficient
+    /// comes from the cutoff in hertz, so the tone is the same at every rate.
+    fn update_damping(&mut self) {
+        let amount = self.high_frequency_damping;
+        self.damping_coeff = if amount <= 0.0 {
+            1.0
+        } else {
+            let cutoff = ECHO_DAMPING_CUTOFF_OPEN_HZ
+                * (ECHO_DAMPING_CUTOFF_DARK_HZ / ECHO_DAMPING_CUTOFF_OPEN_HZ).powf(amount);
+            1.0 - (-std::f32::consts::TAU * cutoff / self.sample_rate.max(1.0)).exp()
+        };
     }
 
     /// Sets delay time, machinery movement, and HF damping.
@@ -314,11 +360,13 @@ impl FactoryEcho {
         self.delay_time = delay_time.clamp(0.0, 1.0);
         self.machinery_movement = machinery_movement.clamp(0.0, 1.0);
         self.high_frequency_damping = high_frequency_damping.clamp(0.0, 1.0);
+        self.update_damping();
     }
 
     /// Stores the active sample rate used to derive delay times.
     pub fn set_sample_rate(&mut self, sample_rate: f32) {
         self.sample_rate = sample_rate;
+        self.update_damping();
     }
 
     /// Processes one stereo frame through the echo lines.
@@ -330,20 +378,47 @@ impl FactoryEcho {
         }
 
         let modulation = (self.phase * std::f32::consts::TAU).sin() * self.machinery_movement * 0.1;
-        // Rounded to the nearest sample (f32 puts 0.8 s at 38 399.998 samples
-        // at 48 kHz). The clamp is a guard only: the longest delay fits at
-        // every supported rate.
-        let delay_samples = (base_delay * (1.0 + modulation))
-            .round()
-            .clamp(1.0, (ECHO_CAPACITY - 1) as f32) as usize;
-        let read_index = (self.write_index + ECHO_CAPACITY - delay_samples) % ECHO_CAPACITY;
+        // Unmodulated, the delay is rounded to a whole sample (f32 puts 0.8 s
+        // at 38 399.998 samples at 48 kHz), so repeats stay single samples at
+        // the configured time. Modulated, it is read between samples with a
+        // Hermite interpolator, so the sweep glides instead of repeating and
+        // skipping samples (`m07-m08-interpolate-echo-and-tidy-spread`). The
+        // clamp is a guard only: the longest delay fits at every supported
+        // rate, and 2 samples keep the interpolator's newest point written.
+        let delay = if self.machinery_movement > 0.0 {
+            base_delay * (1.0 + modulation)
+        } else {
+            base_delay.round()
+        }
+        .clamp(2.0, (ECHO_CAPACITY - 3) as f32);
+        let whole = delay.floor();
+        let t = delay - whole;
+        let whole = whole as usize;
+        let at = |offset: usize| (self.write_index + ECHO_CAPACITY - offset) % ECHO_CAPACITY;
+        let (i0, i1, i2, i3) = (at(whole - 1), at(whole), at(whole + 1), at(whole + 2));
+        let read = |buffer: &[f32]| {
+            if t == 0.0 {
+                buffer[i1]
+            } else {
+                hermite(buffer[i0], buffer[i1], buffer[i2], buffer[i3], t)
+            }
+        };
+        let wet_left_raw = read(&self.delay_buffer_left);
+        let wet_right_raw = read(&self.delay_buffer_right);
 
-        let wet_left_raw = self.delay_buffer_left[read_index];
-        let wet_right_raw = self.delay_buffer_right[read_index];
-
-        let damp = 1.0 - self.high_frequency_damping.clamp(0.0, 1.0) * 0.6;
-        let wet_left = wet_left_raw * damp;
-        let wet_right = wet_right_raw * damp;
+        // High Frequency Damping: a one-pole low-pass inside the feedback
+        // loop, so each repeat is darker than the last; bypassed at 0.
+        let k = self.damping_coeff;
+        let (wet_left, wet_right) = if k < 1.0 {
+            self.damping_state[0] += k * (wet_left_raw - self.damping_state[0]);
+            self.damping_state[1] += k * (wet_right_raw - self.damping_state[1]);
+            (
+                self.damping_state[0] * ECHO_WET_GAIN,
+                self.damping_state[1] * ECHO_WET_GAIN,
+            )
+        } else {
+            (wet_left_raw * ECHO_WET_GAIN, wet_right_raw * ECHO_WET_GAIN)
+        };
 
         self.delay_buffer_left[self.write_index] = left + wet_left * 0.45;
         self.delay_buffer_right[self.write_index] = right + wet_right * 0.45;
@@ -358,6 +433,7 @@ impl FactoryEcho {
         self.delay_buffer_right.fill(0.0);
         self.write_index = 0;
         self.phase = 0.0;
+        self.damping_state = [0.0; 2];
     }
 }
 
@@ -617,6 +693,154 @@ mod tests {
             let (left, right) = echo.process_stereo(input, input);
             assert!(left.is_finite());
             assert!(right.is_finite());
+        }
+    }
+
+    // --- Echo modulation and HF Damping (`m07-m08-interpolate-echo-and-tidy-spread`) ---
+
+    /// The echo's wet (left) output for `input`, `frames` long.
+    fn echo_run(
+        sample_rate: f32,
+        delay_time: f32,
+        movement: f32,
+        damping: f32,
+        frames: usize,
+        input: impl Fn(usize) -> f32,
+    ) -> Vec<f32> {
+        let mut echo = FactoryEcho::new();
+        echo.set_sample_rate(sample_rate);
+        echo.set_parameters(delay_time, movement, damping);
+        (0..frames)
+            .map(|i| echo.process_stereo(input(i), 0.0).0)
+            .collect()
+    }
+
+    fn max_step(x: &[f32]) -> f32 {
+        x.windows(2).fold(0.0f32, |m, w| m.max((w[1] - w[0]).abs()))
+    }
+
+    fn rms(x: &[f32]) -> f32 {
+        (x.iter().map(|&v| (v as f64) * (v as f64)).sum::<f64>() / x.len().max(1) as f64).sqrt()
+            as f32
+    }
+
+    /// Echo delay in samples for Delay Time `delay_time`, unmodulated.
+    fn echo_delay(sample_rate: f32, delay_time: f32) -> usize {
+        ((0.02 + delay_time * 0.78) * sample_rate).round() as usize
+    }
+
+    /// Spec "Sine through a moving delay": no repeated or skipped samples.
+    #[test]
+    fn echo_modulation_glides() {
+        let sr = 48_000.0;
+        let sine = |i: usize| 0.5 * (std::f32::consts::TAU * 1_000.0 * i as f32 / sr).sin();
+        // Two modulation periods at Machinery Movement 1 (2.05 Hz).
+        let frames = (2.0 / 2.05 * sr) as usize + echo_delay(sr, 0.25);
+        let wet = echo_run(sr, 0.25, 1.0, 0.0, frames, sine);
+        let reference: Vec<f32> = (0..frames).map(sine).collect();
+        let (wet_step, sine_step) = (max_step(&wet), max_step(&reference));
+        println!("GLIDE wet step {wet_step:.4}, sine step {sine_step:.4}");
+        assert!(
+            wet_step <= 1.2 * sine_step,
+            "wet step {wet_step:.4} vs sine step {sine_step:.4}"
+        );
+    }
+
+    /// Spec "No modulation stays exact".
+    #[test]
+    fn unmodulated_echo_is_a_single_sample() {
+        for damping in [0.0, 0.5] {
+            let sr = 48_000.0;
+            let d = echo_delay(sr, 0.25);
+            let wet = echo_run(sr, 0.25, 0.0, damping, d + 20, |i| {
+                if i == 0 {
+                    1.0
+                } else {
+                    0.0
+                }
+            });
+            assert_eq!(first_arrival(&wet), d, "damping {damping}");
+            if damping == 0.0 {
+                assert!(wet[d + 1..].iter().all(|&y| y == 0.0), "smeared repeat");
+            }
+        }
+    }
+
+    /// Level (RMS) of the first repeat of a steady sine at `freq`.
+    fn first_repeat_level(sample_rate: f32, freq: f32, damping: f32) -> f32 {
+        let d = echo_delay(sample_rate, 0.25);
+        let wet = echo_run(sample_rate, 0.25, 0.0, damping, 2 * d, |i| {
+            (std::f32::consts::TAU * freq * i as f32 / sample_rate).sin()
+        });
+        // The first repeat only, after the filter has settled.
+        rms(&wet[d + d / 4..2 * d])
+    }
+
+    fn db(ratio: f32) -> f32 {
+        20.0 * ratio.log10()
+    }
+
+    /// Spec "Highs fade, lows stay".
+    #[test]
+    fn hf_damping_darkens_without_changing_the_lows() {
+        let sr = 48_000.0;
+        let low: Vec<f32> = [0.0, 0.5, 1.0]
+            .iter()
+            .map(|&d| first_repeat_level(sr, 200.0, d))
+            .collect();
+        let high: Vec<f32> = [0.0, 0.5, 1.0]
+            .iter()
+            .map(|&d| first_repeat_level(sr, 8_000.0, d))
+            .collect();
+        println!("HFD low {low:?} high {high:?}");
+        assert!(
+            db(high[0] / low[0]).abs() <= 0.5,
+            "damping 0 tilts: {low:?} {high:?}"
+        );
+        assert!(db(high[2] / low[2]) <= -12.0, "damping 1: {low:?} {high:?}");
+        for l in &low[1..] {
+            assert!(db(l / low[0]).abs() <= 0.5, "200 Hz level moves: {low:?}");
+        }
+    }
+
+    /// Spec "Each repeat is darker".
+    #[test]
+    fn each_repeat_is_darker() {
+        let sr = 48_000.0;
+        let d = echo_delay(sr, 0.25);
+        let burst = |freq: f32| {
+            move |i: usize| {
+                if i < d / 2 {
+                    (std::f32::consts::TAU * freq * i as f32 / sr).sin()
+                } else {
+                    0.0
+                }
+            }
+        };
+        let high = echo_run(sr, 0.25, 0.0, 1.0, 4 * d, burst(8_000.0));
+        let low = echo_run(sr, 0.25, 0.0, 1.0, 4 * d, burst(200.0));
+        let ratios: Vec<f32> = (1..=3)
+            .map(|k| rms(&high[k * d..k * d + d / 2]) / rms(&low[k * d..k * d + d / 2]))
+            .collect();
+        println!("REPEATS 8 kHz / 200 Hz: {ratios:?}");
+        assert!(
+            ratios[1] < ratios[0] && ratios[2] < ratios[1],
+            "8 kHz / 200 Hz per repeat: {ratios:?}"
+        );
+    }
+
+    /// Spec "Same tone at every rate".
+    #[test]
+    fn hf_damping_tone_does_not_depend_on_the_sample_rate() {
+        let reference = first_repeat_level(48_000.0, 8_000.0, 1.0);
+        for sr in [44_100.0, 96_000.0] {
+            let level = first_repeat_level(sr, 8_000.0, 1.0);
+            println!("RATE {sr}: {:+.2} dB from 48 kHz", db(level / reference));
+            assert!(
+                db(level / reference).abs() <= 1.0,
+                "{sr} Hz: {:.2} dB from 48 kHz",
+                db(level / reference)
+            );
         }
     }
 }
