@@ -2,9 +2,17 @@
 
 Corrosion is a physical-modeling instrument plugin (VST3 + CLAP, Rust, nih-plug, egui editor): MIDI notes excite modal resonators (pipes, plates, cables, …) through 16 exciter models, then a post chain (filter, drive, FEM body, HRTF spread, Space, clipper, limiter). `README.md` describes the sound surface; `docs/ARCHITECTURE.md` is the as-built reference and is kept current.
 
-## Working with the maintainer
+## ⚠️ Branch: USE `dev`, ALWAYS
 
-- **Work only on the `dev` branch.** Check it out (`git fetch origin dev && git checkout dev`), commit there, and push to `origin dev`. Don't create or push other branches (including `claude/*` session branches) unless the maintainer asks. PRs, when asked for, go from `dev` to `main`.
+**Every change goes on the `dev` branch. No exceptions.**
+
+- **Start of every session:** `git fetch origin && git checkout dev && git pull origin dev`. Check `git branch --show-current` says `dev` before editing anything.
+- **Commit on `dev`, push to `dev`:** `git push origin dev`.
+- **Never** commit to `main`, and never create or push any other branch, including the `claude/*` branch a session may start on or be told to use. If the session starts on another branch, switch to `dev` first. Only the maintainer can make an exception, explicitly.
+- **PRs** go from `dev` into `main`, and only when the maintainer asks for one.
+- **After a PR merges**, bring `dev` up to date with `main` (`git fetch origin && git merge --ff-only origin/main`, then push) before any new work.
+
+## Working with the maintainer
 
 - **Talk to the maintainer in Spanish.** Code, comments, docs, commit messages and PR descriptions are in English.
 - **Update a PR's description only when a change is finished**, not after every commit.
@@ -27,11 +35,11 @@ The work follows the code review in `FABLE-CODE-REVIEW-2026-07-07.md`. Each fixe
 | Findings | State |
 |---|---|
 | C1–C6 (critical) | Fixed, archived in `openspec/changes/archive/` |
-| H1–H10 | Fixed, merged to `main` (PRs #5, #6). All H changes archived 2026-11-08 |
-| H11 (prune unsoundable modes), H12 (skip redundant retunes) | Fixed, merged to `main` (PR #7). H12 bounds re-verified on `main`: bent 1.019×, dynamics 1.535× (median of 5) |
-| H13 `h13-render-presets-through-post-chain` | Fixed on branch `claude/nice-mccarthy-9fm1p6` (6/6 tasks), merged to `main` (PR #8). Also fixed `reset()`'s unbiased drive start |
-| H14 `h14-wrap-low-kit-notes` | Fixed on branch `claude/nice-mccarthy-9fm1p6` (4/4 tasks), merged to `main` (PR #8) |
-| Medium M1–M20 | 7 OpenSpec changes, applied in the order under "Execution order for the M changes" below. **Done**, merged to `main` (PR #9): `m03-m20-start-at-host-rate-and-report-latency` (8/8 tasks; also restarts four exciters' per-note state), `m13-sustain-pedal-and-panic` (8/8 tasks), `m07-m08-interpolate-echo-and-tidy-spread` (5/5 tasks). **Next:** `m06-m09-smooth-starvation-and-oversample-clipper`. M16 fixed with H10; M2 and M19 already resolved (marked by the last change) |
+| H1–H10 | Fixed. All H changes archived 2026-11-08 |
+| H11 (prune unsoundable modes), H12 (skip redundant retunes) | Fixed. H12 bounds re-verified: bent 1.019×, dynamics 1.535× (median of 5) |
+| H13 `h13-render-presets-through-post-chain` | Fixed. Also fixed `reset()`'s unbiased drive start |
+| H14 `h14-wrap-low-kit-notes` | Fixed |
+| Medium M1–M20 | 7 OpenSpec changes, applied in the order under "Execution order for the M changes" below. **Done:** `m03-m20-start-at-host-rate-and-report-latency` (also restarts four exciters' per-note state), `m13-sustain-pedal-and-panic`, `m07-m08-interpolate-echo-and-tidy-spread`. **Next:** `m06-m09-smooth-starvation-and-oversample-clipper`. M16 fixed with H10; M2 and M19 already resolved (marked by the last change) |
 | Backlog | `docs/BACKLOG.md` (P0–P4): Windows CI, DAW smoke automation, GUI tests, benchmark baselines |
 
 **Archived (2026-11-08):** `h01`–`h14`, `resolve-exciter-tradeoffs` and `stabilize-mallet-and-grinding-contact` are in `openspec/changes/archive/2026-11-08-*`, and their delta specs are synced into `openspec/specs/` (22 capabilities). The active changes are the M changes above; finished ones stay active until archived. A new change syncs its specs on archive as usual (`/opsx:archive`).
@@ -58,9 +66,9 @@ How each change has been done, and what the maintainer expects:
 1. **Tests first.** Write the spec scenarios as tests and verify they fail on the current code (or that a reference test passes), before implementing.
 2. **Implement**, keeping changes scoped to the tasks. Mark each task `- [x]` as soon as it is done and verified.
 3. **Record numbers in the change's `design.md`** (a `## Measurements` section): before/after values, benchmark tables, anything the proposal guessed wrong. When the implementation differs from a design decision, add an *As built* note rather than leaving the design stale.
-4. **Docs:** update `docs/ARCHITECTURE.md` (and the README when users see the change), and mark the finding FIXED in `FABLE-CODE-REVIEW-2026-07-07.md` with date, branch, change link and what proves it.
+4. **Docs:** update `docs/ARCHITECTURE.md` (and the README when users see the change), and mark the finding FIXED in `FABLE-CODE-REVIEW-2026-07-07.md` with date, change link and what proves it.
 5. **Close out:** `cargo fmt --check`, clippy with `-D warnings`, the full test suite, then commit and push.
-6. **Update "Current state" in this file** when a change is finished, without being asked: the date in its heading, the change's row (fixed, on which branch, PR number and whether it is merged), what is next, and the "Not yet archived" list. Also keep the branch and PR line in "Git and PRs" current. Commit it with the change's close-out.
+6. **Update "Current state" in this file** when a change is finished, without being asked: the date in its heading, the change's row (fixed or done), what is next, and the archive note. Don't record PR numbers, branches or merge status here: GitHub and git already hold them. Commit it with the change's close-out.
 
 ## Build and test
 
@@ -122,6 +130,6 @@ When a parameter's meaning changes, migrate both paths:
 
 ## Git and PRs
 
-- **All work happens on `dev`** (see "Working with the maintainer"). PRs #5–#9 are merged; `dev` was fast-forwarded to `main` after PR #9 and carries all new work from there. **PR #10** (`main` ← `dev`, this workflow note) is open. Open a PR from `dev` to `main` only when asked; after it merges, bring `dev` up to date with `main` (fast-forward when possible) before continuing.
+- **Branch:** `dev` only (see "Branch: USE `dev`, ALWAYS" at the top). PR state lives on GitHub, not in this file.
 - Commit messages: imperative subject naming the finding, e.g. "Skip redundant mode retunes (H12)", and a body saying what changed and why. Add measurements when relevant. Don't put model identifiers in commits, code or PRs.
 - Don't create a PR unless asked. There's no PR template: use Summary / Behaviour changes / Testing sections and say plainly what wasn't tested (Windows build, pluginval, clap-validator, DAW smoke tests haven't been run in these sessions).
