@@ -418,7 +418,7 @@ const LEVELS: &[(&str, u32, f32)] = &[
     (
         "experimental/tension_rise/industrial_cog.corrosion-preset",
         0,
-        12.91,
+        8.09,
     ),
     ("experimental/pneumatic_jet/pipe.corrosion-preset", 1, 0.576),
     (

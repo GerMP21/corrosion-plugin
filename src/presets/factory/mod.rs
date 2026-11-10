@@ -167,6 +167,11 @@ pub const FLOOR_NOTE: u8 = 60;
 pub const FLOOR_VELOCITY: f32 = 100.0 / 127.0;
 pub const FLOOR_SECONDS: f32 = 2.0;
 
+/// The headroom render's velocity: the same held note at full velocity must
+/// also keep at most [`MAX_CEILING_FRACTION`] of its samples at the ceiling,
+/// so a hard-played note does not drive the limiter.
+pub const HEADROOM_VELOCITY: f32 = 1.0;
+
 /// The largest Output levelling may set (+40 dB, the parameter's top).
 pub const MAX_OUTPUT: f32 = 100.0;
 
@@ -180,6 +185,8 @@ pub struct FloorReport {
     /// Share of samples (both channels) whose level before the limiter is
     /// above the output ceiling: how often the limiter acts.
     pub ceiling_fraction: f32,
+    /// The same share for the held note at [`HEADROOM_VELOCITY`].
+    pub full_velocity_ceiling_fraction: f32,
 }
 
 impl FloorReport {
@@ -206,12 +213,37 @@ impl FloorReport {
                 MAX_CEILING_FRACTION * 100.0
             ));
         }
+        if self.full_velocity_ceiling_fraction > MAX_CEILING_FRACTION {
+            return Err(format!(
+                "{:.2} % of samples at the ceiling at full velocity (≤ {:.0} %)",
+                self.full_velocity_ceiling_fraction * 100.0,
+                MAX_CEILING_FRACTION * 100.0
+            ));
+        }
         Ok(())
     }
 }
 
 fn floor_notes() -> [OfflineNote; 1] {
     [OfflineNote::on(0, FLOOR_NOTE, FLOOR_VELOCITY)]
+}
+
+fn headroom_notes() -> [OfflineNote; 1] {
+    [OfflineNote::on(0, FLOOR_NOTE, HEADROOM_VELOCITY)]
+}
+
+fn frames() -> usize {
+    (FLOOR_SAMPLE_RATE as f32 * FLOOR_SECONDS) as usize
+}
+
+/// Share of samples (both channels) above `ceiling`.
+fn fraction_above(frames: &[(f32, f32)], ceiling: f32) -> f32 {
+    let over = frames
+        .iter()
+        .flat_map(|&(l, r)| [l, r])
+        .filter(|x| x.abs() > ceiling)
+        .count();
+    over as f32 / (2 * frames.len().max(1)) as f32
 }
 
 fn rms(frames: &[(f32, f32)]) -> f32 {
@@ -222,45 +254,70 @@ fn rms(frames: &[(f32, f32)]) -> f32 {
     (sum / (2 * frames.len().max(1)) as f64).sqrt() as f32
 }
 
-/// Render `preset`'s floor note (a held middle C, 2 s) and measure it.
+/// Render `preset`'s floor note (a held middle C, 2 s) and the same note at
+/// full velocity, and measure them.
 pub fn measure_floor(preset: &Preset) -> FloorReport {
-    let frames = (FLOOR_SAMPLE_RATE as f32 * FLOOR_SECONDS) as usize;
-    let rendered = PresetRenderer::new(preset).render(&floor_notes(), FLOOR_SAMPLE_RATE, frames);
+    let rendered = PresetRenderer::new(preset).render(&floor_notes(), FLOOR_SAMPLE_RATE, frames());
+    let full =
+        render_preset_pre_limiter(preset, &headroom_notes(), FLOOR_SAMPLE_RATE, FLOOR_SECONDS);
     let ceiling = preset.extra.analog_ceiling;
-    let over = rendered
-        .pre_limiter
-        .iter()
-        .flat_map(|&(l, r)| [l, r])
-        .filter(|x| x.abs() > ceiling)
-        .count();
     FloorReport {
         finite: rendered
             .output
             .iter()
+            .chain(&full)
             .all(|&(l, r)| l.is_finite() && r.is_finite()),
         rms: rms(&rendered.output),
-        ceiling_fraction: over as f32 / (2 * frames.max(1)) as f32,
+        ceiling_fraction: fraction_above(&rendered.pre_limiter, ceiling),
+        full_velocity_ceiling_fraction: fraction_above(&full, ceiling),
     }
 }
 
-/// Set `preset.output` so its floor render sits at [`TARGET_RMS`], and
-/// return the levelled render's measurements.
+/// Set `preset.output` so its floor render sits at [`TARGET_RMS`], lowered
+/// if needed so the full-velocity note keeps at most
+/// [`MAX_CEILING_FRACTION`] of its samples at the ceiling, and return the
+/// levelled render's measurements.
 ///
 /// The output gain is applied before the limiter, so the level before the
-/// limiter scales exactly with Output: one render at Output 1 gives the
-/// gain. Output is rounded to 4 significant digits so the files stay
-/// readable, and capped at [`MAX_OUTPUT`].
+/// limiter scales exactly with Output: one render of each note at Output 1
+/// gives both gains (the headroom gain puts the full-velocity note's
+/// 99th-percentile sample, less a margin, at the ceiling). Output is rounded
+/// to 4 significant digits so the files stay readable, and capped at
+/// [`MAX_OUTPUT`].
 pub fn level(preset: &mut Preset) -> FloorReport {
     preset.output = 1.0;
     let pre = render_preset_pre_limiter(preset, &floor_notes(), FLOOR_SAMPLE_RATE, FLOOR_SECONDS);
     let at_unity = rms(&pre);
-    let gain = if at_unity.is_finite() && at_unity > 0.0 {
+    let mut gain = if at_unity.is_finite() && at_unity > 0.0 {
         (TARGET_RMS / at_unity).min(MAX_OUTPUT)
     } else {
         1.0
     };
+    let full =
+        render_preset_pre_limiter(preset, &headroom_notes(), FLOOR_SAMPLE_RATE, FLOOR_SECONDS);
+    let quantile = allowed_peak(&full);
+    if quantile.is_finite() && quantile > 0.0 {
+        gain = gain.min(HEADROOM_MARGIN * preset.extra.analog_ceiling / quantile);
+    }
     preset.output = round_significant(gain, 4);
     measure_floor(preset)
+}
+
+/// Headroom kept under the ceiling by [`level`], for the rounding of Output.
+const HEADROOM_MARGIN: f32 = 0.995;
+
+/// The sample level that [`MAX_CEILING_FRACTION`] of the samples exceed.
+fn allowed_peak(frames: &[(f32, f32)]) -> f32 {
+    let mut levels: Vec<f32> = frames
+        .iter()
+        .flat_map(|&(l, r)| [l.abs(), r.abs()])
+        .collect();
+    if levels.is_empty() {
+        return 0.0;
+    }
+    levels.sort_by(f32::total_cmp);
+    let allowed = (levels.len() as f32 * MAX_CEILING_FRACTION) as usize;
+    levels[levels.len() - 1 - allowed.min(levels.len() - 1)]
 }
 
 fn round_significant(x: f32, digits: i32) -> f32 {
