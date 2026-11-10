@@ -2492,19 +2492,27 @@ fn render_header(
                     );
                     ui.painter().rect_filled(accent_rect, 0.0, DANGER_RED);
                     ui.add_space(width_pct(scale, 0.0037037036));
-                    let text_block_size =
-                        egui::vec2(width_pct(scale, 0.074074075), height_pct(scale, 0.03125));
-                    let (text_rect, _) =
-                        ui.allocate_exact_size(text_block_size, egui::Sense::hover());
-                    let painter = ui.painter();
+                    // Measure the two lines first and reserve their width,
+                    // plus a margin, so the next column starts after them.
                     let font = egui::FontId::proportional(width_pct(scale, 0.0074074073));
-                    let galley1 = painter.layout_no_wrap(
+                    let galley1 = ui.painter().layout_no_wrap(
                         "INDUSTRIAL RESONATOR".into(),
                         font.clone(),
                         MUTED_GREY,
                     );
-                    let galley2 =
-                        painter.layout_no_wrap("MODEL: CR-89X".into(), font.clone(), MUTED_GREY);
+                    let galley2 = ui.painter().layout_no_wrap(
+                        "MODEL: CR-89X".into(),
+                        font.clone(),
+                        MUTED_GREY,
+                    );
+                    let text_width = galley1.rect.width().max(galley2.rect.width());
+                    let text_block_size = egui::vec2(
+                        text_width + width_pct(scale, 0.014814815),
+                        height_pct(scale, 0.03125),
+                    );
+                    let (text_rect, _) =
+                        ui.allocate_exact_size(text_block_size, egui::Sense::hover());
+                    let painter = ui.painter();
                     let gap = height_pct(scale, 0.0026041667);
                     let total_h = galley1.rect.height() + galley2.rect.height() + gap;
                     let y = text_rect.center().y - total_h / 2.0;
@@ -5713,6 +5721,29 @@ mod tests {
                 pair[1].1
             );
         }
+    }
+
+    /// The brand text ends clear of the preset bank's panel, which starts a
+    /// few pixels left of its first control ("User").
+    #[test]
+    fn brand_text_clears_the_preset_bank() {
+        let params = crate::params::CorrosionParams::default();
+        let texts = text_rects_with_pointer_at(&params, None);
+        let rect = |name: &str| {
+            texts
+                .iter()
+                .find(|(t, _)| t == name)
+                .map(|(_, r)| *r)
+                .unwrap_or_else(|| panic!("no {name:?} drawn"))
+        };
+        let brand = rect("INDUSTRIAL RESONATOR");
+        let user = rect("User");
+        assert!(
+            brand.max.x + 12.0 <= user.min.x,
+            "brand text ends at {}, preset bank's User at {}",
+            brand.max.x,
+            user.min.x
+        );
     }
 
     /// The help opens above its badge, so the pointer resting on the badge
