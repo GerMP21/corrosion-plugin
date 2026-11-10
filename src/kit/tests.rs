@@ -106,6 +106,18 @@ fn keys_without_a_pad_are_silent() {
     assert!(out.pre_limiter.iter().all(|&(l, r)| l == 0.0 && r == 0.0));
 }
 
+/// Spec "The kit zone": host MIDI plays any key that has a pad; the zone
+/// and the Full keyboard toggle only lock the editor's strip.
+#[test]
+fn host_notes_play_pads_outside_the_kit_zone() {
+    assert!(!KIT_ZONE.contains(&70));
+    let mallet = mallet_on_tank();
+    let kit = kit_params(&bow_on_pipe_kit(), &[pad_from(&mallet, 70, 0)]);
+    let out = render(kit, 70, 24_000);
+    assert!(out.iter().any(|&(l, _)| l != 0.0), "pad 70 is silent");
+    assert_eq!(out, render(mallet.into_params(), 70, 24_000));
+}
+
 #[test]
 fn pads_keep_their_pitch() {
     let mallet = mallet_on_tank();

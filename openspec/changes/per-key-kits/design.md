@@ -89,7 +89,7 @@ Each kit has its own character (for example "Foundry Kit": tank kick, sheet-meta
 ## Risks / Trade-offs
 
 - **State-restore timing** (decision 3) is the one unverified piece of nih-plug behaviour. Stop and ask if the only option left would rebuild on the audio thread.
-- **Kit preset size:** 24 pads × about 110 floats is a few kB of JSON per kit preset; fine.
+- **Kit preset size:** 24 pads × about 110 floats is a few kB of JSON per kit preset; fine. *(Measured: the factory kits have 12 pads and are about 50 kB each; see Measurements.)*
 - **Loading a pad moves every voice parameter** of the editor, which a host may record as automation if it is recording. Same as loading a preset; documented.
 - **Shared post chain:** a kit's hats and kick go through the same filter and drive. Accepted (Non-Goals), and stated in the README.
 - **Wider strip:** 49 keys make white keys about 22 points at 75 % (were about 28); check in REAPER.

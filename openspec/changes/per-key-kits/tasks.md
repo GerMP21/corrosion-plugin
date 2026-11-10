@@ -15,8 +15,8 @@
 
 ## 2. Engine
 
-- [x] 2.1 `src/kit.rs`: `Pad`, `KitTable` (seqlock slots, writer mutex), `KitState` (serde)
-- [x] 2.2 `handle_note_event` Kit path: pad lookup, silence, pad pitch via per-note tuning, level, `pad_voice` excluded from live global controls; remove `note_to_kit_object`
+- [x] 2.1 `src/kit.rs`: `Pad`, `KitTable` (seqlock slots, writer mutex), `KitState` (serde) *(as built: `src/kit/mod.rs` and `src/kit/tests.rs`; the stored pad is `KitPad`, built into `Pad` when the table loads)*
+- [x] 2.2 `handle_note_event` Kit path: pad lookup, silence, pad pitch via per-note tuning, level, `pad_voice` excluded from live global controls; remove `note_to_kit_object` *(as built: the pitch goes into the mode bank at `key + tune`, not through per-note tuning, and the level is a gain after the voice clamp; see design.md "As built")*
 - [x] 2.3 Persist `KitState` (`#[persist = "kit"]`), rebuild the table after a state restore (verify nih-plug's `initialize` timing; record it)
 - [x] 2.4 Preset `kit` field (save, load, clear when absent); `migrate_preset_json` and `filter_state` turn old Kit into Tonal
 
