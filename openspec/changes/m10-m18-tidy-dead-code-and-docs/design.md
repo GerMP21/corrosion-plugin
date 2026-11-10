@@ -28,3 +28,38 @@
 ## Open Questions
 
 - M14: should a quality change also rebuild held notes' banks? Deferred; documenting it doesn't preclude doing it later.
+
+## Measurements
+
+### Tests first (task 1.1)
+
+On the code before this change (`tests/preset_roundtrip.rs`):
+
+| Test | Scenario | Before |
+|---|---|---|
+| `preset_built_parameters_display_like_the_live_ones` | Every parameter | fails: 76 parameters show different text across the 50 factory presets (e.g. Beam Shear "0.450000" vs live "0.45"; Body "0.410000" vs "0.41000003") |
+| `ui_scale_and_filter_cutoff_display_like_the_live_ones` | UI Scale and Filter Cutoff | fails: UI Scale shows "2", not "100%" |
+| `out_of_range_exciter_loads_as_hand_strike` | Exciter 0 and 17 | passes (pins today's fallback; also −3 and 99) |
+| `every_valid_exciter_loads_and_saves_as_itself` | Every valid exciter | passes |
+
+Names and normalization already matched (m01 fixed the names); only the display text differed.
+
+**Reference render hashes** (`tests/tidy_render_hash.rs`, ignored; Damage 6, Rust 1.5, Width 1.5, Internal Rattle 0.8; C3 and G3 overlapping, 2 s at 48 kHz through the whole plugin path), clean worktree of the previous commit, gnu:
+
+| Exciter | Hash |
+|---|---|
+| Bow (friction) | `0xb5a3c286a3733683` |
+| Hand Strike (hit) | `0xd3bc23131499e3bd` |
+| Hard Mallet (hit) | `0xeac413ddf848d891` |
+
+### After
+
+- **Task 2.1:** a script turned the inline constructors in `CorrosionParams::default()` into 136 `pub(crate) fn <id>_param(value)` functions, each clamping to its own range (77 `FloatParam`/`IntParam::new`, 59 `display_float_param`); the four parameters that already had shared builders (Sync Rate, Pressure, Speed, Roughness) are called with their value clamped to 0–1. `into_params` calls the same functions, and its `float_param`, `int_param` and `skewed_float_param` helpers are deleted. All four 1.1 tests pass, and `tests/preset_roundtrip.rs` passes (21).
+- **Render hashes** after tasks 2.1 and 3.1: identical to the reference for all three exciters. `print_48k_exciter_render_hashes` (default patch, 16 exciters) is identical to a clean worktree too.
+- `preset_levels_are_sane` reports the same three placeholder presets under its floor as before (Cable Bow −13.6, Suspension Cable Pluck −15.1, Workshop Plate Scrape −15.3 dB): no level changed.
+
+### As built
+
+- **M10 (decision on wording):** the proposal said the interaction bus is feed-forward. It isn't: the resonator writes its contact displacement and velocity each sample and `Voice::process_exciter` feeds them back to the exciter (`src/voice/mod.rs`, `get_displacement` / `get_velocity`). Only `exciter_force` was dead. It and `set_exciter_force` are removed, and `InteractionState`'s doc now says what is exchanged; the bus is still described as bidirectional rather than feed-forward.
+- **M18:** the README and `docs/ARCHITECTURE.md` also said "8 `Voice` instances"; corrected to 16 (`MAX_VOICES`).
+- **M2, M19:** confirmed resolved in the code (AD panel for hit exciters; `params::sync_division` with six equal bands shared by the echo and the display) and marked in the review.

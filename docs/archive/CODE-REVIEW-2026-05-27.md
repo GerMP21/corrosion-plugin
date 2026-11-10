@@ -1,3 +1,5 @@
+> **Superseded.** This review (2026-05-27) is kept for history only and no longer matches the code. The current review is [`FABLE-CODE-REVIEW-2026-07-07.md`](../../FABLE-CODE-REVIEW-2026-07-07.md), whose findings are tracked as OpenSpec changes.
+
 # Corrosion — Critical Code Review & Doc Conformance
 
 **Scope:** full `src/` tree except `src/presets/` (excluded by request).

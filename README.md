@@ -46,7 +46,7 @@ Each object is driven by an algorithmic resonator generator (the single resonato
 - **Rust, Damage, Heat**: Rust (0–5) dulls and shortens the high partials first while the low thud keeps ringing; Damage (0–10) cracks the object into beating, detuned mode pairs without losing the note; Heat (0–1) lowers the pitch slightly, darkens, and adds a slow thermal warble. None of them silences a note: across each range the level stays within about 3 dB.
 - **Macros** (PRD §12, neutral midpoint at 0.5): `Mass`, `Corrosion`, `Violence`, `Brightness`. Each layers a bias across a cluster of related destinations (mass macro hits the exciter mass cluster + resonator size; corrosion adds damping and rust; violence pushes drive/chaos/damage; brightness opens the post-chain filter).
 - **Play mode**: `Tonal` (default — note → pitch), `Kit` (MIDI note range → object family, 10 notes per kit slot from MIDI 24, repeating above and below that block so every object is reachable at both ends of the keyboard), `Drone` (force MSEG loop on for friction voices so notes ring until release).
-- **Quality**: `Eco` / `Normal` / `High` / `Render`. Controls both the final clipper's oversampling (1×/4×/8×/16×, half-band IIR filters; every mode, Eco included, runs the same diode curve with its limit 2.3 dB below the Analog Ceiling, so the modes differ only in aliasing) **and** per-voice modal density (0.5×/1.0×/1.5×/2.0× the object's base mode count). Every mode runs the full post chain (Eco no longer skips body, spread or Space), so quality modes trade fidelity and CPU, not effects.
+- **Quality**: `Eco` / `Normal` / `High` / `Render`. Controls both the final clipper's oversampling (1×/4×/8×/16×, half-band IIR filters; every mode, Eco included, runs the same diode curve with its limit 2.3 dB below the Analog Ceiling, so the modes differ only in aliasing) **and** per-voice modal density (0.5×/1.0×/1.5×/2.0× the object's base mode count). Every mode runs the full post chain (Eco no longer skips body, spread or Space), so quality modes trade fidelity and CPU, not effects. **The two parts change at different times:** the clipper's oversampling switches at once, but a note's mode count is fixed when it starts, so held notes and their tails keep their density until the next note-on.
 - **Limiter**: `Hard` (default zero-latency hard clamp at ≈−0.3 dBFS) or `Lookahead` (48-sample window, instant attack, 50 ms release; reports its 1 ms latency to the host).
 - **Diode stage** (the final clipper, in the Brickwall Limiter panel): a soft-knee diode curve that sounds good driven hot.
   - **Diode Softness** (0–1, default 0.5) sets the knee: 0 is a hard clip, 1 starts bending about 14 dB under the limit.
@@ -194,7 +194,7 @@ Benchmark coverage is local/manual for now. Use `cargo bench --no-default-featur
 
 - **No heap allocation** in `process()` — including note-on for every object, quality mode and exciter, voice stealing, live MIDI expression, and `reset()`. Each voice preallocates its worst-case modal bank (`MAX_MODES`) and rebuilds it in place at note-on. Verified by `tests/no_alloc.rs`, which must run in a **debug** build (`cargo test --no-default-features --test no_alloc`): the checking allocator only exists under `debug_assertions`, and a release run passes vacuously. The non-Windows build enables nih_plug's `assert_process_allocs` feature. The Windows lane is intentionally disabled (`assert_no_alloc`'s thread-local allocator hook conflicts with the Windows CRT during nih-plug test setup); document is in `docs/BACKLOG.md` → P4.
 - **No locks / blocking / I/O / logging** in the audio callback.
-- **Fixed voice array** — 8 `Voice` instances, each owning all 16 exciter structs (allocation-free dispatch).
+- **Fixed voice array** — 16 `Voice` instances (`MAX_VOICES`), each owning all 16 exciter structs (allocation-free dispatch).
 - **Denormal + NaN/Inf guards** at every voice boundary; non-finite peak holds sort as quietest within their stealing tier, so a corrupted voice is reclaimed.
 - **Per-buffer parameter setters.** Following the P0 fix, post-chain parameters update once per buffer (not per sample), with audio-rate one-pole smoothers (~20 ms tau, first-call snap) inside `WdfLadderFilter`, `LorenzDrive`, and the master drive / output gain paths.
 
@@ -204,7 +204,7 @@ Active design and implementation references:
 
 - `docs/ARCHITECTURE.md` — as-built architecture, signal chain, and status of claimed work.
 - `docs/BACKLOG.md` — prioritized work tracker (P0–P4) with `[x] fixed`/`[ ]` status and decision banners for scoped-down items.
-- `docs/CODE-REVIEW.md` — critical code review and doc-vs-code conformance matrix.
+- `FABLE-CODE-REVIEW-2026-07-07.md` — the current code review; each fixed finding names its OpenSpec change. The earlier review (2026-05-27) is in `docs/archive/CODE-REVIEW-2026-05-27.md`, superseded.
 - `docs/PRD.md` — product requirements (see §0 for current-state reconciliation).
 - `docs/MASTER-PROMPT.md` — production-hardening agent prompt (see "Current state" banner).
 - `docs/detailed-specs/` — DSP design notes (each file carries an implementation-status banner; treat as design targets, not descriptions of shipped behavior — see ARCHITECTURE.md §9 decision banner).

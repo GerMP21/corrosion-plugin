@@ -700,7 +700,8 @@ fn handle_note_event(plugin: &mut Corrosion, event: NoteEvent<()>) {
                 controls.loop_end_stage = 4;
             }
 
-            // Get the selected exciter type (0-16 for different exciters)
+            // The selected exciter, 1–16 (values outside fall back to Hand Strike in
+            // `ExciterType::from_int`).
             let exciter_type = plugin.params.exciter.value();
 
             // Macro-biased note-on inputs.

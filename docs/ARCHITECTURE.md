@@ -187,7 +187,7 @@ The audio callback guarantees:
   vacuously. The non-Windows build enables nih_plug's `assert_process_allocs`
   feature (`Cargo.toml` target cfg).
 - **No locks / blocking / I/O / logging** in `process()`.
-- **Fixed voice array** — 8 `Voice` instances, each owning all 16 exciter structs
+- **Fixed voice array** — 16 `Voice` instances (`MAX_VOICES`), each owning all 16 exciter structs
   so dispatch is a `match` on an integer (no trait objects, no allocation).
 - **Bounded loops** — modal banks have fixed sizes; MSEG stages are bounded.
 - **Denormal protection** — `DENORMAL_FLUSH` add/subtract at the voice boundary;
@@ -615,6 +615,13 @@ Stage summary (as implemented):
 | Oversampled clipper (diode stage) | per-polarity tanh-knee diode curve (see "Diode stage" below) run at 4/8/16× through cascaded 2× polyphase half-band IIR stages (`half_band.rs`: elliptic design, 9/5/4/4 all-pass coefficients, flat to 22/48 of the host rate, 93–107 dB stop band), up → curve → down → 2 Hz DC blocker; Eco runs the same curve at the host rate. The limit is the ceiling ÷ 1.3 in every mode, so the filters' overshoot stays under the output limiter. The half-bands delay low frequencies by 4–5 samples (not reported as latency) (`m06-m09-smooth-starvation-and-oversample-clipper`, `add-asymmetric-diode-stage`) |
 
 ### Quality modes (`QualityMode` → `PostQualityMode`)
+
+**Two timings** (M14): the post chain reads the mode every block, so the
+clipper's oversampling changes at once; each voice's mode count is taken at
+note-on (`VoiceControls.mode_count_scale`), so sounding notes keep theirs until
+they end. Switching Eco ↔ Render mid-note therefore changes the clipper
+immediately and the modal density only for new notes. Rebuilding held notes'
+banks on a mode change is a possible later change, not done.
 
 | Mode | Clipper | Clips from | Alias, 5 kHz at 2× ceiling | Delay at 1 kHz |
 |---|---|---|---|---|

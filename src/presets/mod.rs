@@ -5,7 +5,6 @@ use std::path::Path;
 use serde::{Deserialize, Serialize};
 
 use crate::params::{object_param, CorrosionParams, Object};
-use nih_plug::prelude::{FloatParam, FloatRange, IntParam, IntRange};
 
 /// Preset schema version. Bumped whenever the JSON shape changes in a way
 /// that requires a migration step beyond what serde defaults can patch.
@@ -466,118 +465,105 @@ impl PresetParameters {
     }
 
     fn apply_to(self, params: &mut CorrosionParams) {
-        params.ui_scale = int_param("UI Scale", self.ui_scale, 0, 4);
-        params.env_attack = float_param("Attack", self.env_attack, 0.001, 2.0);
-        params.env_decay = float_param("Decay", self.env_decay, 0.01, 5.0);
-        params.env_sustain = float_param("Sustain", self.env_sustain, 0.0, 1.0);
-        params.env_release = float_param("Release", self.env_release, 0.01, 5.0);
-        params.mseg_onset = float_param("Onset Time", self.mseg_onset, 0.001, 1.0);
+        params.ui_scale = crate::params::ui_scale_param(self.ui_scale);
+        params.env_attack = crate::params::env_attack_param(self.env_attack);
+        params.env_decay = crate::params::env_decay_param(self.env_decay);
+        params.env_sustain = crate::params::env_sustain_param(self.env_sustain);
+        params.env_release = crate::params::env_release_param(self.env_release);
+        params.mseg_onset = crate::params::mseg_onset_param(self.mseg_onset);
         params.mseg_onset_level = crate::params::mseg_onset_level_param(self.mseg_onset_level);
-        params.mseg_attack = float_param("MSEG Attack", self.mseg_attack, 0.001, 2.0);
-        params.mseg_hold = float_param("Hold", self.mseg_hold, 0.0, 2.0);
-        params.mseg_decay = float_param("MSEG Decay", self.mseg_decay, 0.01, 5.0);
-        params.mseg_sustain = float_param("MSEG Sustain", self.mseg_sustain, 0.0, 1.0);
-        params.mseg_release = float_param("MSEG Release", self.mseg_release, 0.01, 5.0);
-        params.env_amount = float_param("Env Amount", self.env_amount, 0.0, 1.0);
-        params.velocity_to_peak = float_param("Velocity To Peak", self.velocity_to_peak, 0.0, 1.0);
-        params.loop_mode = int_param("Loop Mode", self.loop_mode, 0, 2);
-        params.loop_start_stage = int_param("Loop Start Stage", self.loop_start_stage, 0, 5);
-        params.loop_end_stage = int_param("Loop End Stage", self.loop_end_stage, 0, 5);
-        params.sync_rate = float_param("Sync Rate", self.sync_rate, 0.0, 1.0);
-        params.global_time_scale =
-            float_param("Global Time Scale", self.global_time_scale, 0.1, 10.0);
-        params.velocity_to_level =
-            float_param("Velocity To Level", self.velocity_to_level, 0.0, 1.0);
-        params.velocity_to_time = float_param("Velocity To Time", self.velocity_to_time, 0.0, 1.0);
-        params.curve_tension = float_param("Curve Tension", self.curve_tension, -1.0, 1.0);
-        params.exciter_pressure = float_param("Pressure", self.exciter_pressure, 0.0, 1.0);
-        params.exciter_speed = float_param("Speed", self.exciter_speed, 0.0, 1.0);
-        params.exciter_roughness = float_param("Roughness", self.exciter_roughness, 0.0, 1.0);
-        params.hand_mass = float_param("Hand Mass", self.hand_mass, 0.4, 3.0);
-        params.flesh_stiffness = float_param("Flesh Stiffness", self.flesh_stiffness, 0.05, 0.8);
-        params.flesh_damping = float_param("Flesh Damping", self.flesh_damping, 0.3, 1.8);
-        params.mute_decay = float_param("Mute Decay", self.mute_decay, 0.85, 0.999);
-        params.mallet_mass = float_param("Mallet Mass", self.mallet_mass, 0.4, 3.5);
-        params.felt_softness = float_param("Felt Softness", self.felt_softness, 0.1, 1.3);
-        params.core_hardness = float_param("Core Hardness", self.core_hardness, 0.5, 4.5);
-        params.compression_curve =
-            float_param("Compression Curve", self.compression_curve, 2.0, 5.0);
+        params.mseg_attack = crate::params::mseg_attack_param(self.mseg_attack);
+        params.mseg_hold = crate::params::mseg_hold_param(self.mseg_hold);
+        params.mseg_decay = crate::params::mseg_decay_param(self.mseg_decay);
+        params.mseg_sustain = crate::params::mseg_sustain_param(self.mseg_sustain);
+        params.mseg_release = crate::params::mseg_release_param(self.mseg_release);
+        params.env_amount = crate::params::env_amount_param(self.env_amount);
+        params.velocity_to_peak = crate::params::velocity_to_peak_param(self.velocity_to_peak);
+        params.loop_mode = crate::params::loop_mode_param(self.loop_mode);
+        params.loop_start_stage = crate::params::loop_start_stage_param(self.loop_start_stage);
+        params.loop_end_stage = crate::params::loop_end_stage_param(self.loop_end_stage);
+        params.sync_rate = crate::params::sync_rate_param(self.sync_rate.clamp(0.0, 1.0));
+        params.global_time_scale = crate::params::global_time_scale_param(self.global_time_scale);
+        params.velocity_to_level = crate::params::velocity_to_level_param(self.velocity_to_level);
+        params.velocity_to_time = crate::params::velocity_to_time_param(self.velocity_to_time);
+        params.curve_tension = crate::params::curve_tension_param(self.curve_tension);
+        params.exciter_pressure =
+            crate::params::exciter_pressure_param(self.exciter_pressure.clamp(0.0, 1.0));
+        params.exciter_speed =
+            crate::params::exciter_speed_param(self.exciter_speed.clamp(0.0, 1.0));
+        params.exciter_roughness =
+            crate::params::exciter_roughness_param(self.exciter_roughness.clamp(0.0, 1.0));
+        params.hand_mass = crate::params::hand_mass_param(self.hand_mass);
+        params.flesh_stiffness = crate::params::flesh_stiffness_param(self.flesh_stiffness);
+        params.flesh_damping = crate::params::flesh_damping_param(self.flesh_damping);
+        params.mute_decay = crate::params::mute_decay_param(self.mute_decay);
+        params.mallet_mass = crate::params::mallet_mass_param(self.mallet_mass);
+        params.felt_softness = crate::params::felt_softness_param(self.felt_softness);
+        params.core_hardness = crate::params::core_hardness_param(self.core_hardness);
+        params.compression_curve = crate::params::compression_curve_param(self.compression_curve);
         params.material_stiffness =
-            float_param("Material Stiffness", self.material_stiffness, 0.5, 5.0);
-        params.impact_damping = float_param("Impact Damping", self.impact_damping, 0.1, 1.3);
-        params.stick_mass = float_param("Stick Mass", self.stick_mass, 0.05, 1.25);
-        params.tip_stiffness = float_param("Tip Stiffness", self.tip_stiffness, 0.8, 6.8);
-        params.restitution_bounciness = float_param(
-            "Restitution Bounciness",
-            self.restitution_bounciness,
-            0.2,
-            0.9,
-        );
+            crate::params::material_stiffness_param(self.material_stiffness);
+        params.impact_damping = crate::params::impact_damping_param(self.impact_damping);
+        params.stick_mass = crate::params::stick_mass_param(self.stick_mass);
+        params.tip_stiffness = crate::params::tip_stiffness_param(self.tip_stiffness);
+        params.restitution_bounciness =
+            crate::params::restitution_bounciness_param(self.restitution_bounciness);
         params.micro_bounce_limit =
-            float_param("Micro Bounce Limit", self.micro_bounce_limit, 2.0, 8.0);
-        params.wire_density = float_param("Wire Density", self.wire_density, 10.0, 130.0);
-        params.spread_duration = float_param("Spread Duration", self.spread_duration, 10.0, 250.0);
+            crate::params::micro_bounce_limit_param(self.micro_bounce_limit);
+        params.wire_density = crate::params::wire_density_param(self.wire_density);
+        params.spread_duration = crate::params::spread_duration_param(self.spread_duration);
         params.brush_wire_stiffness =
-            float_param("Brush Wire Stiffness", self.brush_wire_stiffness, 0.0, 1.0);
-        params.amplitude_randomization = float_param(
-            "Amplitude Randomization",
-            self.amplitude_randomization,
-            0.0,
-            1.0,
-        );
-        params.pipe_mass = float_param("Pipe Mass", self.pipe_mass, 0.4, 2.6);
-        params.metal_stiffness = float_param("Metal Stiffness", self.metal_stiffness, 0.5, 5.5);
-        params.pipe_pitch = float_param("Pipe Pitch", self.pipe_pitch, 0.5, 2.5);
-        params.pipe_ring_decay = float_param("Pipe Ring Decay", self.pipe_ring_decay, 0.96, 0.999);
-        params.link_count = float_param("Link Count", self.link_count, 3.0, 15.0);
-        params.chain_mass = float_param("Chain Mass", self.chain_mass, 0.2, 1.4);
-        params.drop_envelope_spread = float_param(
-            "Drop Envelope Spread",
-            self.drop_envelope_spread,
-            40.0,
-            400.0,
-        );
-        params.internal_rattle = float_param("Internal Rattle", self.internal_rattle, 0.0, 1.0);
-        params.rattle_color = float_param("Rattle Color", self.rattle_color, 0.0, 1.0);
-        params.bow_pressure = float_param("Bow Pressure", self.bow_pressure, 0.2, 2.0);
-        params.bow_speed = float_param("Bow Speed", self.bow_speed, 0.1, 2.0);
-        params.rosin_grip = float_param("Rosin Grip", self.rosin_grip, 0.05, 1.5);
-        params.slip_curve = float_param("Slip Curve", self.slip_curve, 0.05, 1.5);
-        params.scrape_speed = float_param("Scrape Speed", self.scrape_speed, 0.1, 2.5);
-        params.point_pressure = float_param("Point Pressure", self.point_pressure, 0.1, 1.5);
-        params.chatter_pitch = float_param("Chatter Pitch", self.chatter_pitch, 0.1, 1.5);
-        params.chatter_damping = float_param("Chatter Damping", self.chatter_damping, 0.1, 0.9);
-        params.grind_speed = float_param("Grind Speed", self.grind_speed, 0.1, 2.5);
-        params.grind_pressure = float_param("Grind Pressure", self.grind_pressure, 0.1, 1.9);
-        params.surface_grit = float_param("Surface Grit", self.surface_grit, 0.0, 1.0);
-        params.grit_color = float_param("Grit Color", self.grit_color, 0.0, 1.0);
-        params.drag_speed = float_param("Drag Speed", self.drag_speed, 0.1, 2.5);
-        params.ridge_spacing = float_param("Ridge Spacing", self.ridge_spacing, 0.01, 0.2);
-        params.ridge_depth = float_param("Ridge Depth", self.ridge_depth, 0.0, 2.0);
-        params.drag_exciter_mass = float_param("Exciter Mass", self.drag_exciter_mass, 0.2, 2.0);
-        params.pull_speed = float_param("Pull Speed", self.pull_speed, 0.05, 1.55);
-        params.break_threshold = float_param("Break Threshold", self.break_threshold, 0.1, 1.6);
+            crate::params::brush_wire_stiffness_param(self.brush_wire_stiffness);
+        params.amplitude_randomization =
+            crate::params::amplitude_randomization_param(self.amplitude_randomization);
+        params.pipe_mass = crate::params::pipe_mass_param(self.pipe_mass);
+        params.metal_stiffness = crate::params::metal_stiffness_param(self.metal_stiffness);
+        params.pipe_pitch = crate::params::pipe_pitch_param(self.pipe_pitch);
+        params.pipe_ring_decay = crate::params::pipe_ring_decay_param(self.pipe_ring_decay);
+        params.link_count = crate::params::link_count_param(self.link_count);
+        params.chain_mass = crate::params::chain_mass_param(self.chain_mass);
+        params.drop_envelope_spread =
+            crate::params::drop_envelope_spread_param(self.drop_envelope_spread);
+        params.internal_rattle = crate::params::internal_rattle_param(self.internal_rattle);
+        params.rattle_color = crate::params::rattle_color_param(self.rattle_color);
+        params.bow_pressure = crate::params::bow_pressure_param(self.bow_pressure);
+        params.bow_speed = crate::params::bow_speed_param(self.bow_speed);
+        params.rosin_grip = crate::params::rosin_grip_param(self.rosin_grip);
+        params.slip_curve = crate::params::slip_curve_param(self.slip_curve);
+        params.scrape_speed = crate::params::scrape_speed_param(self.scrape_speed);
+        params.point_pressure = crate::params::point_pressure_param(self.point_pressure);
+        params.chatter_pitch = crate::params::chatter_pitch_param(self.chatter_pitch);
+        params.chatter_damping = crate::params::chatter_damping_param(self.chatter_damping);
+        params.grind_speed = crate::params::grind_speed_param(self.grind_speed);
+        params.grind_pressure = crate::params::grind_pressure_param(self.grind_pressure);
+        params.surface_grit = crate::params::surface_grit_param(self.surface_grit);
+        params.grit_color = crate::params::grit_color_param(self.grit_color);
+        params.drag_speed = crate::params::drag_speed_param(self.drag_speed);
+        params.ridge_spacing = crate::params::ridge_spacing_param(self.ridge_spacing);
+        params.ridge_depth = crate::params::ridge_depth_param(self.ridge_depth);
+        params.drag_exciter_mass = crate::params::drag_exciter_mass_param(self.drag_exciter_mass);
+        params.pull_speed = crate::params::pull_speed_param(self.pull_speed);
+        params.break_threshold = crate::params::break_threshold_param(self.break_threshold);
         params.slip_stochasticity =
-            float_param("Slip Stochasticity", self.slip_stochasticity, 0.0, 1.0);
-        params.creak_sharpness = float_param("Creak Sharpness", self.creak_sharpness, 0.2, 1.4);
-        params.air_pressure = float_param("Air Pressure", self.air_pressure, 0.1, 2.1);
-        params.nozzle_width = float_param("Nozzle Width", self.nozzle_width, 0.1, 1.6);
-        params.turbulence_chaos = float_param("Turbulence Chaos", self.turbulence_chaos, 0.0, 2.0);
-        params.mains_frequency = float_param("Mains Frequency", self.mains_frequency, 40.0, 120.0);
-        params.coil_proximity = float_param("Coil Proximity", self.coil_proximity, 0.0, 2.0);
-        params.voltage_sag = float_param("Voltage Sag", self.voltage_sag, 0.0, 2.0);
-        params.pull_distance = float_param("Pull Distance", self.pull_distance, 0.1, 1.5);
-        params.hook_stiffness = float_param("Hook Stiffness", self.hook_stiffness, 0.2, 2.2);
-        params.snap_force = float_param("Snap Force", self.snap_force, 0.1, 2.0);
-        params.flow_rate = float_param("Flow Rate", self.flow_rate, 0.1, 3.1);
-        params.particle_mass = float_param("Particle Mass", self.particle_mass, 0.05, 1.0);
-        params.mass_variance = float_param("Mass Variance", self.mass_variance, 0.0, 2.0);
-        params.strike_position = float_param("Strike Position", self.strike_position, 0.0, 1.0);
+            crate::params::slip_stochasticity_param(self.slip_stochasticity);
+        params.creak_sharpness = crate::params::creak_sharpness_param(self.creak_sharpness);
+        params.air_pressure = crate::params::air_pressure_param(self.air_pressure);
+        params.nozzle_width = crate::params::nozzle_width_param(self.nozzle_width);
+        params.turbulence_chaos = crate::params::turbulence_chaos_param(self.turbulence_chaos);
+        params.mains_frequency = crate::params::mains_frequency_param(self.mains_frequency);
+        params.coil_proximity = crate::params::coil_proximity_param(self.coil_proximity);
+        params.voltage_sag = crate::params::voltage_sag_param(self.voltage_sag);
+        params.pull_distance = crate::params::pull_distance_param(self.pull_distance);
+        params.hook_stiffness = crate::params::hook_stiffness_param(self.hook_stiffness);
+        params.snap_force = crate::params::snap_force_param(self.snap_force);
+        params.flow_rate = crate::params::flow_rate_param(self.flow_rate);
+        params.particle_mass = crate::params::particle_mass_param(self.particle_mass);
+        params.mass_variance = crate::params::mass_variance_param(self.mass_variance);
+        params.strike_position = crate::params::strike_position_param(self.strike_position);
         params.coupling_stiffness =
-            float_param("Coupling Stiffness", self.coupling_stiffness, 0.0, 1.0);
-        params.position_wander = float_param("Position Wander", self.position_wander, 0.0, 1.0);
-        params.position_envelope =
-            float_param("Position Envelope", self.position_envelope, 0.0, 1.0);
+            crate::params::coupling_stiffness_param(self.coupling_stiffness);
+        params.position_wander = crate::params::position_wander_param(self.position_wander);
+        params.position_envelope = crate::params::position_envelope_param(self.position_envelope);
         params.position_wander_rate =
             crate::params::position_wander_rate_param(if self.position_wander_rate.is_finite() {
                 self.position_wander_rate.clamp(0.1, 5.0)
@@ -585,91 +571,61 @@ impl PresetParameters {
                 0.1
             });
         params.fundamental_anchor =
-            float_param("Fundamental Anchor", self.fundamental_anchor, 0.0, 1.0);
-        params.res_damping = float_param("Damping", self.res_damping, 0.0, 1.0);
-        params.res_brightness = float_param("Resonator Brightness", self.res_brightness, 0.0, 1.0);
-        params.thickness = float_param("Thickness", self.thickness, 0.0, 1.0);
-        params.heat = float_param("Heat", self.heat, 0.0, 1.0);
-        params.sludge = float_param("Sludge", self.sludge, 0.0, 1.0);
-        params.pipe_diameter = float_param("Pipe Diameter", self.pipe_diameter, 0.0, 1.0);
-        params.plate_aspect = float_param("Plate Aspect", self.plate_aspect, 0.1, 4.0);
-        params.plate_stiffness = float_param("Plate Stiffness", self.plate_stiffness, 0.25, 3.0);
-        params.tank_volume = float_param("Tank Volume", self.tank_volume, 0.0, 1.0);
-        params.tank_cavity_mix = float_param("Cavity Mix", self.tank_cavity_mix, 0.0, 1.0);
-        params.chain_link_mass = float_param("Link Mass", self.chain_link_mass, 0.1, 1.0);
-        params.chain_instability = float_param("Instability", self.chain_instability, 0.0, 1.0);
-        params.beam_shear = float_param("Shear Density", self.beam_shear, 0.0, 1.0);
-        params.cable_braid = float_param("Braid Stiffness", self.cable_braid, 0.0, 1.0);
-        params.cable_tension_drop = float_param("Tension Drop", self.cable_tension_drop, 0.0, 1.0);
-        params.spring_dispersion =
-            float_param("Dispersion Chirp", self.spring_dispersion, 0.0, 1.0);
-        params.spring_slosh = float_param("Spring Slosh", self.spring_slosh, 0.0, 1.0);
-        params.sheet_thinness = float_param("Metal Thinness", self.sheet_thinness, 0.0, 1.0);
-        params.cog_dissonance = float_param("Tooth Dissonance", self.cog_dissonance, 0.0, 1.0);
-        params.filter_cutoff =
-            skewed_float_param("Filter Cutoff", self.filter_cutoff, 20.0, 20000.0, 0.5);
-        params.filter_resonance = float_param("Filter Resonance", self.filter_resonance, 0.0, 1.0);
+            crate::params::fundamental_anchor_param(self.fundamental_anchor);
+        params.res_damping = crate::params::res_damping_param(self.res_damping);
+        params.res_brightness = crate::params::res_brightness_param(self.res_brightness);
+        params.thickness = crate::params::thickness_param(self.thickness);
+        params.heat = crate::params::heat_param(self.heat);
+        params.sludge = crate::params::sludge_param(self.sludge);
+        params.pipe_diameter = crate::params::pipe_diameter_param(self.pipe_diameter);
+        params.plate_aspect = crate::params::plate_aspect_param(self.plate_aspect);
+        params.plate_stiffness = crate::params::plate_stiffness_param(self.plate_stiffness);
+        params.tank_volume = crate::params::tank_volume_param(self.tank_volume);
+        params.tank_cavity_mix = crate::params::tank_cavity_mix_param(self.tank_cavity_mix);
+        params.chain_link_mass = crate::params::chain_link_mass_param(self.chain_link_mass);
+        params.chain_instability = crate::params::chain_instability_param(self.chain_instability);
+        params.beam_shear = crate::params::beam_shear_param(self.beam_shear);
+        params.cable_braid = crate::params::cable_braid_param(self.cable_braid);
+        params.cable_tension_drop =
+            crate::params::cable_tension_drop_param(self.cable_tension_drop);
+        params.spring_dispersion = crate::params::spring_dispersion_param(self.spring_dispersion);
+        params.spring_slosh = crate::params::spring_slosh_param(self.spring_slosh);
+        params.sheet_thinness = crate::params::sheet_thinness_param(self.sheet_thinness);
+        params.cog_dissonance = crate::params::cog_dissonance_param(self.cog_dissonance);
+        params.filter_cutoff = crate::params::filter_cutoff_param(self.filter_cutoff);
+        params.filter_resonance = crate::params::filter_resonance_param(self.filter_resonance);
         params.component_tolerance =
-            float_param("Component Tolerance", self.component_tolerance, 0.0, 1.0);
-        params.drive_amount = float_param("Drive Amount", self.drive_amount, 0.0, 5.0);
-        params.bias_starvation = float_param("Bias Starvation", self.bias_starvation, 0.0, 1.0);
-        params.chaos_depth = float_param("Chaos Depth", self.chaos_depth, 0.0, 1.0);
-        params.spread_width = float_param("Spread Width", self.spread_width, 0.0, 1.0);
+            crate::params::component_tolerance_param(self.component_tolerance);
+        params.drive_amount = crate::params::drive_amount_param(self.drive_amount);
+        params.bias_starvation = crate::params::bias_starvation_param(self.bias_starvation);
+        params.chaos_depth = crate::params::chaos_depth_param(self.chaos_depth);
+        params.spread_width = crate::params::spread_width_param(self.spread_width);
         params.listener_proximity =
-            float_param("Listener Proximity", self.listener_proximity, 0.0, 1.0);
-        params.chassis_material = float_param("Chassis Material", self.chassis_material, 0.0, 1.0);
-        params.chassis_volume = float_param("Chassis Volume", self.chassis_volume, 0.0, 1.0);
-        params.space_mode = int_param("Space Mode", self.space_mode, 0, 3);
-        params.space_amount = float_param("Space Amount", self.space_amount, 0.0, 1.0);
-        params.factory_size = float_param("Factory Size", self.factory_size, 0.0, 1.0);
-        params.machinery_clutter =
-            float_param("Machinery Clutter", self.machinery_clutter, 0.0, 1.0);
-        params.wall_impedance = float_param("Wall Impedance", self.wall_impedance, 0.0, 1.0);
-        params.spring_tension = float_param("Spring Tension", self.spring_tension, 0.0, 1.0);
-        params.wire_stiffness = float_param("Spring Wire Stiffness", self.wire_stiffness, 0.0, 1.0);
-        params.spring_tank_size = float_param("Spring Tank Size", self.spring_tank_size, 0.0, 1.0);
-        params.delay_time = float_param("Delay Time", self.delay_time, 0.0, 1.0);
+            crate::params::listener_proximity_param(self.listener_proximity);
+        params.chassis_material = crate::params::chassis_material_param(self.chassis_material);
+        params.chassis_volume = crate::params::chassis_volume_param(self.chassis_volume);
+        params.space_mode = crate::params::space_mode_param(self.space_mode);
+        params.space_amount = crate::params::space_amount_param(self.space_amount);
+        params.factory_size = crate::params::factory_size_param(self.factory_size);
+        params.machinery_clutter = crate::params::machinery_clutter_param(self.machinery_clutter);
+        params.wall_impedance = crate::params::wall_impedance_param(self.wall_impedance);
+        params.spring_tension = crate::params::spring_tension_param(self.spring_tension);
+        params.wire_stiffness = crate::params::wire_stiffness_param(self.wire_stiffness);
+        params.spring_tank_size = crate::params::spring_tank_size_param(self.spring_tank_size);
+        params.delay_time = crate::params::delay_time_param(self.delay_time);
         params.machinery_movement =
-            float_param("Machinery Movement", self.machinery_movement, 0.0, 1.0);
-        params.high_frequency_damping = float_param(
-            "High Frequency Damping",
-            self.high_frequency_damping,
-            0.0,
-            1.0,
-        );
-        params.analog_ceiling = float_param("Analog Ceiling", self.analog_ceiling, 0.5, 1.0);
-        params.diode_softness = float_param("Diode Softness", self.diode_softness, 0.0, 1.0);
+            crate::params::machinery_movement_param(self.machinery_movement);
+        params.high_frequency_damping =
+            crate::params::high_frequency_damping_param(self.high_frequency_damping);
+        params.analog_ceiling = crate::params::analog_ceiling_param(self.analog_ceiling);
+        params.diode_softness = crate::params::diode_softness_param(self.diode_softness);
         params.diode_asymmetry = crate::params::diode_asymmetry_param(self.diode_asymmetry);
-        params.macro_mass = float_param("Mass", self.macro_mass, 0.0, 1.0);
-        params.macro_corrosion = float_param("Corrosion", self.macro_corrosion, 0.0, 1.0);
-        params.macro_violence = float_param("Violence", self.macro_violence, 0.0, 1.0);
-        params.macro_brightness = float_param("Macro Brightness", self.macro_brightness, 0.0, 1.0);
+        params.macro_mass = crate::params::macro_mass_param(self.macro_mass);
+        params.macro_corrosion = crate::params::macro_corrosion_param(self.macro_corrosion);
+        params.macro_violence = crate::params::macro_violence_param(self.macro_violence);
+        params.macro_brightness = crate::params::macro_brightness_param(self.macro_brightness);
         params.limiter_mode = crate::params::limiter_mode_param(self.limiter_mode);
     }
-}
-
-fn float_param(name: &'static str, value: f32, min: f32, max: f32) -> FloatParam {
-    FloatParam::new(name, value.clamp(min, max), FloatRange::Linear { min, max })
-        .with_value_to_string(std::sync::Arc::new(|value| format!("{value:.6}")))
-        .with_string_to_value(std::sync::Arc::new(|string| string.trim().parse().ok()))
-}
-
-fn int_param(name: &'static str, value: i32, min: i32, max: i32) -> IntParam {
-    IntParam::new(name, value.clamp(min, max), IntRange::Linear { min, max })
-}
-
-fn skewed_float_param(
-    name: &'static str,
-    value: f32,
-    min: f32,
-    max: f32,
-    factor: f32,
-) -> FloatParam {
-    FloatParam::new(
-        name,
-        value.clamp(min, max),
-        FloatRange::Skewed { min, max, factor },
-    )
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -731,13 +687,13 @@ impl Preset {
         let mut params = CorrosionParams::default();
         params.object = object_param(self.object.to_int());
         params.exciter = crate::params::exciter_param(self.exciter);
-        params.size = float_param("Size", self.size, 0.05, 10.0);
-        params.rust = float_param("Rust", self.rust, 0.0, 5.0);
-        params.damage = float_param("Damage", self.damage, 0.0, 10.0);
-        params.drive = float_param("Drive", self.drive, 0.0, 5.0);
+        params.size = crate::params::size_param(self.size);
+        params.rust = crate::params::rust_param(self.rust);
+        params.damage = crate::params::damage_param(self.damage);
+        params.drive = crate::params::drive_param(self.drive);
         params.output = crate::params::output_param(self.output);
-        params.width = float_param("Width", self.width, -2.0, 3.0);
-        params.body = float_param("Body", self.body, 0.0, 5.0);
+        params.width = crate::params::width_param(self.width);
+        params.body = crate::params::body_param(self.body);
         params.quality_mode = crate::params::quality_mode_param(self.quality_mode);
         params.play_mode = crate::params::play_mode_param(self.play_mode);
         self.extra.apply_to(&mut params);

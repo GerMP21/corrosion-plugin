@@ -511,3 +511,145 @@ fn new_instances_use_the_new_diode_defaults() {
     assert_eq!(params.diode_softness.value(), 0.5);
     assert_eq!(params.diode_asymmetry.value(), 0.25);
 }
+
+/// Every parameter of `built` against the live parameter with the same ID,
+/// at `built`'s value: name, normalized value and display text
+/// (`m10-m18-tidy-dead-code-and-docs`, M15). Returns the mismatches.
+fn display_mismatches(built: &corrosion::CorrosionParams) -> Vec<String> {
+    use nih_plug::prelude::Params;
+    let live = corrosion::CorrosionParams::default();
+    let live_map: std::collections::BTreeMap<String, nih_plug::prelude::ParamPtr> = live
+        .param_map()
+        .into_iter()
+        .map(|(id, ptr, _)| (id, ptr))
+        .collect();
+    let mut mismatches = Vec::new();
+    for (id, ptr, _) in built.param_map() {
+        let Some(&live_ptr) = live_map.get(&id) else {
+            mismatches.push(format!("{id}: no live parameter"));
+            continue;
+        };
+        // SAFETY: both pointers come from parameter structs alive here.
+        unsafe {
+            let plain = ptr.unmodulated_plain_value();
+            let (name, live_name) = (ptr.name(), live_ptr.name());
+            if name != live_name {
+                mismatches.push(format!("{id}: name {name:?} vs live {live_name:?}"));
+            }
+            let (n, live_n) = (
+                ptr.preview_normalized(plain),
+                live_ptr.preview_normalized(plain),
+            );
+            if n != live_n {
+                mismatches.push(format!("{id}: {plain} normalizes to {n} vs live {live_n}"));
+            }
+            let text = ptr.normalized_value_to_string(n, true);
+            let live_text = live_ptr.normalized_value_to_string(live_n, true);
+            if text != live_text {
+                mismatches.push(format!("{id}: shows {text:?} vs live {live_text:?}"));
+            }
+        }
+    }
+    mismatches
+}
+
+/// Spec "Every parameter": every factory preset's parameters display like
+/// the plugin's own.
+#[test]
+fn preset_built_parameters_display_like_the_live_ones() {
+    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("presets/factory");
+    let mut paths: Vec<_> = fs::read_dir(&dir)
+        .expect("factory presets")
+        .map(|entry| entry.unwrap().path())
+        .filter(|p| p.extension().is_some_and(|e| e == "corrosion-preset"))
+        .collect();
+    paths.sort();
+    assert!(paths.len() >= 50, "found {} presets", paths.len());
+    let mut mismatches = std::collections::BTreeSet::new();
+    for path in paths {
+        let preset = Preset::load(&path).expect("load preset");
+        for m in display_mismatches(&preset.into_params()) {
+            // One line per parameter, whatever the preset.
+            mismatches.insert(m);
+        }
+    }
+    let ids: std::collections::BTreeSet<_> = mismatches
+        .iter()
+        .map(|m| m.split(':').next().unwrap().to_string())
+        .collect();
+    assert!(
+        ids.is_empty(),
+        "{} parameters differ from the live ones, e.g.:\n{}",
+        ids.len(),
+        mismatches
+            .iter()
+            .take(12)
+            .cloned()
+            .collect::<Vec<_>>()
+            .join("\n")
+    );
+}
+
+/// Spec "UI Scale and Filter Cutoff".
+#[test]
+fn ui_scale_and_filter_cutoff_display_like_the_live_ones() {
+    use nih_plug::prelude::Param;
+    let mut preset = Preset::from_params("Display", &corrosion::CorrosionParams::default());
+    preset.extra.ui_scale = 2;
+    preset.extra.filter_cutoff = 1_000.0;
+    let params = preset.into_params();
+    assert_eq!(params.ui_scale.to_string(), "100%");
+    let live = corrosion::CorrosionParams::default();
+    let n = live.filter_cutoff.preview_normalized(1_000.0);
+    assert_eq!(
+        params.filter_cutoff.normalized_value_to_string(n, true),
+        live.filter_cutoff.normalized_value_to_string(n, true)
+    );
+    assert_eq!(params.filter_cutoff.value(), 1_000.0);
+}
+
+fn preset_json_with_exciter(exciter: i32) -> String {
+    format!(
+        r#"{{
+        "name": "Exciter {exciter}",
+        "version": "4",
+        "object": "Pipe",
+        "exciter": {exciter},
+        "size": 1.0, "rust": 0.0, "damage": 0.0, "drive": 0.0,
+        "output": 1.0, "width": 0.5, "body": 1.0
+    }}"#
+    )
+}
+
+/// Spec "Exciter 0 and 17": out-of-range exciters load as Hand Strike, the
+/// default exciter.
+#[test]
+fn out_of_range_exciter_loads_as_hand_strike() {
+    for exciter in [0, 17, -3, 99] {
+        let params = Preset::from_json_str(&preset_json_with_exciter(exciter))
+            .expect("parse")
+            .into_params();
+        assert_eq!(
+            params.exciter.to_string(),
+            "Hand Strike",
+            "exciter {exciter}"
+        );
+        assert_eq!(params.exciter.value(), 2, "exciter {exciter}");
+    }
+}
+
+/// Spec "Every valid exciter": 1–16 each load as a different exciter and
+/// save back as the same number.
+#[test]
+fn every_valid_exciter_loads_and_saves_as_itself() {
+    let mut names = std::collections::BTreeSet::new();
+    for exciter in 1..=16 {
+        let params = Preset::from_json_str(&preset_json_with_exciter(exciter))
+            .expect("parse")
+            .into_params();
+        assert_eq!(params.exciter.value(), exciter);
+        names.insert(params.exciter.to_string());
+        assert_eq!(Preset::from_params("Saved", &params).exciter, exciter);
+    }
+    assert_eq!(names.len(), 16, "exciter names: {names:?}");
+}

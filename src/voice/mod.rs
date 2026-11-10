@@ -1615,6 +1615,9 @@ impl Voice {
         }
     }
 
+    /// The damage rattle for this sample: white noise gated by the
+    /// resonator's level, louder with Damage. Mono: the stereo path adds the
+    /// same value to both channels.
     fn rattle_noise(&mut self, signal_level: f32) -> f32 {
         if self.damage_amount <= 0.0 {
             return 0.0;
@@ -1631,9 +1634,13 @@ impl Voice {
             self.rattle_noise.bipolar(),
             crate::dsp::utils::rate::ratio(self.sample_rate),
         );
-        let highpass_noise = noise * 0.5;
+        // Plain white noise at half level (it was called `highpass_noise`, but
+        // nothing high-passes it), returned once and added to both channels,
+        // so the rattle is identical left and right. Filtering or decorrelating
+        // it would change the sound (`m10-m18-tidy-dead-code-and-docs`, M17).
+        let half_noise = noise * 0.5;
         let rattle_amount = self.damage_amount.min(1.0) * (signal_level - threshold) * 0.08;
-        highpass_noise * rattle_amount
+        half_noise * rattle_amount
     }
 
     /// The resonator's response to this sample's exciter force, as the
@@ -1854,7 +1861,7 @@ impl Voice {
         if !self.active && self.peak_hold < TAIL_ENERGY_THRESHOLD {
             self.frames_below_threshold += 1;
             if self.frames_below_threshold >= self.rate.tail_frames {
-                self.active = false;
+                // `active` is already false here (the branch requires it).
                 self.rendering = false;
             }
         } else {
@@ -1948,7 +1955,7 @@ impl Voice {
         if !self.active && self.peak_hold < TAIL_ENERGY_THRESHOLD {
             self.frames_below_threshold += 1;
             if self.frames_below_threshold >= self.rate.tail_frames {
-                self.active = false;
+                // `active` is already false here (the branch requires it).
                 self.rendering = false;
             }
         } else {
