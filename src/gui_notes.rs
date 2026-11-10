@@ -23,8 +23,9 @@ pub const QUEUE_CAPACITY: usize = 256;
 /// Velocity of notes played on the computer keyboard (100/127).
 pub const KEY_VELOCITY: u8 = 100;
 
-/// Lowest and highest notes of the on-screen strip, C3 and C6.
-pub const STRIP_LOW_NOTE: u8 = 48;
+/// Lowest and highest notes of the on-screen strip, C2 and C6 (C2 so the
+/// kit zone, MIDI 36–59, is on screen: `per-key-kits`).
+pub const STRIP_LOW_NOTE: u8 = 36;
 pub const STRIP_HIGH_NOTE: u8 = 84;
 
 /// Physical keys, as letters, that play C4 (60) to C5 (72) in order.
@@ -34,6 +35,10 @@ pub const KEY_LETTERS: [char; 13] = [
 
 /// First note of the computer-key octave, C4.
 pub const KEY_LOW_NOTE: u8 = 60;
+
+/// First note of the computer-key octave in Kit mode, C2: the keys play
+/// MIDI 36–48, the bottom of the kit zone (`per-key-kits`).
+pub const KIT_KEY_LOW_NOTE: u8 = 36;
 
 /// One note event from the editor.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -69,16 +74,27 @@ impl EditorNoteEvent {
 
 /// The note for a computer key, given as its letter, if it is mapped.
 pub fn key_note(letter: char) -> Option<u8> {
+    key_note_from(letter, KEY_LOW_NOTE)
+}
+
+/// The note for a computer key when the keys start at `base`.
+pub fn key_note_from(letter: char, base: u8) -> Option<u8> {
+    key_index(letter).map(|index| base + index as u8)
+}
+
+fn key_index(letter: char) -> Option<usize> {
     let upper = letter.to_ascii_uppercase();
-    KEY_LETTERS
-        .iter()
-        .position(|&l| l == upper)
-        .map(|index| KEY_LOW_NOTE + index as u8)
+    KEY_LETTERS.iter().position(|&l| l == upper)
 }
 
 /// The letter a note is played with on the computer keyboard, if any.
 pub fn note_letter(note: u8) -> Option<char> {
-    note.checked_sub(KEY_LOW_NOTE)
+    note_letter_from(note, KEY_LOW_NOTE)
+}
+
+/// The letter a note is played with when the keys start at `base`.
+pub fn note_letter_from(note: u8, base: u8) -> Option<char> {
+    note.checked_sub(base)
         .and_then(|index| KEY_LETTERS.get(usize::from(index)).copied())
 }
 
@@ -234,6 +250,12 @@ pub struct NoteSender {
     backlog: VecDeque<EditorNoteEvent>,
     /// Per note, the [`NoteSource`] bits holding it.
     holders: [u8; 128],
+    /// The computer keys' first note ([`KEY_LOW_NOTE`], or
+    /// [`KIT_KEY_LOW_NOTE`] in Kit mode).
+    key_base: u8,
+    /// Per computer key, the note its press started, so its release stops
+    /// that note even if the base moved while it was held.
+    key_notes: [Option<u8>; KEY_LETTERS.len()],
 }
 
 impl NoteSender {
@@ -242,7 +264,19 @@ impl NoteSender {
             shared,
             backlog: VecDeque::new(),
             holders: [0; 128],
+            key_base: KEY_LOW_NOTE,
+            key_notes: [None; KEY_LETTERS.len()],
         }
+    }
+
+    /// Set the computer keys' first note (`per-key-kits`).
+    pub fn set_key_base(&mut self, base: u8) {
+        self.key_base = base;
+    }
+
+    /// The computer keys' first note.
+    pub fn key_base(&self) -> u8 {
+        self.key_base
     }
 
     /// The shared state, for the held-note highlights.
@@ -281,18 +315,28 @@ impl NoteSender {
     /// Presses play only when `gate_open` (editor focused, no text field
     /// taking input) and not on auto-repeat; releases always apply.
     pub fn key_event(&mut self, letter: char, pressed: bool, repeat: bool, gate_open: bool) {
-        let Some(note) = key_note(letter) else {
+        let Some(index) = key_index(letter) else {
             return;
         };
         if !pressed {
+            let note = self.key_notes[index]
+                .take()
+                .unwrap_or(self.key_base + index as u8);
             self.release(note, NoteSource::Key);
         } else if gate_open && !repeat {
+            let note = self.key_base + index as u8;
+            if let Some(previous) = self.key_notes[index].replace(note) {
+                if previous != note {
+                    self.release(previous, NoteSource::Key);
+                }
+            }
             self.press(note, KEY_VELOCITY, NoteSource::Key);
         }
     }
 
     /// Release every note the editor holds (focus lost).
     pub fn release_all_held(&mut self) {
+        self.key_notes = [None; KEY_LETTERS.len()];
         for note in 0..128u8 {
             if self.holders[usize::from(note)] != 0 {
                 self.holders[usize::from(note)] = 0;
@@ -307,6 +351,7 @@ impl NoteSender {
     /// closed.
     pub fn forget_held(&mut self) {
         self.holders = [0; 128];
+        self.key_notes = [None; KEY_LETTERS.len()];
         self.backlog.clear();
     }
 

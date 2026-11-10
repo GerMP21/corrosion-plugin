@@ -10,7 +10,9 @@ use std::sync::Arc;
 /// a user's plugin folder, the preset bank silently disappeared.
 static FACTORY_PRESETS_DIR: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/presets/factory");
 
-use crate::params::{exciter_model_items, CorrosionParams, ExciterFamily, ExciterType, Object};
+use crate::params::{
+    exciter_model_items, CorrosionParams, ExciterFamily, ExciterType, Object, PlayMode,
+};
 use crate::Preset;
 
 /// Parameters deliberately left without an editor control, each with the
@@ -1219,8 +1221,17 @@ fn render_window_body(
     scale: f32,
 ) {
     let content_width = ui.available_width();
+    let kit_mode = PlayMode::from_int(params.play_mode.value()) == PlayMode::Kit;
+    // In Kit mode the kit bar sits above the strip; it takes its height
+    // from the panels' scroll view, so the window keeps its size.
+    let kit_bar_height = if kit_mode {
+        KIT_BAR_BASE_HEIGHT * scale + ui.spacing().item_spacing.y
+    } else {
+        0.0
+    };
     let strip_height = (KEYBOARD_STRIP_BASE_HEIGHT + KEYBOARD_STRIP_BASE_GAP) * scale
-        + ui.spacing().item_spacing.y;
+        + ui.spacing().item_spacing.y
+        + kit_bar_height;
     egui::ScrollArea::vertical()
         .auto_shrink([false, false])
         .max_height((ui.available_height() - strip_height).max(0.0))
@@ -1229,7 +1240,10 @@ fn render_window_body(
             ui.set_max_width(content_width);
             render_ui(ui, params, setter, state, scale);
         });
-    render_keyboard_strip(ui, &mut state.keyboard, scale);
+    if kit_mode {
+        render_kit_bar(ui, params, setter, &mut state.keyboard, scale);
+    }
+    render_keyboard_strip(ui, &mut state.keyboard, params, setter, scale);
 }
 
 /// The editor's visual style at layout scale `scale`: colours, fonts and
@@ -2269,7 +2283,7 @@ fn selector_help(label: &str, selected: &str) -> &'static str {
         ("mode", "High") => "More modes per voice and more clipper oversampling.",
         ("mode", "Render") => "Most detail and least aliasing, for bouncing. Uses the most CPU.",
         ("play", "Tonal") => "Notes play at their pitch and decay naturally.",
-        ("play", "Kit") => "Each key plays a fixed variation, like a drum kit.",
+        ("play", "Kit") => "Each key plays its own pad, set up on the keyboard below; keys without a pad are silent.",
         ("play", "Drone") => "Notes sustain while held, for bowed and continuous sounds.",
         ("limiter", "Hard") => "Clamps peaks at the ceiling with no added latency.",
         ("limiter", "Lookahead") => {
@@ -3012,6 +3026,10 @@ fn randomizer_assignments<'a>(
 /// host records it. Driven by the parameter map, so no parameter can be
 /// missed (`h04-load-every-preset-field-in-gui`).
 fn apply_preset(params: &CorrosionParams, setter: &ParamSetter, preset: &Preset) {
+    // The kit (`per-key-kits`): the preset's pads, or none.
+    let kit = preset.kit.clone().unwrap_or_default();
+    params.kit_table.load(&kit);
+    *params.kit.write().unwrap_or_else(|e| e.into_inner()) = kit;
     let values: std::collections::HashMap<String, f32> =
         preset.parameter_values(params).into_iter().collect();
     for (id, ptr, _) in params.param_map() {
@@ -4312,6 +4330,21 @@ struct KeyboardStrip {
     /// Whether the strip was live last frame: window focused and the
     /// pointer over the editor.
     focused: bool,
+    /// The kit editor's state (`per-key-kits`).
+    kit: KitEditor,
+}
+
+/// The kit bar's state (`per-key-kits`).
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+struct KitEditor {
+    /// The key the kit bar acts on.
+    selected: Option<u8>,
+    /// Every key plays and is selectable, not only the kit zone.
+    full_keyboard: bool,
+    /// The pitch the editor's sound was last heard at: the last note
+    /// played outside Kit mode, or a loaded pad's key plus its tune.
+    /// Assign sets the tune from it.
+    last_auditioned: Option<u8>,
 }
 
 impl KeyboardStrip {
@@ -4320,6 +4353,7 @@ impl KeyboardStrip {
             sender: crate::gui_notes::NoteSender::new(shared),
             mouse_note: None,
             focused: true,
+            kit: KitEditor::default(),
         }
     }
 
@@ -4434,9 +4468,209 @@ fn key_actions(events: &[egui::Event]) -> Vec<(char, bool, bool)> {
     actions
 }
 
+/// The kit bar's height at 100 % UI scale (`per-key-kits`).
+const KIT_BAR_BASE_HEIGHT: f32 = 24.0;
+/// Locked keys' fills in Kit mode (outside the zone, Full keyboard off).
+const KIT_LOCKED_WHITE: egui::Color32 = egui::Color32::from_rgb(0x5A, 0x5A, 0x5A);
+const KIT_LOCKED_BLACK: egui::Color32 = egui::Color32::from_rgb(0x2A, 0x2A, 0x2A);
+/// Height of the band marking a key with a pad, at 100 %.
+const KIT_PAD_BAND: f32 = 4.0;
+
+/// A note's name in the plugin's naming (middle C, MIDI 60, is C4).
+fn note_name(note: u8) -> String {
+    const NAMES: [&str; 12] = [
+        "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B",
+    ];
+    format!(
+        "{}{}",
+        NAMES[usize::from(note % 12)],
+        i32::from(note / 12) - 1
+    )
+}
+
+/// Whether the editor may play and select `note`: everything outside Kit
+/// mode; in Kit mode the kit zone, or everything with Full keyboard on.
+fn key_unlocked(kit_mode: bool, kit: &KitEditor, note: u8) -> bool {
+    !kit_mode || kit.full_keyboard || crate::kit::KIT_ZONE.contains(&note)
+}
+
+/// Store `pad` in the kit and the audio thread's table.
+fn store_pad(params: &CorrosionParams, pad: crate::kit::KitPad) {
+    let key = pad.key;
+    let built = pad.build();
+    params
+        .kit
+        .write()
+        .unwrap_or_else(|e| e.into_inner())
+        .set(pad);
+    params.kit_table.set(key, Some(built));
+}
+
+/// Remove the pad on `key` from the kit and the table.
+fn clear_pad(params: &CorrosionParams, key: u8) {
+    params
+        .kit
+        .write()
+        .unwrap_or_else(|e| e.into_inner())
+        .clear(key);
+    params.kit_table.set(key, None);
+}
+
+/// Load `pad`'s sound into the editor's parameters: every pad parameter
+/// but the macros (they also drive the shared post chain), one host
+/// gesture each, as loading a preset does.
+fn load_pad(params: &CorrosionParams, setter: &ParamSetter, pad: &crate::kit::KitPad) {
+    let loaded = pad.params();
+    let values: std::collections::HashMap<String, f32> = loaded
+        .param_map()
+        .into_iter()
+        // SAFETY: the pointers come from `loaded`, alive for this call.
+        .map(|(id, ptr, _)| (id, unsafe { ptr.modulated_plain_value() }))
+        .collect();
+    for (id, ptr, _) in params.param_map() {
+        if !crate::kit::is_pad_param(&id) || crate::kit::PAD_MACRO_PARAMS.contains(&id.as_str()) {
+            continue;
+        }
+        let Some(&plain) = values.get(&id) else {
+            continue;
+        };
+        // SAFETY: `ptr` comes from the plugin's own parameter map, which
+        // outlives the editor.
+        unsafe {
+            let normalized = ptr.preview_normalized(plain);
+            setter.raw_context.raw_begin_set_parameter(ptr);
+            setter
+                .raw_context
+                .raw_set_parameter_normalized(ptr, normalized);
+            setter.raw_context.raw_end_set_parameter(ptr);
+        }
+    }
+}
+
+/// Select `note` in the kit bar; a key with a pad loads its sound.
+fn select_kit_key(params: &CorrosionParams, setter: &ParamSetter, kit: &mut KitEditor, note: u8) {
+    kit.selected = Some(note);
+    let pad = params
+        .kit
+        .read()
+        .unwrap_or_else(|e| e.into_inner())
+        .pad(note)
+        .cloned();
+    if let Some(pad) = pad {
+        load_pad(params, setter, &pad);
+        kit.last_auditioned = u8::try_from(i32::from(note) + pad.tune).ok();
+    }
+}
+
+/// The kit bar (`per-key-kits`): the selected key, its pad's tune, Assign,
+/// Clear and the Full keyboard toggle.
+fn render_kit_bar(
+    ui: &mut egui::Ui,
+    params: &CorrosionParams,
+    _setter: &ParamSetter,
+    strip: &mut KeyboardStrip,
+    scale: f32,
+) {
+    let size = egui::vec2(ui.available_width(), KIT_BAR_BASE_HEIGHT * scale);
+    let font = egui::FontId::proportional(width_pct(scale, 0.0101852));
+    ui.allocate_ui_with_layout(
+        size,
+        egui::Layout::left_to_right(egui::Align::Center),
+        |ui| {
+            ui.set_min_size(size);
+            let kit = &mut strip.kit;
+            let selected = kit.selected;
+            let pad = selected.and_then(|key| {
+                params
+                    .kit
+                    .read()
+                    .unwrap_or_else(|e| e.into_inner())
+                    .pad(key)
+                    .cloned()
+            });
+            let key_label = selected.map_or_else(
+                || "KEY —".to_string(),
+                |key| format!("KEY {} ({key})", note_name(key)),
+            );
+            ui.label(
+                egui::RichText::new(key_label)
+                    .font(font.clone())
+                    .color(SAFETY_YELLOW),
+            );
+            ui.add_space(8.0 * scale);
+            ui.label(
+                egui::RichText::new("Tune")
+                    .font(font.clone())
+                    .color(MUTED_GREY),
+            );
+            let mut tune = pad.as_ref().map_or(0, |p| p.tune);
+            let tune_edit = ui.add_enabled(
+                pad.is_some(),
+                egui::DragValue::new(&mut tune)
+                    .range(-crate::kit::MAX_TUNE..=crate::kit::MAX_TUNE)
+                    .suffix(" st"),
+            );
+            if tune_edit.changed() {
+                if let Some(mut pad) = pad.clone() {
+                    pad.tune = tune;
+                    store_pad(params, pad);
+                }
+            }
+            ui.add_space(8.0 * scale);
+            let assign = ui.add_enabled(
+                selected.is_some(),
+                egui::Button::new(egui::RichText::new("Assign").font(font.clone())),
+            );
+            if assign.clicked() {
+                if let Some(key) = selected {
+                    let tune = kit
+                        .last_auditioned
+                        .map_or(0, |pitch| i32::from(pitch) - i32::from(key));
+                    let level_db = pad.as_ref().map_or(0.0, |p| p.level_db);
+                    store_pad(
+                        params,
+                        crate::kit::KitPad::from_params(key, params, tune, level_db),
+                    );
+                }
+            }
+            let clear = ui.add_enabled(
+                pad.is_some(),
+                egui::Button::new(egui::RichText::new("Clear").font(font.clone())),
+            );
+            if clear.clicked() {
+                if let Some(key) = selected {
+                    clear_pad(params, key);
+                }
+            }
+            ui.add_space(8.0 * scale);
+            let toggle = ui.add(
+                egui::Button::new(egui::RichText::new("Full keyboard").font(font.clone()))
+                    .selected(kit.full_keyboard),
+            );
+            if toggle.clicked() {
+                kit.full_keyboard = !kit.full_keyboard;
+            }
+        },
+    );
+}
+
 /// The keyboard strip: mouse, computer keys and the held-note highlights.
-fn render_keyboard_strip(ui: &mut egui::Ui, strip: &mut KeyboardStrip, scale: f32) {
-    use crate::gui_notes::{note_letter, NoteSource};
+/// In Kit mode it also selects keys, locks the keys outside the kit zone
+/// and marks the keys that have pads (`per-key-kits`).
+fn render_keyboard_strip(
+    ui: &mut egui::Ui,
+    strip: &mut KeyboardStrip,
+    params: &CorrosionParams,
+    setter: &ParamSetter,
+    scale: f32,
+) {
+    use crate::gui_notes::{note_letter_from, NoteSource};
+    let kit_mode = PlayMode::from_int(params.play_mode.value()) == PlayMode::Kit;
+    strip.sender.set_key_base(if kit_mode {
+        crate::gui_notes::KIT_KEY_LOW_NOTE
+    } else {
+        crate::gui_notes::KEY_LOW_NOTE
+    });
     let top = ui.cursor().min.y;
     ui.add_space(KEYBOARD_STRIP_BASE_GAP * scale);
     let size = egui::vec2(ui.available_width(), KEYBOARD_STRIP_BASE_HEIGHT * scale);
@@ -4488,6 +4722,11 @@ fn render_keyboard_strip(ui: &mut egui::Ui, strip: &mut KeyboardStrip, scale: f3
     let gate_open = strip.focused && !ctx.wants_keyboard_input();
     for (letter, pressed, repeat) in key_actions(&events) {
         strip.sender.key_event(letter, pressed, repeat, gate_open);
+        if pressed && !repeat && gate_open && !kit_mode {
+            if let Some(note) = crate::gui_notes::key_note_from(letter, strip.sender.key_base()) {
+                strip.kit.last_auditioned = Some(note);
+            }
+        }
     }
 
     // Mouse: the key under the pointer while the button is down on the
@@ -4495,14 +4734,26 @@ fn render_keyboard_strip(ui: &mut egui::Ui, strip: &mut KeyboardStrip, scale: f3
     let target = if response.is_pointer_button_down_on() && strip.focused {
         ctx.input(|input| input.pointer.interact_pos())
             .and_then(|pos| key_at(&keys, pos).map(|note| (note, pos)))
+            // Locked keys (Kit mode, outside the zone) neither play nor
+            // select.
+            .filter(|&(note, _)| key_unlocked(kit_mode, &strip.kit, note))
     } else {
         None
     };
     if target.map(|(note, _)| note) != strip.mouse_note {
+        let was_down = strip.mouse_note.is_some();
         if let Some(previous) = strip.mouse_note.take() {
             strip.sender.release(previous, NoteSource::Mouse);
         }
         if let Some((note, pos)) = target {
+            if kit_mode {
+                // A press (not a glissando onto it) selects the key.
+                if !was_down {
+                    select_kit_key(params, setter, &mut strip.kit, note);
+                }
+            } else {
+                strip.kit.last_auditioned = Some(note);
+            }
             let key_rect = keys
                 .iter()
                 .find(|(n, _)| *n == note)
@@ -4515,21 +4766,32 @@ fn render_keyboard_strip(ui: &mut egui::Ui, strip: &mut KeyboardStrip, scale: f3
     }
     strip.sender.flush();
 
-    // Paint: white keys, then black keys over them.
+    // Paint: white keys, then black keys over them. In Kit mode, locked
+    // keys are greyed, keys with a pad get a band along the top and the
+    // selected key an outline.
     let held = strip.sender.shared().held();
+    let pad_keys: Vec<u8> = if kit_mode {
+        params.kit_table.keys().collect()
+    } else {
+        Vec::new()
+    };
     let painter = ui.painter();
     let outline = egui::Stroke::new((scale).max(0.5), RECESSED_BG);
     let font = egui::FontId::proportional(width_pct(scale, 0.0083333));
+    let key_base = strip.sender.key_base();
     let mut lit = false;
     for &(note, key_rect) in &keys {
         let black = crate::gui_notes::is_black_key(note);
         let on = strip.sender.holds_any(note) || held.contains(note);
+        let locked = !key_unlocked(kit_mode, &strip.kit, note);
         lit |= on;
-        let fill = match (black, on) {
-            (false, false) => OFF_WHITE,
-            (false, true) => DANGER_RED.linear_multiply(0.75),
-            (true, false) => RECESSED_BG,
-            (true, true) => DANGER_RED,
+        let fill = match (black, on, locked) {
+            (false, true, _) => DANGER_RED.linear_multiply(0.75),
+            (true, true, _) => DANGER_RED,
+            (false, false, false) => OFF_WHITE,
+            (false, false, true) => KIT_LOCKED_WHITE,
+            (true, false, false) => RECESSED_BG,
+            (true, false, true) => KIT_LOCKED_BLACK,
         };
         let key_rect = if black {
             key_rect
@@ -4538,7 +4800,22 @@ fn render_keyboard_strip(ui: &mut egui::Ui, strip: &mut KeyboardStrip, scale: f3
         };
         painter.rect_filled(key_rect, 1.0 * scale, fill);
         painter.rect_stroke(key_rect, 1.0 * scale, outline, egui::StrokeKind::Inside);
-        if let Some(letter) = note_letter(note) {
+        if pad_keys.contains(&note) {
+            let band = egui::Rect::from_min_size(
+                key_rect.min,
+                egui::vec2(key_rect.width(), KIT_PAD_BAND * scale),
+            );
+            painter.rect_filled(band, 0.0, SAFETY_YELLOW);
+        }
+        if kit_mode && strip.kit.selected == Some(note) {
+            painter.rect_stroke(
+                key_rect,
+                1.0 * scale,
+                egui::Stroke::new(2.0 * scale, SAFETY_YELLOW),
+                egui::StrokeKind::Inside,
+            );
+        }
+        if let Some(letter) = note_letter_from(note, key_base) {
             painter.text(
                 egui::pos2(key_rect.center().x, key_rect.max.y - 3.0 * scale),
                 egui::Align2::CENTER_BOTTOM,
@@ -6116,6 +6393,41 @@ mod tests {
             shared: Arc<EditorNotes>,
             params: crate::params::CorrosionParams,
             frame: u32,
+            /// Parameter values the editor set (`per-key-kits` loads pads).
+            gui: SetRecorder,
+        }
+
+        /// A host that records the normalized values the editor sets.
+        #[derive(Default)]
+        struct SetRecorder {
+            sets: std::sync::Mutex<Vec<(nih_plug::prelude::ParamPtr, f32)>>,
+        }
+
+        // SAFETY: test-only; the pointers are compared, never dereferenced
+        // from another thread.
+        unsafe impl Send for SetRecorder {}
+        unsafe impl Sync for SetRecorder {}
+
+        impl nih_plug::prelude::GuiContext for SetRecorder {
+            fn plugin_api(&self) -> nih_plug::prelude::PluginApi {
+                nih_plug::prelude::PluginApi::Clap
+            }
+            fn request_resize(&self) -> bool {
+                false
+            }
+            unsafe fn raw_begin_set_parameter(&self, _param: nih_plug::prelude::ParamPtr) {}
+            unsafe fn raw_set_parameter_normalized(
+                &self,
+                param: nih_plug::prelude::ParamPtr,
+                normalized: f32,
+            ) {
+                self.sets.lock().unwrap().push((param, normalized));
+            }
+            unsafe fn raw_end_set_parameter(&self, _param: nih_plug::prelude::ParamPtr) {}
+            fn get_state(&self) -> nih_plug::prelude::PluginState {
+                unimplemented!("not used by headless renders")
+            }
+            fn set_state(&self, _state: nih_plug::prelude::PluginState) {}
         }
 
         impl Harness {
@@ -6139,6 +6451,7 @@ mod tests {
                     shared,
                     params: crate::params::CorrosionParams::default(),
                     frame: 0,
+                    gui: SetRecorder::default(),
                 };
                 harness.run(Vec::new(), true);
                 harness
@@ -6163,8 +6476,7 @@ mod tests {
                     ..Default::default()
                 };
                 self.frame += 1;
-                let gui = NullGui;
-                let setter = nih_plug::prelude::ParamSetter::new(&gui);
+                let setter = nih_plug::prelude::ParamSetter::new(&self.gui);
                 let (state, params) = (&mut self.state, &self.params);
                 let output = self.ctx.run(input, |ctx| {
                     egui::CentralPanel::default()
@@ -6295,7 +6607,7 @@ mod tests {
                     rect.x_range()
                 );
                 assert!((rect.width() - w as f32).abs() < 1.0);
-                assert_eq!(keys.len(), 37);
+                assert_eq!(keys.len(), 49);
             }
         }
 
@@ -6332,14 +6644,16 @@ mod tests {
             assert_eq!(fill_at(&harness, black), black_plain);
         }
 
-        /// Spec "The strip covers C3 to C6".
+        /// Specs "The strip covers C3 to C6" and "The strip covers C2 to
+        /// C6" (`per-key-kits` widened it to 36–84).
         #[test]
-        fn the_strip_covers_c3_to_c6() {
+        fn the_strip_covers_c2_to_c6() {
             let harness = Harness::new();
             let (_, keys) = harness.keys();
             let mut notes: Vec<u8> = keys.iter().map(|&(n, _)| n).collect();
             notes.sort_unstable();
-            assert_eq!(notes, (48..=84).collect::<Vec<_>>());
+            assert_eq!(notes, (36..=84).collect::<Vec<_>>());
+            assert!((48..=84).all(|n| notes.contains(&n)));
             for &(note, rect) in &keys {
                 let short = rect.height() < harness.keys().0.height() - 0.5;
                 assert_eq!(
@@ -6595,6 +6909,214 @@ mod tests {
             assert_eq!(sent, vec![off(60), off(67)]);
             harness.run(vec![key(A, false, false), button(pos, false)], true);
             assert!(harness.sent().is_empty());
+        }
+
+        /// The kit editor (`per-key-kits`).
+        mod kit {
+            use super::{button, key, off, on, EditorNoteEvent, Harness};
+            use crate::kit::KitPad;
+            use crate::params::{play_mode_param, PlayMode};
+            use nih_plug::prelude::Params;
+            use nih_plug_egui::egui;
+
+            fn kit_mode(harness: &mut Harness) {
+                harness.params.play_mode = play_mode_param(PlayMode::Kit.to_int());
+                harness.run(Vec::new(), true);
+                harness.run(Vec::new(), true);
+            }
+
+            fn key_point(harness: &Harness, note: u8) -> egui::Pos2 {
+                harness.key_rect(note).center_bottom() - egui::vec2(0.0, 4.0)
+            }
+
+            /// Press and release a key.
+            fn tap(harness: &mut Harness, note: u8) {
+                let pos = key_point(harness, note);
+                harness.press_at(pos);
+                harness.run(vec![button(pos, false)], true);
+            }
+
+            /// Where `text` is drawn, if it is.
+            fn text_pos(harness: &mut Harness, text: &str) -> Option<egui::Pos2> {
+                harness
+                    .run(Vec::new(), true)
+                    .into_iter()
+                    .find(|(t, _)| t == text)
+                    .map(|(_, pos)| pos)
+            }
+
+            /// Click the button labelled `text`.
+            fn click(harness: &mut Harness, text: &str) {
+                let pos = text_pos(harness, text).unwrap_or_else(|| panic!("no {text:?} drawn"))
+                    + egui::vec2(2.0, 2.0);
+                harness.run(
+                    vec![egui::Event::PointerMoved(pos), button(pos, true)],
+                    true,
+                );
+                harness.run(vec![button(pos, false)], true);
+            }
+
+            fn pad(harness: &Harness, key: u8) -> Option<KitPad> {
+                harness.params.kit.read().unwrap().pad(key).cloned()
+            }
+
+            /// Spec "Pads are assigned from the editor": the kit bar is
+            /// drawn only in Kit mode.
+            #[test]
+            fn the_kit_bar_shows_only_in_kit_mode() {
+                let mut harness = Harness::new();
+                for text in ["Assign", "Clear", "Full keyboard"] {
+                    assert!(text_pos(&mut harness, text).is_none(), "{text} in Tonal");
+                }
+                kit_mode(&mut harness);
+                for text in ["Assign", "Clear", "Full keyboard"] {
+                    assert!(text_pos(&mut harness, text).is_some(), "no {text} in Kit");
+                }
+                // The strip stays pinned to the bottom with the bar above it.
+                let (rect, _) = harness.keys();
+                let (_, h) = super::super::super::scaled_editor_size(harness.scale);
+                assert!(rect.max.y <= h as f32 + 0.5);
+            }
+
+            /// Spec "Assign the current sound".
+            #[test]
+            fn assign_takes_the_tune_from_the_last_auditioned_note() {
+                let mut harness = Harness::new();
+                tap(&mut harness, 72);
+                kit_mode(&mut harness);
+                tap(&mut harness, 42);
+                assert_eq!(harness.state.keyboard.kit.selected, Some(42));
+                click(&mut harness, "Assign");
+                let stored = pad(&harness, 42).expect("a pad on 42");
+                assert_eq!(stored.tune, 30);
+                let expected = KitPad::from_params(42, &harness.params, 30, 0.0);
+                assert_eq!(stored, expected);
+                assert!(
+                    harness.params.kit_table.get(42).is_some(),
+                    "the table has no pad"
+                );
+            }
+
+            /// Spec "Clear a pad".
+            #[test]
+            fn clear_removes_the_pad() {
+                let mut harness = Harness::new();
+                kit_mode(&mut harness);
+                tap(&mut harness, 38);
+                click(&mut harness, "Assign");
+                assert!(pad(&harness, 38).is_some());
+                click(&mut harness, "Clear");
+                assert!(pad(&harness, 38).is_none());
+                assert!(harness.params.kit_table.get(38).is_none());
+            }
+
+            /// Spec "Selecting a pad loads it".
+            #[test]
+            fn selecting_a_pad_loads_it_and_assign_keeps_it() {
+                let mut harness = Harness::new();
+                kit_mode(&mut harness);
+                let mut sound = crate::presets::factory::base("Stick");
+                sound.exciter = 5;
+                sound.object = crate::params::Object::SheetMetal;
+                sound.size = 1.3;
+                let stored = KitPad::from_params(38, &sound.into_params(), -5, -2.0);
+                {
+                    let mut kit = harness.params.kit.write().unwrap();
+                    kit.set(stored.clone());
+                    harness.params.kit_table.load(&kit);
+                }
+                harness.gui.sets.lock().unwrap().clear();
+                tap(&mut harness, 38);
+                // The editor set every pad parameter but the macros to the
+                // pad's value.
+                let sets: std::collections::HashMap<_, _> =
+                    harness.gui.sets.lock().unwrap().iter().copied().collect();
+                let pad_params = stored.params();
+                let loaded: std::collections::HashMap<String, f32> = pad_params
+                    .param_map()
+                    .into_iter()
+                    // SAFETY: pointers from `pad_params`, alive here.
+                    .map(|(id, ptr, _)| (id, unsafe { ptr.modulated_plain_value() }))
+                    .collect();
+                for (id, ptr, _) in harness.params.param_map() {
+                    let expected = crate::kit::is_pad_param(&id)
+                        && !crate::kit::PAD_MACRO_PARAMS.contains(&id.as_str());
+                    let set = sets.get(&ptr).copied();
+                    if expected {
+                        // SAFETY: pointers from the harness's params.
+                        let want = unsafe { ptr.preview_normalized(loaded[&id]) };
+                        assert_eq!(set, Some(want), "{id}");
+                    } else {
+                        assert_eq!(set, None, "{id} should not be set");
+                    }
+                }
+                assert_eq!(harness.state.keyboard.kit.last_auditioned, Some(33));
+                // Re-assigning the loaded sound (the values the editor set)
+                // leaves the pad as it was.
+                let again = KitPad::from_params(38, &pad_params, 33 - 38, -2.0);
+                assert_eq!(again.values, stored.values);
+                assert_eq!(again.tune, stored.tune);
+            }
+
+            /// Spec "Keys outside the zone are locked" and "The toggle
+            /// unlocks the keyboard".
+            #[test]
+            fn keys_outside_the_zone_are_locked_until_full_keyboard() {
+                let mut harness = Harness::new();
+                kit_mode(&mut harness);
+                tap(&mut harness, 40);
+                harness.sent();
+                let white_open = super::fill_at(&harness, key_point(&harness, 40));
+                let white_locked = super::fill_at(&harness, key_point(&harness, 60));
+                assert_ne!(white_open, white_locked, "key 60 isn't greyed");
+                tap(&mut harness, 60);
+                assert!(harness.sent().is_empty(), "a locked key played");
+                assert_eq!(harness.state.keyboard.kit.selected, Some(40));
+
+                click(&mut harness, "Full keyboard");
+                tap(&mut harness, 60);
+                let sent = harness.sent();
+                assert!(
+                    matches!(sent[0], EditorNoteEvent::On { note: 60, .. }),
+                    "{sent:?}"
+                );
+                assert_eq!(harness.state.keyboard.kit.selected, Some(60));
+            }
+
+            /// Spec "In Kit mode the home row plays the kit zone".
+            #[test]
+            fn computer_keys_play_the_kit_zone_in_kit_mode() {
+                use egui::Key::{A, K};
+                let mut harness = Harness::new();
+                kit_mode(&mut harness);
+                harness.run(
+                    vec![
+                        egui::Event::PointerMoved(egui::pos2(400.0, 5.0)),
+                        key(A, true, false),
+                    ],
+                    true,
+                );
+                harness.run(vec![key(A, false, false)], true);
+                harness.run(vec![key(K, true, false)], true);
+                harness.run(vec![key(K, false, false)], true);
+                assert_eq!(
+                    harness.sent(),
+                    vec![
+                        on(36, crate::gui_notes::KEY_VELOCITY),
+                        off(36),
+                        on(48, 100),
+                        off(48)
+                    ]
+                );
+                let texts = harness.run(Vec::new(), true);
+                let a_key = harness.key_rect(36);
+                assert!(
+                    texts
+                        .iter()
+                        .any(|(t, pos)| t == "A" && a_key.x_range().contains(pos.x)),
+                    "A is not drawn on key 36"
+                );
+            }
         }
     }
 }

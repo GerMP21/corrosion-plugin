@@ -10,7 +10,7 @@
 - [x] 1.2 `KitTable` concurrency: reads never see a torn pad under a writer thread hammering a slot; a pad note-on and a GUI assign under `assert_no_alloc` on the audio side
 - [x] 1.3 Persistence: preset round trip (pads on 36, 38 and 42 only), host-state round trip, a preset without `kit` clears the pads
 - [x] 1.4 Migration: an old Kit preset and old Kit host state load as Tonal with every other value kept
-- [ ] 1.5 Editor (GUI lane): kit bar only in Kit mode; Assign with tune from the last auditioned note; Clear; selecting a pad loads its sound and re-assigning without changes leaves it as it was; keys outside 36–59 greyed and locked until Full keyboard; strip 36–84; computer keys play 36–48 in Kit mode with their letters there
+- [x] 1.5 Editor (GUI lane): kit bar only in Kit mode; Assign with tune from the last auditioned note; Clear; selecting a pad loads its sound and re-assigning without changes leaves it as it was; keys outside 36–59 greyed and locked until Full keyboard; strip 36–84; computer keys play 36–48 in Kit mode with their letters there
 - [x] 1.6 Remove the slot-mapping tests (`kit_note_to_object_covers_full_range`, `kit_notes_*`, `kit_mode_overrides_object_param`) with the slot mapping
 
 ## 2. Engine
@@ -22,9 +22,9 @@
 
 ## 3. Editor
 
-- [ ] 3.1 Strip covers 36–84; computer-key base 36 in Kit mode
-- [ ] 3.2 Kit bar (selected key, Tune, Assign, Clear, Full keyboard) taking its space from the scroll view
-- [ ] 3.3 Key selection, the zone lock and greying, pad markers, loading a pad into the parameters, Assign with tune from the last auditioned note
+- [x] 3.1 Strip covers 36–84; computer-key base 36 in Kit mode
+- [x] 3.2 Kit bar (selected key, Tune, Assign, Clear, Full keyboard) taking its space from the scroll view
+- [x] 3.3 Key selection, the zone lock and greying, pad markers, loading a pad into the parameters, Assign with tune from the last auditioned note
 
 ## 4. Factory kits
 

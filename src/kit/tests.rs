@@ -308,3 +308,12 @@ fn an_old_kit_project_loads_as_tonal() {
     crate::Corrosion::filter_state(&mut state);
     assert!(matches!(state.params["play_mode"], ParamValue::I32(1)));
 }
+
+/// Loading a pad into the parameters and storing them again gives the same
+/// pad (spec "Selecting a pad loads it": Assign without changes).
+#[test]
+fn a_pad_round_trips_through_its_parameters() {
+    let pad = pad_from(&stick_on_sheet(), 38, -5);
+    let again = KitPad::from_params(38, &pad.params(), pad.tune, pad.level_db);
+    assert_eq!(again, pad);
+}
