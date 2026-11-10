@@ -40,14 +40,14 @@ Pressing the primary mouse button on a key SHALL start that key's note, and rele
 - **THEN** the note started is 61
 
 ### Requirement: Computer keys play the middle octave
-While the editor plays from the computer keyboard, the keys A, W, S, E, D, F, T, G, Y, H, U, J and K SHALL play MIDI notes 60 to 72 in that order, or MIDI notes 36 to 48 while Play Mode is Kit. Keys SHALL be matched by the physical key when the window system reports one, and otherwise by the key's letter in the active layout. Pressing a mapped key SHALL send a note-on at a fixed velocity, releasing it SHALL send a note-off, and auto-repeat key events SHALL be ignored. Each mapped on-screen key SHALL show its key letter.
+While the editor plays from the computer keyboard, the keys A, W, S, E, D, F, T, G, Y, H, U, J and K SHALL play MIDI notes 60 to 72 in that order, or MIDI notes 36 to 48 while Note Mode is Kit. Keys SHALL be matched by the physical key when the window system reports one, and otherwise by the key's letter in the active layout. Pressing a mapped key SHALL send a note-on at a fixed velocity, releasing it SHALL send a note-off, and auto-repeat key events SHALL be ignored. Each mapped on-screen key SHALL show its key letter.
 
 #### Scenario: The home row plays C4 to C5
 - **WHEN** the keys A, W, S, E, D, F, T, G, Y, H, U, J, K are pressed in turn
 - **THEN** the editor sends note-ons for 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72
 
 #### Scenario: In Kit mode the home row plays the kit zone
-- **WHEN** Play Mode is Kit and the keys A, W, S, …, K are pressed in turn
+- **WHEN** Note Mode is Kit and the keys A, W, S, …, K are pressed in turn
 - **THEN** the editor sends note-ons for 36 to 48, and the letters are drawn on those keys
 
 #### Scenario: Auto-repeat does not retrigger

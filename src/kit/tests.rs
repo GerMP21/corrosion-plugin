@@ -292,7 +292,7 @@ fn an_old_kit_preset_loads_as_tonal() {
     assert_eq!(loaded.play_mode, PlayMode::Tonal.to_int());
     let mut expected = old.clone();
     expected.play_mode = PlayMode::Tonal.to_int();
-    assert_eq!(loaded, expected, "only Play Mode should change");
+    assert_eq!(loaded, expected, "only Note Mode should change");
 }
 
 #[test]

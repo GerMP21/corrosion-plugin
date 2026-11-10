@@ -1497,7 +1497,7 @@ pub fn limiter_mode_param(default: i32) -> IntParam {
 
 /// Build the play-mode `IntParam` with mappings for Tonal/Kit/Drone.
 pub fn play_mode_param(default: i32) -> IntParam {
-    IntParam::new("Play Mode", default, IntRange::Linear { min: 0, max: 2 })
+    IntParam::new("Note Mode", default, IntRange::Linear { min: 0, max: 2 })
         .with_value_to_string(Arc::new(|value| {
             PlayMode::from_int(value).name().to_string()
         }))

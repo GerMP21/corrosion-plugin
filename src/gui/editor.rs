@@ -2082,12 +2082,22 @@ fn paint_info_badge(
         egui::FontId::proportional(radius * 1.4),
         MUTED_GREY,
     );
-    ui.interact(
+    let mut response = ui.interact(
         badge,
         ui.id().with(("help-badge", param)),
         egui::Sense::hover(),
-    )
-    .on_hover_text(help);
+    );
+    // Open the help above the badge, where the pointer doesn't cover it.
+    // egui places a tooltip below its widget whenever it fits; the rect it
+    // places against is stretched to the bottom of the screen so it never
+    // does, and the tooltip goes above (or beside, at the very top). The
+    // hover area was taken above and stays the badge.
+    response.rect.max.y = response
+        .rect
+        .max
+        .y
+        .max(ui.ctx().screen_rect().bottom() + 1.0);
+    response.on_hover_text(help);
 }
 
 /// Help text for a control, by its display label (case-insensitive). Slot
@@ -2282,9 +2292,15 @@ fn selector_help(label: &str, selected: &str) -> &'static str {
         ("mode", "Normal") => "The default balance of detail and CPU.",
         ("mode", "High") => "More modes per voice and more clipper oversampling.",
         ("mode", "Render") => "Most detail and least aliasing, for bouncing. Uses the most CPU.",
-        ("play", "Tonal") => "Notes play at their pitch and decay naturally.",
-        ("play", "Kit") => "Each key plays its own pad, set up on the keyboard below; keys without a pad are silent.",
-        ("play", "Drone") => "Notes sustain while held, for bowed and continuous sounds.",
+        ("note mode", "Tonal") => {
+            "Each key plays the patch at its own pitch. Bowed and scraped exciters follow the envelope, so they fade out even while the key is held."
+        }
+        ("note mode", "Kit") => {
+            "Each key plays its own pad, with its own sound and tuning, set up with the kit bar above the keyboard. Keys without a pad are silent."
+        }
+        ("note mode", "Drone") => {
+            "Like Tonal, but bowed and scraped exciters keep sounding while the key is held (the envelope loops Decay and Sustain). Struck exciters still decay."
+        }
         ("limiter", "Hard") => "Clamps peaks at the ceiling with no added latency.",
         ("limiter", "Lookahead") => {
             "Turns peaks down smoothly ahead of time. Adds about 1 ms of latency."
@@ -2575,7 +2591,7 @@ fn render_header(
                                                     industrial_combo(
                                                         ui,
                                                         "play-mode-header",
-                                                        "PLAY",
+                                                        "NOTE MODE",
                                                         &params.play_mode,
                                                         &[(0, "Tonal"), (1, "Kit"), (2, "Drone")],
                                                         setter,
@@ -5529,6 +5545,17 @@ mod tests {
         params: &crate::params::CorrosionParams,
         pointer: Option<nih_plug_egui::egui::Pos2>,
     ) -> Vec<String> {
+        text_rects_with_pointer_at(params, pointer)
+            .into_iter()
+            .map(|(text, _)| text)
+            .collect()
+    }
+
+    /// Like `texts_with_pointer_at`, with each text's screen rect.
+    fn text_rects_with_pointer_at(
+        params: &crate::params::CorrosionParams,
+        pointer: Option<nih_plug_egui::egui::Pos2>,
+    ) -> Vec<(String, nih_plug_egui::egui::Rect)> {
         use nih_plug_egui::egui;
         let gui = NullGui;
         let setter = nih_plug::prelude::ParamSetter::new(&gui);
@@ -5560,7 +5587,10 @@ mod tests {
                 .shapes
                 .iter()
                 .filter_map(|clipped| match &clipped.shape {
-                    egui::Shape::Text(text) => Some(text.galley.job.text.clone()),
+                    egui::Shape::Text(text) => Some((
+                        text.galley.job.text.clone(),
+                        text.galley.rect.translate(text.pos.to_vec2()),
+                    )),
                     _ => None,
                 })
                 .collect();
@@ -5593,6 +5623,23 @@ mod tests {
         assert!(
             texts.iter().any(|t| t.contains(&help)),
             "no tooltip with {help:?}"
+        );
+    }
+
+    /// The help opens above its badge, so the pointer resting on the badge
+    /// doesn't cover it.
+    #[test]
+    fn help_opens_above_the_badge() {
+        let params = crate::params::CorrosionParams::default();
+        let (badge, _, help) = cutoff_badge(&params);
+        let texts = text_rects_with_pointer_at(&params, Some(badge.center()));
+        let (_, rect) = texts
+            .iter()
+            .find(|(text, _)| text.contains(&help))
+            .expect("the help tooltip is shown");
+        assert!(
+            rect.bottom() <= badge.top(),
+            "help at {rect:?}, badge at {badge:?}"
         );
     }
 
@@ -5734,7 +5781,7 @@ mod tests {
                 |p| p.quality_mode.as_ptr(),
             ),
             (
-                "PLAY",
+                "NOTE MODE",
                 0..=2,
                 |p, v| p.play_mode = play_mode_param(v),
                 |p| p.play_mode.as_ptr(),
@@ -6962,6 +7009,34 @@ mod tests {
 
             fn pad(harness: &Harness, key: u8) -> Option<KitPad> {
                 harness.params.kit.read().unwrap().pad(key).cloned()
+            }
+
+            /// The Tonal / Kit / Drone selector is named for what it sets:
+            /// what a note does.
+            #[test]
+            fn the_note_mode_selector_is_named_note_mode() {
+                let mut harness = Harness::new();
+                assert!(
+                    text_pos(&mut harness, "NOTE MODE").is_some(),
+                    "no NOTE MODE label"
+                );
+                assert!(
+                    text_pos(&mut harness, "PLAY").is_none(),
+                    "old PLAY label drawn"
+                );
+                assert_eq!(
+                    nih_plug::prelude::Param::name(&harness.params.play_mode),
+                    "Note Mode"
+                );
+                // Each option's tooltip says what it does.
+                for (mode, says) in [
+                    ("Tonal", "fade out even while the key is held"),
+                    ("Kit", "its own pad"),
+                    ("Drone", "Struck exciters still decay"),
+                ] {
+                    let help = crate::gui::editor::selector_help("NOTE MODE", mode);
+                    assert!(help.contains(says), "{mode}: {help:?}");
+                }
             }
 
             /// Spec "Pads are assigned from the editor": the kit bar is

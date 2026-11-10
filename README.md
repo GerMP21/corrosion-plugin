@@ -40,7 +40,7 @@ To build it yourself instead, see [Build And Run](#build-and-run).
 
 - Velocity, pitch bend, channel and polyphonic pressure, and the mod wheel act on held notes; CLAP and VST3 hosts can also address single notes (per-note tuning and choke).
 - The sustain pedal (CC64) holds notes; CC120 / CC123 stop everything.
-- **Drone** play mode keeps bowed, scraped and dragged notes sounding until you let go.
+- **Drone** note mode keeps bowed, scraped and dragged notes sounding until you let go.
 - **Quality** trades CPU for density and smoother aliasing: Eco, Normal (default), High, Render (for bouncing).
 
 ## What It Ships
@@ -51,7 +51,7 @@ To build it yourself instead, see [Build And Run](#build-and-run).
 - **Per-note expression** (CLAP and VST3 hosts): notes the host addresses by voice ID are released, pressed, retuned and choked individually, so two overlapping notes on one key stay separate. Per-note tuning (`PolyTuning`) shifts one note in semitones on top of the channel pitch bend; a host choke fades the note to silence in 2 ms without a click. Hosts that send plain MIDI match notes by key and channel; the oldest note on a key is released first. Channel MPE (per-channel bend and pressure zones) isn't supported: channel messages stay global.
 - **Sustain pedal and panic**: CC64 holds released notes until the pedal lifts (re-striking a held note replaces it; pedal-held notes are stolen before held keys). CC123 All Notes Off releases every held key (a down pedal still holds them), CC120 All Sound Off fades everything, Space tails included, to silence in 5 ms, and CC121 Reset All Controllers lifts the pedal and returns mod wheel, bend and pressure to rest. Other CCs are ignored (full CC mapping is on the roadmap).
 - 16-voice polyphony. When the pool is full, released tails are stolen first, then held notes at least 100 ms old (quietest first, oldest on ties); a note that just started is only stolen if every held note is that young. Idle voices cost nothing; a full pool at Render quality measured about 36 % of one core on the development machine.
-- 130+ host parameters covering exciters, objects, transformations, post-processing, four macros and three play modes.
+- 130+ host parameters covering exciters, objects, transformations, post-processing, four macros and three note modes.
 - An egui editor with UI scaling (50/75/100/125/150 %), controls for every audible parameter, inline help on every control, a piano strip, a preset browser with folders, user presets, a randomizer, and a kit editor.
 - **Kit mode**: an AFX-style drum kit, one pad (a whole sound with its own tune and level) per key, saved with presets and projects.
 - A factory bank of 214 presets in folders: 60 designed by hand (bass, lead, chords, drones, percussion), 10 drum kits and 144 experimental ones, one per exciter × resonator, all at a common loudness (`src/presets/factory/`, written by `src/bin/seed_presets.rs`).
@@ -87,7 +87,7 @@ Each object is an algorithmic modal resonator generator with curated **character
 - **Global exciter controls** (under the exciter selector, each neutral at its default): **Pressure** trims every exciter's force by −12 to +12 dB and follows automation on held notes; **Speed** scales motion speeds ×0.5 to ×2 (bow, scrape, grind, drag, pull, particle flow); **Roughness** scales grit and randomness ×0 to ×3.33 (rosin grip, surface grit, slip, turbulence, brush and rattle randomness, particle mass variance). Speed and Roughness apply at note-on. Exciters with no motion or grit parameter ignore them.
 - **Rust, Damage, Heat**: Rust (0–5) dulls and shortens the high partials first while the low thud keeps ringing; Damage (0–10) cracks the object into beating, detuned mode pairs without losing the note; Heat (0–1) lowers the pitch slightly, darkens, and adds a slow thermal warble. None of them silences a note: across each range the level stays within about 3 dB.
 - **Macros** (neutral at 0.5): `Mass`, `Corrosion`, `Violence`, `Brightness`. Each biases a cluster of destinations: Mass the exciter's mass controls and the object's size; Corrosion damping and rust; Violence drive, chaos and damage; Brightness the post-chain filter and resonator brightness.
-- **Play mode**: `Tonal` (default: the key sets the pitch), `Kit` (each key plays its own pad, see [Kit mode](#kit-mode); keys without a pad are silent), `Drone` (the friction envelope loops, so friction notes ring until release).
+- **Note Mode** (the header's NOTE MODE selector): `Tonal` (default: the key sets the pitch; friction notes follow the envelope and fade even while held), `Kit` (each key plays its own pad, see [Kit mode](#kit-mode); keys without a pad are silent), `Drone` (the friction envelope loops Decay and Sustain, so friction notes ring until release; struck notes still decay).
 - **Quality**: `Eco` / `Normal` / `High` / `Render`. Controls the final clipper's oversampling (1×/4×/8×/16×, half-band IIR filters) **and** per-voice modal density (0.5×/1.0×/1.5×/2.0× the object's base mode count). Every mode runs the full post chain and the same diode curve, so modes trade fidelity and CPU, not effects. **The two parts change at different times:** the clipper's oversampling switches at once, but a note's mode count is fixed when it starts, so held notes and their tails keep their density until the next note-on.
 - **Limiter**: `Hard` (default, zero-latency hard clamp at ≈−0.3 dBFS) or `Lookahead` (48-sample window, instant attack, 50 ms release; reports its 1 ms latency to the host).
 - **Diode stage** (the final clipper, in the Brickwall Limiter panel): a soft-knee diode curve that sounds good driven hot.
@@ -124,6 +124,8 @@ The factory bank lives under `presets/factory/`, in folders. The preset browser 
 
 Every factory preset is levelled so a held middle C sits at the same loudness (−17.7 dBFS RMS), with headroom so even a full-velocity note barely touches the limiter. Drum pads are levelled the same way, each held alone on its own key. Regenerate the bank with `cargo run --release --bin seed_presets`.
 
+> **Note: the factory presets are experimental.** Levels and the folder checks are measured, but the sound design isn't finished: some presets sound very similar to each other, and some don't sound like their name says. Help is welcome, both fixing the existing presets and adding new ones. Presets are built in code (`src/presets/factory/curated.rs` for the hand-made folders, `experimental.rs` and `drums.rs` for the others) and written to disk by the seeder; see [Factory presets in CLAUDE.md](CLAUDE.md#factory-presets) for the workflow, or open an issue describing a preset that misses its mark.
+
 ### User Presets and Randomizer
 
 The editor's **Save** writes the current sound as a named preset (every parameter except UI Scale, and the kit if there is one) into your user preset folder, or one of its subfolders, picked in the selector next to the name. You can't save into the factory bank. Saving over an existing name asks first. The browser's **User** submenu mirrors the folder's subfolders (up to four levels deep), and picks up folders you add while the plugin is open. The **‹ ›** arrows step through the presets of the current folder. **Open folder** shows the user folder in your file manager (it is created if missing), so you can add, rename or delete folders and presets there. The folder:
@@ -151,7 +153,7 @@ A piano strip at the bottom of the editor (C2–C6, MIDI 36–84) stays in view 
 - **Computer keyboard:** `A W S E D F T G Y H U J K` play C4 to C5 (white keys on the home row, black keys above), at a fixed velocity; in Kit mode they play C2 to C3 (36–48), where the drum pads are. Keys match by letter, so on AZERTY the row is the same letters, not the same positions.
 - Computer keys play only while the editor has keyboard focus **and the mouse pointer is over it**, and not while you type a preset name. Moving the pointer off the editor, or closing it, releases every note it holds. The pointer condition is there because the window backend doesn't report focus loss on Windows or Linux.
 - Keys light up while their note is held, from the strip or from the host's MIDI.
-- Notes from the strip play like MIDI notes on channel 0 (play mode, sustain pedal and voice stealing apply), but they don't reach the host's MIDI output and aren't recorded.
+- Notes from the strip play like MIDI notes on channel 0 (note mode, sustain pedal and voice stealing apply), but they don't reach the host's MIDI output and aren't recorded.
 - Some hosts keep keystrokes for their own shortcuts. In REAPER, keys reach the plugin while its window has focus; if they don't, enable "Send all keyboard input to plugin" in the FX window's menu. The mouse always works.
 
 ### Kit mode
@@ -168,7 +170,7 @@ When Play is set to Kit, a kit bar appears above the strip:
 
 A kit is saved with presets and with your DAW project. Loading a pad moves every voice parameter, which a host recording automation will record, as when loading a preset.
 
-**BREAKING:** the old Kit mode, which mapped 10-note slots of the keyboard to objects, is gone. Presets and projects saved in the old Kit mode load in Tonal mode, with their other values kept; host automation of Play Mode that selects Kit now selects the new mode, which is silent until pads are assigned.
+**BREAKING:** the old Kit mode, which mapped 10-note slots of the keyboard to objects, is gone. Presets and projects saved in the old Kit mode load in Tonal mode, with their other values kept; host automation of Note Mode (formerly Play Mode) that selects Kit now selects the new mode, which is silent until pads are assigned.
 
 ## Repository Layout
 
@@ -183,7 +185,7 @@ A kit is saved with presets and with your DAW project. Loading a pad moves every
 │                          check_wav.py, bench_ratios.py …; archive/ (old bundle wrappers)
 ├── src/
 │   ├── lib.rs             Plugin trait impls, MIDI routing (incl. CCs), note setup,
-│   │                      macros, play modes, state migration, drive/output smoothers
+│   │                      macros, note modes, state migration, drive/output smoothers
 │   ├── params.rs          130+ host parameters (ExciterType×16, Object×9,
 │   │                      QualityMode×4, PlayMode×3, character×14, macros×4 …)
 │   ├── kit/               Kit mode: pads, the lock-free pad table, persistence
