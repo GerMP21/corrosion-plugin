@@ -1,122 +1,76 @@
 name: ci
 
+# Linux, Windows (MSVC) and macOS: checks, then native bundles validated with
+# clap-validator and pluginval, then (main only) the rolling `nightly`
+# pre-release (`extend-ci-windows-linux-macos`).
+
 on:
   push:
     branches:
+      - dev
       - main
-      - master
   pull_request:
-  # Run by hand (Actions → ci → Run workflow) to refresh the nightly pre-release.
+  # Run by hand (Actions → ci → Run workflow). On main it also refreshes the
+  # nightly pre-release.
   workflow_dispatch:
 
+# A newer push to a branch cancels that branch's run, except on main, whose
+# runs may be publishing the nightly.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  # `.cargo/config.toml` builds into ../corrosion-target for the maintainer's
+  # machine; inside the workspace the cache action can keep it.
+  CARGO_TARGET_DIR: ${{ github.workspace }}/target
+  # Pinned validator releases (bundle job).
+  CLAP_VALIDATOR_VERSION: "0.3.2"
+  PLUGINVAL_VERSION: "v1.0.4"
+
+defaults:
+  run:
+    # Git Bash on Windows, so every step and script is the same bash.
+    shell: bash
+
 jobs:
-  quality-and-build:
-    runs-on: ubuntu-latest
-
-    # `.cargo/config.toml` defaults `build.target` to `x86_64-pc-windows-gnu`
-    # for the developer's local Windows host. The Linux CI runner doesn't
-    # have that target installed, so any unqualified `cargo` invocation
-    # (`cargo fmt --check`, `cargo clippy`, `cargo test` without --target)
-    # would otherwise try to compile windows-only deps. Override the build
-    # target at the job level so unqualified cargo commands resolve to the
-    # native musl lane the runner actually has installed.
-    env:
-      CARGO_BUILD_TARGET: x86_64-unknown-linux-musl
-
-    steps:
-      # Always fetch the repository exactly as CI will validate it.
-      - name: Check out repository
-        uses: actions/checkout@v4
-
-      # Install the native toolchain pieces needed by the gnu GUI build.
-      # The `x11` crate's build script probes a long list of X11 libraries via
-      # pkg-config (xlib, xext, xrender, xcursor, xrandr, xi, xft, xinerama,
-      # xtst, xau, xxf86vm, …) and GL via `gl.pc`. egui-baseview / xkbcommon
-      # add their own. We install the union here so the GUI-capable lib lane
-      # and the bundle script both build without paper-cuts.
-      - name: Install Linux build dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            pkg-config \
-            libx11-dev \
-            libx11-xcb-dev \
-            libxau-dev \
-            libxcb1-dev \
-            libxcursor-dev \
-            libxext-dev \
-            libxfixes-dev \
-            libxft-dev \
-            libxi-dev \
-            libxinerama-dev \
-            libxkbcommon-dev \
-            libxrandr-dev \
-            libxrender-dev \
-            libxtst-dev \
-            libxxf86vm-dev \
-            libgl-dev
-
-      # Keep the Rust toolchain explicit and reproducible in CI.
-      - name: Install stable Rust
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: x86_64-unknown-linux-musl, x86_64-unknown-linux-gnu
-
-      # Cache Cargo artifacts to keep verification fast enough for iteration.
-      - name: Cache Cargo registry and target dir
-        uses: Swatinem/rust-cache@v2
-
-      # Enforce formatting as a required gate.
-      - name: Check formatting
-        run: cargo fmt --check
-
-      # Lint the realtime-focused no-GUI lane first because it matches the repo default workflow.
-      - name: Clippy (workspace, no default features)
-        run: cargo clippy --workspace --all-targets --no-default-features -- -D warnings
-
-      # Exercise the default no-GUI workspace exactly as documented for local verification.
-      - name: Test workspace (no default features)
-        run: cargo test --workspace --no-default-features
-
-      # Exercise the native Linux GUI-capable library lane that the bundle flow depends on.
-      - name: Test native Linux library lane
-        run: cargo test --lib --target x86_64-unknown-linux-gnu
-
-      # Smoke-test the restored offline renderer CLI with a deterministic family suite render.
-      - name: Smoke test offline renderer CLI
-        run: cargo run --target x86_64-unknown-linux-gnu --bin render -- --suite family --out-dir /tmp/corrosion-ci-render
-
-      # Validate one rendered artifact for finite/bounded WAV output.
-      - name: Validate rendered WAV artifact
-        run: python3 scripts/check_wav.py /tmp/corrosion-ci-render/pipe_comparison.wav
-
-  # Build the shipping bundles (VST3 and CLAP) for Linux and Windows, once the
-  # quality job passes. Windows is cross-compiled with mingw-w64, the same
-  # `x86_64-pc-windows-gnu` target and linker as the maintainer's host
-  # (`.cargo/config.toml`).
-  bundle:
-    needs: quality-and-build
-    runs-on: ubuntu-latest
+  # Every lane of the local close-out that applies to the platform.
+  checks:
+    name: checks (${{ matrix.platform }})
+    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         include:
           - platform: linux
-            target: x86_64-unknown-linux-gnu
-            script: ./bundle.sh
-            out: target/bundled
+            os: ubuntu-latest
+            # The no-GUI CI lane runs on musl, as documented in CLAUDE.md;
+            # the GUI lane, renderer and real-time checks on gnu.
+            target: x86_64-unknown-linux-musl
+            native: x86_64-unknown-linux-gnu
           - platform: windows
-            target: x86_64-pc-windows-gnu
-            script: ./bundle-win.sh
-            out: target/bundled-win
+            os: windows-latest
+            target: x86_64-pc-windows-msvc
+            native: x86_64-pc-windows-msvc
+          - platform: macos
+            os: macos-latest
+            target: aarch64-apple-darwin
+            native: aarch64-apple-darwin
     env:
+      # The config's default target is the maintainer's windows-gnu host.
       CARGO_BUILD_TARGET: ${{ matrix.target }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
 
+      # The `x11` crate probes many X11 libraries via pkg-config, and GL via
+      # gl.pc; egui-baseview and xkbcommon add their own.
       - name: Install Linux build dependencies
-        if: matrix.platform == 'linux'
+        if: runner.os == 'Linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y \
@@ -125,16 +79,103 @@ jobs:
             libxinerama-dev libxkbcommon-dev libxrandr-dev libxrender-dev \
             libxtst-dev libxxf86vm-dev libgl-dev
 
-      - name: Install mingw-w64
-        if: matrix.platform == 'windows'
+      - name: Install stable Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}, ${{ matrix.native }}
+          components: clippy, rustfmt
+
+      - name: Cache Cargo registry and target dir
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: checks-${{ matrix.platform }}
+
+      - name: Check formatting
+        if: runner.os == 'Linux'
+        run: cargo fmt --check
+
+      - name: Clippy (workspace, no default features)
+        run: cargo clippy --workspace --all-targets --no-default-features -- -D warnings
+
+      - name: Test workspace (no default features)
+        run: cargo test --workspace --no-default-features
+
+      - name: Test library with the GUI (default features)
+        run: cargo test --lib --target ${{ matrix.native }}
+
+      # Debug only: the checking allocator doesn't exist in release. Not on
+      # Windows, where Cargo.toml leaves nih-plug's assert_process_allocs off.
+      - name: Real-time safety (no_alloc)
+        if: runner.os != 'Windows'
+        run: cargo test --no-default-features --test no_alloc --target ${{ matrix.native }}
+
+      - name: Docs (warnings denied)
+        if: runner.os == 'Linux'
+        env:
+          RUSTDOCFLAGS: -D warnings
+        run: cargo doc --no-deps --no-default-features --target ${{ matrix.native }}
+
+      - name: Benchmarks compile
+        if: runner.os == 'Linux'
+        run: cargo bench --no-default-features --bench performance --no-run --target ${{ matrix.native }}
+
+      - name: Smoke test offline renderer CLI
+        run: cargo run --target ${{ matrix.native }} --bin render -- --suite family --out-dir "${{ runner.temp }}/corrosion-ci-render"
+
+      - name: Validate rendered WAV artifact
+        run: |
+          PY="$(command -v python3 || command -v python)"
+          "$PY" scripts/check_wav.py "${{ runner.temp }}/corrosion-ci-render/pipe_comparison.wav"
+
+  # VST3 and CLAP built on each platform's own runner, checked, validated and
+  # zipped. Needs every platform's checks, so a release never mixes a tested
+  # platform with an untested one.
+  bundle:
+    name: bundle (${{ matrix.platform }})
+    needs: checks
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux
+            os: ubuntu-latest
+            arch: x86_64
+            targets: x86_64-unknown-linux-gnu
+            clap_validator_asset: "*ubuntu*"
+            pluginval_asset: pluginval_Linux.zip
+          - platform: windows
+            os: windows-latest
+            arch: x86_64
+            targets: x86_64-pc-windows-msvc
+            clap_validator_asset: "*windows*"
+            pluginval_asset: pluginval_Windows.zip
+          - platform: macos
+            os: macos-latest
+            arch: universal
+            targets: aarch64-apple-darwin, x86_64-apple-darwin
+            clap_validator_asset: "*macos*"
+            pluginval_asset: pluginval_macOS.zip
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install Linux build dependencies
+        if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y gcc-mingw-w64-x86-64 g++-mingw-w64-x86-64
+          sudo apt-get install -y \
+            pkg-config libx11-dev libx11-xcb-dev libxau-dev libxcb1-dev \
+            libxcursor-dev libxext-dev libxfixes-dev libxft-dev libxi-dev \
+            libxinerama-dev libxkbcommon-dev libxrandr-dev libxrender-dev \
+            libxtst-dev libxxf86vm-dev libgl-dev xvfb
 
       - name: Install stable Rust
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ matrix.target }}
+          targets: ${{ matrix.targets }}
 
       - name: Cache Cargo registry and target dir
         uses: Swatinem/rust-cache@v2
@@ -142,16 +183,65 @@ jobs:
           key: bundle-${{ matrix.platform }}
 
       - name: Build bundles
-        run: ${{ matrix.script }} release
+        run: scripts/bundle.sh ${{ matrix.platform }} release
+
+      - name: Check bundle layout
+        run: scripts/check_bundle.sh ${{ matrix.platform }}
+
+      # Pinned releases, downloaded with the run's token; added to PATH.
+      - name: Install validators
+        run: |
+          tools="${{ runner.temp }}/validators"
+          mkdir -p "$tools/clap" "$tools/pluginval"
+          gh release download "$CLAP_VALIDATOR_VERSION" -R free-audio/clap-validator \
+            -p "${{ matrix.clap_validator_asset }}" -D "$tools/clap"
+          gh release download "$PLUGINVAL_VERSION" -R Tracktion/pluginval \
+            -p "${{ matrix.pluginval_asset }}" -D "$tools/pluginval"
+          for archive in "$tools"/clap/* "$tools"/pluginval/*; do
+            dir="$(dirname "$archive")"
+            case "$archive" in
+              *.tar.gz) tar -xzf "$archive" -C "$dir" ;;
+              *.zip)
+                if [ "$RUNNER_OS" = Windows ]; then 7z x -y -o"$dir" "$archive" >/dev/null
+                else unzip -q -o "$archive" -d "$dir"; fi ;;
+            esac
+          done
+          # Put the directory holding each executable on PATH.
+          for name in clap-validator pluginval; do
+            exe="$(find "$tools" -type f \( -name "$name" -o -name "$name.exe" \) | head -1)"
+            [ -n "$exe" ] || { echo "no $name executable in $tools"; find "$tools"; exit 1; }
+            chmod +x "$exe"
+            dirname "$exe" >> "$GITHUB_PATH"
+            echo "$name: $exe"
+          done
+
+      - name: Validate (clap-validator, pluginval)
+        env:
+          CORROSION_REQUIRE_VALIDATORS: "1"
+        run: |
+          if [ "$RUNNER_OS" = Linux ]; then
+            # JUCE (pluginval) wants a display even without GUI tests.
+            xvfb-run -a scripts/validate-plugins.sh ${{ matrix.platform }}
+          else
+            scripts/validate-plugins.sh ${{ matrix.platform }}
+          fi
 
       # One zip per format, with the bundle at its root, ready to drop into
       # the plugin folder.
       - name: Package
         run: |
+          base="Corrosion-${{ matrix.platform }}-${{ matrix.arch }}"
           mkdir -p dist
-          (cd "${{ matrix.out }}" && zip -r "$GITHUB_WORKSPACE/dist/Corrosion-${{ matrix.platform }}-x86_64-vst3.zip" Corrosion.vst3)
-          (cd "${{ matrix.out }}" && zip "$GITHUB_WORKSPACE/dist/Corrosion-${{ matrix.platform }}-x86_64-clap.zip" Corrosion.clap)
-          ls -l dist
+          dist="$PWD/dist"
+          cd target/bundled/${{ matrix.platform }}
+          for format in vst3 clap; do
+            if [ "$RUNNER_OS" = Windows ]; then
+              7z a -tzip "$dist/$base-$format.zip" "Corrosion.$format" >/dev/null
+            else
+              zip -qry "$dist/$base-$format.zip" "Corrosion.$format"
+            fi
+          done
+          ls -l "$dist"
 
       - name: Upload bundles
         uses: actions/upload-artifact@v4
@@ -160,12 +250,16 @@ jobs:
           path: dist/*.zip
           if-no-files-found: error
 
-  # Replace the rolling `nightly` pre-release with the bundles of this commit,
-  # on pushes to main and manual runs (not on pull requests).
-  prerelease:
+  # Replace the rolling `nightly` pre-release with this commit's six zips,
+  # after every job passed, on pushes to main and manual runs on main.
+  nightly:
     needs: bundle
-    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
+    # Publishing runs never overlap; the newest publishes last.
+    concurrency:
+      group: nightly
+      cancel-in-progress: false
     permissions:
       contents: write
     steps:
@@ -175,20 +269,40 @@ jobs:
           path: dist
           merge-multiple: true
 
+      - name: Check the six zips
+        run: |
+          ls -l dist
+          for platform in linux-x86_64 windows-x86_64 macos-universal; do
+            for format in vst3 clap; do
+              test -f "dist/Corrosion-$platform-$format.zip" || { echo "missing Corrosion-$platform-$format.zip"; exit 1; }
+            done
+          done
+          test "$(ls dist/*.zip | wc -l)" -eq 6
+
       - name: Publish the nightly pre-release
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: |
-          ls -l dist
+          short="$(echo "$GITHUB_SHA" | cut -c1-7)"
+          cat > notes.md <<EOF
+          Automatic build of \`${GITHUB_REF_NAME}\` at ${GITHUB_SHA}. Replaced by every green run on main; not a stable release.
+
+          Every bundle passed the tests on its platform, clap-validator and pluginval (strictness 5, no GUI tests). No DAW checks are automated.
+
+          | Platform | VST3 folder | CLAP folder |
+          |---|---|---|
+          | Windows (x86_64) | \`C:\\Program Files\\Common Files\\VST3\` | \`C:\\Program Files\\Common Files\\CLAP\` |
+          | macOS (Apple Silicon and Intel) | \`~/Library/Audio/Plug-Ins/VST3\` | \`~/Library/Audio/Plug-Ins/CLAP\` |
+          | Linux (x86_64) | \`~/.vst3\` | \`~/.clap\` |
+
+          Unzip each archive into its folder.
+
+          **macOS:** the bundles are ad-hoc signed, not notarized, so macOS quarantines them after a download. Before the first use, run \`xattr -dr com.apple.quarantine ~/Library/Audio/Plug-Ins/VST3/Corrosion.vst3\` (and the same for \`CLAP/Corrosion.clap\`).
+          EOF
           gh release delete nightly --yes --cleanup-tag || true
           gh release create nightly dist/*.zip \
             --prerelease \
             --target "$GITHUB_SHA" \
-            --title "Nightly ($(echo "$GITHUB_SHA" | cut -c1-7))" \
-            --notes "Automatic build of ${GITHUB_REF_NAME} at ${GITHUB_SHA}. Not a stable release.
-
-          - VST3: unzip into your VST3 folder (Windows: C:\\Program Files\\Common Files\\VST3; Linux: ~/.vst3).
-          - CLAP: unzip into your CLAP folder (Windows: C:\\Program Files\\Common Files\\CLAP; Linux: ~/.clap).
-
-          Untested builds: no pluginval, clap-validator or DAW checks are run."
+            --title "Nightly (${short})" \
+            --notes-file notes.md

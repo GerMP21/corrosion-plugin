@@ -6,7 +6,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
-VST3_PATH="${PROJECT_DIR}/target/bundled/Corrosion.vst3"
+VST3_PATH="${PROJECT_DIR}/target/bundled/linux/Corrosion.vst3"
 BOUNCE_PATH="/tmp/bounce-reaper-gate1.wav"
 
 echo "=== REAPER Gate 1 Smoke Test ==="
