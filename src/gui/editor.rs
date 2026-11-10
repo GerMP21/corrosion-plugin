@@ -2467,203 +2467,247 @@ fn render_header(
     panel.show(ui, |ui| {
         let original_item_spacing_x = ui.spacing().item_spacing.x;
         ui.spacing_mut().item_spacing.x = 0.0;
-        ui.columns(3, |columns| {
-            columns[0].horizontal(|ui| {
-                metal_panel(scale).show(ui, |ui| {
-                    ui.add_space(width_pct(scale, 0.0018518518));
-                    ui.label(
-                        egui::RichText::new("CORROSION")
-                            .size(width_pct(scale, 0.02037037))
-                            .color(OFF_WHITE)
-                            .strong(),
+        // Three columns: the brand block takes only the room it needs, the
+        // preset bank keeps a third of the header, and the mode selectors
+        // and faders get the rest.
+        let total = ui.available_width();
+        let brand_width = total * HEADER_BRAND_SHARE;
+        let preset_width = total / 3.0;
+        ui.with_layout(egui::Layout::left_to_right(egui::Align::Min), |ui| {
+            header_column(ui, brand_width, |ui| {
+                ui.horizontal(|ui| {
+                    metal_panel(scale).show(ui, |ui| {
+                        ui.add_space(width_pct(scale, 0.0018518518));
+                        ui.label(
+                            egui::RichText::new("CORROSION")
+                                .size(width_pct(scale, 0.02037037))
+                                .color(OFF_WHITE)
+                                .strong(),
+                        );
+                    });
+                    ui.add_space(width_pct(scale, 0.0074074073));
+                    let (accent_rect, _) = ui.allocate_exact_size(
+                        egui::vec2(width_pct(scale, 0.0018518518), height_pct(scale, 0.03125)),
+                        egui::Sense::hover(),
+                    );
+                    ui.painter().rect_filled(accent_rect, 0.0, DANGER_RED);
+                    ui.add_space(width_pct(scale, 0.0037037036));
+                    let text_block_size =
+                        egui::vec2(width_pct(scale, 0.074074075), height_pct(scale, 0.03125));
+                    let (text_rect, _) =
+                        ui.allocate_exact_size(text_block_size, egui::Sense::hover());
+                    let painter = ui.painter();
+                    let font = egui::FontId::proportional(width_pct(scale, 0.0074074073));
+                    let galley1 = painter.layout_no_wrap(
+                        "INDUSTRIAL RESONATOR".into(),
+                        font.clone(),
+                        MUTED_GREY,
+                    );
+                    let galley2 =
+                        painter.layout_no_wrap("MODEL: CR-89X".into(), font.clone(), MUTED_GREY);
+                    let gap = height_pct(scale, 0.0026041667);
+                    let total_h = galley1.rect.height() + galley2.rect.height() + gap;
+                    let y = text_rect.center().y - total_h / 2.0;
+                    painter.galley(egui::pos2(text_rect.min.x, y), galley1.clone(), MUTED_GREY);
+                    painter.galley(
+                        egui::pos2(text_rect.min.x, y + galley1.rect.height() + gap),
+                        galley2,
+                        MUTED_GREY,
                     );
                 });
-                ui.add_space(width_pct(scale, 0.0074074073));
-                let (accent_rect, _) = ui.allocate_exact_size(
-                    egui::vec2(width_pct(scale, 0.0018518518), height_pct(scale, 0.03125)),
-                    egui::Sense::hover(),
-                );
-                ui.painter().rect_filled(accent_rect, 0.0, DANGER_RED);
-                ui.add_space(width_pct(scale, 0.0037037036));
-                let text_block_size =
-                    egui::vec2(width_pct(scale, 0.074074075), height_pct(scale, 0.03125));
-                let (text_rect, _) = ui.allocate_exact_size(text_block_size, egui::Sense::hover());
-                let painter = ui.painter();
-                let font = egui::FontId::proportional(width_pct(scale, 0.0074074073));
-                let galley1 =
-                    painter.layout_no_wrap("INDUSTRIAL RESONATOR".into(), font.clone(), MUTED_GREY);
-                let galley2 =
-                    painter.layout_no_wrap("MODEL: CR-89X".into(), font.clone(), MUTED_GREY);
-                let gap = height_pct(scale, 0.0026041667);
-                let total_h = galley1.rect.height() + galley2.rect.height() + gap;
-                let y = text_rect.center().y - total_h / 2.0;
-                painter.galley(egui::pos2(text_rect.min.x, y), galley1.clone(), MUTED_GREY);
-                painter.galley(
-                    egui::pos2(text_rect.min.x, y + galley1.rect.height() + gap),
-                    galley2,
-                    MUTED_GREY,
-                );
             });
 
-            columns[1].vertical_centered(|ui| {
-                render_preset_loader(ui, params, setter, state, scale);
+            header_column(ui, preset_width, |ui| {
+                ui.vertical_centered(|ui| {
+                    render_preset_loader(ui, params, setter, state, scale);
+                });
             });
 
-            columns[2].horizontal(|ui| {
-                let original_item_spacing_x = ui.spacing().item_spacing.x;
-                ui.spacing_mut().item_spacing.x = 0.0;
-                let fader_width = width_pct(scale, 0.024074074);
-                let leading_padding = width_pct(scale, 0.0037037036);
-                let fader_gap = width_pct(scale, 0.0037037036);
-                let combo_width = ((ui.available_width()
-                    - leading_padding
-                    - fader_width * 3.0
-                    - fader_gap * 2.0)
-                    / 2.0)
-                    .max(0.0);
+            let controls_width = ui.available_width();
+            header_column(ui, controls_width, |ui| {
+                ui.horizontal(|ui| {
+                    let original_item_spacing_x = ui.spacing().item_spacing.x;
+                    ui.spacing_mut().item_spacing.x = 0.0;
+                    let fader_width = width_pct(scale, GLOBAL_FADER_WIDTH);
+                    let leading_padding = width_pct(scale, 0.0037037036);
+                    let fader_gap = width_pct(scale, 0.0074074073);
+                    let combo_width = ((ui.available_width()
+                        - leading_padding
+                        - fader_width * 3.0
+                        - fader_gap * 2.0)
+                        / 2.0)
+                        .max(0.0);
 
-                ui.add_space(leading_padding);
+                    ui.add_space(leading_padding);
 
-                // The four mode selectors share the space left of the faders
-                // as a 2 x 2 grid. They used to sit in one row sized for two,
-                // which made this column, and through `ui.columns` the whole
-                // editor, about 1.7 times wider than the window.
-                ui.allocate_ui_with_layout(
-                    egui::vec2(combo_width * 2.0, ui.available_height()),
-                    egui::Layout::top_down(egui::Align::LEFT),
-                    |ui| {
-                        for row in [[0, 1], [2, 3]] {
-                            ui.horizontal(|ui| {
-                                for index in row {
-                                    match index {
-                                        0 => {
-                                            ui.allocate_ui_with_layout(
-                                                egui::vec2(combo_width, ui.available_height()),
-                                                egui::Layout::top_down(egui::Align::LEFT),
-                                                |ui| {
-                                                    industrial_combo(
-                                                        ui,
-                                                        "ui-scale-header",
-                                                        "SCALE",
-                                                        &params.ui_scale,
-                                                        &[
-                                                            (0, "50%"),
-                                                            (1, "75%"),
-                                                            (2, "100%"),
-                                                            (3, "125%"),
-                                                            (4, "150%"),
-                                                        ],
-                                                        setter,
-                                                        MUTED_GREY,
-                                                        scale,
-                                                    );
-                                                },
-                                            );
+                    // The four mode selectors share the space left of the faders
+                    // as a 2 x 2 grid. They used to sit in one row sized for two,
+                    // which made this column, and through `ui.columns` the whole
+                    // editor, about 1.7 times wider than the window.
+                    ui.allocate_ui_with_layout(
+                        egui::vec2(combo_width * 2.0, ui.available_height()),
+                        egui::Layout::top_down(egui::Align::LEFT),
+                        |ui| {
+                            for row in [[0, 1], [2, 3]] {
+                                ui.horizontal(|ui| {
+                                    for index in row {
+                                        match index {
+                                            0 => {
+                                                ui.allocate_ui_with_layout(
+                                                    egui::vec2(combo_width, ui.available_height()),
+                                                    egui::Layout::top_down(egui::Align::LEFT),
+                                                    |ui| {
+                                                        industrial_combo(
+                                                            ui,
+                                                            "ui-scale-header",
+                                                            "SCALE",
+                                                            &params.ui_scale,
+                                                            &[
+                                                                (0, "50%"),
+                                                                (1, "75%"),
+                                                                (2, "100%"),
+                                                                (3, "125%"),
+                                                                (4, "150%"),
+                                                            ],
+                                                            setter,
+                                                            MUTED_GREY,
+                                                            scale,
+                                                        );
+                                                    },
+                                                );
+                                            }
+                                            1 => {
+                                                ui.allocate_ui_with_layout(
+                                                    egui::vec2(combo_width, ui.available_height()),
+                                                    egui::Layout::top_down(egui::Align::LEFT),
+                                                    |ui| {
+                                                        industrial_combo(
+                                                            ui,
+                                                            "quality-mode-header",
+                                                            "MODE",
+                                                            &params.quality_mode,
+                                                            &[
+                                                                (0, "Eco"),
+                                                                (1, "Normal"),
+                                                                (2, "High"),
+                                                                (3, "Render"),
+                                                            ],
+                                                            setter,
+                                                            SAFETY_YELLOW,
+                                                            scale,
+                                                        );
+                                                    },
+                                                );
+                                            }
+                                            2 => {
+                                                ui.allocate_ui_with_layout(
+                                                    egui::vec2(combo_width, ui.available_height()),
+                                                    egui::Layout::top_down(egui::Align::LEFT),
+                                                    |ui| {
+                                                        industrial_combo(
+                                                            ui,
+                                                            "play-mode-header",
+                                                            "NOTE MODE",
+                                                            &params.play_mode,
+                                                            &[
+                                                                (0, "Tonal"),
+                                                                (1, "Kit"),
+                                                                (2, "Drone"),
+                                                            ],
+                                                            setter,
+                                                            SAFETY_YELLOW,
+                                                            scale,
+                                                        );
+                                                    },
+                                                );
+                                            }
+                                            3 => {
+                                                ui.allocate_ui_with_layout(
+                                                    egui::vec2(combo_width, ui.available_height()),
+                                                    egui::Layout::top_down(egui::Align::LEFT),
+                                                    |ui| {
+                                                        industrial_combo(
+                                                            ui,
+                                                            "limiter-mode-header",
+                                                            "LIMITER",
+                                                            &params.limiter_mode,
+                                                            &[(0, "Hard"), (1, "Lookahead")],
+                                                            setter,
+                                                            DANGER_RED,
+                                                            scale,
+                                                        );
+                                                    },
+                                                );
+                                            }
+                                            _ => {}
                                         }
-                                        1 => {
-                                            ui.allocate_ui_with_layout(
-                                                egui::vec2(combo_width, ui.available_height()),
-                                                egui::Layout::top_down(egui::Align::LEFT),
-                                                |ui| {
-                                                    industrial_combo(
-                                                        ui,
-                                                        "quality-mode-header",
-                                                        "MODE",
-                                                        &params.quality_mode,
-                                                        &[
-                                                            (0, "Eco"),
-                                                            (1, "Normal"),
-                                                            (2, "High"),
-                                                            (3, "Render"),
-                                                        ],
-                                                        setter,
-                                                        SAFETY_YELLOW,
-                                                        scale,
-                                                    );
-                                                },
-                                            );
-                                        }
-                                        2 => {
-                                            ui.allocate_ui_with_layout(
-                                                egui::vec2(combo_width, ui.available_height()),
-                                                egui::Layout::top_down(egui::Align::LEFT),
-                                                |ui| {
-                                                    industrial_combo(
-                                                        ui,
-                                                        "play-mode-header",
-                                                        "NOTE MODE",
-                                                        &params.play_mode,
-                                                        &[(0, "Tonal"), (1, "Kit"), (2, "Drone")],
-                                                        setter,
-                                                        SAFETY_YELLOW,
-                                                        scale,
-                                                    );
-                                                },
-                                            );
-                                        }
-                                        3 => {
-                                            ui.allocate_ui_with_layout(
-                                                egui::vec2(combo_width, ui.available_height()),
-                                                egui::Layout::top_down(egui::Align::LEFT),
-                                                |ui| {
-                                                    industrial_combo(
-                                                        ui,
-                                                        "limiter-mode-header",
-                                                        "LIMITER",
-                                                        &params.limiter_mode,
-                                                        &[(0, "Hard"), (1, "Lookahead")],
-                                                        setter,
-                                                        DANGER_RED,
-                                                        scale,
-                                                    );
-                                                },
-                                            );
-                                        }
-                                        _ => {}
                                     }
-                                }
-                            });
-                        }
-                    },
-                );
-                vfader_global(
-                    ui,
-                    "OUTPUT",
-                    &params.output,
-                    0.0,
-                    util::db_to_gain(40.0),
-                    setter,
-                    SAFETY_YELLOW,
-                    scale,
-                );
-                ui.add_space(fader_gap);
-                vfader_global(
-                    ui,
-                    "WIDTH",
-                    &params.width,
-                    -2.0,
-                    3.0,
-                    setter,
-                    RUST_ORANGE,
-                    scale,
-                );
-                ui.add_space(fader_gap);
-                vfader_global(
-                    ui,
-                    "BODY",
-                    &params.body,
-                    0.0,
-                    5.0,
-                    setter,
-                    DANGER_RED,
-                    scale,
-                );
-                ui.spacing_mut().item_spacing.x = original_item_spacing_x;
+                                });
+                            }
+                        },
+                    );
+                    vfader_global(
+                        ui,
+                        "OUTPUT",
+                        &params.output,
+                        0.0,
+                        util::db_to_gain(40.0),
+                        setter,
+                        SAFETY_YELLOW,
+                        scale,
+                    );
+                    ui.add_space(fader_gap);
+                    vfader_global(
+                        ui,
+                        "WIDTH",
+                        &params.width,
+                        -2.0,
+                        3.0,
+                        setter,
+                        RUST_ORANGE,
+                        scale,
+                    );
+                    ui.add_space(fader_gap);
+                    vfader_global(
+                        ui,
+                        "BODY",
+                        &params.body,
+                        0.0,
+                        5.0,
+                        setter,
+                        DANGER_RED,
+                        scale,
+                    );
+                    ui.spacing_mut().item_spacing.x = original_item_spacing_x;
+                });
             });
         });
         ui.spacing_mut().item_spacing.x = original_item_spacing_x;
     });
 }
+
+/// Share of the header's width set aside for the brand block (logo and
+/// model text); it grows if its content needs more, and the controls get
+/// whatever is left after the preset bank's third.
+const HEADER_BRAND_SHARE: f32 = 0.21;
+
+/// One header column, at least `width` wide.
+fn header_column(ui: &mut egui::Ui, width: f32, add: impl FnOnce(&mut egui::Ui)) {
+    ui.allocate_ui_with_layout(
+        egui::vec2(width, ui.available_height()),
+        egui::Layout::top_down(egui::Align::LEFT),
+        |ui| {
+            ui.set_min_width(width);
+            add(ui);
+        },
+    );
+}
+
+/// Width of a header fader's cell, as a share of the editor width: room for
+/// its label and help badge.
+const GLOBAL_FADER_WIDTH: f32 = 0.046296295;
+/// Height of a header fader's track, as a share of the layout height.
+const GLOBAL_FADER_TRACK_HEIGHT: f32 = 0.0625;
 
 /// Small vertical fader for global controls (Output, Width, Body).
 fn vfader_global(
@@ -2678,9 +2722,9 @@ fn vfader_global(
 ) {
     note_drawn(param.as_ptr());
     let track_width = width_pct(scale, 0.009259259);
-    let track_height = height_pct(scale, 0.046875);
+    let track_height = height_pct(scale, GLOBAL_FADER_TRACK_HEIGHT);
     let desired = egui::vec2(
-        track_width + width_pct(scale, 0.014814815),
+        width_pct(scale, GLOBAL_FADER_WIDTH),
         track_height + height_pct(scale, 0.036458332),
     );
 
@@ -5624,6 +5668,51 @@ mod tests {
             texts.iter().any(|t| t.contains(&help)),
             "no tooltip with {help:?}"
         );
+    }
+
+    /// The header's Output, Width and Body faders have room: each label and
+    /// its badge fit over its own fader, the faders don't touch, they sit
+    /// inside the window, and their tracks are tall enough to set by hand.
+    #[test]
+    fn header_faders_have_room() {
+        use nih_plug::prelude::Param;
+        let params = crate::params::CorrosionParams::default();
+        let _ = texts_with_pointer_at(&params, None);
+        let rects: Vec<_> = [
+            params.output.as_ptr(),
+            params.width.as_ptr(),
+            params.body.as_ptr(),
+        ]
+        .iter()
+        .map(|ptr| {
+            super::DRAWN_BADGES
+                .with(|badges| badges.borrow().get(ptr).copied())
+                .expect("header fader draws a help badge")
+        })
+        .collect();
+        for (badge, fader) in &rects {
+            assert!(
+                badge.max.x <= fader.max.x && badge.min.x >= fader.min.x,
+                "badge {badge:?} outside its fader {fader:?}"
+            );
+            assert!(
+                fader.height() >= 75.0,
+                "fader only {} px tall",
+                fader.height()
+            );
+            assert!(
+                fader.max.x <= super::editor_width(1.0),
+                "fader {fader:?} past the window"
+            );
+        }
+        for pair in rects.windows(2) {
+            assert!(
+                pair[0].1.max.x < pair[1].1.min.x,
+                "faders touch: {:?} {:?}",
+                pair[0].1,
+                pair[1].1
+            );
+        }
     }
 
     /// The help opens above its badge, so the pointer resting on the badge
