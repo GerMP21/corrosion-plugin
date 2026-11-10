@@ -12,7 +12,7 @@
 - [x] 2.2 `checks` matrix (Linux, Windows MSVC, macOS) with every lane of decision 1; push to `dev` and read the run
 - [x] 2.3 Resolve what the first Windows and macOS runs show (platform-dependent tests: stop and ask if one needs a tolerance or a skip); try `no_alloc` on Windows and record it
 - [x] 2.4 `bundle` matrix: build with `scripts/bundle.sh`, `check_bundle.sh`, zip, upload; macOS universal
-- [ ] 2.5 Validators: pinned clap-validator and pluginval per platform; resolve or escalate what they report
+- [x] 2.5 Validators: pinned clap-validator and pluginval per platform; resolve or escalate what they report
 - [ ] 2.6 `nightly` job: main-only, after every bundle job, own concurrency group, six zips, release notes
 
 ## 3. Docs and close-out

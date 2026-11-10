@@ -187,3 +187,18 @@ which showed `-0.0 dB` against `+0.0 dB`.
   `+0.0 dB`.
 
 Only the displayed text changes; no parameter's value or sound changes.
+
+### Validators green (2026-11-10, run #104)
+
+Run #104 (merge of `main` into `dev`, same tree as the param-conversions fix)
+passed every job: checks and bundles on Linux, Windows and macOS.
+
+| Platform | pluginval v1.0.4 (VST3, strictness 5, no GUI) | clap-validator 0.3.2 (CLAP) |
+|---|---|---|
+| Linux | passed | 17 passed, 0 failed, 4 skipped |
+| Windows | passed | 17 passed, 0 failed, 4 skipped |
+| macOS | passed | 17 passed, 0 failed, 4 skipped |
+
+The four skipped clap-validator tests are the preset-discovery ones: the
+plugin implements no preset-discovery factory. Validation takes 2–3 s per
+platform.
