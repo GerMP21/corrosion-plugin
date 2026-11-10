@@ -33,9 +33,16 @@ The strip spans the full width under the bottom panel row, with a base height of
 37 keys (48–84) fit the width with white keys about 49 px wide at base scale. The mapped octave is the "middle octave" the maintainer asked for, plus its top C, on the usual DAW tracker layout: `A W S E D F T G Y H U J K`. The mapped keys show their letter in `MUTED_GREY`.
 
 ### 3. Physical keys, no repeats, fixed velocity
+
+> *As built (maintainer, 2026-11-10):* egui-baseview always sends `physical_key: None`, and its `key` comes from the layout's virtual key, so keys match by letter: on AZERTY the row is the same letters, not the same positions. The code still prefers `physical_key`, so it becomes positional if the backend ever reports it. Patching egui-baseview was the rejected alternative (a fork to maintain).
 `Event::Key` is matched on `physical_key` (falling back to `key` when the backend gives no physical key), so the layout under AZERTY or Dvorak stays positional. `repeat == true` is ignored. Key velocity is fixed at 100/127. The mouse velocity maps the press height from 0.25 at the top of the key to 1.0 at the bottom.
 
 ### 4. Focus gate
+
+> *As built (maintainer, 2026-11-10):* baseview emits `Focused`/`Unfocused` only on macOS, so on Windows and X11 focus loss never reaches the editor, and a key held while focus moves away stuck its note in REAPER. The gate also requires the pointer over the editor (`PointerState::has_pointer`). Its leaving (`PointerGone`, which baseview reports on every platform) releases the strip's notes like a focus loss.
+> - On that release, the mapped keys are also removed from egui's `keys_down`. egui never clears that set, and it marks a press of a key it still thinks is down as a repeat, so after a lost key-up the next press would be ignored.
+> - Consequence: a key still held when the pointer comes back plays again on its next auto-repeat.
+> - Rejected alternative: forking baseview to report focus on Windows and X11.
 A key event plays only when all three hold:
 - the editor is open (the event reaches `render_ui` at all);
 - the window is focused (the last `WindowFocused`, else `RawInput::focused`);
@@ -90,4 +97,13 @@ After each block, the audio thread ORs the keys of the held voices into `held` a
 - **Found in REAPER: focus loss is never reported.** baseview emits `Focused`/`Unfocused` only on macOS; on X11 and Windows it never does, and egui-baseview never fills `physical_key`.
   - Holding D and moving focus to REAPER's main window leaves C4–D stuck: the key-up goes to the other window. Pressing and releasing D again frees it.
   - Typing on AZERTY follows the letters, not the positions.
-  - Both open questions are for the maintainer.
+  - The maintainer chose the pointer gate and letter matching (decisions 3 and 4, *As built*). With the pointer gate: 2 more strip tests, both red without the gate.
+- **REAPER again, with the pointer gate (Linux, X11, 75 %).**
+  - Holding D lights it. Moving the pointer out, focusing the main window and releasing D there releases the note. Back over the plugin, pressing D plays and releasing stops it. The stuck note is gone.
+  - Found and fixed on the way:
+    - egui's `keys_down` kept D after the lost key-up, so the next press came in as a repeat and was ignored. The strip now forgets the mapped keys on release.
+    - X11 auto-repeat arrives as key-up/key-down pairs that baseview doesn't flag. Half a second of a held D gave 6 press/release pairs, a retrigger at the repeat rate. `key_actions` coalesces a same-frame pair into one repeat; the log then showed one press, repeats, one release.
+  - A focused panel control does not block the keys: in this egui version only the preset-name field takes focus on click (probed on the SCALE, PLAY, LIMITER and MODE combos and the Save button: no focus).
+  - Keys typed while REAPER's main window had focus went to REAPER's shortcuts (D opened its split dialog). That is the host's behaviour, not the plugin's.
+  - Capture: the whole editor at 75 % with F♯4 held by the mouse.
+- **Strip tests.** 14 in the GUI lane (pointer gate, pointer leave, X11 pairs), each red against its mutation. In all: 18 `gui_notes` tests, 5 engine tests, 14 strip tests and `editor_note_drain_is_alloc_free`.

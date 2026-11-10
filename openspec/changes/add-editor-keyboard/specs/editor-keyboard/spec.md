@@ -37,22 +37,26 @@ Pressing the primary mouse button on a key SHALL start that key's note, and rele
 - **THEN** the note started is 61
 
 ### Requirement: Computer keys play the middle octave
-While the editor plays from the computer keyboard, the physical keys A, W, S, E, D, F, T, G, Y, H, U, J and K SHALL play MIDI notes 60 to 72 in that order, matched by physical key position rather than by the character the layout produces. Pressing a mapped key SHALL send a note-on at a fixed velocity, releasing it SHALL send a note-off, and auto-repeat key events SHALL be ignored. Each mapped on-screen key SHALL show its key letter.
+While the editor plays from the computer keyboard, the keys A, W, S, E, D, F, T, G, Y, H, U, J and K SHALL play MIDI notes 60 to 72 in that order. Keys SHALL be matched by the physical key when the window system reports one, and otherwise by the key's letter in the active layout. Pressing a mapped key SHALL send a note-on at a fixed velocity, releasing it SHALL send a note-off, and auto-repeat key events SHALL be ignored. Each mapped on-screen key SHALL show its key letter.
 
 #### Scenario: The home row plays C4 to C5
-- **WHEN** the physical keys A, W, S, E, D, F, T, G, Y, H, U, J, K are pressed in turn
+- **WHEN** the keys A, W, S, E, D, F, T, G, Y, H, U, J, K are pressed in turn
 - **THEN** the editor sends note-ons for 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72
 
 #### Scenario: Auto-repeat does not retrigger
 - **WHEN** a mapped key is held and the window system sends repeat events for it
 - **THEN** exactly one note-on is sent, followed by one note-off when the key is released
 
+#### Scenario: Auto-repeat as key-up and key-down pairs
+- **WHEN** a mapped key is held and the window system reports its auto-repeat as a key-up immediately followed by a key-down of the same key in one frame, without marking it as a repeat
+- **THEN** the pair is treated as a repeat: no note-off and no new note-on is sent
+
 #### Scenario: Unmapped keys do nothing
 - **WHEN** a key outside the mapping is pressed
 - **THEN** no note event is sent
 
 ### Requirement: Computer keys only while the editor is open and focused
-Computer keys SHALL play notes only while the plugin editor is open and its window has keyboard focus, and not while a text field in the editor (such as the preset name) has keyboard input. When the editor window loses focus, or the editor closes, every note held by the computer keys or the mouse SHALL be released.
+Computer keys SHALL play notes only while the plugin editor is open, its window has keyboard focus, and the pointer is over the editor; and not while a text field in the editor (such as the preset name) has keyboard input. When the editor window loses focus, the pointer leaves the editor, or the editor closes, every note held by the computer keys or the mouse SHALL be released.
 
 #### Scenario: Unfocused editor ignores keys
 - **WHEN** the editor window does not have focus and a mapped key event arrives
@@ -61,6 +65,14 @@ Computer keys SHALL play notes only while the plugin editor is open and its wind
 #### Scenario: Typing a preset name does not play
 - **WHEN** the preset name field has keyboard focus and the user types "aws"
 - **THEN** no note event is sent
+
+#### Scenario: Keys need the pointer over the editor
+- **WHEN** the editor window has focus but the pointer is outside the editor, and a mapped key is pressed
+- **THEN** no note event is sent, and once the pointer is back over the editor the same key plays
+
+#### Scenario: The pointer leaving releases held notes
+- **WHEN** a mapped key is sounding and the pointer leaves the editor, and the key-up goes to another window
+- **THEN** a note-off is sent when the pointer leaves, and pressing the key again after the pointer returns plays the note
 
 #### Scenario: Losing focus releases held notes
 - **WHEN** a mapped key and a mouse-held key are both sounding and the editor window loses focus

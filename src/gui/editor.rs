@@ -4000,7 +4000,8 @@ struct KeyboardStrip {
     sender: crate::gui_notes::NoteSender,
     /// The note the mouse holds, if any.
     mouse_note: Option<u8>,
-    /// Whether the window had focus last frame.
+    /// Whether the strip was live last frame: window focused and the
+    /// pointer over the editor.
     focused: bool,
 }
 
@@ -4094,6 +4095,36 @@ fn key_letter(key: egui::Key, physical_key: Option<egui::Key>) -> Option<char> {
     }
 }
 
+/// The mapped-key actions in one frame's events, as (letter, pressed,
+/// repeat). X11 auto-repeat arrives as a key-up immediately followed by a
+/// key-down of the same key, which baseview doesn't flag: such a pair
+/// becomes one repeat, so a held key doesn't retrigger. A person can't
+/// release and press a key again within one frame.
+fn key_actions(events: &[egui::Event]) -> Vec<(char, bool, bool)> {
+    let mut actions: Vec<(char, bool, bool)> = Vec::new();
+    for event in events {
+        if let egui::Event::Key {
+            key,
+            physical_key,
+            pressed,
+            repeat,
+            ..
+        } = *event
+        {
+            let Some(letter) = key_letter(key, physical_key) else {
+                continue;
+            };
+            if pressed && actions.last() == Some(&(letter, false, false)) {
+                actions.pop();
+                actions.push((letter, true, true));
+            } else {
+                actions.push((letter, pressed, repeat));
+            }
+        }
+    }
+    actions
+}
+
 /// The keyboard strip: mouse, computer keys and the held-note highlights.
 fn render_keyboard_strip(ui: &mut egui::Ui, strip: &mut KeyboardStrip, scale: f32) {
     use crate::gui_notes::{note_letter, NoteSource};
@@ -4110,32 +4141,44 @@ fn render_keyboard_strip(ui: &mut egui::Ui, strip: &mut KeyboardStrip, scale: f3
     #[cfg(test)]
     DRAWN_KEYBOARD.with(|drawn| *drawn.borrow_mut() = Some((rect, keys.clone())));
 
-    // Computer keys, only while the window has focus and no text field
-    // takes the typing.
+    // Computer keys, only while the editor has focus, the pointer is over
+    // it, and no text field takes the typing. baseview reports focus loss
+    // only on macOS; on Windows and X11 a key held while focus moves away
+    // would never see its key-up, so the pointer leaving the window (which
+    // baseview reports everywhere) releases the strip's notes too.
     let ctx = ui.ctx().clone();
-    let (events, focused) = ctx.input(|input| (input.events.clone(), input.focused));
+    let (events, focused, has_pointer) = ctx.input(|input| {
+        (
+            input.events.clone(),
+            input.focused,
+            input.pointer.has_pointer(),
+        )
+    });
     let lost_focus = !focused
-        || events
-            .iter()
-            .any(|event| matches!(event, egui::Event::WindowFocused(false)));
+        || !has_pointer
+        || events.iter().any(|event| {
+            matches!(
+                event,
+                egui::Event::WindowFocused(false) | egui::Event::PointerGone
+            )
+        });
     if lost_focus && strip.focused {
         strip.release_all();
+        // egui marks a press of a key it still thinks is down as a repeat,
+        // and the key-up may have gone to another window: forget the mapped
+        // keys so the next press plays.
+        ctx.input_mut(|input| {
+            input.keys_down.retain(|&key| {
+                key_letter(key, None)
+                    .and_then(crate::gui_notes::key_note)
+                    .is_none()
+            });
+        });
     }
     strip.focused = !lost_focus;
     let gate_open = strip.focused && !ctx.wants_keyboard_input();
-    for event in &events {
-        if let egui::Event::Key {
-            key,
-            physical_key,
-            pressed,
-            repeat,
-            ..
-        } = *event
-        {
-            if let Some(letter) = key_letter(key, physical_key) {
-                strip.sender.key_event(letter, pressed, repeat, gate_open);
-            }
-        }
+    for (letter, pressed, repeat) in key_actions(&events) {
+        strip.sender.key_event(letter, pressed, repeat, gate_open);
     }
 
     // Mouse: the key under the pointer while the button is down on the
@@ -4209,10 +4252,14 @@ fn render_keyboard_strip(ui: &mut egui::Ui, strip: &mut KeyboardStrip, scale: f3
     }
 }
 
+/// The strip's rect and its keys, as drawn.
+#[cfg(test)]
+type DrawnKeyboard = (egui::Rect, Vec<(u8, egui::Rect)>);
+
 #[cfg(test)]
 thread_local! {
     /// The strip's rect and keys as last drawn, for the layout tests.
-    static DRAWN_KEYBOARD: std::cell::RefCell<Option<(egui::Rect, Vec<(u8, egui::Rect)>)>> =
+    static DRAWN_KEYBOARD: std::cell::RefCell<Option<DrawnKeyboard>> =
         const { std::cell::RefCell::new(None) };
 }
 
@@ -5767,7 +5814,14 @@ mod tests {
         fn computer_keys_play_through_the_editor() {
             use egui::Key::*;
             let mut harness = Harness::new();
-            harness.run(vec![key(A, true, false), key(K, true, false)], true);
+            harness.run(
+                vec![
+                    egui::Event::PointerMoved(over_editor()),
+                    key(A, true, false),
+                    key(K, true, false),
+                ],
+                true,
+            );
             harness.run(vec![key(A, true, true)], true);
             harness.run(vec![key(A, false, false), key(K, false, false)], true);
             assert_eq!(
@@ -5776,12 +5830,60 @@ mod tests {
             );
         }
 
+        /// A point over the editor, away from the strip and any widget.
+        fn over_editor() -> egui::Pos2 {
+            egui::pos2(400.0, 5.0)
+        }
+
+        /// Spec "Keys need the pointer over the editor": baseview reports no
+        /// focus loss on Windows or X11, so the pointer stands in for focus.
+        #[test]
+        fn keys_need_the_pointer_over_the_editor() {
+            use egui::Key::*;
+            let mut harness = Harness::new();
+            harness.run(vec![egui::Event::PointerGone], true);
+            harness.run(vec![key(A, true, false)], true);
+            harness.run(vec![key(A, false, false)], true);
+            assert!(harness.sent().is_empty());
+            harness.run(vec![egui::Event::PointerMoved(over_editor())], true);
+            harness.run(vec![key(A, true, false)], true);
+            assert_eq!(harness.sent(), vec![on(60, KEY_VELOCITY)]);
+        }
+
+        /// Spec "The pointer leaving releases held notes".
+        #[test]
+        fn the_pointer_leaving_releases_held_notes() {
+            use egui::Key::*;
+            let mut harness = Harness::new();
+            harness.run(
+                vec![
+                    egui::Event::PointerMoved(over_editor()),
+                    key(D, true, false),
+                ],
+                true,
+            );
+            assert_eq!(harness.sent(), vec![on(64, KEY_VELOCITY)]);
+            harness.run(vec![egui::Event::PointerGone], true);
+            assert_eq!(harness.sent(), vec![off(64)]);
+            // The key-up lands elsewhere; coming back and pressing D plays.
+            harness.run(vec![egui::Event::PointerMoved(over_editor())], true);
+            harness.run(vec![key(D, true, false)], true);
+            assert_eq!(harness.sent(), vec![on(64, KEY_VELOCITY)]);
+        }
+
         /// Spec "Unfocused editor ignores keys".
         #[test]
         fn an_unfocused_editor_ignores_keys() {
             use egui::Key::*;
             let mut harness = Harness::new();
-            harness.run(vec![key(A, true, false), key(S, true, false)], false);
+            harness.run(
+                vec![
+                    egui::Event::PointerMoved(over_editor()),
+                    key(A, true, false),
+                    key(S, true, false),
+                ],
+                false,
+            );
             harness.run(vec![key(A, false, false), key(S, false, false)], false);
             assert!(harness.sent().is_empty());
         }
@@ -5818,13 +5920,46 @@ mod tests {
             assert_eq!(harness.state.save_name, "aws");
         }
 
+        /// X11 auto-repeat arrives as a key-up and key-down pair in the same
+        /// frame, and baseview doesn't flag it: it must not retrigger.
+        #[test]
+        fn x11_auto_repeat_pairs_do_not_retrigger() {
+            use egui::Key::*;
+            let mut harness = Harness::new();
+            harness.run(
+                vec![
+                    egui::Event::PointerMoved(over_editor()),
+                    key(D, true, false),
+                ],
+                true,
+            );
+            for _ in 0..4 {
+                harness.run(vec![key(D, false, false), key(D, true, false)], true);
+            }
+            harness.run(vec![key(D, false, false)], true);
+            assert_eq!(harness.sent(), vec![on(64, KEY_VELOCITY), off(64)]);
+            // A release and a press of different keys in one frame both count.
+            harness.run(vec![key(D, true, false)], true);
+            harness.run(vec![key(D, false, false), key(F, true, false)], true);
+            assert_eq!(
+                harness.sent(),
+                vec![on(64, KEY_VELOCITY), off(64), on(65, KEY_VELOCITY)]
+            );
+        }
+
         /// Spec "Losing focus releases held notes".
         #[test]
         fn losing_focus_releases_held_notes() {
             use egui::Key::*;
             let mut harness = Harness::new();
             let pos = harness.key_rect(67).center_bottom() - egui::vec2(0.0, 4.0);
-            harness.run(vec![key(A, true, false)], true);
+            harness.run(
+                vec![
+                    egui::Event::PointerMoved(over_editor()),
+                    key(A, true, false),
+                ],
+                true,
+            );
             harness.press_at(pos);
             let _ = harness.sent();
             harness.run(vec![egui::Event::WindowFocused(false)], false);

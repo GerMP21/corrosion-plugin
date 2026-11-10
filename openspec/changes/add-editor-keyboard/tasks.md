@@ -24,14 +24,14 @@
 
 - [x] 4.1 Grow `BASE_EDITOR_HEIGHT` by the strip; lay out and paint the strip (white/black keys, letters on 60..72, pressed and held highlights), scaling with the UI
 - [x] 4.2 Mouse: press, drag glissando, release, velocity by height, black-key precedence
-- [ ] 4.3 Computer keys: physical-key mapping, repeat filter, focus gate, release on focus loss
+- [x] 4.3 Computer keys: physical-key mapping (letter fallback; *As built*), repeat filter, focus gate plus the pointer over the editor, release on focus loss and pointer leave
 - [x] 4.4 Request repaints while any key is held or lit
 - [x] 4.5 Update the editor size tests and `print_editor_content_height`
 
 ## 5. Docs and close-out
 
-- [ ] 5.1 Record measurements in `design.md` (strip and editor height at 75 %, no_alloc, anything that differed: *As built* notes)
-- [ ] 5.2 Check in REAPER at 75 %: mouse plays, keys play only while the editor is focused, nothing sticks when focus leaves or the window closes; screenshot
-- [ ] 5.3 README (how to play from the editor; the host keyboard-forwarding setting) and `docs/ARCHITECTURE.md` (the note queue and where it is drained)
-- [ ] 5.4 `cargo fmt --check`, clippy `-D warnings` (CI lane; no new GUI-lane warnings), full tests on gnu and musl, GUI lane, no_alloc, `cargo doc`
-- [ ] 5.5 Update CLAUDE.md "Current state"; commit and push to `dev`
+- [x] 5.1 Record measurements in `design.md` (strip and editor height at 75 %, no_alloc, anything that differed: *As built* notes)
+- [x] 5.2 Check in REAPER at 75 %: mouse plays, keys play only while the editor is focused, nothing sticks when focus leaves or the window closes; screenshot
+- [x] 5.3 README (how to play from the editor; the host keyboard-forwarding setting) and `docs/ARCHITECTURE.md` (the note queue and where it is drained)
+- [x] 5.4 `cargo fmt --check`, clippy `-D warnings` (CI lane; no new GUI-lane warnings), full tests on gnu and musl, GUI lane, no_alloc, `cargo doc`
+- [x] 5.5 Update CLAUDE.md "Current state"; commit and push to `dev`

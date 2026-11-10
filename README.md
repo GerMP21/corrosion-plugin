@@ -72,7 +72,18 @@ Each anchors on a distinct Object × Exciter pair and tunes the relevant charact
 
 ### User Presets and Randomizer
 
-The editor opens at 75 % (810 × 576). The **SCALE** selector (50–150 %) resizes the plugin window in hosts that allow it; the controls always fit the window's width, and taller exciter panels scroll.
+The editor opens at 75 % (810 × 630). The **SCALE** selector (50–150 %) resizes the plugin window in hosts that allow it; the controls always fit the window's width, and taller exciter panels scroll.
+
+### Playing from the editor
+
+A piano strip at the bottom of the editor (C3–C6) stays in view while the panels scroll:
+
+- **Mouse:** click a key to play it, drag across keys for a glissando, release to stop. Pressing lower on a key plays louder.
+- **Computer keyboard:** `A W S E D F T G Y H U J K` play C4 to C5 (white keys on the home row, black keys above), at a fixed velocity. Keys match by letter, so on AZERTY the row is the same letters, not the same positions.
+- Computer keys play only while the editor has keyboard focus **and the mouse pointer is over it**, and not while you type a preset name. Moving the pointer off the editor, or closing it, releases every note it holds. The pointer condition is there because the window backend doesn't report focus loss on Windows or Linux.
+- Keys light up while their note is held, from the strip or from the host's MIDI.
+- Notes from the strip play like MIDI notes on channel 0 (play mode, sustain pedal and voice stealing apply), but they don't reach the host's MIDI output and aren't recorded.
+- Some hosts keep keystrokes for their own shortcuts. In REAPER, keys reach the plugin while its window has focus; if they don't, enable "Send all keyboard input to plugin" in the FX window's menu. The mouse always works.
 
 The editor's **Save** writes the current sound as a named preset (every parameter except UI Scale) into a per-user folder, and the preset list shows the factory bank followed by your presets. Saving over an existing name asks first. The folder:
 

@@ -147,7 +147,8 @@ src/
     utils/            budget (mode-count estimates), body, dc_blocker (voice mix),
                       deterministic_excitation
   gui/
-    editor.rs         egui editor: knobs/faders, UI scale (50–150%, default 75%: 810×576;
+    editor.rs         egui editor: knobs/faders, UI scale (50–150%, default 75%: 810×630,
+                      of which 54 are the keyboard strip;
                       a change asks the host to resize; the layout never exceeds the
                       window's width), quality,
                       play and limiter mode selectors, a macro strip (Mass,
@@ -157,6 +158,9 @@ src/
                       headlessly for every exciter, object and space mode, and
                       fails if a parameter has no control and isn't on
                       `HOST_ONLY_PARAMS` (with its reason).
+  gui_notes.rs        Editor keyboard → audio thread: EditorNotes (lock-free SPSC
+                      ring, release-all flag, held-note mask), NoteSender (GUI side),
+                      EditorNoteState (audio side); no GUI dependency
   presets/
     mod.rs            Preset save/load + sanitization (out of scope for this review)
   offline/
@@ -733,6 +737,24 @@ knee width `w`, the curve is linear below `K = L·(1 − w)` and
 ### Editor inline help (`add-parameter-tooltips`)
 
 Every widget helper (`industrial_knob[_text]`, `industrial_fader[_text]`, `industrial_vfader`, `vfader_global`) paints its label with `paint_label_with_badge`: the label plus a painted ⓘ badge (1 physical px circle and "i" in `MUTED_GREY`; egui's fonts have no U+24D8). Only the badge's own hover area shows the tooltip. The text comes from `help_for(label)`, one table keyed by display label, so slot help follows the selected exciter or object. When a control's behaviour changes, update its entry. `industrial_combo` shows `selector_help(label, selected)` for the selected option: a **trial**, removable by deleting that function and the marked block. `every_drawn_control_has_help` and `every_slot_spec_has_help` check coverage; the hover tests check that the badge, not the knob, opens the tooltip; `help_follows_the_selected_exciter` / `_object`, `selector_help_describes_the_selection` and `badge_scales_with_the_ui` cover the other scenarios. Because help is keyed by label, a slot label shared between models shares its tooltip: `shared_slot_labels_are_reviewed` fails unless such a label is listed in `SHARED_SLOT_LABELS` (today only "Mallet Mass") after checking it means the same in each model.
+
+### Editor keyboard (`add-editor-keyboard`)
+
+`render_window_body` puts the panels in a vertical scroll view and pins the keyboard strip (`render_keyboard_strip`, C3–C6) under it, so the strip stays in view.
+- The window is 72 points taller than the 768-point layout height at 100 % (`BASE_EDITOR_HEIGHT` vs `BASE_LAYOUT_HEIGHT`; `height_pct` uses the latter, so the panels did not move).
+- The mouse plays the key under the pointer while the button is down on the strip, with velocity 0.25–1.0 from the key's top to its bottom; black keys are hit-tested first.
+- The computer keys `A W S E D F T G Y H U J K` play notes 60–72 by letter (egui-baseview reports no physical key).
+
+**When the keys are live.** They play only while the window is focused, the pointer is over the editor (`PointerState::has_pointer`), and no text field has focus (`wants_keyboard_input`; only the preset-name field takes focus).
+- baseview reports focus loss only on macOS. On Windows and X11 the pointer leaving (`PointerGone`) stands in for it: it releases everything the strip holds.
+- It also removes the mapped keys from egui's `keys_down`. egui never clears that set and marks a press of a key still in it as a repeat, so after a key-up lost to another window the next press would be ignored.
+- X11 auto-repeat arrives as a key-up and key-down pair in one frame, unflagged; `key_actions` turns such a pair into one repeat.
+
+**Path to the voices.** `NoteSender` (GUI) tracks which source holds each note (mouse, key), so a note held by both stops when both let go. It pushes `EditorNoteEvent`s into `EditorNotes`, a 256-slot `AtomicU32` ring; producers are serialised by a mutex the audio thread never takes. When the ring is full, events wait in a GUI-side `VecDeque` and are retried each frame, so none is lost.
+- `Corrosion::process_block` drains the ring after `begin_block` through `handle_note_event`, as channel-0 notes with no voice ID at the block's first sample, before the host's events.
+- After the block, it publishes `voice_manager.active_notes()` as a 128-bit mask for the highlights.
+- nih-plug-egui keeps the editor state between openings, so a close is seen on the audio side: `process()` watches `editor_state.is_open()`, and on the open → closed edge `EditorNoteState` sends a note-off for every note the editor turned on (host notes are untouched). The strip forgets its holders when the window reopens.
+- `editor_note_drain_is_alloc_free` covers the drain.
 
 ## 10. Build, Test, and QA Infrastructure
 
