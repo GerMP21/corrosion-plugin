@@ -9,6 +9,10 @@ The editor SHALL draw a piano keyboard strip along its bottom edge, below every 
 - **WHEN** the editor is laid out at the default UI scale
 - **THEN** the keyboard strip's top edge is at or below the bottom edge of every other panel, and its bottom edge is inside the window
 
+#### Scenario: The strip covers C3 to C6
+- **WHEN** the keyboard strip is laid out
+- **THEN** it has one key for every MIDI note from 48 to 84 inclusive (the range before kits, still covered)
+
 #### Scenario: The strip covers C2 to C6
 - **WHEN** the keyboard strip is laid out
 - **THEN** it has one key for every MIDI note from 36 to 84 inclusive, and black keys sit on the notes whose pitch class is C♯, D♯, F♯, G♯ or A♯
