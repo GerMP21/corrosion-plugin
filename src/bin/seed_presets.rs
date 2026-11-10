@@ -8,8 +8,10 @@
 //!
 //! Every preset is levelled by an offline render (a held middle C, 2 s,
 //! through the plugin's output path) to the bank's target loudness and
-//! checked against the quality floor. An experimental preset that fails is
-//! re-drawn with the next seed (up to `MAX_SEED_TRIES`); a curated preset
+//! checked against the quality floor. An experimental preset that fails, or
+//! whose level moves more than `MAX_LEVEL_INSTABILITY_DB` under tiny
+//! parameter changes (a knife edge that each platform's libm can tip either
+//! way), is re-drawn with the next seed (up to `MAX_SEED_TRIES`); a curated preset
 //! that fails stops the run, to be fixed by hand. A drum kit's pads are
 //! levelled one by one, each held alone on its key, and each must meet the
 //! floor. The chosen Output and seed
@@ -23,8 +25,9 @@ use std::path::{Path, PathBuf};
 
 use clap::Parser;
 use corrosion::presets::factory::{
-    curated_presets, drum_kits, experimental_entry, level, level_pad, measure_floor, FactoryPreset,
-    EXCITER_COUNT, MAX_SEED_TRIES, OBJECT_COUNT,
+    curated_presets, drum_kits, experimental_entry, level, level_instability_db, level_pad,
+    measure_floor, FactoryPreset, EXCITER_COUNT, MAX_LEVEL_INSTABILITY_DB, MAX_SEED_TRIES,
+    OBJECT_COUNT,
 };
 use corrosion::Object;
 
@@ -79,7 +82,16 @@ fn level_experimental(exciter: i32, object: Object) -> Levelled {
     let mut last = None;
     for try_index in 0..MAX_SEED_TRIES {
         let mut entry = experimental_entry(exciter, object, try_index);
-        let result = level(&mut entry.preset).check();
+        let result = level(&mut entry.preset).check().and_then(|()| {
+            let spread = level_instability_db(&entry.preset);
+            if spread > MAX_LEVEL_INSTABILITY_DB {
+                Err(format!(
+                    "level moves {spread:.1} dB under tiny parameter changes (≤ {MAX_LEVEL_INSTABILITY_DB} dB)"
+                ))
+            } else {
+                Ok(())
+            }
+        });
         let done = result.is_ok();
         last = Some(Levelled {
             entry,

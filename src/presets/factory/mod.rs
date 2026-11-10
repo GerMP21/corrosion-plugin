@@ -370,6 +370,33 @@ pub fn level(preset: &mut Preset) -> FloorReport {
     measure_floor(preset)
 }
 
+/// The most a levelled experimental preset's floor level may move when Size,
+/// Damage, Drive or Pressure changes by 0.01 % or 0.1 %. A preset past it sits
+/// on a knife edge between two behaviours, which each platform's libm
+/// rounding can pick differently (`felt_mallet/tank` measured 0 dB on Linux
+/// and -8 dB on Windows), so the seeder re-draws it.
+pub const MAX_LEVEL_INSTABILITY_DB: f32 = 2.0;
+
+/// The largest change of [`FloorReport::level_db`] over tiny relative changes
+/// (+0.01 %, -0.1 %) of Size, Damage, Drive and Pressure.
+pub fn level_instability_db(preset: &Preset) -> f32 {
+    let base = measure_floor(preset).level_db();
+    let mut worst = 0.0_f32;
+    for rel in [1e-4_f32, -1e-3] {
+        for which in 0..4 {
+            let mut p = preset.clone();
+            match which {
+                0 => p.size *= 1.0 + rel,
+                1 => p.damage *= 1.0 + rel,
+                2 => p.drive *= 1.0 + rel,
+                _ => p.extra.exciter_pressure *= 1.0 + rel,
+            }
+            worst = worst.max((measure_floor(&p).level_db() - base).abs());
+        }
+    }
+    worst
+}
+
 /// Headroom kept under the ceiling by [`level`], for the rounding of Output.
 const HEADROOM_MARGIN: f32 = 0.995;
 

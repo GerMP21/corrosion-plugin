@@ -762,54 +762,60 @@ fn drum_kits_have_drum_character() {
     assert!(failures.is_empty(), "{}", failures.join("\n"));
 }
 
-/// Diagnostic for `experimental/felt_mallet/tank`, whose floor level is about
-/// 0 dB on Linux and −8 dB on Windows (CI, 2026-11-10). Prints the level per
-/// quarter second, and the level with each parameter reset to the base
-/// preset's value, so the platforms can be compared side by side.
+// --- Level stability (extend-ci-windows-linux-macos) -------------------------
+
+/// `experimental/felt_mallet/tank`'s first draw sat on a knife edge: on Linux
+/// at the target, on Windows 8 dB under it, and on Linux too when Size,
+/// Damage or Pressure moves by 0.01 %. The stability measure must reject it.
 #[test]
-#[ignore]
-fn print_felt_mallet_tank_divergence() {
-    let target = "experimental/felt_mallet/tank.corrosion-preset";
+fn level_stability_rejects_a_knife_edge_preset() {
+    let mut preset = experimental_preset(3, Object::Tank, 0);
+    level(&mut preset);
+    let spread = level_instability_db(&preset);
+    assert!(
+        spread > MAX_LEVEL_INSTABILITY_DB,
+        "felt_mallet/tank try 0 moved only {spread:.2} dB"
+    );
+}
+
+/// A preset whose level holds stays accepted.
+#[test]
+fn level_stability_accepts_a_steady_preset() {
+    let mut preset = experimental_preset(4, Object::Pipe, 0);
+    level(&mut preset);
+    let spread = level_instability_db(&preset);
+    assert!(
+        spread <= MAX_LEVEL_INSTABILITY_DB,
+        "hard_mallet/pipe moved {spread:.2} dB"
+    );
+}
+
+/// The re-drawn `felt_mallet/tank` in the bank is stable.
+#[test]
+fn the_felt_mallet_tank_in_the_bank_is_stable() {
     let entry = bank()
         .into_iter()
-        .find(|e| e.relative_path() == target)
+        .find(|e| e.relative_path() == "experimental/felt_mallet/tank.corrosion-preset")
         .expect("preset in the bank");
-    let preset = entry.preset.clone();
-    println!("level {:+.2} dB", measure_floor(&preset).level_db());
-
-    let pre = crate::offline::render_preset_pre_limiter(
-        &preset,
-        &floor_notes(),
-        FLOOR_SAMPLE_RATE,
-        FLOOR_SECONDS,
+    let spread = level_instability_db(&entry.preset);
+    assert!(
+        spread <= MAX_LEVEL_INSTABILITY_DB,
+        "felt_mallet/tank moves {spread:.2} dB"
     );
-    let quarter = FLOOR_SAMPLE_RATE as usize / 4;
-    for (i, chunk) in pre.chunks(quarter).enumerate() {
-        let db = 20.0 * (rms(chunk).max(1e-12) / TARGET_RMS).log10();
-        println!("t={:.2}s {db:+.2} dB", i as f32 * 0.25);
-    }
+}
 
-    let base = serde_json::to_value(super::base("base")).unwrap();
-    let json = serde_json::to_value(&preset).unwrap();
-    let mut keys: Vec<(bool, String)> = Vec::new();
-    for (k, v) in json.as_object().unwrap() {
-        if k != "extra" && k != "name" && k != "output" && base.get(k) != Some(v) {
-            keys.push((false, k.clone()));
-        }
-    }
-    for (k, v) in json["extra"].as_object().unwrap() {
-        if base["extra"].get(k) != Some(v) {
-            keys.push((true, k.clone()));
-        }
-    }
-    for (extra, k) in keys {
-        let mut j = json.clone();
-        if extra {
-            j["extra"][&k] = base["extra"][&k].clone();
-        } else {
-            j[&k] = base[&k].clone();
-        }
-        let p = Preset::from_json_str(&j.to_string()).unwrap();
-        println!("reset {k}: {:+.2} dB", measure_floor(&p).level_db());
+/// Every experimental preset's level holds under tiny parameter changes, so
+/// it measures alike on every platform's libm. Slow; the seeder enforces it.
+#[test]
+#[ignore]
+fn print_experimental_level_instability() {
+    let mut rows: Vec<(f32, String)> = bank()
+        .iter()
+        .filter(|e| e.folder.starts_with(EXPERIMENTAL_FOLDER))
+        .map(|e| (level_instability_db(&e.preset), e.relative_path()))
+        .collect();
+    rows.sort_by(|a, b| b.0.total_cmp(&a.0));
+    for (d, p) in rows.iter().take(20) {
+        println!("{d:5.2} dB {p}");
     }
 }
