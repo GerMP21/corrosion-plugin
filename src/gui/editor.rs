@@ -34,6 +34,38 @@ thread_local! {
         const { std::cell::Cell::new(None) };
 }
 
+#[cfg(test)]
+thread_local! {
+    /// The help text each drawn control was given since the last clear
+    /// (tests only; `add-parameter-tooltips`).
+    static DRAWN_HELP: std::cell::RefCell<std::collections::HashMap<ParamPtr, String>> =
+        std::cell::RefCell::new(std::collections::HashMap::new());
+    /// Each drawn control's help badge and widget rects, in that order
+    /// (tests only).
+    static DRAWN_BADGES: std::cell::RefCell<std::collections::HashMap<ParamPtr, (egui::Rect, egui::Rect)>> =
+        std::cell::RefCell::new(std::collections::HashMap::new());
+}
+
+/// Records the help text a control was drawn with (tests only; a no-op
+/// otherwise).
+#[inline]
+fn note_help(_param: ParamPtr, _help: &str) {
+    #[cfg(test)]
+    DRAWN_HELP.with(|drawn| {
+        drawn.borrow_mut().insert(_param, _help.to_string());
+    });
+}
+
+/// Records where a control's help badge and the control itself were drawn
+/// (tests only; a no-op otherwise).
+#[inline]
+fn note_badge(_param: ParamPtr, _badge: egui::Rect, _widget: egui::Rect) {
+    #[cfg(test)]
+    DRAWN_BADGES.with(|drawn| {
+        drawn.borrow_mut().insert(_param, (_badge, _widget));
+    });
+}
+
 /// Records the colour the diode dot was drawn in (tests only; a no-op
 /// otherwise).
 #[inline]
@@ -1327,13 +1359,18 @@ fn industrial_knob_text(
 
     // Label below knob
     let label_y = center.y + radius + height_pct(scale, 0.0078125);
-    painter.text(
+    paint_label_with_badge(
+        ui,
+        param.as_ptr(),
+        rect,
         egui::pos2(center.x, label_y),
         egui::Align2::CENTER_TOP,
         label.to_uppercase(),
         egui::FontId::proportional(width_pct(scale, 0.008333334)),
         OFF_WHITE,
+        help_for(label),
     );
+    let painter = ui.painter();
 
     // Value below label
     let value_text = if param_text {
@@ -1547,12 +1584,16 @@ fn industrial_fader_text(
     );
 
     // Label (right)
-    painter.text(
+    paint_label_with_badge(
+        ui,
+        param.as_ptr(),
+        rect,
         egui::pos2(rect.right() - label_width * 0.5, cy),
         egui::Align2::CENTER_CENTER,
         label.to_uppercase(),
         egui::FontId::proportional(width_pct(scale, 0.008333334)),
         MUTED_GREY,
+        help_for(label),
     );
 
     response
@@ -1626,13 +1667,18 @@ fn industrial_vfader(
     let cx = rect.center().x;
 
     // Label above
-    painter.text(
+    paint_label_with_badge(
+        ui,
+        param.as_ptr(),
+        rect,
         egui::pos2(cx, rect.min.y + height_pct(scale, 0.0078125)),
         egui::Align2::CENTER_TOP,
         label.to_uppercase(),
         egui::FontId::proportional(width_pct(scale, 0.0074074073)),
         MUTED_GREY,
+        help_for(label),
     );
+    let painter = ui.painter();
 
     // Track
     let track_top = rect.min.y + height_pct(scale, 0.020833334);
@@ -1726,11 +1772,23 @@ fn industrial_combo(
         .unwrap_or("Unknown");
 
     ui.vertical(|ui| {
-        ui.label(
-            egui::RichText::new(label.to_uppercase())
-                .size(width_pct(scale, 0.008333334))
-                .color(MUTED_GREY),
-        );
+        ui.horizontal(|ui| {
+            ui.spacing_mut().item_spacing.x = width_pct(scale, 0.0027777778);
+            let widget = ui
+                .label(
+                    egui::RichText::new(label.to_uppercase())
+                        .size(width_pct(scale, 0.008333334))
+                        .color(MUTED_GREY),
+                )
+                .rect;
+            // Trial: selector help (`add-parameter-tooltips`). Remove this
+            // block and `selector_help` to drop it.
+            let help = selector_help(label, selected);
+            note_help(param.as_ptr(), help);
+            let side = width_pct(scale, 0.008333334);
+            let (badge, _) = ui.allocate_exact_size(egui::vec2(side, side), egui::Sense::hover());
+            paint_info_badge(ui, param.as_ptr(), badge, widget, help);
+        });
         egui::ComboBox::from_id_salt(id)
             .width(ui.available_width())
             .selected_text(
@@ -1755,6 +1813,282 @@ fn industrial_combo(
                 }
             });
     });
+}
+
+// ---------------------------------------------------------------------------
+// Inline help (`add-parameter-tooltips`)
+// ---------------------------------------------------------------------------
+
+/// Paints `text` and a help badge right of it as one unit, placed by `align`
+/// at `pos`. Hovering the badge, and only the badge, shows `help`.
+#[allow(clippy::too_many_arguments)]
+fn paint_label_with_badge(
+    ui: &egui::Ui,
+    param: ParamPtr,
+    widget: egui::Rect,
+    pos: egui::Pos2,
+    align: egui::Align2,
+    text: String,
+    font: egui::FontId,
+    colour: egui::Color32,
+    help: &'static str,
+) {
+    note_help(param, help);
+    let side = font.size;
+    let gap = font.size * 0.3;
+    let galley = ui.painter().layout_no_wrap(text, font, colour);
+    let size = egui::vec2(galley.size().x + gap + side, galley.size().y.max(side));
+    let unit = align.anchor_size(pos, size);
+    let text_pos = egui::pos2(unit.min.x, unit.center().y - galley.size().y * 0.5);
+    ui.painter().galley(text_pos, galley, colour);
+    let badge = egui::Rect::from_center_size(
+        egui::pos2(unit.max.x - side * 0.5, unit.center().y),
+        egui::vec2(side, side),
+    );
+    paint_info_badge(ui, param, badge, widget, help);
+}
+
+/// The help badge: a 1 px circle with a centred "i" in `MUTED_GREY`, painted
+/// (egui's fonts have no ⓘ), with the tooltip on its own hover area.
+fn paint_info_badge(
+    ui: &egui::Ui,
+    param: ParamPtr,
+    badge: egui::Rect,
+    widget: egui::Rect,
+    help: &str,
+) {
+    note_badge(param, badge, widget);
+    let radius = badge.width() * 0.45;
+    let painter = ui.painter();
+    painter.circle_stroke(
+        badge.center(),
+        radius,
+        egui::Stroke::new(1.0 / ui.ctx().pixels_per_point(), MUTED_GREY),
+    );
+    painter.text(
+        badge.center(),
+        egui::Align2::CENTER_CENTER,
+        "i",
+        egui::FontId::proportional(radius * 1.4),
+        MUTED_GREY,
+    );
+    ui.interact(
+        badge,
+        ui.id().with(("help-badge", param)),
+        egui::Sense::hover(),
+    )
+    .on_hover_text(help);
+}
+
+/// Help text for a control, by its display label (case-insensitive). Slot
+/// labels are model-specific, so the help follows the selected exciter or
+/// object. Update the text when a control's behaviour changes.
+fn help_for(label: &str) -> &'static str {
+    match label.to_ascii_lowercase().as_str() {
+        // Exciter globals
+        "pressure" => "How hard the exciter presses on the object. Higher drives the object harder: louder and more strained.",
+        "speed" => "How fast the exciter moves across or against the object. Higher sounds brighter and more agitated.",
+        "roughness" => "Irregularity of the contact. Higher adds grit, noise and jitter to the excitation.",
+        // Hand strike
+        "hand mass" => "Weight of the striking hand. Heavier hands push more low end into the object.",
+        "flesh stiffness" => "Stiffness of the hand's flesh at contact. Higher gives a shorter, brighter slap.",
+        "flesh damping" => "How much the flesh absorbs the impact. Higher softens the attack.",
+        "mute decay" => "How long the hand rests on the object after the strike. Lower mutes the ring sooner.",
+        // Mallets, stick
+        "mallet mass" => "Weight of the mallet head. Heavier mallets stay in contact longer and bring out the low modes.",
+        "felt softness" => "Softness of the felt covering. Higher gives a rounder, darker strike.",
+        "core hardness" => "Hardness of the mallet's core under the felt. Higher adds a brighter click to loud hits.",
+        "compression curve" => "How quickly the felt stiffens as it is squeezed. Higher makes hard hits much brighter than soft ones.",
+        "material stiffness" => "Stiffness of the mallet head. Higher gives a sharper, brighter strike.",
+        "impact damping" => "Energy lost in the contact itself. Higher softens and shortens the attack.",
+        "stick mass" => "Weight of the drumstick. Heavier sticks drive the object harder and darker.",
+        "tip stiffness" => "Stiffness of the stick's tip. Higher gives a sharper, brighter tick.",
+        "restitution bounciness" => "How much the stick bounces back after contact. Higher gives livelier, more rebound-rich hits.",
+        "micro bounce limit" => "Maximum number of small rebounds after a strike. Higher allows a buzzier, rattling attack.",
+        // Brush
+        "wire density" => "Number of wires in the brush. Higher gives a denser, smoother swish.",
+        "spread duration" => "How long the brush's wires take to land, in milliseconds. Higher smears the hit into a sweep.",
+        "wire stiffness" => "Stiffness of the wires (brush wires or spring coils, by model). Higher sounds brighter and tighter.",
+        "amplitude randomization" => "Random level variation between wires or hits. Higher sounds looser and more organic.",
+        // Pipe, chain
+        "pipe mass" => "Weight of the striking pipe. Heavier pipes hit harder and darker.",
+        "metal stiffness" => "Stiffness of the striking metal. Higher gives a harder, brighter clang.",
+        "pipe pitch" => "Tuning of the striking pipe's own ring. Higher raises its overtone.",
+        "pipe ring decay" => "How long the striking pipe's own ring lasts. Higher adds a longer metallic tail to each hit.",
+        "link count" => "Number of links in the dropped chain. Higher gives a longer, busier rattle.",
+        "chain mass" => "Weight of the dropped chain. Heavier chains hit harder and darker.",
+        "drop envelope spread" => "How spread out in time the links land, in milliseconds. Higher stretches the cascade.",
+        "internal rattle" => "Rattling between the links. Higher adds more clatter to the strike.",
+        "rattle color" => "Tone of the rattle. Higher is brighter.",
+        // Bow
+        "bow pressure" => "How hard the bow presses on the object. Higher is louder and grittier, and too much makes it crunch.",
+        "bow speed" => "How fast the bow moves. Higher gives a brighter, more stable tone.",
+        "rosin grip" => "Static friction of the rosin. Higher grips harder, giving a stronger, rougher stick-slip.",
+        "slip curve" => "How quickly friction falls once the bow slips. Higher gives a sharper, more aggressive tone.",
+        // Scrape, grind, drag
+        "scrape speed" => "How fast the point scrapes along the surface. Higher raises the chatter's pitch and density.",
+        "point pressure" => "How hard the point presses into the surface. Higher is louder and harsher.",
+        "chatter pitch" => "Pitch of the stick-slip chatter. Higher sounds squealier.",
+        "chatter damping" => "How quickly each chatter burst dies away. Higher sounds drier and tighter.",
+        "grind speed" => "Speed of the grinding wheel. Higher gives a brighter, denser roar.",
+        "grind pressure" => "How hard the grinder presses on the object. Higher is louder and more aggressive.",
+        "surface grit" => "Coarseness of the ground surface. Higher adds noise and crackle.",
+        "grit color" => "Tone of the grit noise. Higher is brighter.",
+        "drag speed" => "How fast the exciter drags across the ridges. Higher raises the ridge rate.",
+        "ridge spacing" => "Distance between the surface's ridges. Higher spaces the ticks further apart.",
+        "ridge depth" => "Depth of the ridges. Higher gives stronger, louder ticks.",
+        "exciter mass" => "Weight of the dragged exciter. Heavier sounds lower and heavier.",
+        // Tension rise / snap
+        "pull speed" => "How fast the tension builds. Higher makes creaks come faster.",
+        "break threshold" => "Tension at which the material slips. Higher builds more tension before each creak.",
+        "slip stochasticity" => "Randomness of the slips. Higher sounds more irregular.",
+        "creak sharpness" => "Sharpness of each creak. Higher sounds brighter and more percussive.",
+        "pull distance" => "How far the hook pulls before releasing. Higher gives a bigger snap.",
+        "hook stiffness" => "Stiffness of the hook. Higher gives a sharper release.",
+        "snap force" => "Force of the release. Higher is louder and harder.",
+        // Jet, hum, rain
+        "air pressure" => "Pressure of the air jet. Higher is louder and more turbulent.",
+        "nozzle width" => "Width of the nozzle. Higher gives a broader, darker hiss.",
+        "turbulence chaos" => "Instability of the airflow. Higher sounds rougher and more chaotic.",
+        "mains frequency" => "Frequency of the electromagnetic drive, in hertz. It sets the hum's base pitch.",
+        "coil proximity" => "How close the coil sits to the object. Higher couples more strongly and sounds louder.",
+        "voltage sag" => "Instability of the supply. Higher makes the hum waver and sag.",
+        "flow rate" => "How many particles fall per second. Higher gives a denser rain.",
+        "particle mass" => "Weight of each particle. Heavier particles hit harder and darker.",
+        "mass variance" => "Variation in particle weight. Higher sounds more uneven.",
+        // Objects
+        "tube diameter" => "Diameter of the pipe. Higher sounds lower and hollower.",
+        "pipe length" => "Length of the pipe. Longer pipes sound lower.",
+        "shell decay" => "How long the shell rings. Higher sustains longer.",
+        "plate aspect" => "Ratio of the plate's sides. Changes how its modes are spread, from even to clustered.",
+        "plate stiffness" => "Stiffness of the plate. Higher spreads its overtones and sounds brighter.",
+        "plate size" => "Size of the plate. Larger plates sound lower.",
+        "tank volume" => "Volume of the tank. Higher sounds lower and boomier.",
+        "cavity mix" => "Level of the air cavity's resonance. Higher sounds hollower.",
+        "tank size" => "Size of the tank. Larger tanks sound lower.",
+        "link mass" => "Weight of each chain link. Heavier links sound lower and heavier.",
+        "instability" => "How much the links shift against each other. Higher sounds looser and more chaotic.",
+        "chain size" => "Size of the chain. Larger chains sound lower.",
+        "beam mass" => "Weight of the beam. Heavier beams sound lower.",
+        "shear density" => "Strength of the beam's shear modes. Higher adds more inharmonic overtones.",
+        "rigidity damping" => "Damping of the beam's stiffness. Higher shortens the high modes.",
+        "braid stiffness" => "Stiffness of the cable's braid. Higher sounds brighter and less harmonic.",
+        "tension drop" => "How much the pitch drops on loud notes. Higher bends loud notes down further.",
+        "cable tension" => "Tension of the cable. Higher sounds higher.",
+        "dispersion chirp" => "How much the spring smears high frequencies. Higher gives a stronger springy chirp.",
+        "spring slosh" => "Wobble of the spring. Higher sounds looser and more liquid.",
+        "coil length" => "Length of the coil. Longer coils sound lower.",
+        "metal thinness" => "Thinness of the sheet. Higher bends and warps the sound more.",
+        "edge damping" => "Damping at the sheet's edges. Higher shortens the ring.",
+        "sheet size" => "Size of the sheet. Larger sheets sound lower.",
+        "tooth dissonance" => "Detuning of the cog's teeth. Higher sounds more dissonant.",
+        "blade radius" => "Radius of the cog. Larger cogs sound lower.",
+        "blade thickness" => "Thickness of the cog. Higher sounds brighter and stiffer.",
+        // Resonator globals
+        "strike pos" => "Where the exciter hits the object. Moving it changes which modes ring, so the timbre changes.",
+        "coupling" => "How strongly the exciter and object push each other. Higher makes their interaction stronger and wilder.",
+        "pos wander" => "How much the strike position drifts while the note plays. Higher makes the timbre move more.",
+        "pos env" => "How much the envelope sweeps the strike position. Higher gives a stronger timbral sweep.",
+        "wander rate" => "Speed of the strike position's drift. Higher wanders faster.",
+        "anchor" => "How firmly the fundamental keeps its pitch while other modes move. Higher keeps notes more in tune.",
+        "thickness" => "Thickness of the object. Higher sounds brighter and stiffer.",
+        "heat" => "Heats the metal: lowers its pitch, darkens it and adds a slow warble. Higher is hotter.",
+        "sludge" => "Coats the object in sludge. Higher damps it and dulls the attack.",
+        "rust" => "Corrodes the object: shortens the decay and dulls the upper modes. Higher sounds duller and drier.",
+        "damage" => "Dents and cracks the object: detunes its modes and adds buzzing companions. Higher sounds more broken.",
+        // Envelope
+        "attack" => "Time the note takes to reach full level. Higher fades in slower.",
+        "decay" => "Time to fall from the peak to the sustain level. Higher decays slower.",
+        "sustain" => "Level held while the note is down. Higher stays louder.",
+        "release" => "Time to fade after the note ends. Higher fades longer.",
+        "hold" => "Time the envelope holds at its peak before decaying. Higher holds longer.",
+        "onset" => "Length of the onset stage that starts the friction envelope. Higher eases the note in slower.",
+        "onset lvl" => "Level of the friction envelope's onset stage. Higher starts the note stronger.",
+        "sustain time" => "How long the friction envelope sustains in Drone and looped modes. Higher sustains longer.",
+        "friction decay" => "Decay time of the friction envelope. Higher fades the friction slower.",
+        "env amount" => "How much the envelope shapes the excitation. Lower flattens it.",
+        "vel to peak" => "How much velocity changes the envelope's peak. Higher makes soft notes quieter.",
+        "vel to level" => "How much velocity changes the note's level. Higher gives more dynamic range.",
+        "vel to time" => "How much velocity shortens the envelope. Higher makes hard notes snappier.",
+        "curve" => "Shape of the envelope's segments. Turning it away from the middle bends them more.",
+        "global time" => "Scales every envelope time. Higher slows the whole envelope.",
+        // Processing
+        "cutoff" => "Cutoff of the low-pass filter after the voices. Lower sounds darker.",
+        "resonance" => "Resonant peak at the cutoff. Higher rings and whistles more.",
+        "tolerance" => "Random component drift in the filter. Higher sounds less precise and more analogue.",
+        "drive amt" => "Saturation of the Lorenz drive in the post chain. Higher sounds more distorted.",
+        "bias starve" => "Starves the drive's supply now and then. Higher makes it sag and sputter more often.",
+        "chaos" => "How much the Lorenz attractor modulates the drive. Higher makes the distortion move unpredictably.",
+        "chassis mat" => "Material of the body that resonates with the sound. Changes the body's tone.",
+        "chassis vol" => "Size of the body. Higher gives lower, slightly louder resonances.",
+        "spread" => "Stereo spread of the image. Higher sounds wider.",
+        "proximity" => "How close the listener sits. Higher sounds nearer and fuller.",
+        "amount" => "Mix of the Space effect. Higher sounds wetter.",
+        "factory size" => "Size of the factory room. Higher gives a longer, bigger reverb.",
+        "machinery" => "Clutter in the factory room. Higher adds busier, denser reflections.",
+        "wall impedance" => "Hardness of the walls. Higher sounds brighter and more reflective.",
+        "spring tension" => "Tension of the reverb spring. Higher raises its twang.",
+        "spring tank size" | "tank" => "Size of the spring tank. Higher gives a longer reverb.",
+        "delay time" => "Time between echoes. Higher spaces them further apart.",
+        "sync" => "Locks the echo to the host tempo. Off leaves it on Delay Time.",
+        "movement" => "How much the echo's delay wobbles. Higher sounds more warped.",
+        "hf damping" => "Darkens each echo repeat. Higher rolls off more highs.",
+        "ceiling" => "The output's maximum level. Lower clips the diode stage and limiter earlier.",
+        "softness" => "Knee of the diode stage. 0 clips hard; higher bends earlier and sounds warmer.",
+        "asymmetry" => "Clips the negative half earlier. Higher adds even harmonics and a fuller grit.",
+        "legacy drive" => "Master drive on the voice mix, before the post chain. Higher saturates more.",
+        // Header
+        "body" => "Level of the resonating body under the sound. Higher sounds fuller and more physical.",
+        "width" => "Stereo width of the voices. Higher spreads them wider.",
+        "output" => "Final output level, in dB. The ceiling still limits the peaks.",
+        // Macros
+        "mass" => "Makes everything heavier: exciter weights and object size. Higher sounds bigger and lower.",
+        "corrosion" => "Wears the object down: more damping and rust. Higher sounds older and duller.",
+        "violence" => "Pushes drive, chaos and damage. Higher sounds harsher and more broken.",
+        "brightness" => "Opens the filter and brightens the object. Higher sounds brighter.",
+        _ => "",
+    }
+}
+
+// Trial: selector help (`add-parameter-tooltips`). Remove this function and
+// the block in `industrial_combo` that calls it to drop the trial.
+/// Help for a selector's current option.
+fn selector_help(label: &str, selected: &str) -> &'static str {
+    if let Some(exciter) = (1..=16)
+        .map(ExciterType::from_int)
+        .find(|e| e.name() == selected)
+    {
+        return exciter_panel(exciter).description;
+    }
+    if let Some(object) = (0..9).map(Object::from_int).find(|o| o.name() == selected) {
+        return resonator_panel(object).description;
+    }
+    match (label.to_ascii_lowercase().as_str(), selected) {
+        ("mode", "Off") => "No Space effect: the sound stays dry.",
+        ("mode", "Factory") => "A large factory hall reverb.",
+        ("mode", "Spring") => "A spring reverb tank with its twang and chirp.",
+        ("mode", "Echo") => "A modulated stereo echo, free or synced to the host tempo.",
+        ("mode", "Eco") => "Lowest CPU: fewer modes per voice and no clipper oversampling.",
+        ("mode", "Normal") => "The default balance of detail and CPU.",
+        ("mode", "High") => "More modes per voice and more clipper oversampling.",
+        ("mode", "Render") => "Most detail and least aliasing, for bouncing. Uses the most CPU.",
+        ("play", "Tonal") => "Notes play at their pitch and decay naturally.",
+        ("play", "Kit") => "Each key plays a fixed variation, like a drum kit.",
+        ("play", "Drone") => "Notes sustain while held, for bowed and continuous sounds.",
+        ("limiter", "Hard") => "Clamps peaks at the ceiling with no added latency.",
+        ("limiter", "Lookahead") => {
+            "Turns peaks down smoothly ahead of time. Adds about 1 ms of latency."
+        }
+        ("loop", "Off") => "The envelope plays once.",
+        ("loop", "Forward") => "The envelope repeats between the Start and End stages.",
+        ("loop", "Ping-Pong") => {
+            "The envelope runs back and forth between the Start and End stages."
+        }
+        ("start", _) => "The stage where the envelope loop begins.",
+        ("end", _) => "The stage where the envelope loop ends.",
+        ("scale", _) => "Size of the editor window.",
+        _ => "",
+    }
 }
 
 /// Format a parameter value for display.
@@ -2170,13 +2504,18 @@ fn vfader_global(
     let cx = rect.center().x;
 
     // Label
-    painter.text(
+    paint_label_with_badge(
+        ui,
+        param.as_ptr(),
+        rect,
         egui::pos2(cx, rect.min.y + height_pct(scale, 0.0052083335)),
         egui::Align2::CENTER_TOP,
-        label,
+        label.to_string(),
         egui::FontId::proportional(width_pct(scale, 0.0074074073)),
         MUTED_GREY,
+        help_for(label),
     );
+    let painter = ui.painter();
 
     // Track
     let track_top = rect.min.y + height_pct(scale, 0.018229166);
@@ -4165,6 +4504,210 @@ mod tests {
             .filter(|(_, ptr, _)| drawn.contains(ptr))
             .map(|(id, _, _)| id)
             .collect()
+    }
+
+    // --- Inline help (`add-parameter-tooltips`) ---
+
+    /// Every editor configuration whose panels differ: each exciter, object
+    /// and Space mode.
+    fn panel_variants() -> Vec<crate::params::CorrosionParams> {
+        use crate::params::{exciter_param, object_param};
+        let mut variants = Vec::new();
+        for exciter in 1..=16 {
+            variants.push(crate::params::CorrosionParams {
+                exciter: exciter_param(exciter),
+                ..Default::default()
+            });
+        }
+        for object in 0..9 {
+            variants.push(crate::params::CorrosionParams {
+                object: object_param(object),
+                ..Default::default()
+            });
+        }
+        for mode in 0..4 {
+            variants.push(crate::params::CorrosionParams {
+                space_mode: nih_plug::prelude::IntParam::new(
+                    "Space Mode",
+                    mode,
+                    nih_plug::prelude::IntRange::Linear { min: 0, max: 3 },
+                ),
+                ..Default::default()
+            });
+        }
+        variants
+    }
+
+    /// Sentences in `text`: terminators followed by a space, plus the last.
+    fn sentence_count(text: &str) -> usize {
+        let inner = text
+            .trim()
+            .matches(". ")
+            .chain(text.trim().matches("! "))
+            .chain(text.trim().matches("? "))
+            .count();
+        inner + 1
+    }
+
+    /// Spec "Help coverage check": every control drawn for every exciter,
+    /// object and Space mode has help of one or two sentences, short enough
+    /// for a tooltip.
+    #[test]
+    fn every_drawn_control_has_help() {
+        use nih_plug::prelude::Params;
+        let mut failures = std::collections::BTreeSet::new();
+        for params in panel_variants() {
+            super::DRAWN_HELP.with(|help| help.borrow_mut().clear());
+            let drawn = drawn_parameter_ids(&params);
+            let help = super::DRAWN_HELP.with(|help| help.borrow().clone());
+            let exciter = params.exciter.value();
+            let object = params.object.value();
+            for (id, ptr, _) in params.param_map() {
+                if !drawn.contains(&id) {
+                    continue;
+                }
+                let context = format!("{id} (exciter {exciter}, object {object})");
+                match help.get(&ptr) {
+                    None => {
+                        failures.insert(format!("{context}: no help"));
+                    }
+                    Some(text) if text.trim().is_empty() => {
+                        failures.insert(format!("{context}: empty help"));
+                    }
+                    Some(text) if sentence_count(text) > 2 => {
+                        failures.insert(format!("{context}: more than two sentences: {text}"));
+                    }
+                    Some(text) if text.chars().count() > 200 => {
+                        failures.insert(format!(
+                            "{context}: {} characters: {text}",
+                            text.chars().count()
+                        ));
+                    }
+                    Some(_) => {}
+                }
+            }
+        }
+        assert!(
+            failures.is_empty(),
+            "{} problems:\n{}",
+            failures.len(),
+            failures.into_iter().collect::<Vec<_>>().join("\n")
+        );
+    }
+
+    /// Every exciter and object slot spec carries help, including models a
+    /// render might not reach.
+    #[test]
+    fn every_slot_spec_has_help() {
+        use crate::params::{ExciterType, Object};
+        let mut missing = Vec::new();
+        for exciter in 1..=16 {
+            let exciter = ExciterType::from_int(exciter);
+            for spec in super::exciter_panel(exciter).controls {
+                if super::help_for(spec.label).trim().is_empty() {
+                    missing.push(format!("{} / {}", exciter.name(), spec.label));
+                }
+            }
+        }
+        for object in 0..9 {
+            let object = Object::from_int(object);
+            for spec in super::resonator_panel(object).controls {
+                if super::help_for(spec.label).trim().is_empty() {
+                    missing.push(format!("{} / {}", object.name(), spec.label));
+                }
+            }
+        }
+        assert!(missing.is_empty(), "no help: {missing:?}");
+    }
+
+    /// Renders the default editor at 100 % for `frames` frames, the pointer
+    /// at `pointer`, 0.1 s apart, and returns every text shape's string from
+    /// the last frame (tooltips included).
+    fn texts_with_pointer_at(
+        params: &crate::params::CorrosionParams,
+        pointer: Option<nih_plug_egui::egui::Pos2>,
+    ) -> Vec<String> {
+        use nih_plug_egui::egui;
+        let gui = NullGui;
+        let setter = nih_plug::prelude::ParamSetter::new(&gui);
+        let mut state =
+            super::EditorUiState::new(2, (super::BASE_EDITOR_WIDTH, super::BASE_EDITOR_HEIGHT));
+        let ctx = egui::Context::default();
+        super::apply_editor_style(&ctx, 1.0);
+        let mut texts = Vec::new();
+        for frame in 0..12 {
+            let mut events = Vec::new();
+            if let Some(pos) = pointer {
+                events.push(egui::Event::PointerMoved(pos));
+            }
+            let input = egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(
+                    egui::Pos2::ZERO,
+                    egui::vec2(super::editor_width(1.0), super::editor_height(1.0)),
+                )),
+                time: Some(frame as f64 * 0.1),
+                events,
+                ..Default::default()
+            };
+            let output = ctx.run(input, |ctx| {
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    super::render_ui(ui, params, &setter, &mut state, 1.0);
+                });
+            });
+            texts = output
+                .shapes
+                .iter()
+                .filter_map(|clipped| match &clipped.shape {
+                    egui::Shape::Text(text) => Some(text.galley.job.text.clone()),
+                    _ => None,
+                })
+                .collect();
+        }
+        texts
+    }
+
+    /// The badge and widget rects of the Cutoff knob, and its help text.
+    fn cutoff_badge(
+        params: &crate::params::CorrosionParams,
+    ) -> (nih_plug_egui::egui::Rect, nih_plug_egui::egui::Rect, String) {
+        use nih_plug::prelude::Param;
+        let _ = texts_with_pointer_at(params, None);
+        let ptr = params.filter_cutoff.as_ptr();
+        let (badge, widget) = super::DRAWN_BADGES
+            .with(|badges| badges.borrow().get(&ptr).copied())
+            .expect("the Cutoff knob draws a help badge");
+        let help = super::DRAWN_HELP
+            .with(|help| help.borrow().get(&ptr).cloned())
+            .expect("the Cutoff knob has help");
+        (badge, widget, help)
+    }
+
+    /// Spec "Hovering the badge shows help".
+    #[test]
+    fn hovering_the_badge_shows_help() {
+        let params = crate::params::CorrosionParams::default();
+        let (badge, _, help) = cutoff_badge(&params);
+        let texts = texts_with_pointer_at(&params, Some(badge.center()));
+        assert!(
+            texts.iter().any(|t| t.contains(&help)),
+            "no tooltip with {help:?}"
+        );
+    }
+
+    /// Spec "Hovering the control does not show help".
+    #[test]
+    fn hovering_the_knob_shows_no_help() {
+        let params = crate::params::CorrosionParams::default();
+        let (badge, widget, help) = cutoff_badge(&params);
+        // The knob's centre, well away from the badge under its label.
+        let knob =
+            nih_plug_egui::egui::pos2(widget.center().x, widget.min.y + widget.width() * 0.3);
+        assert!(!badge.contains(knob));
+        let texts = texts_with_pointer_at(&params, Some(knob));
+        assert!(
+            !texts.iter().any(|t| t.contains(&help)),
+            "the knob body opened the help tooltip"
+        );
     }
 
     /// Every parameter the editor draws for some exciter, object and space

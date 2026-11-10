@@ -696,6 +696,10 @@ knee width `w`, the curve is linear below `K = L·(1 − w)` and
 
 ---
 
+### Editor inline help (`add-parameter-tooltips`)
+
+Every widget helper (`industrial_knob[_text]`, `industrial_fader[_text]`, `industrial_vfader`, `vfader_global`) paints its label with `paint_label_with_badge`: the label plus a painted ⓘ badge (1 physical px circle and "i" in `MUTED_GREY`; egui's fonts have no U+24D8). Only the badge's own hover area shows the tooltip. The text comes from `help_for(label)`, one table keyed by display label, so slot help follows the selected exciter or object. When a control's behaviour changes, update its entry. `industrial_combo` shows `selector_help(label, selected)` for the selected option: a **trial**, removable by deleting that function and the marked block. `every_drawn_control_has_help` and `every_slot_spec_has_help` check coverage; the hover tests check that the badge, not the knob, opens the tooltip.
+
 ## 10. Build, Test, and QA Infrastructure
 
 | Component | Purpose |

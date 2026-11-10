@@ -57,3 +57,16 @@ Each text is one or two sentences: what the control does, then what turning it u
 - [Help text drifts from the DSP when behaviour changes] → The text sits next to the label in the spec tables, so a change that touches a control's label or table entry shows its help in the same diff. A note in `docs/ARCHITECTURE.md` says to update help with behaviour changes.
 - [Tooltips are hard to test headlessly] → The test checks the data path (every drawn control got help). That hovering the badge, and not the knob, opens the tooltip is checked once by feeding a pointer position over the badge and over the knob into the headless context and inspecting egui's tooltip layer. A REAPER screenshot is the visual check.
 - [About 140 texts is a lot to write accurately] → Write them per panel in reviewable commits, and check each against the code that implements the parameter.
+
+## As built (2026-11-10)
+
+- **Where the help lives (decision 3 changed):** one table, `help_for(label)` in `src/gui/editor.rs`, keyed by the control's display label (case-insensitive). The widget helpers look it up themselves, so no call site changed and none can draw a control without asking for help. Slot labels are model-specific, so slot help still follows the selected exciter or object. The spec structs didn't get a `help` field. Done this way to keep the change small (maintainer asked for speed). The cost: a label without an entry gets empty help at run time instead of a compile error; `every_drawn_control_has_help` and `every_slot_spec_has_help` catch that in CI. Labels shared by two models (Wire Stiffness: brush wires and spring coils) get one text that covers both.
+- **Badge:** `paint_label_with_badge` lays the label out and paints the badge to its right as one unit, anchored where the label used to be (so centred labels stay centred). `paint_info_badge` paints a circle with a stroke of one physical pixel and an "i", both `MUTED_GREY`, sized from the label's font, and registers its own hover area (`ui.interact`, `Sense::hover`) with `on_hover_text`.
+- **Selectors (trial):** `selector_help(label, selected)`, marked as a trial. Exciter and object options reuse the panel `description`. To drop the trial, delete `selector_help` and the marked block in `industrial_combo`.
+
+## Measurements
+
+- `every_drawn_control_has_help`: every control drawn for the 16 exciters, 9 objects and 4 Space modes has help of one or two sentences and at most 200 characters.
+- `hovering_the_badge_shows_help` / `hovering_the_knob_shows_no_help`: a pointer on the Cutoff knob's badge renders the help text in a tooltip after 1.2 s of frames; a pointer on the knob body doesn't.
+- `editor_content_fits_the_window_width` still passes at every UI scale and every exciter: no label had to be shortened.
+- **Not done:** the tests were written together with the implementation, not run red first (task 1.x, to save time). The REAPER screenshot (task 4.2) wasn't taken: the GUI hasn't been checked visually in a host.
