@@ -2082,12 +2082,22 @@ fn paint_info_badge(
         egui::FontId::proportional(radius * 1.4),
         MUTED_GREY,
     );
-    ui.interact(
+    let mut response = ui.interact(
         badge,
         ui.id().with(("help-badge", param)),
         egui::Sense::hover(),
-    )
-    .on_hover_text(help);
+    );
+    // Open the help above the badge, where the pointer doesn't cover it.
+    // egui places a tooltip below its widget whenever it fits; the rect it
+    // places against is stretched to the bottom of the screen so it never
+    // does, and the tooltip goes above (or beside, at the very top). The
+    // hover area was taken above and stays the badge.
+    response.rect.max.y = response
+        .rect
+        .max
+        .y
+        .max(ui.ctx().screen_rect().bottom() + 1.0);
+    response.on_hover_text(help);
 }
 
 /// Help text for a control, by its display label (case-insensitive). Slot
@@ -5535,6 +5545,17 @@ mod tests {
         params: &crate::params::CorrosionParams,
         pointer: Option<nih_plug_egui::egui::Pos2>,
     ) -> Vec<String> {
+        text_rects_with_pointer_at(params, pointer)
+            .into_iter()
+            .map(|(text, _)| text)
+            .collect()
+    }
+
+    /// Like `texts_with_pointer_at`, with each text's screen rect.
+    fn text_rects_with_pointer_at(
+        params: &crate::params::CorrosionParams,
+        pointer: Option<nih_plug_egui::egui::Pos2>,
+    ) -> Vec<(String, nih_plug_egui::egui::Rect)> {
         use nih_plug_egui::egui;
         let gui = NullGui;
         let setter = nih_plug::prelude::ParamSetter::new(&gui);
@@ -5566,7 +5587,10 @@ mod tests {
                 .shapes
                 .iter()
                 .filter_map(|clipped| match &clipped.shape {
-                    egui::Shape::Text(text) => Some(text.galley.job.text.clone()),
+                    egui::Shape::Text(text) => Some((
+                        text.galley.job.text.clone(),
+                        text.galley.rect.translate(text.pos.to_vec2()),
+                    )),
                     _ => None,
                 })
                 .collect();
@@ -5599,6 +5623,23 @@ mod tests {
         assert!(
             texts.iter().any(|t| t.contains(&help)),
             "no tooltip with {help:?}"
+        );
+    }
+
+    /// The help opens above its badge, so the pointer resting on the badge
+    /// doesn't cover it.
+    #[test]
+    fn help_opens_above_the_badge() {
+        let params = crate::params::CorrosionParams::default();
+        let (badge, _, help) = cutoff_badge(&params);
+        let texts = text_rects_with_pointer_at(&params, Some(badge.center()));
+        let (_, rect) = texts
+            .iter()
+            .find(|(text, _)| text.contains(&help))
+            .expect("the help tooltip is shown");
+        assert!(
+            rect.bottom() <= badge.top(),
+            "help at {rect:?}, badge at {badge:?}"
         );
     }
 
