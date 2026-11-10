@@ -46,7 +46,7 @@ checks (linux | windows | macos) ──► bundle (linux | windows | macos) ─�
 | `windows-latest` | `x86_64-pc-windows-msvc` everywhere | MSVC `.dll` |
 | `macos-latest` (arm64) | `aarch64-apple-darwin` | `aarch64` + `x86_64-apple-darwin`, joined with `lipo` |
 
-`.cargo/config.toml` sets the default target to `x86_64-pc-windows-gnu` for the maintainer's machine, so every job sets `CARGO_BUILD_TARGET` explicitly. Windows cross-builds from Linux (mingw) are dropped: the shipped Windows build is now MSVC, and the maintainer's local `bundle-win.sh` keeps building gnu for local use.
+`.cargo/config.toml` sets the default target to `x86_64-pc-windows-gnu` for the maintainer's machine, so every job sets `CARGO_BUILD_TARGET` explicitly. Windows cross-builds from Linux (mingw) are dropped: the shipped Windows build is now MSVC, and the maintainer's local gnu build stays available through `CORROSION_WINDOWS_TARGET`.
 
 ### 4. Real-time safety tests per platform
 `tests/no_alloc.rs` needs nih-plug's `assert_process_allocs`, which `Cargo.toml` enables only off Windows (the checking allocator hung nih-plug's test setup on Windows; `docs/BACKLOG.md` history). It runs on Linux and macOS, in debug as the file requires. On Windows it is not run; that stays recorded. **To try during implementation:** whether it now works on MSVC; if it does, enable it, otherwise keep the exclusion with the reason.
@@ -67,6 +67,7 @@ The first Windows and macOS runs show whether they hold. If one fails because `l
 - **macOS:** builds both architectures and `lipo -create`s them; `Corrosion.vst3/Contents/{MacOS/Corrosion, Info.plist, PkgInfo}` and `Corrosion.clap/Contents/{MacOS/Corrosion, Info.plist, PkgInfo}` (a CLAP is a bundle on macOS); then `codesign --force --deep --sign -` on each bundle (arm64 refuses unsigned code);
 - output in `target/bundled/<platform>/`.
 - `bundle.sh` and `bundle-win.sh` stay as wrappers (`linux`, and a gnu `windows` variant for the maintainer's host via `CORROSION_WINDOWS_TARGET`), so existing habits and docs keep working.
+  - *As built (maintainer, 2026-11-10):* both wrappers moved to `scripts/archive/`; the docs and scripts call `scripts/bundle.sh <platform>` directly. On the maintainer's host (no MSVC) the Windows build is `CORROSION_WINDOWS_TARGET=x86_64-pc-windows-gnu scripts/bundle.sh windows`.
 - `scripts/check_bundle.sh <platform> <dir>` checks the layout (paths, file types, `lipo -archs` on macOS, `codesign --verify`) and runs in CI after bundling; locally it runs on Linux.
 
 ### 7. Validators

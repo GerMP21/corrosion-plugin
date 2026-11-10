@@ -22,7 +22,7 @@ fi
 # Check VST3 bundle exists
 if [ ! -d "${VST3_PATH}" ]; then
     echo "ERROR: VST3 bundle not found at ${VST3_PATH}"
-    echo "Run ./bundle.sh first"
+    echo "Run scripts/bundle.sh linux first"
     exit 1
 fi
 

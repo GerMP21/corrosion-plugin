@@ -14,7 +14,7 @@ fi
 VST3_PATH="target/bundled/linux/Corrosion.vst3"
 if [ ! -d "$VST3_PATH" ]; then
     echo "Building Linux bundle..."
-    ./bundle.sh
+    scripts/bundle.sh linux
 fi
 
 # Test plugin scan (REAPER can scan the plugin)

@@ -63,7 +63,7 @@ Each item notes the relevant file(s) and an acceptance check.
 ## Testing and release infrastructure
 
 - [ ] **[MISSING] Windows test lane.** CI cross-compiles the Windows bundles
-  (`bundle-win.sh`, mingw-w64) but runs no tests on Windows and never loads the
+  (mingw-w64) but runs no tests on Windows and never loads the
   bundle.
 - [ ] **[MISSING] DAW smoke automation** (REAPER / Bitwig / Ardour / Live / FL).
   Manual today: REAPER on Linux, in the development sessions.

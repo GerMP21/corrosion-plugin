@@ -133,8 +133,6 @@ Every change is sent to the host as a normal parameter edit, so host undo applie
 ```text
 .
 ├── Cargo.toml
-├── bundle.sh
-├── bundle-win.sh
 ├── docs/                  ARCHITECTURE.md, BACKLOG.md, code-review.md,
 │                          corrosion_plugin_prd_and_specs.md, detailed-specs/
 ├── presets/factory/       214 .corrosion-preset files in folders (written by seed_presets)
@@ -168,14 +166,12 @@ Every change is sent to the host as a normal parameter edit, so host undo applie
 # Test using the repo's default local target from .cargo/config.toml
 cargo test --workspace --no-default-features
 
-# Build the Linux bundle target used by bundle.sh
-cargo build --target x86_64-unknown-linux-gnu
+# Bundle the plugins (VST3 and CLAP) into target/bundled/<platform>/, and check them
+scripts/bundle.sh linux            # or: windows (MSVC), macos (universal, ad-hoc signed)
+scripts/check_bundle.sh linux
 
-# Bundle Linux plugins
-./bundle.sh
-
-# Cross-compile Windows bundles
-./bundle-win.sh
+# Windows with the mingw-w64 GNU toolchain (the maintainer's host, no MSVC)
+CORROSION_WINDOWS_TARGET=x86_64-pc-windows-gnu scripts/bundle.sh windows
 
 # Offline debug renderer (suites: family, rust, damage, aliasing, all)
 cargo run --target x86_64-unknown-linux-gnu --bin render -- --suite all
@@ -193,7 +189,7 @@ cargo run --release --bin seed_presets
 cargo bench --no-default-features --target x86_64-unknown-linux-gnu --bench performance
 ```
 
-The repository's `.cargo/config.toml` defaults unqualified `cargo` commands to `x86_64-pc-windows-gnu` so the maintainer's Windows host doesn't need to type `--target` constantly. The Linux CI lane overrides this via `CARGO_BUILD_TARGET=x86_64-unknown-linux-musl` in the workflow env; the bundle scripts pass `--target x86_64-unknown-linux-gnu` explicitly. If you're on Linux/macOS and not building Windows DLLs locally, either pass `--target` per command or override the build target with `CARGO_BUILD_TARGET=<your-host-triple>`.
+The repository's `.cargo/config.toml` defaults unqualified `cargo` commands to `x86_64-pc-windows-gnu` so the maintainer's Windows host doesn't need to type `--target` constantly. The Linux CI lane overrides this via `CARGO_BUILD_TARGET=x86_64-unknown-linux-musl` in the workflow env; `scripts/bundle.sh` passes each platform's `--target` explicitly. The old `bundle.sh` and `bundle-win.sh` are kept in `scripts/archive/` as wrappers around it. If you're on Linux/macOS and not building Windows DLLs locally, either pass `--target` per command or override the build target with `CARGO_BUILD_TARGET=<your-host-triple>`.
 
 ## Validation
 
@@ -210,12 +206,10 @@ cargo test --workspace --no-default-features
 cargo test --lib --target x86_64-unknown-linux-gnu
 cargo run --target x86_64-unknown-linux-gnu --bin render -- --suite family --out-dir /tmp/corrosion-verify-render
 python3 scripts/check_wav.py /tmp/corrosion-verify-render/pipe_comparison.wav
-./bundle.sh release
+scripts/bundle.sh linux release
 
-# Optional host/plugin validators when installed locally
-./scripts/validate-plugins.sh
-pluginval --strictness-level 5 --validate target/bundled/Corrosion.vst3 --skip-gui-tests
-clap-validator validate target/bundled/Corrosion.clap/Corrosion.clap --only-failed
+# Host/plugin validators (pluginval, clap-validator) when installed locally
+./scripts/validate-plugins.sh linux
 ```
 
 The repository CI currently automates the formatter, clippy, the no-default-features workspace tests, the native Linux library lane, the offline renderer smoke test, WAV validation, and the Linux bundle script. DAW smoke scripts under `tests/daw/` and external plugin validators remain optional/manual because they depend on tools that are not guaranteed to exist in every environment. The aliasing tests assert the whole chain at Render stays under −18 dB (`offline::tests::render_mode_alias_ratio_stays_within_budget`; the Lorenz drive isn't oversampled), that Render beats Eco (`higher_quality_reduces_alias_ratio`), and that the clipper alone, with and without the hard clamp after it, folds a 5 kHz tone at twice the ceiling back at least 40 dB down in Normal and 60 dB in Render (`clipper_alias_bounds_hold`, `clipper_alias_bounds_hold_through_the_hard_clamp`).

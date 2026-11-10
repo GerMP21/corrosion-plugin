@@ -819,7 +819,7 @@ Every widget helper (`industrial_knob[_text]`, `industrial_fader[_text]`, `indus
 
 | Component | Purpose |
 |---|---|
-| `.github/workflows/ci.yml` | `quality-and-build`: fmt, clippy (`-D warnings`), no-default-features tests (musl), native gnu lib tests, `render --suite family` smoke, WAV check. `bundle`: VST3 and CLAP for Linux (`bundle.sh`) and Windows (`bundle-win.sh`, mingw-w64), zipped as artifacts. `prerelease`: replaces the rolling `nightly` pre-release on pushes to main and manual runs |
+| `.github/workflows/ci.yml` | Runs on `dev`, `main`, fork pull requests and by hand (`extend-ci-windows-linux-macos`). `checks` on Linux (fmt, clippy `-D warnings`, musl tests, gnu GUI lane, `no_alloc`, docs with warnings denied, benchmarks compiled, renderer smoke and WAV check), Windows MSVC and macOS (clippy, tests, GUI lane, renderer smoke; `no_alloc` on macOS). `bundle`: native VST3 and CLAP per platform with `scripts/bundle.sh` (macOS universal, ad-hoc signed), `scripts/check_bundle.sh`, clap-validator and pluginval. `nightly`: replaces the rolling `nightly` pre-release after a fully green run on main |
 | `scripts/verify-local.sh` | local mirror of CI |
 | `scripts/validate-plugins.sh` | optional `pluginval` + `clap-validator` wrapper |
 | `scripts/check_wav.py` / `analyze_wav.py` / `check_clicks.py` | offline artifact validation |
