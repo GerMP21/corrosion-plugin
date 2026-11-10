@@ -698,13 +698,13 @@ knee width `w`, the curve is linear below `K = L·(1 − w)` and
 
 ### Editor inline help (`add-parameter-tooltips`)
 
-Every widget helper (`industrial_knob[_text]`, `industrial_fader[_text]`, `industrial_vfader`, `vfader_global`) paints its label with `paint_label_with_badge`: the label plus a painted ⓘ badge (1 physical px circle and "i" in `MUTED_GREY`; egui's fonts have no U+24D8). Only the badge's own hover area shows the tooltip. The text comes from `help_for(label)`, one table keyed by display label, so slot help follows the selected exciter or object. When a control's behaviour changes, update its entry. `industrial_combo` shows `selector_help(label, selected)` for the selected option: a **trial**, removable by deleting that function and the marked block. `every_drawn_control_has_help` and `every_slot_spec_has_help` check coverage; the hover tests check that the badge, not the knob, opens the tooltip.
+Every widget helper (`industrial_knob[_text]`, `industrial_fader[_text]`, `industrial_vfader`, `vfader_global`) paints its label with `paint_label_with_badge`: the label plus a painted ⓘ badge (1 physical px circle and "i" in `MUTED_GREY`; egui's fonts have no U+24D8). Only the badge's own hover area shows the tooltip. The text comes from `help_for(label)`, one table keyed by display label, so slot help follows the selected exciter or object. When a control's behaviour changes, update its entry. `industrial_combo` shows `selector_help(label, selected)` for the selected option: a **trial**, removable by deleting that function and the marked block. `every_drawn_control_has_help` and `every_slot_spec_has_help` check coverage; the hover tests check that the badge, not the knob, opens the tooltip; `help_follows_the_selected_exciter` / `_object`, `selector_help_describes_the_selection` and `badge_scales_with_the_ui` cover the other scenarios. Because help is keyed by label, a slot label shared between models shares its tooltip: `shared_slot_labels_are_reviewed` fails unless such a label is listed in `SHARED_SLOT_LABELS` (today only "Mallet Mass") after checking it means the same in each model.
 
 ## 10. Build, Test, and QA Infrastructure
 
 | Component | Purpose |
 |---|---|
-| `.github/workflows/ci.yml` | fmt, clippy (`-D warnings`), no-default-features tests, native gnu lib tests, `render --suite family` smoke, WAV check, `bundle.sh release` |
+| `.github/workflows/ci.yml` | `quality-and-build`: fmt, clippy (`-D warnings`), no-default-features tests (musl), native gnu lib tests, `render --suite family` smoke, WAV check. `bundle`: VST3 and CLAP for Linux (`bundle.sh`) and Windows (`bundle-win.sh`, mingw-w64), zipped as artifacts. `prerelease`: replaces the rolling `nightly` pre-release on pushes to main and manual runs |
 | `scripts/verify-local.sh` | local mirror of CI |
 | `scripts/validate-plugins.sh` | optional `pluginval` + `clap-validator` wrapper |
 | `scripts/check_wav.py` / `analyze_wav.py` / `check_clicks.py` | offline artifact validation |
@@ -712,8 +712,9 @@ Every widget helper (`industrial_knob[_text]`, `industrial_fader[_text]`, `indus
 | `tests/` | integration tests: no_alloc, automation_stress, preset_roundtrip, body, drive, stereo, velocity, chain distinctness, limiter, damage rattle, bow, plugin metrics |
 | `src/bin/render.rs` | offline QA renderer incl. `--suite aliasing` → `aliasing_report.txt` |
 
-Default local target is `x86_64-unknown-linux-musl` (`.cargo/config.toml`); the
-bundle/validator flow uses `x86_64-unknown-linux-gnu`.
+`.cargo/config.toml` defaults the target to `x86_64-pc-windows-gnu` (the maintainer's
+Windows host); on Linux set `CARGO_BUILD_TARGET`. CI tests on `x86_64-unknown-linux-musl`,
+and the Linux bundle/validator flow uses `x86_64-unknown-linux-gnu`.
 
 ---
 

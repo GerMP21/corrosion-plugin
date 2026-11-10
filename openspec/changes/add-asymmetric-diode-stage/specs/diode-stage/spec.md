@@ -33,7 +33,7 @@ Diode Asymmetry SHALL lower the negative half's limit relative to the positive h
 - **THEN** at 0 the 2nd harmonic is at least 60 dB under the fundamental, and it rises from 0 to 0.25 to 1
 
 ### Requirement: The diode stage adds no DC
-While Diode Asymmetry is above 0, the stage SHALL remove the DC its curve creates. At Diode Asymmetry 0 it SHALL add no filtering.
+While Diode Asymmetry is above 0, the stage SHALL high-pass its whole output at an infrasonic cutoff (2 Hz), removing the DC its curve creates along with any other DC that reaches it. At Diode Asymmetry 0 it SHALL add no filtering.
 
 #### Scenario: Asymmetric clipping is centred
 - **WHEN** a 200 Hz sine at twice the curve's limit runs for two seconds with Diode Asymmetry 1

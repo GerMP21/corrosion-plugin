@@ -4710,6 +4710,271 @@ mod tests {
         );
     }
 
+    /// Help text each drawn parameter got in one frame of the editor
+    /// rendered with `params`.
+    fn drawn_help(
+        params: &crate::params::CorrosionParams,
+    ) -> std::collections::HashMap<nih_plug::prelude::ParamPtr, String> {
+        super::DRAWN_HELP.with(|help| help.borrow_mut().clear());
+        let _ = drawn_parameter_ids(params);
+        super::DRAWN_HELP.with(|help| help.borrow().clone())
+    }
+
+    /// Spec "Help changes with the exciter": each exciter control's tooltip
+    /// is the help for that control as the selected exciter uses it, and two
+    /// models with different controls show different help.
+    #[test]
+    fn help_follows_the_selected_exciter() {
+        use crate::params::{exciter_param, ExciterType};
+        use nih_plug::prelude::Param;
+        let mut panels = Vec::new();
+        for value in 1..=16 {
+            let params = crate::params::CorrosionParams {
+                exciter: exciter_param(value),
+                ..Default::default()
+            };
+            let help = drawn_help(&params);
+            let exciter = ExciterType::from_int(value);
+            let mut texts = Vec::new();
+            for spec in super::exciter_panel(exciter).controls {
+                let ptr = super::exciter_param_ref(&params, spec.id).as_ptr();
+                let expected = super::help_for(spec.label);
+                assert_eq!(
+                    help.get(&ptr).map(String::as_str),
+                    Some(expected),
+                    "{} / {}",
+                    exciter.name(),
+                    spec.label
+                );
+                texts.push(expected);
+            }
+            panels.push((exciter.name(), texts));
+        }
+        let panel = |name: &str| {
+            &panels
+                .iter()
+                .find(|(n, _)| *n == name)
+                .unwrap_or_else(|| panic!("no exciter named {name}"))
+                .1
+        };
+        assert_ne!(
+            panel("Hand Strike"),
+            panel("Bow"),
+            "Hand Strike and Bow show the same help"
+        );
+    }
+
+    /// Spec "Help changes with the object": the same for the object panel.
+    #[test]
+    fn help_follows_the_selected_object() {
+        use crate::params::{object_param, Object};
+        use nih_plug::prelude::Param;
+        let mut panels = Vec::new();
+        for value in 0..9 {
+            let params = crate::params::CorrosionParams {
+                object: object_param(value),
+                ..Default::default()
+            };
+            let help = drawn_help(&params);
+            let object = Object::from_int(value);
+            let mut texts = Vec::new();
+            for spec in super::resonator_panel(object).controls {
+                let ptr = super::resonator_param_ref(&params, spec.id).as_ptr();
+                let expected = super::help_for(spec.label);
+                assert_eq!(
+                    help.get(&ptr).map(String::as_str),
+                    Some(expected),
+                    "{} / {}",
+                    object.name(),
+                    spec.label
+                );
+                texts.push(expected);
+            }
+            panels.push(texts);
+        }
+        for (i, a) in panels.iter().enumerate() {
+            for b in &panels[i + 1..] {
+                assert_ne!(a, b, "two objects show the same slot help");
+            }
+        }
+    }
+
+    /// Spec "Selector help describes the selection": each selector's
+    /// tooltip describes the option it shows, so every option of a selector
+    /// has its own text, and exciter and object options use their panel's
+    /// description.
+    #[test]
+    fn selector_help_describes_the_selection() {
+        use crate::params::{
+            exciter_param, limiter_mode_param, object_param, play_mode_param, quality_mode_param,
+            ExciterType, Object,
+        };
+        use nih_plug::prelude::{IntParam, IntRange, Param};
+        type Edit = fn(&mut crate::params::CorrosionParams, i32);
+        type Ptr = fn(&crate::params::CorrosionParams) -> nih_plug::prelude::ParamPtr;
+        let selectors: [(&str, std::ops::RangeInclusive<i32>, Edit, Ptr); 6] = [
+            (
+                "Model Type",
+                1..=16,
+                |p, v| p.exciter = exciter_param(v),
+                |p| p.exciter.as_ptr(),
+            ),
+            (
+                "Material",
+                0..=8,
+                |p, v| p.object = object_param(v),
+                |p| p.object.as_ptr(),
+            ),
+            (
+                "MODE",
+                0..=3,
+                |p, v| p.quality_mode = quality_mode_param(v),
+                |p| p.quality_mode.as_ptr(),
+            ),
+            (
+                "PLAY",
+                0..=2,
+                |p, v| p.play_mode = play_mode_param(v),
+                |p| p.play_mode.as_ptr(),
+            ),
+            (
+                "LIMITER",
+                0..=1,
+                |p, v| p.limiter_mode = limiter_mode_param(v),
+                |p| p.limiter_mode.as_ptr(),
+            ),
+            (
+                "Loop",
+                0..=2,
+                |p, v| {
+                    // Loop is drawn only for friction exciters (the MSEG panel).
+                    let bow = (1..=16)
+                        .find(|&e| ExciterType::from_int(e).name() == "Bow")
+                        .expect("a Bow exciter");
+                    p.exciter = exciter_param(bow);
+                    p.loop_mode = IntParam::new("Loop Mode", v, IntRange::Linear { min: 0, max: 2 })
+                },
+                |p| p.loop_mode.as_ptr(),
+            ),
+        ];
+        for (label, values, edit, ptr) in selectors {
+            let mut seen = std::collections::BTreeMap::new();
+            for value in values {
+                let mut params = crate::params::CorrosionParams::default();
+                edit(&mut params, value);
+                let help = drawn_help(&params)
+                    .get(&ptr(&params))
+                    .cloned()
+                    .unwrap_or_default();
+                assert!(!help.is_empty(), "{label} = {value}: no help");
+                match label {
+                    "Model Type" => assert_eq!(
+                        help,
+                        super::exciter_panel(ExciterType::from_int(value)).description,
+                        "{label} = {value}"
+                    ),
+                    "Material" => assert_eq!(
+                        help,
+                        super::resonator_panel(Object::from_int(value)).description,
+                        "{label} = {value}"
+                    ),
+                    _ => {}
+                }
+                if let Some(other) = seen.insert(help.clone(), value) {
+                    panic!("{label}: options {other} and {value} share the help {help:?}");
+                }
+            }
+        }
+    }
+
+    /// Slot labels that more than one model uses, checked by hand to mean
+    /// the same thing in each (help is looked up by label, so a shared
+    /// label shares its tooltip).
+    const SHARED_SLOT_LABELS: &[&str] = &["Mallet Mass"];
+
+    /// Help is keyed by label, so two models that reuse a label with a
+    /// different meaning would silently show the wrong tooltip. Every slot
+    /// label shared between models has to be listed in `SHARED_SLOT_LABELS`
+    /// after checking that it means the same thing.
+    #[test]
+    fn shared_slot_labels_are_reviewed() {
+        use crate::params::{ExciterType, Object};
+        let mut users: std::collections::BTreeMap<String, Vec<String>> = Default::default();
+        for exciter in 1..=16 {
+            let exciter = ExciterType::from_int(exciter);
+            for spec in super::exciter_panel(exciter).controls {
+                users
+                    .entry(spec.label.to_ascii_lowercase())
+                    .or_default()
+                    .push(exciter.name().to_string());
+            }
+        }
+        for object in 0..9 {
+            let object = Object::from_int(object);
+            for spec in super::resonator_panel(object).controls {
+                users
+                    .entry(spec.label.to_ascii_lowercase())
+                    .or_default()
+                    .push(object.name().to_string());
+            }
+        }
+        let reviewed: Vec<String> = SHARED_SLOT_LABELS
+            .iter()
+            .map(|l| l.to_ascii_lowercase())
+            .collect();
+        let unreviewed: Vec<String> = users
+            .iter()
+            .filter(|(label, models)| models.len() > 1 && !reviewed.contains(label))
+            .map(|(label, models)| format!("{label:?} in {}", models.join(", ")))
+            .collect();
+        assert!(
+            unreviewed.is_empty(),
+            "slot labels shared between models; give each its own label or, if it \
+             means the same in both, add it to SHARED_SLOT_LABELS: {unreviewed:?}"
+        );
+        for label in &reviewed {
+            assert!(
+                users.get(label).is_some_and(|m| m.len() > 1),
+                "{label:?} is in SHARED_SLOT_LABELS but no longer shared"
+            );
+        }
+    }
+
+    /// The Cutoff knob's help badge side, with the editor laid out at
+    /// `scale` in a window that fits it.
+    fn cutoff_badge_side(scale: f32) -> f32 {
+        use nih_plug::prelude::Param;
+        let params = crate::params::CorrosionParams::default();
+        let window = (super::editor_width(scale), super::editor_height(scale));
+        let _ = rendered_right_edge(&params, scale, window);
+        let ptr = params.filter_cutoff.as_ptr();
+        let (badge, _) = super::DRAWN_BADGES
+            .with(|badges| badges.borrow().get(&ptr).copied())
+            .expect("the Cutoff knob draws a help badge");
+        assert!(
+            (badge.width() - badge.height()).abs() < 1e-3,
+            "badge isn't square"
+        );
+        badge.width()
+    }
+
+    /// Spec "Badge scales with the UI": the badge's size is proportional to
+    /// the UI scale (the content-fits-the-window part of the scenario is
+    /// `editor_content_fits_the_window_width`).
+    #[test]
+    fn badge_scales_with_the_ui() {
+        let base = cutoff_badge_side(1.0);
+        assert!(base > 4.0, "badge is {base} points at 100 %");
+        for scale in [0.5, 0.75, 1.5, 2.0] {
+            let side = cutoff_badge_side(scale);
+            let ratio = side / base;
+            assert!(
+                (ratio - scale).abs() < 0.02 * scale,
+                "at {scale}× the badge is {side:.2} points ({ratio:.3}× the 100 % size)"
+            );
+        }
+    }
+
     /// Every parameter the editor draws for some exciter, object and space
     /// mode (their panels differ).
     fn all_drawn_parameter_ids() -> std::collections::BTreeSet<String> {

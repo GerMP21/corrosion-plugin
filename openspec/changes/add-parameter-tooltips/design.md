@@ -69,4 +69,22 @@ Each text is one or two sentences: what the control does, then what turning it u
 - `every_drawn_control_has_help`: every control drawn for the 16 exciters, 9 objects and 4 Space modes has help of one or two sentences and at most 200 characters.
 - `hovering_the_badge_shows_help` / `hovering_the_knob_shows_no_help`: a pointer on the Cutoff knob's badge renders the help text in a tooltip after 1.2 s of frames; a pointer on the knob body doesn't.
 - `editor_content_fits_the_window_width` still passes at every UI scale and every exciter: no label had to be shortened.
-- **Not done:** the tests were written together with the implementation, not run red first (task 1.x, to save time). The REAPER screenshot (task 4.2) wasn't taken: the GUI hasn't been checked visually in a host.
+- **Tests first:** the first tests were written together with the implementation, not run red first (task 1.x, to save time). The scenario tests added at verification (below) were run red against deliberately broken code instead.
+
+### Scenario tests added at verification (2026-11-10)
+
+`/opsx:verify` found four scenarios without a test of their own. Each new test passes on the code, and was shown to fail by breaking the behaviour it covers (each mutation reverted):
+
+| Test | Scenario | Mutation | Result |
+|---|---|---|---|
+| `help_follows_the_selected_exciter` | Help changes with the exciter | `help_for` returns one text for every label | fails: "Hand Strike and Bow show the same help" |
+| `help_follows_the_selected_object` | Help changes with the object | same | fails: "two objects show the same slot help" |
+| `selector_help_describes_the_selection` | Selector help describes the selection | `selector_help` always describes Hand Strike | fails on Model Type = 2 |
+| `badge_scales_with_the_ui` | Badge scales with the UI | badge side fixed at 9 points | fails: "at 0.5× the badge is 9.00 points (1.000×)" |
+| `shared_slot_labels_are_reviewed` | (guard for label-keyed help) | Bow's first slot relabelled "Hand Mass" | fails: "\"hand mass\" in Bow, Hand Strike" |
+
+The exciter and object tests check, for every model, that each slot's tooltip is `help_for` of that model's label, and that models with different controls show different help. The selector test covers Model Type, Material, MODE, PLAY, LIMITER and Loop (Loop is drawn only for friction exciters, so it's rendered with Bow): every option has its own text, and exciter and object options use their panel's description. Help is keyed by label, so `shared_slot_labels_are_reviewed` requires any slot label shared between models to be listed in `SHARED_SLOT_LABELS` after checking it means the same in each; today only "Mallet Mass" (Felt Mallet, Hard Mallet).
+
+### REAPER check (task 4.2, 2026-11-10)
+
+The CLAP plugin, built with the patched nih-plug used for screenshots (`srgb: false`, because the dummy X server has no sRGB framebuffer config), opened in REAPER on an Xorg dummy display at the 75 % default (810 × 604 window). Every knob, fader and selector label shows the badge to its right: a thin circle with an "i", in the label's grey, legible at 75 %. With the pointer on Cutoff's badge, the tooltip "Cutoff of the low-pass filter after the voices. Lower sounds darker." opens beside it; on Model Type's badge, the Hand Strike description appears. No label is clipped or overlaps its neighbour. The trial selector tooltips for Model Type and Material repeat the description line already printed under each combo; something to weigh when deciding whether to keep the trial.

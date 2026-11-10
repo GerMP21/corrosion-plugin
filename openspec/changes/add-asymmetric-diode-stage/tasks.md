@@ -21,7 +21,7 @@
 - [x] 4.1 Add `diode_asymmetry` (0–1, default 0.25, display "Diode Asymmetry") to the parameters, the preset `extra` block and `into_params`, and wire it to the chain. Add the `migrate_preset_json` and `filter_state` rules. Verify the migration tests and `tests/preset_roundtrip.rs` pass.
 - [x] 4.2 Add the shared reduction meter (decision 8): peaks per block in the clipper, published by the plugin, taken and decayed by the editor. Verify `tests/no_alloc.rs` passes in debug.
 - [x] 4.3 Add the Asymmetry fader to the brickwall panel and drive the dot from the meter. Verify the dot tests and the editor-controls coverage test pass; update the editor content-height expectations if the panel grows.
-- [x] 4.4 Regenerate the factory bank with `cargo run --bin seed_presets`. Verify `preset_levels_are_sane` and the preset tests pass.
+- [x] 4.4 Regenerate the factory bank with `cargo run --bin seed_presets`. Verify the preset tests (`tests/preset_roundtrip.rs`) pass. *Changed (maintainer, 2026-11-10):* preset levels aren't a gate, since the factory presets are placeholders; `preset_levels_are_sane` still fails on three presets (see design.md).
 
 ## 5. Docs and close-out
 

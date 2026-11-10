@@ -11,5 +11,5 @@
 
 ## 3. Close-out
 
-- [x] 3.1 Re-run `preset_levels_are_sane`; if it fails, apply the light level pass (`preset_levels_table`, then `seed_presets`). Run the full suite on gnu and musl, fmt, clippy `-D warnings`, `cargo doc`.
+- [x] 3.1 Re-run `preset_levels_are_sane` and record the result (no level pass: the factory presets are placeholders, maintainer 2026-11-10; three presets fall under its floor, see design.md). Run the full suite on gnu and musl, fmt, clippy `-D warnings`, `cargo doc`.
 - [x] 3.2 Document the blocker in `docs/ARCHITECTURE.md` (signal chain, voice output) and the README; update `CLAUDE.md`'s current state and execution order. Then resume `add-asymmetric-diode-stage` (re-measure its levels and its blocker's open question).

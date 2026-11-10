@@ -22,7 +22,7 @@
 ## 4. Layout and visual check
 
 - [x] 4.1 Run `editor_content_fits_the_window_width`, `layout_scale_never_exceeds_the_window` and the other editor tests at 75 % and every UI scale. If a column overflows, shorten display labels rather than shrinking the badge, and record what changed in `design.md`.
-- [ ] 4.2 Take REAPER screenshots (the patched nih-plug screenshot build) of a column at 75 % with a tooltip open, to confirm the badge reads as a 1 px circled "i". Record the result in `design.md`.
+- [x] 4.2 Take REAPER screenshots (the patched nih-plug screenshot build) of a column at 75 % with a tooltip open, to confirm the badge reads as a 1 px circled "i". Record the result in `design.md`.
 
 ## 5. Docs and close-out
 
