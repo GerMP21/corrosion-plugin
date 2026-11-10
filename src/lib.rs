@@ -1352,7 +1352,7 @@ impl Corrosion {
 impl Plugin for Corrosion {
     // Plugin metadata constants
     const NAME: &'static str = "Corrosion";
-    const VENDOR: &'static str = "Corrosion Audio";
+    const VENDOR: &'static str = "Synaptech Solutions";
     const URL: &'static str = "";
     const EMAIL: &'static str = "";
     const VERSION: &'static str = env!("CARGO_PKG_VERSION");
@@ -1538,6 +1538,15 @@ mod tests {
     use crate::params::object_param;
     use nih_plug::prelude::NoteEvent;
     use std::sync::Arc;
+
+    /// Hosts show Synaptech Solutions as the vendor. The VST3 class ID keeps
+    /// its old bytes: changing it would orphan the plugin in saved projects.
+    #[test]
+    fn plugin_vendor_is_synaptech_solutions() {
+        use nih_plug::prelude::{Plugin, Vst3Plugin};
+        assert_eq!(Corrosion::VENDOR, "Synaptech Solutions");
+        assert_eq!(&Corrosion::VST3_CLASS_ID, b"CorrosionAudio01");
+    }
 
     /// H13: after `reset()` the master drive starts where `begin_block`
     /// aims it, Drive plus the Violence bias (clamped), so the first note

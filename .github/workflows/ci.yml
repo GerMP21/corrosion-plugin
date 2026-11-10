@@ -236,12 +236,14 @@ jobs:
           base="Corrosion-${{ matrix.platform }}-${{ matrix.arch }}"
           mkdir -p dist
           dist="$PWD/dist"
+          # The license (GPLv3) goes next to the bundle.
+          cp LICENSE target/bundled/${{ matrix.platform }}/
           cd target/bundled/${{ matrix.platform }}
           for format in vst3 clap; do
             if [ "$RUNNER_OS" = Windows ]; then
-              7z a -tzip "$dist/$base-$format.zip" "Corrosion.$format" >/dev/null
+              7z a -tzip "$dist/$base-$format.zip" "Corrosion.$format" LICENSE >/dev/null
             else
-              zip -qry "$dist/$base-$format.zip" "Corrosion.$format"
+              zip -qry "$dist/$base-$format.zip" "Corrosion.$format" LICENSE
             fi
           done
           ls -l "$dist"
@@ -299,7 +301,7 @@ jobs:
           | macOS (Apple Silicon and Intel) | \`~/Library/Audio/Plug-Ins/VST3\` | \`~/Library/Audio/Plug-Ins/CLAP\` |
           | Linux (x86_64) | \`~/.vst3\` | \`~/.clap\` |
 
-          Unzip each archive into its folder.
+          Unzip each archive and move \`Corrosion.vst3\` or \`Corrosion.clap\` into its folder. Each zip also holds \`LICENSE\`: Corrosion is free software under the GPLv3.
 
           **macOS:** the bundles are ad-hoc signed, not notarized, so macOS quarantines them after a download. Before the first use, run \`xattr -dr com.apple.quarantine ~/Library/Audio/Plug-Ins/VST3/Corrosion.vst3\` (and the same for \`CLAP/Corrosion.clap\`).
           EOF

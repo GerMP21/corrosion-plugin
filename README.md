@@ -9,7 +9,7 @@ Package version: `0.2.0`. Preset schema version: `4`; files from schemas 1–3 a
 ### Install
 
 1. Download the zip for your platform and format from the [`nightly` pre-release](../../releases/tag/nightly). It is rebuilt by every green CI run on `main`: tested on its platform and checked with clap-validator and pluginval.
-2. Unzip it into your plugin folder:
+2. Unzip it and move the `Corrosion.vst3` or `Corrosion.clap` bundle into your plugin folder (the zip also holds the license):
 
    | Platform | VST3 | CLAP |
    |---|---|---|
@@ -18,7 +18,7 @@ Package version: `0.2.0`. Preset schema version: `4`; files from schemas 1–3 a
    | Linux (x86_64) | `~/.vst3` | `~/.clap` |
 
 3. **macOS only:** the bundles are ad-hoc signed, not notarized, so macOS quarantines them after a download. Before the first use run `xattr -dr com.apple.quarantine ~/Library/Audio/Plug-Ins/VST3/Corrosion.vst3` (and the same for `CLAP/Corrosion.clap`).
-4. Rescan plugins in your host and load **Corrosion** (vendor "Corrosion Audio") on an instrument track.
+4. Rescan plugins in your host and load **Corrosion** (vendor "Synaptech Solutions") on an instrument track.
 
 To build it yourself instead, see [Build And Run](#build-and-run).
 
@@ -339,3 +339,9 @@ When you post, please distinguish between:
 - **DSP theory concerns**: references to specs, papers, or competitive plugins where they apply.
 - **Implementation cleanup**: refactor or readability proposals, ideally with a sketch of the change.
 - **Experimental ideas**: speculative directions worth chewing over before anyone commits to building them.
+
+## License
+
+Copyright (C) 2026 The Corrosion Synthesizer Authors.
+
+Corrosion is free software, released under the [GNU General Public License v3](LICENSE) or (at your option) any later version. It comes with no warranty; see the license for details.
