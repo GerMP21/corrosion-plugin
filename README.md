@@ -9,7 +9,7 @@ Package version: `0.2.0`. Preset schema version: `4`; files from schemas 1–3 a
 ### Install
 
 1. Download the zip for your platform and format from the [`nightly` pre-release](../../releases/tag/nightly). It is rebuilt by every green CI run on `main`: tested on its platform and checked with clap-validator and pluginval.
-2. Unzip it and move the `Corrosion.vst3` or `Corrosion.clap` bundle into your plugin folder (the zip also holds the license files):
+2. Unzip it and move the `Corrosion.vst3` or `Corrosion.clap` bundle into your plugin folder (the zip also holds the license):
 
    | Platform | VST3 | CLAP |
    |---|---|---|
@@ -342,6 +342,6 @@ When you post, please distinguish between:
 
 ## License
 
-Corrosion's source code is released under the [MIT License](LICENSE).
+Copyright (C) 2026 The Corrosion Synthesizer Authors.
 
-The VST3 build links the [vst3-sys](https://github.com/RustAudio/vst3-sys) bindings that NIH-plug uses, which are licensed under the GPLv3. A distributed VST3 binary therefore also falls under the [GNU General Public License v3](LICENSE-GPL-3.0), whose full text is in this repository (NIH-plug's README explains this). MIT code can be combined with GPLv3 code, and the complete source is public here. The CLAP build doesn't use those bindings.
+Corrosion is free software, released under the [GNU General Public License v3](LICENSE) or (at your option) any later version. It comes with no warranty; see the license for details.
