@@ -32,7 +32,7 @@
 
 ## 5. Docs and close-out
 
-- [ ] 5.1 Measurements in `design.md` (state-restore behaviour, pad vs live note-on cost, kit preset sizes)
-- [ ] 5.2 REAPER check at 75 %: build a kit by assigning, play it from MIDI and the computer keys, save and reload it as a preset and in a project, the zone lock and the toggle, an old Kit project migrating; screenshot
-- [ ] 5.3 README (Kit mode, the shared post chain, the BREAKING note), `docs/ARCHITECTURE.md`, PRD §9.2 note
-- [ ] 5.4 `cargo fmt --check`, clippy `-D warnings`, tests on gnu and musl, GUI lane, no_alloc, `cargo doc`; update CLAUDE.md "Current state"; commit and push to `dev`
+- [x] 5.1 Measurements in `design.md` (state-restore behaviour, pad vs live note-on cost, kit preset sizes)
+- [x] 5.2 REAPER check at 75 %: build a kit by assigning, play it from MIDI and the computer keys, save and reload it as a preset and in a project, the zone lock and the toggle, an old Kit project migrating; screenshot
+- [x] 5.3 README (Kit mode, the shared post chain, the BREAKING note), `docs/ARCHITECTURE.md`, PRD §9.2 note
+- [x] 5.4 `cargo fmt --check`, clippy `-D warnings`, tests on gnu and musl, GUI lane, no_alloc, `cargo doc`; update CLAUDE.md "Current state"; commit and push to `dev`

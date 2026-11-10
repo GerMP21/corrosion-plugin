@@ -15,7 +15,7 @@ Current package version: `0.1.0`. Preset schema version: `4` (with backwards-com
 - 130+ host parameters covering exciters, objects, transformations, post-processing, four high-level macros, and three play modes.
 - An egui editor with UI scaling (50/75/100/125/150%), controls for every audible parameter (including play and limiter modes, sync and the four macros), user presets, and a randomizer.
 - Offline renderers for comparison suites, preset batch renders, and aliasing analysis with asserted budgets.
-- A factory bank of 204 presets in folders: 60 designed by hand (bass, lead, chords, drones, percussion) and 144 experimental ones, one per exciter × resonator, all at a common loudness (`src/presets/factory/`, written by `src/bin/seed_presets.rs`).
+- A factory bank of 214 presets in folders: 60 designed by hand (bass, lead, chords, drones, percussion), 10 drum kits and 144 experimental ones, one per exciter × resonator, all at a common loudness (`src/presets/factory/`, written by `src/bin/seed_presets.rs`).
 
 ## Current Sound Surface
 
@@ -45,7 +45,7 @@ Each object is driven by an algorithmic resonator generator (the single resonato
 - **Global exciter controls** (under the exciter selector, each neutral at its default): **Pressure** trims every exciter's force by −12 to +12 dB and follows automation on held notes; **Speed** scales motion speeds ×0.5 to ×2 (bow, scrape, grind, drag, pull, particle flow); **Roughness** scales grit and randomness ×0 to ×3.33 (rosin grip, surface grit, slip, turbulence, brush and rattle randomness, particle mass variance). Speed and Roughness apply at note-on. Exciters with no motion or grit parameter ignore them.
 - **Rust, Damage, Heat**: Rust (0–5) dulls and shortens the high partials first while the low thud keeps ringing; Damage (0–10) cracks the object into beating, detuned mode pairs without losing the note; Heat (0–1) lowers the pitch slightly, darkens, and adds a slow thermal warble. None of them silences a note: across each range the level stays within about 3 dB.
 - **Macros** (PRD §12, neutral midpoint at 0.5): `Mass`, `Corrosion`, `Violence`, `Brightness`. Each layers a bias across a cluster of related destinations (mass macro hits the exciter mass cluster + resonator size; corrosion adds damping and rust; violence pushes drive/chaos/damage; brightness opens the post-chain filter).
-- **Play mode**: `Tonal` (default — note → pitch), `Kit` (MIDI note range → object family, 10 notes per kit slot from MIDI 24, repeating above and below that block so every object is reachable at both ends of the keyboard), `Drone` (force MSEG loop on for friction voices so notes ring until release).
+- **Play mode**: `Tonal` (default — note → pitch), `Kit` (each key plays its own pad, see [Kit mode](#kit-mode); keys without a pad are silent), `Drone` (force MSEG loop on for friction voices so notes ring until release).
 - **Quality**: `Eco` / `Normal` / `High` / `Render`. Controls both the final clipper's oversampling (1×/4×/8×/16×, half-band IIR filters; every mode, Eco included, runs the same diode curve with its limit 2.3 dB below the Analog Ceiling, so the modes differ only in aliasing) **and** per-voice modal density (0.5×/1.0×/1.5×/2.0× the object's base mode count). Every mode runs the full post chain (Eco no longer skips body, spread or Space), so quality modes trade fidelity and CPU, not effects. **The two parts change at different times:** the clipper's oversampling switches at once, but a note's mode count is fixed when it starts, so held notes and their tails keep their density until the next note-on.
 - **Limiter**: `Hard` (default zero-latency hard clamp at ≈−0.3 dBFS) or `Lookahead` (48-sample window, instant attack, 50 ms release; reports its 1 ms latency to the host).
 - **Diode stage** (the final clipper, in the Brickwall Limiter panel): a soft-knee diode curve that sounds good driven hot.
@@ -71,6 +71,7 @@ The factory bank lives under `presets/factory/`, in folders. The preset browser 
   - chord patches are harmonic and sustain, so they can be played as chords;
   - drones hold their level while the key is down;
   - percussion dies away on its own.
+- **Drums**: ten Kit-mode drum kits on the General MIDI layout (36 kick, 37 side stick, 38 snare, 39 clap, 41 / 45 / 48 toms, 42 / 44 / 46 hats, 49 crash, 51 ride), each from one family of objects (Foundry, Scrapyard, Pipe, Rust Belt, Boiler Room, Rail Yard, Wire, Sheet Storm, Clockwork, Junk Percussion). Each pad is levelled on its own.
 - **Experimental**: one preset for every exciter on every resonator (16 × 9), grouped by exciter. Each draws every parameter from a fixed seed within playable ranges, so they're varied, sometimes strange, and always audible.
 
 Every factory preset is levelled so a held middle C sits at the same loudness (−17.7 dBFS RMS), with headroom so even a full-velocity note barely touches the limiter. Releasing a bowed, scraped or dragged note snaps the object free and can ring out louder than the held note. Regenerate the bank with `cargo run --release --bin seed_presets`.
@@ -81,14 +82,30 @@ The editor opens at 75 % (810 × 630). The **SCALE** selector (50–150 %) resiz
 
 ### Playing from the editor
 
-A piano strip at the bottom of the editor (C3–C6) stays in view while the panels scroll:
+A piano strip at the bottom of the editor (C2–C6, MIDI 36–84) stays in view while the panels scroll:
 
 - **Mouse:** click a key to play it, drag across keys for a glissando, release to stop. Pressing lower on a key plays louder.
-- **Computer keyboard:** `A W S E D F T G Y H U J K` play C4 to C5 (white keys on the home row, black keys above), at a fixed velocity. Keys match by letter, so on AZERTY the row is the same letters, not the same positions.
+- **Computer keyboard:** `A W S E D F T G Y H U J K` play C4 to C5 (white keys on the home row, black keys above), at a fixed velocity; in Kit mode they play C2 to C3 (36–48), where the drum pads are. Keys match by letter, so on AZERTY the row is the same letters, not the same positions.
 - Computer keys play only while the editor has keyboard focus **and the mouse pointer is over it**, and not while you type a preset name. Moving the pointer off the editor, or closing it, releases every note it holds. The pointer condition is there because the window backend doesn't report focus loss on Windows or Linux.
 - Keys light up while their note is held, from the strip or from the host's MIDI.
 - Notes from the strip play like MIDI notes on channel 0 (play mode, sustain pedal and voice stealing apply), but they don't reach the host's MIDI output and aren't recorded.
 - Some hosts keep keystrokes for their own shortcuts. In REAPER, keys reach the plugin while its window has focus; if they don't, enable "Send all keyboard input to plugin" in the FX window's menu. The mouse always works.
+
+### Kit mode
+
+In **Kit** mode each key plays its own **pad**: a whole sound (exciter, object and every voice control) stored for that key with a tune (±48 semitones) and a level. Keys without a pad are silent. The post chain (filter, drive, BODY, spread, Space, clipper, limiter, Output) is shared by the whole kit, so a kit's kick and hats go through the same drive and room.
+
+When Play is set to Kit, a kit bar appears above the strip:
+
+- **Click a key** to select it (and play it). Selecting a key with a pad loads its sound into the editor, so you can tweak it.
+- **Assign** stores the editor's current sound on the selected key. Its tune keeps the pitch you last heard the sound at: dial a sound in Tonal mode, play it on C4, then assign it to 38 and the pad plays at C4's pitch (+22 st). **Tune** changes it afterwards.
+- **Clear** removes the selected key's pad.
+- The kit zone is C2 to B3 (36–59); keys outside it are greyed and ignore the mouse and computer keys until **Full keyboard** is on.
+- Keys with a pad get a coloured band; the selected key an outline.
+
+A kit is saved with presets and with your DAW project. Loading a pad moves every voice parameter, which a host recording automation will record, as when loading a preset.
+
+**BREAKING:** the old Kit mode, which mapped 10-note slots of the keyboard to objects, is gone. Presets and projects saved in the old Kit mode load in Tonal mode, with their other values kept; host automation of Play Mode that selects Kit now selects the new mode, which is silent until pads are assigned.
 
 The editor's **Save** writes the current sound as a named preset (every parameter except UI Scale) into your user preset folder, or one of its subfolders, picked in the selector next to the name. You can't save into the factory bank. Saving over an existing name asks first. The browser's **User** submenu mirrors the folder's subfolders (up to four levels deep). The **‹ ›** arrows step through the presets of the current folder. **Open folder** shows the user folder in your file manager (it is created if missing), so you can add, rename or delete folders and presets there. The folder:
 
@@ -120,7 +137,7 @@ Every change is sent to the host as a normal parameter edit, so host undo applie
 ├── bundle-win.sh
 ├── docs/                  ARCHITECTURE.md, BACKLOG.md, code-review.md,
 │                          corrosion_plugin_prd_and_specs.md, detailed-specs/
-├── presets/factory/       204 .corrosion-preset files in folders (written by seed_presets)
+├── presets/factory/       214 .corrosion-preset files in folders (written by seed_presets)
 ├── scripts/               verify-local.sh, validate-plugins.sh, check_wav.py …
 ├── src/
 │   ├── lib.rs             Plugin trait impls, MIDI routing (incl. CCs), macros,
@@ -169,7 +186,7 @@ cargo run --target x86_64-unknown-linux-gnu --bin render -- --suite all
 # --velocity, --note-off, --duration, --sample-rate, --contains, --limit, --out-dir
 cargo run --release --target x86_64-unknown-linux-gnu --bin render_presets
 
-# Level and write the 204 factory presets (and src/presets/factory/levels.rs)
+# Level and write the 214 factory presets and the drum pads (and src/presets/factory/levels.rs)
 cargo run --release --bin seed_presets
 
 # Run the benchmark harness on the supported native no-GUI lane

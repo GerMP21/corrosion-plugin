@@ -340,3 +340,50 @@ fn a_pads_level_scales_its_output() {
         "12 dB less pad level dropped only {drop_db:.2} dB"
     );
 }
+
+// --- Measurements ---------------------------------------------------------
+
+/// Prints the cost of a pad note-on against a live note-on of the same
+/// sound, through `handle_note_event` (median of 7 interleaved runs).
+#[test]
+#[ignore]
+fn print_pad_note_on_cost() {
+    use nih_plug::prelude::NoteEvent;
+    let mallet = mallet_on_tank();
+    let (mut live, _) =
+        crate::host_rate_and_latency_tests::initialized(mallet.clone().into_params(), SR as f32);
+    let mut kit_preset = mallet.clone();
+    kit_preset.play_mode = PlayMode::Kit.to_int();
+    let (mut pad, _) = crate::host_rate_and_latency_tests::initialized(
+        kit_params(&kit_preset, &[pad_from(&mallet, 36, 0)]),
+        SR as f32,
+    );
+    let event = NoteEvent::NoteOn {
+        timing: 0,
+        voice_id: None,
+        channel: 0,
+        note: 36,
+        velocity: 0.8,
+    };
+    const N: u32 = 2_000;
+    let time = |plugin: &mut crate::Corrosion| {
+        let start = std::time::Instant::now();
+        for _ in 0..N {
+            crate::handle_note_event(plugin, event);
+        }
+        start.elapsed().as_secs_f64() * 1e6 / f64::from(N)
+    };
+    let (mut l, mut p) = (Vec::new(), Vec::new());
+    for _ in 0..7 {
+        l.push(time(&mut live));
+        p.push(time(&mut pad));
+    }
+    l.sort_by(f64::total_cmp);
+    p.sort_by(f64::total_cmp);
+    println!(
+        "NOTE-ON live {:.2} µs, pad {:.2} µs, ratio {:.3}",
+        l[3],
+        p[3],
+        p[3] / l[3]
+    );
+}

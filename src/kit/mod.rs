@@ -6,11 +6,11 @@
 //! shared by the whole kit.
 //!
 //! Two forms of the same kit:
-//! - [`KitState`] is the serialisable form (parameter values by ID), saved
+//! - [`KitState`](crate::kit::KitState) is the serialisable form (parameter values by ID), saved
 //!   in presets and in the host's project state. It lives behind a lock and
 //!   is only touched off the audio thread.
-//! - [`KitTable`] is what the audio thread reads at note-on: 128 slots of
-//!   ready-to-play [`Pad`]s, one seqlock per slot, written by the editor or
+//! - [`KitTable`](crate::kit::KitTable) is what the audio thread reads at note-on: 128 slots of
+//!   ready-to-play [`Pad`](crate::kit::Pad)s, one seqlock per slot, written by the editor or
 //!   by `Plugin::initialize` after a state restore and never locked or
 //!   allocated on the audio side.
 
@@ -314,7 +314,7 @@ impl KitTable {
     }
 
     /// The pad on `key`, if any. Real-time safe: no lock, no allocation.
-    /// Returns `None` if a write keeps racing the read ([`READ_TRIES`]).
+    /// Returns `None` if a write keeps racing the read (`READ_TRIES` tries).
     pub fn get(&self, key: u8) -> Option<Pad> {
         let slot = &self.slots[key as usize & 127];
         for _ in 0..READ_TRIES {

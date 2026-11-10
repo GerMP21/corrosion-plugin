@@ -331,6 +331,8 @@ The plugin receives MIDI note input and generates audio. This is the MVP mode.
 
 Future mode where each MIDI note maps to a different object preset.
 
+> **Implemented** by `per-key-kits` (2026-11-10): in Kit mode each key plays its own pad (a whole voice-level sound with a tune and a level), keys without a pad are silent, and the post chain is shared by the kit. Pads are assigned in the editor's kit bar and saved with presets and projects; ten factory drum kits are in `presets/factory/drums/`. See the README's "Kit mode" and `docs/ARCHITECTURE.md`.
+
 ### Example
 
 ```text

@@ -286,12 +286,11 @@ Idle ──note_on──▶ Active(rendering) ──note_off──▶ Tail(rende
   the fade is an out-of-line branch in the per-sample voice loop. Channel MPE
   is out of scope: channel bend, pressure and CC1 stay global.
 - **Object per note** (`handle_note_event`): in Tonal and Drone play modes the
-  Object parameter picks the object. In **Kit** mode the note does
-  (`note_to_kit_object`): 10-note slots in object order from MIDI 24, repeating
-  in both directions, slot = `(note − 24).div_euclid(10).rem_euclid(9)`. So
-  114–123 is Pipe again, and below the block 14–23 is object 8, 4–13 object 7
-  and 0–3 object 6 (`h14-wrap-low-kit-notes`; every note under 24 used to play
-  Pipe).
+  Object parameter picks the object, through `note_setup` (profile, size, rust,
+  damage, exciter and `VoiceControls` from the live parameters). In **Kit** mode
+  the key's pad does (see "Kit mode" below); a key without a pad is silent.
+  (The old Kit mode's 10-note object slots, `note_to_kit_object`, were removed
+  by `per-key-kits`.)
 
 ---
 
@@ -776,10 +775,10 @@ Every widget helper (`industrial_knob[_text]`, `industrial_fader[_text]`, `indus
 
 ### Editor keyboard (`add-editor-keyboard`)
 
-`render_window_body` puts the panels in a vertical scroll view and pins the keyboard strip (`render_keyboard_strip`, C3–C6) under it, so the strip stays in view.
+`render_window_body` puts the panels in a vertical scroll view and pins the keyboard strip (`render_keyboard_strip`, C2–C6, MIDI 36–84 since `per-key-kits`) under it, so the strip stays in view.
 - The window is 72 points taller than the 768-point layout height at 100 % (`BASE_EDITOR_HEIGHT` vs `BASE_LAYOUT_HEIGHT`; `height_pct` uses the latter, so the panels did not move).
 - The mouse plays the key under the pointer while the button is down on the strip, with velocity 0.25–1.0 from the key's top to its bottom; black keys are hit-tested first.
-- The computer keys `A W S E D F T G Y H U J K` play notes 60–72 by letter (egui-baseview reports no physical key).
+- The computer keys `A W S E D F T G Y H U J K` play notes 60–72 by letter (egui-baseview reports no physical key), or 36–48 in Kit mode (`NoteSender::set_key_base`; a held key releases the note it started).
 
 **When the keys are live.** They play only while the window is focused, the pointer is over the editor (`PointerState::has_pointer`), and no text field has focus (`wants_keyboard_input`; only the preset-name field takes focus).
 - baseview reports focus loss only on macOS. On Windows and X11 the pointer leaving (`PointerGone`) stands in for it: it releases everything the strip holds.
@@ -791,6 +790,30 @@ Every widget helper (`industrial_knob[_text]`, `industrial_fader[_text]`, `indus
 - After the block, it publishes `voice_manager.active_notes()` as a 128-bit mask for the highlights.
 - nih-plug-egui keeps the editor state between openings, so a close is seen on the audio side: `process()` watches `editor_state.is_open()`, and on the open → closed edge `EditorNoteState` sends a note-off for every note the editor turned on (host notes are untouched). The strip forgets its holders when the window reopens.
 - `editor_note_drain_is_alloc_free` covers the drain.
+
+### Kit mode (`per-key-kits`)
+
+**Data.** `src/kit/`.
+- `KitPad { key, tune, level_db, values }` is the stored pad: the plain value of every parameter except `NON_PAD_PARAMS` (post chain, master, quality, sync, UI), keyed by parameter ID. `KitPad::from_params` snapshots the live parameters (modulated values, so the macros' voice-side bias is in the pad); `KitPad::params` rebuilds a `CorrosionParams` by overlaying the values on the default preset.
+- `KitState { pads }` is the kit: a `#[persist = "kit"]` field of `CorrosionParams` (`Arc<RwLock<KitState>>`, saved with the project) and the optional `kit` field of a preset file (schema "4"; absent means no pads).
+- `Pad` is the audio-side form, built once per pad by `KitPad::build`: the `NoteSetup` that `note_setup` returns for the pad's parameters, the tune, and the level as a linear gain.
+
+**Pad table.** `KitTable` (`params.kit_table`): 128 seqlock slots (`AtomicU32` sequence + `UnsafeCell<MaybeUninit<Option<Pad>>>`). Writers (GUI, preset load, state restore) are serialised by a mutex the audio thread never takes; a reader copies the slot with volatile reads and retries up to 4 times while the sequence is odd or changes, then plays nothing. `KitTable::load(&KitState)` replaces every slot.
+- nih-plug calls `initialize()` again after restoring state, so `initialize` rebuilds the table from `params.kit`; nothing deserialises on the audio thread.
+
+**Note-on.** In Kit mode `handle_note_event` reads the key's pad and calls `Pad::play` → `VoiceManager::note_on_pad`, which shares `start_voice` with `note_on_addressed`:
+- The voice starts at note `key + tune` into the mode bank, so a pad renders bit-identically to a live note at that pitch; `Voice::mark_pad` then sets the voice's note back to the key, so note-offs, chokes and expression still match it.
+- `pad_voice` makes `update_live_controls` return early: knob moves don't reach pad voices. `pad_gain` multiplies the voice output after its clamp (mono and stereo paths), so the post chain sees the pad's level; it compresses above about −20 dB of pad level (the diode knee).
+- Quality follows the live setting at note-on (`mode_count_scale`). `pad_note_ons_are_alloc_free_while_pads_are_assigned` covers real-time safety; a pad note-on costs the same as a live one (0.89–0.97×).
+
+**Editor.** In Kit mode `render_window_body` takes `KIT_BAR_BASE_HEIGHT` (24 points at 100 %) from the scroll view for the kit bar (`render_kit_bar`: KEY, Tune, Assign, Clear, Full keyboard); the window keeps its size.
+- `KitEditor { selected, full_keyboard, last_auditioned }`. A fresh press selects a key (`select_kit_key`), and a key with a pad loads its sound into the editor through the `ParamSetter` (`load_pad`, skipping the macros, `PAD_MACRO_PARAMS`, which also move post-chain controls).
+- Assign stores `KitPad::from_params` with tune = `last_auditioned − key` (0 if none). `last_auditioned` is set by any editor note outside Kit mode and by selecting a pad (key + its tune); empty keys in Kit mode play nothing and don't set it.
+- Keys outside `KIT_ZONE` (36–59) are painted `KIT_LOCKED_*` and filtered out of the mouse and computer keys unless Full keyboard is on; pads get a `KIT_PAD_BAND` band, the selected key an outline.
+
+**Migration.** A preset (`migrate_old_kit_mode`) or project (`migrate_host_old_kit_mode` in `filter_state`) with Play Mode Kit and no `kit` field loads as Tonal. Host automation can't be migrated (BREAKING).
+
+**Factory kits.** `src/presets/factory/drums.rs`: ten kits, 12 GM pads each, role-tuned (kicks −12, snares and claps +12, side sticks +24, hats +48, cymbals +36, toms 0). The seeder levels each pad alone with `level_pad` (to the bank's floor, capped for headroom at velocity 127) and stores the levels in `levels.rs` (`PAD_LEVELS`, range `PAD_LEVEL_RANGE_DB` −40…+60 dB: one-shot hats put little energy in the floor's 2 s window). `every_drum_pad_meets_the_quality_floor` and `drum_kits_have_drum_character` check them.
 
 ## 10. Build, Test, and QA Infrastructure
 
