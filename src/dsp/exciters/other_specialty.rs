@@ -16,6 +16,9 @@ pub struct PneumaticJet {
     air_pressure: f32,
     nozzle_width: f32,
     turbulence_chaos: f32,
+    /// Where the jet saturation `v² − chaos·v³` peaks, `2/(3·chaos)`
+    /// (infinite at chaos 0); above it the curve holds its peak.
+    saturation_knee: f32,
     active: bool,
     /// Noise for this note (`resolve-exciter-tradeoffs`).
     noise: Noise,
@@ -26,6 +29,16 @@ pub struct PneumaticJet {
     filter_alpha: f32,
 }
 
+/// The peak of `v² − chaos·v³` for `v ≥ 0`: `2/(3·chaos)`, or infinity
+/// when `chaos` is 0 (the curve is then `v²`, which never turns over).
+fn saturation_knee(chaos: f32) -> f32 {
+    if chaos > 0.0 {
+        2.0 / (3.0 * chaos)
+    } else {
+        f32::INFINITY
+    }
+}
+
 impl PneumaticJet {
     /// Creates a default pneumatic-jet exciter.
     pub fn new() -> Self {
@@ -33,6 +46,7 @@ impl PneumaticJet {
             air_pressure: 0.6,
             nozzle_width: 0.5,
             turbulence_chaos: 0.3,
+            saturation_knee: saturation_knee(0.3),
             active: false,
             noise: Noise::default(),
             filter_state: 0.0,
@@ -57,6 +71,7 @@ impl PneumaticJet {
         self.air_pressure = pressure.clamp(0.0, 10.0);
         self.nozzle_width = width.clamp(0.01, 5.0);
         self.turbulence_chaos = chaos.clamp(0.0, 10.0);
+        self.saturation_knee = saturation_knee(self.turbulence_chaos);
         self.update_filter_alpha();
     }
 
@@ -81,8 +96,12 @@ impl PneumaticJet {
         }
         let v_rel = self.air_pressure - res_vel;
         let noise = rate::white_noise(self.noise.bipolar(), self.ratio);
-        // Non-linear jet saturation keeps the air burst from exploding in level.
-        let saturated = v_rel * v_rel - self.turbulence_chaos * v_rel * v_rel * v_rel;
+        // Non-linear jet saturation keeps the air burst from exploding in
+        // level. The cubic turns over at the knee and would reach zero at
+        // `1/chaos`, silencing hard-blown notes, so above the knee it holds
+        // its peak (`fix-pneumatic-jet-saturation`).
+        let v_sat = v_rel.min(self.saturation_knee);
+        let saturated = v_sat * v_sat - self.turbulence_chaos * v_sat * v_sat * v_sat;
         let raw = noise * saturated.max(0.0);
         let q = 0.5 + self.nozzle_width * 4.0;
         self.filter_state += self.filter_alpha * (raw - self.filter_state);

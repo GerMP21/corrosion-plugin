@@ -193,7 +193,7 @@ src/
 
 - **Layout.** `presets/factory/<folder>/<slug>.corrosion-preset`. The curated folders are `bass`, `lead`, `chords`, `drones` and `percussion` (12 each). Experimental presets are at `experimental/<exciter>/<object>`. The folder is the category: there's no category field in the file.
 - **Experimental generator.** It draws every parameter except output, quality mode, limiter mode, ceiling and UI scale (`EXPERIMENTAL_FIXED_IDS`), from playable ranges. The seed is SplitMix64 over (exciter, object, seed try), mixed with a hash of the parameter ID. Values are written by parameter ID into the preset JSON and parsed back, which clamps them like a loaded file. The exciter slot and object character lists mirror the editor's panels, and a GUI-lane test keeps them equal. Continuous exciters play in Drone mode half the time.
-- **Levelling.** One render of a held middle C (2 s, velocity 100) at Output 1 gives the gain to `TARGET_RMS`. The level before the limiter scales with Output. The quality floor then checks: finite samples, RMS within ±6 dB of the target, ≤ 1 % of samples over the ceiling. An experimental preset that fails is re-drawn with the next seed (up to 8 tries). A curated one stops the seeder. The chosen Output and seed try go to `levels.rs`, so `bank()` reproduces the files without rendering.
+- **Levelling.** One render of a held middle C (2 s, velocity 100) at Output 1 gives the gain to `TARGET_RMS`. The level before the limiter scales with Output. A second render of the same note at velocity 127 caps Output, so its 99th-percentile sample sits at 0.995 × the ceiling. The quality floor then checks: finite samples, RMS within ±6 dB of the target, and ≤ 1 % of samples over the ceiling at both velocities. The velocity-127 note must also sit no more than 12 dB under the target. An experimental preset that fails is re-drawn with the next seed (up to 8 tries). A curated one stops the seeder. The chosen Output and seed try go to `levels.rs`, so `bank()` reproduces the files without rendering.
 - **Character checks** (`character.rs`), on offline renders through the plugin's output path:
   - bass: ≥ 70 % of the energy under 500 Hz at C2;
   - lead and chords: the strongest peak within 50 cents of C3, C4 or C5;
@@ -508,6 +508,15 @@ plays every exciter 12 dB over its drive with the governor off.
 - Bow, StiffPoint, CorrugatedDrag, TensionRise and PneumaticJet read the
   resonator's velocity explicitly: their friction and flow laws aren't
   monotone, which the solver needs, and none of them runs away.
+- **The jet saturates, it doesn't stall.** PneumaticJet's force goes as
+  `v² − chaos·v³` of the relative air velocity, held at its peak above the
+  knee `2/(3·chaos)` (computed in `set_parameters`), so more air pressure or
+  velocity never silences it (`fix-pneumatic-jet-saturation`).
+- **Releasing a friction exciter snaps the object free.** Bow, StiffPoint and
+  CorrugatedDrag hold a static deflection while in contact (the voice-mix DC
+  blocker hides it); note-off drops the contact at once and the object rings
+  out from it, up to +30 dB over the held note on the default patch. Kept as
+  a feature; a Release Snap control is proposed in `docs/BACKLOG.md`.
 
 ### Noise
 

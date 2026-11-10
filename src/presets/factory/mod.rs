@@ -2,13 +2,13 @@
 //!
 //! The bank is five curated folders of 12 presets designed by hand
 //! (`curated`), plus `experimental`: one generated preset for every exciter ×
-//! resonator pair (`experimental`). [`bank`] builds every preset with its
-//! stored level ([`levels`]), exactly as `cargo run --bin seed_presets`
+//! resonator pair (`experimental`). `bank()` builds every preset with its
+//! stored level (`levels.rs`), exactly as `cargo run --bin seed_presets`
 //! writes it to `presets/factory/`, so the bank tests check the definitions
 //! without reading files and a test compares them with the files on disk.
 //!
-//! Levelling ([`level`]) renders each preset through the plugin's own output
-//! path and sets Output so a held middle C sits at [`TARGET_RMS`]. It runs
+//! Levelling (`level`) renders each preset through the plugin's own output
+//! path and sets Output so a held middle C sits at `TARGET_RMS`. It runs
 //! only in the seeder; the results are written to `levels.rs`.
 
 pub mod character;
@@ -172,6 +172,10 @@ pub const FLOOR_SECONDS: f32 = 2.0;
 /// so a hard-played note does not drive the limiter.
 pub const HEADROOM_VELOCITY: f32 = 1.0;
 
+/// How far (dB) below [`TARGET_RMS`] the full-velocity note may sit, so a
+/// preset that goes quiet when played hard is rejected.
+pub const MAX_FULL_VELOCITY_DROP_DB: f32 = 12.0;
+
 /// The largest Output levelling may set (+40 dB, the parameter's top).
 pub const MAX_OUTPUT: f32 = 100.0;
 
@@ -187,6 +191,8 @@ pub struct FloorReport {
     pub ceiling_fraction: f32,
     /// The same share for the held note at [`HEADROOM_VELOCITY`].
     pub full_velocity_ceiling_fraction: f32,
+    /// RMS before the limiter of the held note at [`HEADROOM_VELOCITY`].
+    pub full_velocity_rms: f32,
 }
 
 impl FloorReport {
@@ -211,6 +217,13 @@ impl FloorReport {
                 "{:.2} % of samples at the ceiling (≤ {:.0} %)",
                 self.ceiling_fraction * 100.0,
                 MAX_CEILING_FRACTION * 100.0
+            ));
+        }
+        let full_db = 20.0 * (self.full_velocity_rms.max(1e-12) / TARGET_RMS).log10();
+        if full_db < -MAX_FULL_VELOCITY_DROP_DB {
+            return Err(format!(
+                "level {full_db:+.1} dB from the target at full velocity \
+                 (≥ −{MAX_FULL_VELOCITY_DROP_DB} dB)"
             ));
         }
         if self.full_velocity_ceiling_fraction > MAX_CEILING_FRACTION {
@@ -270,6 +283,7 @@ pub fn measure_floor(preset: &Preset) -> FloorReport {
         rms: rms(&rendered.output),
         ceiling_fraction: fraction_above(&rendered.pre_limiter, ceiling),
         full_velocity_ceiling_fraction: fraction_above(&full, ceiling),
+        full_velocity_rms: rms(&full),
     }
 }
 

@@ -12,6 +12,30 @@ Each item notes the relevant file(s) and an acceptance check.
 
 ---
 
+## Proposed (2026-11-10, from `reorganize-factory-presets`)
+
+- [ ] **[MISSING] Release Snap control for the friction exciters.** Releasing
+  Bow, Stiff Point Scrape or Corrugated Drag snaps the object free from its
+  static deflection: on the default patch the tail is up to +30 dB over the
+  held note (Plate + Corrugated Drag −48.1 → −17.6 dB), in the bank up to
+  +37 dB (Bow · Taut Cable). The maintainer keeps it as a feature. *Proposal:*
+  a Release Snap parameter, from a sudden release (today's snap) to a ramp
+  that follows the MSEG release, so the snap can be bounded (e.g. ≤ +6 dB over
+  the held note); the seeder then also levels the released note.
+  *Accept:* at Release Snap 0 the released note is no louder than the held
+  one; the default keeps today's snap or a bounded one, by ear.
+- [ ] **[VERIFY] Env Amount 0 silences the friction exciters.** The MSEG output
+  is multiplied by Env Amount (`mseg-envelope` spec), so at 0 Bow, Stiff Point
+  Scrape, Heavy Grinding, Corrugated Drag and Tension Rise make no sound, but
+  the tooltip says "Lower flattens it". Decide which is right: fix the tooltip,
+  or make Env Amount blend toward a flat envelope (a sound change for presets
+  below 1). Found by `print_velocity_sweep` (`fix-pneumatic-jet-saturation`).
+- [ ] **[VERIFY] The default patch sits at the voice clamp for ~3 s.** A struck
+  Pipe, I-Beam or Taut Cable rings at the voice's safety clamp (~0.31 RMS) for
+  2–3 s, the default patch included (`reorganize-factory-presets` design).
+  The percussion presets add Rust and Sludge to make strikes decay. *Accept:*
+  decide by ear whether the default should decay sooner.
+
 ## P0 — Correctness defects (fix first)
 
 - [x] **[BUG] Oversampled clipper does not oversample.** *(fixed 2026-05-27)*

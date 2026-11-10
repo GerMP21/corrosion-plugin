@@ -128,7 +128,7 @@ Each of the 24 failing test runs (14 CI, 10 GUI, 9 shared) needed "some preset w
 ### Target loudness and levelling
 - `TARGET_RMS` = **0.13** (−17.7 dBFS, both channels over the 2 s floor render): the median of the 60 curated presets at Output 0 dB was 0.12542 (`seed_presets --target`), rounded to two digits. At Output 0 dB they span 0.0061–0.44 RMS, so levelling sets Output from +31 dB down to −10.6 dB.
 - Every preset is levelled exactly (one render at Output 1; the level before the limiter scales with Output), so the floor's ±6 dB holds by construction unless the limiter acts. No preset had samples at the ceiling.
-- **Re-drawn experimental seeds:** 2 of 144, both Pneumatic Jet (`pneumatic_jet/pipe` and `pneumatic_jet/taut_cable`, try 1). None needed more than one re-draw. No curated preset failed the floor.
+- **Re-drawn experimental seeds:** 2 of 144 at first, both Pneumatic Jet (`pneumatic_jet/pipe` and `pneumatic_jet/taut_cable`, try 1). They were silenced by a jet bug, fixed by `fix-pneumatic-jet-saturation`; after it they are back to try 0. In the final bank 1 of 144 is re-drawn: `stiff_point_scrape/coil_spring` (try 1), which went quiet at full velocity (see the headroom note below). No preset needed more than one re-draw. No curated preset failed the floor.
 - Seeder run time: 6.5 s (release, all cores) for the 204 presets.
 - Bank tests in the CI lane (debug, `opt-level = 1`): 18 tests in 12.6 s wall-clock. Compiling dominates the run, so the experimental floor test stays in CI (decision 6's fallback was not needed).
 
@@ -206,6 +206,23 @@ RMS @0 dB is the floor render at Output 1. Centroid and decay come from a 4 s he
 - **Bowed cables swell** by 5–10 dB over 8 s held, so they suit the chord folder but not the drone folder.
 - **Strikes on Pipe, I-Beam and Taut Cable ring for seconds** at velocity 100, and sit at the voice's clamp (about 0.31 RMS) for 2–3 s before decaying, even with Damping 1. This holds for the default patch too: Hand Strike on Pipe, held or released, stays at that level for about 3 s; at velocity 25 it decays from the start. It is not self-oscillation (it decays exponentially once under the clamp), but it is loud. Percussion therefore uses Plate and Chain, or heavy Rust (2) and Sludge (1) on beams and cogs. Noted for the engine backlog; not changed here.
 - **The flatness bound never binds.** The largest flatness measured was 0.031 (old corpus), 0.0025 with exciters pushed to be as noisy as possible, and 0.0056 for a pure felt-mallet tone. The modal output always has a large spectral dynamic range, so "< 0.1" can't tell clean from noisy in this instrument. The bound is implemented as specified. **Open question for the maintainer:** keep it, or replace "clean" with a measure that separates harmonic from non-harmonic energy (for example, energy outside ±25 cents of the harmonics over total, < 10 %).
+
+### Headroom at full velocity and `preset_levels_are_sane`
+`preset_levels_are_sane`, the placeholder bank's level test (velocity 127, note-off at 1 s, any sample over the limiter threshold fails), failed on the first bank: 32 of 204 presets had samples over the threshold and 11 more than 1 % (Bow · Taut Cable 89 912, Stiff Point Scrape · Tank 84 025, Bow · Coil Spring 71 512, Bowed Cable Sub 33 305). Pneumatic Jet · Chain was silent.
+
+The maintainer chose to level with headroom for velocity 127 (2026-11-10). *As built:*
+- `level` also renders the held floor note at velocity 127 and caps Output so its 99th-percentile sample sits at 0.995 × the ceiling. The floor (`FloorReport::check`) checks the same, and that the full-velocity note is no more than 12 dB under the target (`MAX_FULL_VELOCITY_DROP_DB`). That catches presets that go quiet when played hard.
+- Held notes hardly clip at 127: only Tension Rise · Industrial Cog moved (−2.8 dB).
+- The full-velocity check re-drew `stiff_point_scrape/coil_spring` and the silent jets (then fixed in the engine). Stiff Point Scrape's stick-slip is chaotic: that preset was −9.6 dB at velocity 100 and −29.6 at 127 (−31 to −40 at 20–80).
+- **The failures came from the release, not the velocity.** Releasing Bow, Stiff Point Scrape or Corrugated Drag snaps the object free from its static deflection. On the default patch the 0.5 s after the note-off is louder than the held note: Plate + Corrugated Drag −48.1 → −17.6 dB, Pipe + Corrugated Drag −35.3 → −10.1 dB, Plate + Bow −38.0 → −21.1 dB. In the bank: Bowed Cable Sub 0.158 → 0.874 RMS (+15 dB), Bow · Taut Cable 0.083 → 5.97 (+37 dB, at Output +40 dB). The maintainer keeps it as a feature; a Release Snap control is proposed in `docs/BACKLOG.md`. So `preset_levels_are_sane` now renders the held note at velocity 127 (no note-off) and allows 1 % of samples over the threshold, like the floor. It passes on the bank: worst Tension Rise · Industrial Cog, 1 812 samples (0.9 %); none more than 12 dB under the median.
+
+### REAPER check (4.2)
+REAPER on Linux, at 75 %, the CLAP build:
+- The menu shows Bass, Lead, Chords, Drones, Percussion, Experimental and User in order. Experimental holds the 16 exciter submenus.
+- `Bow · Pipe` loads from Experimental › Bow, and the arrows wrap within Bow (9 clicks bring it back).
+- Saving "Deep Sub" into `User / Basses` wrote the file, selected it, and lists it under User › Basses.
+- Open folder showed its error on the message line, because the container has no `xdg-open`; no crash. Not checked on Windows or macOS.
+- A folder created outside the plugin did not appear after reopening the window, because the editor state outlives the window. Fixed: the user list refreshes when the menu or the save-folder combo opens (`folders_added_outside_the_editor_appear_on_refresh`).
 
 ### As built
 - *Generator in parameter-ID space (decision 3).* `exciter_panel` lives in the GUI module, which the no-GUI library can't reach. So the generator keeps its own per-exciter slot and per-object character lists (`exciter_slot_ids`, `object_character_ids`), and a GUI-lane test (`experimental_generator_varies_what_the_panels_show`) checks they equal the panels' controls. It goes red when a slot is dropped. Every parameter ID is a key of the preset JSON, so values are written by ID and parsed back through `Preset::from_json_str`, which clamps them like a loaded file. Fixed parameters are listed with reasons (`EXPERIMENTAL_FIXED_IDS`: output, quality mode, limiter mode, ceiling, UI scale). Everything else varies, `sync_rate` included: without a host tempo it falls back to Delay Time.

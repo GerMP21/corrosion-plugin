@@ -24,7 +24,7 @@
 
 ## 4. Docs and close-out
 
-- [ ] 4.1 Measurements in `design.md`: target loudness, per-preset table (level, centroid, decay, partial deviation, flatness, pass), re-drawn seeds, bank-test CI time
-- [ ] 4.2 REAPER check at 75 %: browse every folder, the arrows, save into a subfolder, Open folder; screenshot
-- [ ] 4.3 CLAUDE.md: replace the "factory presets are placeholders" rules (the levels matter again; `preset_levels_are_sane` passes on the new bank); README preset section; `docs/ARCHITECTURE.md`
-- [ ] 4.4 `cargo fmt --check`, clippy `-D warnings`, tests on gnu and musl, GUI lane, no_alloc, `cargo doc`; update CLAUDE.md "Current state"; commit and push to `dev`
+- [x] 4.1 Measurements in `design.md`: target loudness, per-preset table (level, centroid, decay, partial deviation, flatness, pass), re-drawn seeds, bank-test CI time
+- [x] 4.2 REAPER check at 75 %: browse every folder, the arrows, save into a subfolder, Open folder; screenshot
+- [x] 4.3 CLAUDE.md: replace the "factory presets are placeholders" rules (the levels matter again; `preset_levels_are_sane` passes on the new bank); README preset section; `docs/ARCHITECTURE.md`
+- [x] 4.4 `cargo fmt --check`, clippy `-D warnings`, tests on gnu and musl, GUI lane, no_alloc, `cargo doc`; update CLAUDE.md "Current state"; commit and push to `dev`

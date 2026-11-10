@@ -324,6 +324,18 @@ fn the_quality_floor_rejects_silent_and_clipping_presets() {
         report.ceiling_fraction > MAX_CEILING_FRACTION && report.check().is_err(),
         "{report:?}"
     );
+    // Quiet or clipping only when played hard.
+    let held = measure_floor(&preset);
+    let hard_quiet = FloorReport {
+        full_velocity_rms: TARGET_RMS * 0.2, // −14 dB
+        ..held
+    };
+    assert!(hard_quiet.check().is_err(), "{hard_quiet:?}");
+    let hard_clipping = FloorReport {
+        full_velocity_ceiling_fraction: 2.0 * MAX_CEILING_FRACTION,
+        ..held
+    };
+    assert!(hard_clipping.check().is_err(), "{hard_clipping:?}");
 }
 
 /// Every curated preset of `folder` passes its character checks; the folder
@@ -482,5 +494,104 @@ fn curated_measurements_table() {
     });
     for row in rows {
         println!("{row}");
+    }
+}
+
+/// Sweeps every parameter to both ends of its range on the default patch,
+/// for each exciter on three objects, and prints the settings where a held
+/// C4 at velocity 127 is silent or more than 6 dB under velocity 64, or
+/// where the setting silences both velocities (`fix-pneumatic-jet-saturation`).
+#[test]
+#[ignore]
+fn print_velocity_sweep() {
+    use crate::offline::{render_preset_pre_limiter, OfflineNote};
+    use nih_plug::prelude::ParamPtr;
+    let db = |p: &Preset, v: f32| {
+        let f = render_preset_pre_limiter(p, &[OfflineNote::on(0, 60, v)], 48_000, 1.0);
+        let s: f64 = f.iter().map(|&(l, r)| (l * l + r * r) as f64).sum();
+        10.0 * (s / (2 * f.len()) as f64).max(1e-24).log10() as f32
+    };
+    let skip = ["output", "ui_scale", "play_mode", "exciter", "object"];
+    let objects = [Object::Pipe, Object::Plate, Object::TautCable];
+    let lines: Vec<String> = std::thread::scope(|scope| {
+        let handles: Vec<_> = (1..=EXCITER_COUNT)
+            .map(|exciter| {
+                scope.spawn(move || {
+                    let defaults = CorrosionParams::default();
+                    let params: Vec<(String, ParamPtr)> = defaults
+                        .param_map()
+                        .into_iter()
+                        .map(|(id, ptr, _)| (id, ptr))
+                        .collect();
+                    let mut out = Vec::new();
+                    for object in objects {
+                        let mut base = super::base("sweep");
+                        base.exciter = exciter;
+                        base.object = object;
+                        let (b64, b127) = (db(&base, 64.0 / 127.0), db(&base, 1.0));
+                        out.push(format!(
+                            "BASE {} {:?}: v64 {b64:.1} v127 {b127:.1}",
+                            exciter_name(exciter),
+                            object
+                        ));
+                        for (id, ptr) in &params {
+                            if skip.contains(&id.as_str()) {
+                                continue;
+                            }
+                            let other_slot = (1..=EXCITER_COUNT)
+                                .any(|e| e != exciter && exciter_slot_ids(e).contains(&id.as_str()))
+                                && !exciter_slot_ids(exciter).contains(&id.as_str());
+                            let other_char = (0..OBJECT_COUNT).map(Object::from_int).any(|o| {
+                                o != object && object_character_ids(o).contains(&id.as_str())
+                            }) && !object_character_ids(object).contains(&id.as_str());
+                            if other_slot || other_char {
+                                continue;
+                            }
+                            for end in [0.0f32, 1.0] {
+                                // SAFETY: `ptr` belongs to `defaults`, alive here.
+                                let plain = unsafe { ptr.preview_plain(end) };
+                                let mut json = serde_json::to_value(&base).unwrap();
+                                let value = if matches!(ptr, ParamPtr::IntParam(_)) {
+                                    serde_json::Value::from(plain.round() as i64)
+                                } else {
+                                    serde_json::Value::from(plain as f64)
+                                };
+                                if json.get(id.as_str()).is_some() {
+                                    json[id.as_str()] = value;
+                                } else {
+                                    json["extra"][id.as_str()] = value;
+                                }
+                                let p = Preset::from_json_str(&json.to_string()).unwrap();
+                                let (v64, v127) = (db(&p, 64.0 / 127.0), db(&p, 1.0));
+                                let flag = if v127 < -120.0 && v64 >= -120.0 {
+                                    Some("SILENT AT 127")
+                                } else if v127 < -120.0 && b127 >= -120.0 {
+                                    Some("SILENCES")
+                                } else if v127 < v64 - 6.0 {
+                                    Some("QUIETER AT 127")
+                                } else {
+                                    None
+                                };
+                                if let Some(flag) = flag {
+                                    out.push(format!(
+                                        "FLAG {flag}: {} {:?} {id}={plain:.4}: v64 {v64:.1} v127 {v127:.1} (default v64 {b64:.1} v127 {b127:.1})",
+                                        exciter_name(exciter),
+                                        object
+                                    ));
+                                }
+                            }
+                        }
+                    }
+                    out
+                })
+            })
+            .collect();
+        handles
+            .into_iter()
+            .flat_map(|h| h.join().unwrap())
+            .collect()
+    });
+    for line in lines {
+        println!("{line}");
     }
 }

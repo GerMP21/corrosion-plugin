@@ -73,7 +73,7 @@ The factory bank lives under `presets/factory/`, in folders. The preset browser 
   - percussion dies away on its own.
 - **Experimental**: one preset for every exciter on every resonator (16 × 9), grouped by exciter. Each draws every parameter from a fixed seed within playable ranges, so they're varied, sometimes strange, and always audible.
 
-Every factory preset is levelled so a held middle C sits at the same loudness (−17.7 dBFS RMS), and none drives the limiter. Regenerate the bank with `cargo run --release --bin seed_presets`.
+Every factory preset is levelled so a held middle C sits at the same loudness (−17.7 dBFS RMS), with headroom so even a full-velocity note barely touches the limiter. Releasing a bowed, scraped or dragged note snaps the object free and can ring out louder than the held note. Regenerate the bank with `cargo run --release --bin seed_presets`.
 
 ### User Presets and Randomizer
 

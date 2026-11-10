@@ -29,11 +29,15 @@ The `experimental` folder SHALL hold exactly one preset for every pair of the 16
 - **THEN** each exciter-specific parameter of an exciter takes more than one value across its 9 presets, and each shared parameter (size, rust, damage, envelopes, post chain) takes more than one value across the folder
 
 ### Requirement: Quality floor
-Every factory preset SHALL render a held middle-C note through the plugin's output path with finite samples, an RMS level within 6 dB of the bank's target loudness, and no more than 1 % of samples at the output ceiling.
+Every factory preset SHALL render a held middle-C note through the plugin's output path with finite samples, an RMS level within 6 dB of the bank's target loudness, and no more than 1 % of samples at the output ceiling. Played at full velocity, the same note SHALL keep no more than 1 % of its samples at the ceiling and sit no more than 12 dB below the target.
 
 #### Scenario: No silent, broken or clipping preset
-- **WHEN** each factory preset renders a 2-second middle-C note offline
+- **WHEN** each factory preset renders a 2-second middle-C note offline at velocity 100
 - **THEN** every sample is finite, the RMS is within ±6 dB of the target loudness, and at most 1 % of samples sit at the ceiling
+
+#### Scenario: Headroom at full velocity
+- **WHEN** each factory preset renders the same held note at velocity 127
+- **THEN** every sample is finite, at most 1 % of samples sit at the ceiling, and the RMS before the limiter is no more than 12 dB below the target loudness
 
 ### Requirement: Folder character
 Curated presets SHALL match their folder, measured on offline renders:

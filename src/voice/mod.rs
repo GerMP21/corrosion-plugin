@@ -3088,6 +3088,85 @@ mod tests {
         (voice.pre_clamp_peak, (sum / 96_000.0).sqrt() as f32)
     }
 
+    /// Output RMS (dB) of a held Pneumatic Jet note: 1 s at 48 kHz.
+    fn jet_note_db(
+        profile: ModalProfileId,
+        velocity: f32,
+        air_pressure: f32,
+        turbulence_chaos: f32,
+    ) -> f32 {
+        let mut voice = Voice::new();
+        let controls = VoiceControls {
+            air_pressure,
+            turbulence_chaos,
+            ..VoiceControls::default()
+        };
+        voice.note_on_with_controls(60, velocity, profile, 0, 1.0, 0.0, 0.0, 13, controls);
+        let mut sum = 0.0f64;
+        for _ in 0..48_000 {
+            let y = voice.process_sample(48_000);
+            sum += (y * y) as f64;
+        }
+        10.0 * (sum / 48_000.0).max(1e-24).log10() as f32
+    }
+
+    /// Prints a hash and the RMS of each object's default Pneumatic Jet note
+    /// at velocities 100 and 127 (`fix-pneumatic-jet-saturation`, to compare
+    /// before and after).
+    #[test]
+    #[ignore]
+    fn print_jet_default_notes() {
+        for profile in ALL_PROFILES {
+            for velocity in [100.0, 127.0] {
+                let mut voice = Voice::new();
+                voice.note_on_with_controls(
+                    60,
+                    velocity,
+                    profile,
+                    0,
+                    1.0,
+                    0.0,
+                    0.0,
+                    13,
+                    VoiceControls::default(),
+                );
+                let (mut hash, mut sum) = (0xcbf2_9ce4_8422_2325_u64, 0.0f64);
+                for _ in 0..48_000 {
+                    let y = voice.process_sample(48_000);
+                    hash = (hash ^ y.to_bits() as u64).wrapping_mul(0x0100_0000_01b3);
+                    sum += (y * y) as f64;
+                }
+                let db = 10.0 * (sum / 48_000.0).max(1e-24).log10();
+                println!("JET {profile:?} v{velocity}: {hash:016x} {db:.2} dB");
+            }
+        }
+    }
+
+    /// `fix-pneumatic-jet-saturation`: playing harder never silences the
+    /// jet. Its saturation `v² − chaos·v³` turned over at `2/(3·chaos)` and
+    /// was cut to zero past `1/chaos`, so high Air Pressure or velocity went
+    /// silent. "Never silences": not below −120 dB and no more than 6 dB
+    /// under the velocity-64 note (as built, the worst is Pipe at −3.3 dB,
+    /// from the voice's dynamics, not the jet).
+    #[test]
+    fn harder_playing_never_silences_the_jet() {
+        let mut failures = Vec::new();
+        for profile in ALL_PROFILES {
+            for air in [0.1, 1.1, 2.1] {
+                for chaos in [0.0, 0.6, 2.0] {
+                    let soft = jet_note_db(profile, 64.0, air, chaos);
+                    let hard = jet_note_db(profile, 127.0, air, chaos);
+                    if hard < -120.0 || hard < soft - 6.0 {
+                        failures.push(format!(
+                            "{profile:?} air {air} chaos {chaos}: v64 {soft:.1} dB, v127 {hard:.1} dB"
+                        ));
+                    }
+                }
+            }
+        }
+        assert!(failures.is_empty(), "{}", failures.join("\n"));
+    }
+
     #[test]
     fn excess_drive_is_reduced_not_clipped() {
         let mut failures = Vec::new();

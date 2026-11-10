@@ -288,8 +288,8 @@ const LEVELS: &[(&str, u32, f32)] = &[
     ),
     (
         "experimental/stiff_point_scrape/coil_spring.corrosion-preset",
-        0,
-        0.3923,
+        1,
+        39.13,
     ),
     (
         "experimental/stiff_point_scrape/sheet_metal.corrosion-preset",
@@ -420,7 +420,7 @@ const LEVELS: &[(&str, u32, f32)] = &[
         0,
         8.09,
     ),
-    ("experimental/pneumatic_jet/pipe.corrosion-preset", 1, 0.576),
+    ("experimental/pneumatic_jet/pipe.corrosion-preset", 0, 6.08),
     (
         "experimental/pneumatic_jet/plate.corrosion-preset",
         0,
@@ -430,7 +430,7 @@ const LEVELS: &[(&str, u32, f32)] = &[
     (
         "experimental/pneumatic_jet/chain.corrosion-preset",
         0,
-        1.535,
+        0.764,
     ),
     (
         "experimental/pneumatic_jet/i_beam.corrosion-preset",
@@ -439,8 +439,8 @@ const LEVELS: &[(&str, u32, f32)] = &[
     ),
     (
         "experimental/pneumatic_jet/taut_cable.corrosion-preset",
-        1,
-        0.8739,
+        0,
+        0.7879,
     ),
     (
         "experimental/pneumatic_jet/coil_spring.corrosion-preset",
@@ -455,7 +455,7 @@ const LEVELS: &[(&str, u32, f32)] = &[
     (
         "experimental/pneumatic_jet/industrial_cog.corrosion-preset",
         0,
-        0.352,
+        0.3418,
     ),
     (
         "experimental/electromagnetic_hum/pipe.corrosion-preset",
