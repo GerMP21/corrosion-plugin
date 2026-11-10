@@ -599,16 +599,20 @@ Stage summary (as implemented):
 | Factory reverb | 4 comb + 2 allpass (Schroeder) — not 3D FDTD |
 | Spring reverb | one delay line + 1-pole dispersion per channel — not a helical PDE |
 | Factory echo | modulated stereo delay; Machinery Movement's depth is smoothed (τ 20 ms) so knob changes don't jump the delay; unmodulated reads are whole samples, modulated reads use 4-point Hermite interpolation (no zipper); High Frequency Damping is a one-pole low-pass in the feedback loop (20 kHz bypassed at 0 → 1.5 kHz at 1), so each repeat is darker; wet level fixed at 0.7 (`m07-m08-interpolate-echo-and-tidy-spread`) |
-| Oversampled clipper | soft diode clip run at 4/8/16× through cascaded 2× polyphase half-band IIR stages (`half_band.rs`: elliptic design, 9/5/4/4 all-pass coefficients, flat to 22/48 of the host rate, 93–107 dB stop band), up → curve → down; Eco clips at the host rate. When oversampling, the curve starts at the ceiling ÷ 1.3, so the filters' overshoot stays under the output limiter. The half-bands delay low frequencies by 4–5 samples (not reported as latency) (`m06-m09-smooth-starvation-and-oversample-clipper`) |
+| Oversampled clipper (diode stage) | per-polarity tanh-knee diode curve (see "Diode stage" below) run at 4/8/16× through cascaded 2× polyphase half-band IIR stages (`half_band.rs`: elliptic design, 9/5/4/4 all-pass coefficients, flat to 22/48 of the host rate, 93–107 dB stop band), up → curve → down → 2 Hz DC blocker; Eco runs the same curve at the host rate. The limit is the ceiling ÷ 1.3 in every mode, so the filters' overshoot stays under the output limiter. The half-bands delay low frequencies by 4–5 samples (not reported as latency) (`m06-m09-smooth-starvation-and-oversample-clipper`, `add-asymmetric-diode-stage`) |
 
 ### Quality modes (`QualityMode` → `PostQualityMode`)
 
 | Mode | Clipper | Clips from | Alias, 5 kHz at 2× ceiling | Delay at 1 kHz |
 |---|---|---|---|---|
-| Eco | 1× (curve at the host rate) | ceiling | −25.4 dB | 0 |
-| Normal (default) | 4× (2 half-band stages) | ceiling ÷ 1.3 | −51.0 dB | 4.2 samples |
-| High | 8× (3 stages) | ceiling ÷ 1.3 | −64.1 dB | 4.7 samples |
-| Render | 16× (4 stages) | ceiling ÷ 1.3 | −75.8 dB | 5.0 samples |
+| Eco | 1× (curve at the host rate) | ceiling ÷ 1.3 | −19.7 dB | −0.015 samples (the DC blocker's lead) |
+| Normal (default) | 4× (2 half-band stages) | ceiling ÷ 1.3 | −67.0 dB | 4.2 samples |
+| High | 8× (3 stages) | ceiling ÷ 1.3 | −94.2 dB | 4.7 samples |
+| Render | 16× (4 stages) | ceiling ÷ 1.3 | −105.0 dB | 5.0 samples |
+
+Alias figures at the defaults (Softness 0.5, Asymmetry 0.25). At Softness 0
+(a hard knee, what migrated projects get) they are −50.7 dB Normal and
+−75.5 dB Render.
 
 The mapping is wired end-to-end (param → `set_quality_mode` →
 `PostQualityMode::clipper_oversample_factor` → `set_oversample_factor`), and
@@ -640,8 +644,8 @@ Brightness, Brush / Spring Wire Stiffness, Onset Time / Onset Level
 ### Output protection
 
 The **Analog Ceiling** parameter (0.5–1.0, default 0.9661 ≈ **−0.3 dBFS**) is
-the output ceiling. The post-chain clipper clips at it in Eco and at it ÷ 1.3
-when oversampling (headroom for the half-bands' overshoot), and after output gain
+the output ceiling. The diode stage limits at it ÷ 1.3 in every quality
+mode (headroom for the half-bands' overshoot and the DC blocker's tilt), and after output gain
 the selected limiter stops at it: **Hard** (default) is
 `apply_output_limiter(sample, ceiling)`, a clamp to `±ceiling`; **Lookahead**
 uses it as its threshold (`h07-hard-limiter-honors-analog-ceiling`). The Lookahead limiter's delay (`LOOKAHEAD_LIMITER_SAMPLES`) is reported to the host as latency in `initialize`, from the restored Limiter Mode, and again whenever the mode changes (`Corrosion::latency_change`). So no
@@ -650,6 +654,45 @@ output sample exceeds the ceiling, whatever the gain or mode
 `both_limiter_modes_reach_the_same_ceiling`). `LIMITER_THRESHOLD = 0.9661` is
 the ceiling's default, used by offline tools and tests that render without the
 parameter.
+
+### Diode stage (`add-asymmetric-diode-stage`)
+
+`OversampledClipper` is the diode stage. For each polarity with limit `L` and
+knee width `w`, the curve is linear below `K = L·(1 − w)` and
+`K + (L − K)·tanh((x − K)/(L − K))` above it: slope 1 at `K`, never past `L`.
+
+- **Limit:** `L = ceiling / 1.3` in every mode (`CEILING_HEADROOM`). 1.3 is
+  the smallest swept value that keeps a 5 kHz tone at twice the ceiling under
+  it (0.987×) and holds the alias bounds at Softness 0. At 7 kHz the
+  half-bands still overshoot to 1.21×, which the output limiter clamps.
+- **Diode Softness** sets `w = 0.8·softness` (`KNEE_WIDTH`): the knee starts
+  14 dB under `L` at 1, 4.4 dB at the default 0.5, and is a hard clip at 0.
+- **Diode Asymmetry** (`diode_asymmetry`, default 0.25) lowers the negative
+  limit to `L·2^(−a)` and firms its knee to `w·(1 − a/2)`.
+- **DC blocker:** a 2 Hz one-pole high-pass per channel after the
+  down-sampling, weighted by `min(1, a/0.05)`; bypassed and cleared at
+  `a = 0`, so a symmetric curve is unfiltered and bit-identical. It filters
+  the whole signal, so it also removes DC that the asymmetric drive curves
+  before it leave. With the voices' own offset gone
+  (`block-voice-mix-dc`), it changes factory presets' RMS by at most 0.4 dB.
+- **Smoothing:** Softness and Asymmetry glide with τ 20 ms. The per-polarity
+  constants are recomputed only while they move. Both snap before the first
+  sample and on `reset()`, so a preset loaded before playback doesn't glide.
+- **tanh:** a 513-point table on [0, 8] with linear interpolation, built in
+  `new()`: error 2.3e-5, monotonic, 0.63× libm's cost, and the same on gnu
+  and musl.
+- **Meter:** the clipper tracks its curve's input and output peaks per host
+  block. The plugin publishes the reduction in dB to `DiodeMeter` (an
+  `AtomicU32` holding the maximum since the editor last read it). The editor
+  takes it every frame and brightens the Brickwall Limiter panel's red dot
+  from 30 % to full `DANGER_RED` over 0.1–6 dB, releasing at 20 dB/s. It
+  repaints only while the dot is above rest.
+- **CPU:** the output path is 1.030× Normal and 1.003× Render against m06
+  (median of 5).
+- **Migration:** preset JSON and host state without `diode_asymmetry` get
+  Softness 0 and Asymmetry 0 (`migrate_diode_stage`,
+  `migrate_host_diode_stage`). That is a hard clip at `L`, about 0.15 dB under
+  the old curve's top. Host automation of Softness is BREAKING.
 
 ---
 

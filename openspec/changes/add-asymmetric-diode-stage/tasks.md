@@ -21,11 +21,11 @@
 - [x] 4.1 Add `diode_asymmetry` (0–1, default 0.25, display "Diode Asymmetry") to the parameters, the preset `extra` block and `into_params`, and wire it to the chain. Add the `migrate_preset_json` and `filter_state` rules. Verify the migration tests and `tests/preset_roundtrip.rs` pass.
 - [x] 4.2 Add the shared reduction meter (decision 8): peaks per block in the clipper, published by the plugin, taken and decayed by the editor. Verify `tests/no_alloc.rs` passes in debug.
 - [x] 4.3 Add the Asymmetry fader to the brickwall panel and drive the dot from the meter. Verify the dot tests and the editor-controls coverage test pass; update the editor content-height expectations if the panel grows.
-- [ ] 4.4 Regenerate the factory bank with `cargo run --bin seed_presets`. Verify `preset_levels_are_sane` and the preset tests pass.
+- [x] 4.4 Regenerate the factory bank with `cargo run --bin seed_presets`. Verify `preset_levels_are_sane` and the preset tests pass.
 
 ## 5. Docs and close-out
 
-- [ ] 5.1 Document the diode stage as a feature in the README (Softness, Asymmetry, the dot, the same in every quality mode, the BREAKING Softness automation note) and in `docs/ARCHITECTURE.md` (output protection, quality modes). Run fmt, clippy `-D warnings`, the full suite on gnu and musl, and `cargo doc`, and verify all are green.
+- [x] 5.1 Document the diode stage as a feature in the README (Softness, Asymmetry, the dot, the same in every quality mode, the BREAKING Softness automation note) and in `docs/ARCHITECTURE.md` (output protection, quality modes). Run fmt, clippy `-D warnings`, the full suite on gnu and musl, and `cargo doc`, and verify all are green.
 
 ## Workflow follow-up
 

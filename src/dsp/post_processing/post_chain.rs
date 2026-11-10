@@ -185,6 +185,13 @@ impl PostProcessingChain {
             .set_parameters(delay_time, machinery_movement, high_frequency_damping);
     }
 
+    /// Test-only: turn the clipper's DC stage off, to measure what it
+    /// removes (`add-asymmetric-diode-stage`).
+    #[cfg(test)]
+    pub(crate) fn set_clipper_dc_stage_for_test(&mut self, enabled: bool) {
+        self.clipper.set_dc_stage_for_test(enabled);
+    }
+
     /// Sets the final clipper's ceiling, knee softness and asymmetry.
     pub fn set_clipper_params(&mut self, ceiling: f32, softness: f32, asymmetry: f32) {
         self.clipper.set_parameters(ceiling, softness, asymmetry);

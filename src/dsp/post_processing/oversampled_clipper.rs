@@ -297,6 +297,12 @@ impl OversampledClipper {
 
     /// Clears the filters' and the DC blocker's memory and settles the
     /// controls at their targets.
+    /// Test-only: bypass the DC stage.
+    #[cfg(test)]
+    pub(crate) fn set_dc_stage_for_test(&mut self, enabled: bool) {
+        self.dc_stage_enabled = enabled;
+    }
+
     pub fn reset(&mut self) {
         self.clear_filters();
         self.snap_controls();

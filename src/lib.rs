@@ -3741,6 +3741,40 @@ mod voice_mix_dc_tests {
         (share, window_mean)
     }
 
+    /// Each factory preset as stored: RMS and peak with the diode stage's
+    /// own DC blocker on and off (`add-asymmetric-diode-stage`, the open
+    /// question left by `block-voice-mix-dc`).
+    #[test]
+    #[ignore]
+    fn print_diode_dc_stage_level_change() {
+        println!("| Preset | RMS change | Peak off | Peak on |");
+        println!("|---|---|---|---|");
+        let mut worst = (0.0f64, String::new());
+        for path in crate::c5_measurements::factory_preset_paths() {
+            let measure = |dc_stage: bool| {
+                let preset = crate::presets::Preset::load(&path).expect("load preset");
+                let mut renderer = PresetRenderer::from_params(preset.into_params());
+                renderer
+                    .plugin_mut()
+                    .post_chain
+                    .set_clipper_dc_stage_for_test(dc_stage);
+                let notes = [OfflineNote::on(0, 60, 1.0), OfflineNote::off(48_000, 60)];
+                let out = renderer.render(&notes, 48_000, 96_000).pre_limiter;
+                let x: Vec<f32> = out.iter().flat_map(|&(l, r)| [l, r]).collect();
+                let peak = x.iter().fold(0.0f32, |m, v| m.max(v.abs()));
+                (rms(&x), peak)
+            };
+            let ((rms_off, peak_off), (rms_on, peak_on)) = (measure(false), measure(true));
+            let change = 20.0 * (rms_on / rms_off).log10();
+            let name = path.file_stem().unwrap().to_string_lossy().to_string();
+            if change.abs() > worst.0.abs() {
+                worst = (change, name.clone());
+            }
+            println!("| {name} | {change:+.3} dB | {peak_off:.4} | {peak_on:.4} |");
+        }
+        println!("worst {:+.3} dB ({})", worst.0, worst.1);
+    }
+
     /// The factory bank's output DC before and after the blocker
     /// (`block-voice-mix-dc` task 2.2).
     #[test]
