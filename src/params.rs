@@ -162,7 +162,8 @@ pub struct CorrosionParams {
     pub body: FloatParam,
 
     /// UI scale factor (0-4 mapping to 50%, 75%, 100%, 125%, 150%).
-    /// The 100% editor baseline is the compact 1080x768 logical window.
+    /// The 100% editor baseline is the 1080x840 logical window (768 of
+    /// panels plus the keyboard strip).
     /// Only affects the editor GUI size.
     #[id = "ui_scale"]
     pub ui_scale: IntParam,
@@ -2724,8 +2725,8 @@ impl Default for CorrosionParams {
     fn default() -> Self {
         Self {
             #[cfg(feature = "gui")]
-            // 75 % of the 1080 x 768 base: fits a host window on a 1080p screen.
-            editor_state: EguiState::from_size(810, 576),
+            // 75 % of the 1080 x 840 base: fits a host window on a 1080p screen.
+            editor_state: EguiState::from_size(810, 630),
 
             // Sound generation defaults
             exciter: exciter_param(ExciterType::HandStrike.to_int()),

@@ -357,3 +357,44 @@ fn rate_change_and_retrigger_are_alloc_free() {
         }
     });
 }
+
+/// Spec "Draining does not allocate" (`add-editor-keyboard`): the audio
+/// side drains editor note-ons and note-offs and a release-all, plays them
+/// on the voices, and publishes the held notes, all inside the checked zone.
+/// (`Corrosion::handle_editor_notes` is this drain feeding
+/// `handle_note_event`, whose note-on and note-off paths the tests above
+/// cover.)
+#[test]
+fn editor_note_drain_is_alloc_free() {
+    use corrosion::gui_notes::{EditorNoteEvent, EditorNoteState, EditorNotes};
+    let shared = EditorNotes::new();
+    let mut state = EditorNoteState::default();
+    let mut manager = VoiceManager::new();
+    for note in [60u8, 64, 67] {
+        assert!(shared.try_push(EditorNoteEvent::On {
+            note,
+            velocity: 100
+        }));
+    }
+    assert!(shared.try_push(EditorNoteEvent::Off { note: 64 }));
+    shared.request_release_all();
+    run(&mut manager, 64);
+    assert_no_alloc(|| {
+        state.drain(&shared, |event| match event {
+            EditorNoteEvent::On { note, velocity } => manager.note_on_with_controls(
+                note,
+                f32::from(velocity) / 127.0,
+                ModalProfileId::Plate,
+                1.0,
+                0.0,
+                0.0,
+                1,
+                controls(1.0),
+            ),
+            EditorNoteEvent::Off { note } => manager.note_off(note),
+        });
+        run(&mut manager, 256);
+        shared.publish_held(manager.active_notes());
+    });
+    assert!(shared.held().is_empty());
+}

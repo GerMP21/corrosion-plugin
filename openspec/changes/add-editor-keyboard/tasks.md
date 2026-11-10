@@ -2,31 +2,31 @@
 
 ## 1. Tests first
 
-- [ ] 1.1 `gui_notes` unit tests (CI lane): push/drain order, a full ring with a backlog loses nothing and keeps order, `release_all` releases only editor-held notes, the held mask round-trips; verify they fail (or don't compile) before the module exists
-- [ ] 1.2 Key-mapping tests: physical A W S E D F T G Y H U J K → 60..72; unmapped keys send nothing; repeats are ignored (one on, one off)
-- [ ] 1.3 Focus-gate tests: unfocused window sends nothing; `wants_keyboard_input` (preset name field focused, typing "aws") sends nothing; `WindowFocused(false)` releases a key-held and a mouse-held note, and a later key-up sends nothing; dropping the sender sets `release_all`
-- [ ] 1.4 Strip tests (GUI lane): bottom-most element at 75 %; 37 keys from 48 to 84 with black keys on C♯ D♯ F♯ G♯ A♯; click/release, drag 60→62, velocity bottom > top, black over white at the overlap
-- [ ] 1.5 Engine tests: an editor note-on 60 activates a voice like a host note on channel 0; on/off/on in one block leaves only 62 held; host note-on 64 appears in the published mask and leaves it after note-off
-- [ ] 1.6 `tests/no_alloc.rs`: draining editor note-ons and note-offs (and a `release_all`) does not allocate
+- [x] 1.1 `gui_notes` unit tests (CI lane): push/drain order, a full ring with a backlog loses nothing and keeps order, `release_all` releases only editor-held notes, the held mask round-trips; verify they fail (or don't compile) before the module exists
+- [x] 1.2 Key-mapping tests: physical A W S E D F T G Y H U J K → 60..72; unmapped keys send nothing; repeats are ignored (one on, one off)
+- [x] 1.3 Focus-gate tests: unfocused window sends nothing; `wants_keyboard_input` (preset name field focused, typing "aws") sends nothing; `WindowFocused(false)` releases a key-held and a mouse-held note, and a later key-up sends nothing; dropping the sender sets `release_all`
+- [x] 1.4 Strip tests (GUI lane): bottom-most element at 75 %; 37 keys from 48 to 84 with black keys on C♯ D♯ F♯ G♯ A♯; click/release, drag 60→62, velocity bottom > top, black over white at the overlap
+- [x] 1.5 Engine tests: an editor note-on 60 activates a voice like a host note on channel 0; on/off/on in one block leaves only 62 held; host note-on 64 appears in the published mask and leaves it after note-off
+- [x] 1.6 `tests/no_alloc.rs`: draining editor note-ons and note-offs (and a `release_all`) does not allocate
 
 ## 2. Shared note state
 
-- [ ] 2.1 `src/gui_notes.rs`: `EditorNotes` (256-slot `AtomicU32` ring, `release_all`, `held` mask), packing helpers, `drain`
-- [ ] 2.2 `NoteSender` (GUI side): `VecDeque` backlog retried each frame, tracks what it holds, `release_all_held()`, `Drop` sets `release_all`
+- [x] 2.1 `src/gui_notes.rs`: `EditorNotes` (256-slot `AtomicU32` ring, `release_all`, `held` mask), packing helpers, `drain`
+- [x] 2.2 `NoteSender` (GUI side): `VecDeque` backlog retried each frame, tracks what it holds, `release_all_held()`, `Drop` sets `release_all`
 
 ## 3. Engine
 
-- [ ] 3.1 `Corrosion` owns `Arc<EditorNotes>`; `editor()` passes it to `gui::create_editor`
-- [ ] 3.2 `process()`: honour `release_all`, drain events into `handle_note_event` (timing 0, channel 0, no voice ID) before host events; keep the audio-side editor-on mask
-- [ ] 3.3 Publish the held-voice mask after each block
+- [x] 3.1 `Corrosion` owns `Arc<EditorNotes>`; `editor()` passes it to `gui::create_editor`
+- [x] 3.2 `process()`: honour `release_all`, drain events into `handle_note_event` (timing 0, channel 0, no voice ID) before host events; keep the audio-side editor-on mask
+- [x] 3.3 Publish the held-voice mask after each block
 
 ## 4. Editor
 
-- [ ] 4.1 Grow `BASE_EDITOR_HEIGHT` by the strip; lay out and paint the strip (white/black keys, letters on 60..72, pressed and held highlights), scaling with the UI
-- [ ] 4.2 Mouse: press, drag glissando, release, velocity by height, black-key precedence
+- [x] 4.1 Grow `BASE_EDITOR_HEIGHT` by the strip; lay out and paint the strip (white/black keys, letters on 60..72, pressed and held highlights), scaling with the UI
+- [x] 4.2 Mouse: press, drag glissando, release, velocity by height, black-key precedence
 - [ ] 4.3 Computer keys: physical-key mapping, repeat filter, focus gate, release on focus loss
-- [ ] 4.4 Request repaints while any key is held or lit
-- [ ] 4.5 Update the editor size tests and `print_editor_content_height`
+- [x] 4.4 Request repaints while any key is held or lit
+- [x] 4.5 Update the editor size tests and `print_editor_content_height`
 
 ## 5. Docs and close-out
 

@@ -74,4 +74,20 @@ After each block, the audio thread ORs the keys of the held voices into `held` a
 
 ## Measurements
 
-(to be filled during implementation: strip height, editor height at 75 %, no_alloc result, REAPER check)
+- **Editor size.** The panels already scrolled before this change: their content is 1115–1330 points tall at 100 % in a 768-point window (`print_editor_content_height`, all exciter × object combinations). A strip at the end of the content would sit out of view.
+  - *As built:* the strip is pinned under the panels' scroll view, outside it (`render_window_body`). The window grows by the strip (64 points plus an 8-point gap): 1080×840 at 100 %, 810×630 at 75 %, 540×420 at 50 %.
+  - `height_pct` keeps the old 768-point layout height (`BASE_LAYOUT_HEIGHT`), so nothing above the strip moves.
+  - The footer now claims its own space, so the content height grew 93 points: 72 for the strip, the rest the footer.
+- **Closing the editor (*As built*, replaces decision 4's `Drop`).** nih-plug-egui keeps the editor state between openings, and the handle's `Drop` only clears `EguiState::open`, so a `Drop` on the sender never fires on close. Instead, the audio thread watches `editor_state.is_open()` once per block. On the open → closed transition it releases every note the editor started (`EditorNoteState::observe_editor_open`). The strip clears its holders on reopen (the editor's build callback).
+- **Tests.**
+  - 18 `gui_notes` unit tests and 5 engine tests (CI lane), 11 strip tests (GUI lane), and `editor_note_drain_is_alloc_free`.
+  - Mutations, each caught: dropping the repeat filter (caught after adding the focus-loss repeat test), dropping the focus gate, dropping the text-field gate, no release on focus loss, no release-all on close, white keys before black in the hit test, flat velocity, and an allocation in `drain` (aborts the no_alloc test).
+  - An editor note-on renders bit-identically to a host note-on on channel 0 (five 256-sample blocks).
+- **REAPER (Linux, X11, 75 %).**
+  - The strip shows at the bottom with its letters.
+  - With the editor focused, holding A lights C4, and releasing it turns it off.
+  - With REAPER's main window focused, S does nothing.
+- **Found in REAPER: focus loss is never reported.** baseview emits `Focused`/`Unfocused` only on macOS; on X11 and Windows it never does, and egui-baseview never fills `physical_key`.
+  - Holding D and moving focus to REAPER's main window leaves C4–D stuck: the key-up goes to the other window. Pressing and releasing D again frees it.
+  - Typing on AZERTY follows the letters, not the positions.
+  - Both open questions are for the maintainer.

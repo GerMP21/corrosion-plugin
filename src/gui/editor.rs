@@ -104,8 +104,13 @@ const THUMB_BORDER: egui::Color32 = egui::Color32::from_rgb(0x66, 0x66, 0x66);
 
 /// Logical editor width for the 100% UI scale.
 const BASE_EDITOR_WIDTH: u32 = 1080;
-/// Logical editor height for the 100% UI scale.
-const BASE_EDITOR_HEIGHT: u32 = 768;
+/// Logical height the panels are laid out against (`height_pct`) at the
+/// 100% UI scale. The keyboard strip sits below it.
+const BASE_LAYOUT_HEIGHT: u32 = 768;
+/// Logical editor height for the 100% UI scale: the panels' scroll view
+/// plus the keyboard strip pinned under it (`add-editor-keyboard`).
+const BASE_EDITOR_HEIGHT: u32 =
+    BASE_LAYOUT_HEIGHT + (KEYBOARD_STRIP_BASE_HEIGHT + KEYBOARD_STRIP_BASE_GAP) as u32;
 
 // ---------------------------------------------------------------------------
 // State
@@ -137,6 +142,8 @@ struct EditorUiState {
     /// and the editor time it was last updated.
     diode_dot_db: f32,
     diode_dot_time: Option<f64>,
+    /// The keyboard strip at the bottom (`add-editor-keyboard`).
+    keyboard: KeyboardStrip,
 }
 
 /// Reductions under this leave the limiter dot at rest.
@@ -193,6 +200,7 @@ impl EditorUiState {
             diode_meter: Arc::new(crate::dsp::DiodeMeter::new()),
             diode_dot_db: 0.0,
             diode_dot_time: None,
+            keyboard: KeyboardStrip::new(Arc::new(crate::gui_notes::EditorNotes::new())),
             randomizer_mode: crate::randomizer::RandomizerMode::Safe,
             randomizer_noise: crate::dsp::utils::noise::Noise::new(
                 std::time::SystemTime::now()
@@ -988,6 +996,7 @@ pub fn create_editor(
     params: Arc<CorrosionParams>,
     editor_state: Arc<EguiState>,
     diode_meter: Arc<crate::dsp::DiodeMeter>,
+    editor_notes: Arc<crate::gui_notes::EditorNotes>,
 ) -> Option<Box<dyn Editor>> {
     let initial_scale = params.ui_scale.value();
     let initial_size = scaled_editor_size(ui_scale_factor(initial_scale));
@@ -997,9 +1006,12 @@ pub fn create_editor(
         editor_state,
         EditorUiState {
             diode_meter,
+            keyboard: KeyboardStrip::new(editor_notes),
             ..EditorUiState::new(initial_scale, initial_size)
         },
-        |_, _| {},
+        // The state outlives the window; the audio thread released the
+        // editor's notes when it closed, so start the strip clean.
+        |_, state| state.keyboard.reopened(),
         move |egui_ctx, setter, state| {
             let ui_scale = params.ui_scale.value();
             let requested_scale = ui_scale_factor(ui_scale);
@@ -1025,17 +1037,33 @@ pub fn create_editor(
                     (BASE_EDITOR_HEIGHT as f32 * 0.5).round(),
                 ))
                 .show(egui_ctx, &resize_state, |ui| {
-                    let content_width = ui.available_width();
-                    egui::ScrollArea::vertical()
-                        .auto_shrink([false, false])
-                        .show(ui, |ui| {
-                            ui.set_width(content_width);
-                            ui.set_max_width(content_width);
-                            render_ui(ui, &params, setter, state, scale);
-                        });
+                    render_window_body(ui, &params, setter, state, scale);
                 });
         },
     )
+}
+
+/// The window's contents: the panels in a scroll view, and the keyboard
+/// strip pinned under it so it stays in view (`add-editor-keyboard`).
+fn render_window_body(
+    ui: &mut egui::Ui,
+    params: &CorrosionParams,
+    setter: &ParamSetter,
+    state: &mut EditorUiState,
+    scale: f32,
+) {
+    let content_width = ui.available_width();
+    let strip_height = (KEYBOARD_STRIP_BASE_HEIGHT + KEYBOARD_STRIP_BASE_GAP) * scale
+        + ui.spacing().item_spacing.y;
+    egui::ScrollArea::vertical()
+        .auto_shrink([false, false])
+        .max_height((ui.available_height() - strip_height).max(0.0))
+        .show(ui, |ui| {
+            ui.set_width(content_width);
+            ui.set_max_width(content_width);
+            render_ui(ui, params, setter, state, scale);
+        });
+    render_keyboard_strip(ui, &mut state.keyboard, scale);
 }
 
 /// The editor's visual style at layout scale `scale`: colours, fonts and
@@ -1158,8 +1186,10 @@ fn editor_width(scale: f32) -> f32 {
     BASE_EDITOR_WIDTH as f32 * scale
 }
 
+/// The panels' layout height (`height_pct` is relative to it); the window
+/// is taller by the keyboard strip.
 fn editor_height(scale: f32) -> f32 {
-    BASE_EDITOR_HEIGHT as f32 * scale
+    BASE_LAYOUT_HEIGHT as f32 * scale
 }
 
 fn width_pct(scale: f32, pct: f32) -> f32 {
@@ -3948,6 +3978,242 @@ fn render_footer(ui: &mut egui::Ui, scale: f32) {
         egui::FontId::proportional(width_pct(scale, 0.0074074073)),
         MUTED_GREY,
     );
+    // Claim the footer's space so the keyboard strip lands below it.
+    ui.allocate_rect(footer_rect, egui::Sense::hover());
+}
+
+// ---------------------------------------------------------------------------
+// Keyboard strip (`add-editor-keyboard`)
+// ---------------------------------------------------------------------------
+
+/// The strip's height at 100 % UI scale, and the gap above it.
+const KEYBOARD_STRIP_BASE_HEIGHT: f32 = 64.0;
+const KEYBOARD_STRIP_BASE_GAP: f32 = 8.0;
+/// Black keys' width and length, relative to a white key.
+const BLACK_KEY_WIDTH: f32 = 0.6;
+const BLACK_KEY_LENGTH: f32 = 0.62;
+/// Mouse velocity at the top of a key (it reaches 1.0 at the bottom).
+const KEY_TOP_VELOCITY: f32 = 0.25;
+
+/// The keyboard strip's editor-side state.
+struct KeyboardStrip {
+    sender: crate::gui_notes::NoteSender,
+    /// The note the mouse holds, if any.
+    mouse_note: Option<u8>,
+    /// Whether the window had focus last frame.
+    focused: bool,
+}
+
+impl KeyboardStrip {
+    fn new(shared: Arc<crate::gui_notes::EditorNotes>) -> Self {
+        Self {
+            sender: crate::gui_notes::NoteSender::new(shared),
+            mouse_note: None,
+            focused: true,
+        }
+    }
+
+    /// The window opened again: the audio thread released the editor's
+    /// notes when it closed.
+    fn reopened(&mut self) {
+        self.sender.forget_held();
+        self.mouse_note = None;
+        self.focused = true;
+    }
+
+    /// Release everything the strip holds (focus lost).
+    fn release_all(&mut self) {
+        self.sender.release_all_held();
+        self.mouse_note = None;
+    }
+}
+
+/// The strip's keys inside `rect`: white keys first, then black keys, so
+/// [`key_at`] can test the black keys (drawn on top) first.
+fn strip_keys(rect: egui::Rect) -> Vec<(u8, egui::Rect)> {
+    use crate::gui_notes::{is_black_key, STRIP_HIGH_NOTE, STRIP_LOW_NOTE};
+    let notes = STRIP_LOW_NOTE..=STRIP_HIGH_NOTE;
+    let whites = notes.clone().filter(|&n| !is_black_key(n)).count();
+    let white_width = rect.width() / whites as f32;
+    let mut keys = Vec::with_capacity(notes.clone().count());
+    let mut blacks = Vec::new();
+    let mut white_index = 0;
+    for note in notes {
+        if is_black_key(note) {
+            let boundary = rect.min.x + white_index as f32 * white_width;
+            let half = white_width * BLACK_KEY_WIDTH * 0.5;
+            blacks.push((
+                note,
+                egui::Rect::from_min_max(
+                    egui::pos2(boundary - half, rect.min.y),
+                    egui::pos2(
+                        boundary + half,
+                        rect.min.y + rect.height() * BLACK_KEY_LENGTH,
+                    ),
+                ),
+            ));
+        } else {
+            let left = rect.min.x + white_index as f32 * white_width;
+            keys.push((
+                note,
+                egui::Rect::from_min_max(
+                    egui::pos2(left, rect.min.y),
+                    egui::pos2(left + white_width, rect.max.y),
+                ),
+            ));
+            white_index += 1;
+        }
+    }
+    keys.extend(blacks);
+    keys
+}
+
+/// The note under `pos`, black keys first.
+fn key_at(keys: &[(u8, egui::Rect)], pos: egui::Pos2) -> Option<u8> {
+    keys.iter()
+        .rev()
+        .find(|(_, rect)| rect.contains(pos))
+        .map(|&(note, _)| note)
+}
+
+/// Mouse velocity for a press at height `y` on a key spanning `key`.
+fn press_velocity(key: egui::Rect, y: f32) -> u8 {
+    let depth = ((y - key.min.y) / key.height().max(1.0)).clamp(0.0, 1.0);
+    let velocity = KEY_TOP_VELOCITY + (1.0 - KEY_TOP_VELOCITY) * depth;
+    (velocity * 127.0).round().clamp(1.0, 127.0) as u8
+}
+
+/// The letter of a key event's key: the physical key when the backend
+/// gives one, else the logical key (egui-baseview gives no physical key).
+fn key_letter(key: egui::Key, physical_key: Option<egui::Key>) -> Option<char> {
+    let name = physical_key.unwrap_or(key).name();
+    let mut chars = name.chars();
+    match (chars.next(), chars.next()) {
+        (Some(letter), None) if letter.is_ascii_alphabetic() => Some(letter),
+        _ => None,
+    }
+}
+
+/// The keyboard strip: mouse, computer keys and the held-note highlights.
+fn render_keyboard_strip(ui: &mut egui::Ui, strip: &mut KeyboardStrip, scale: f32) {
+    use crate::gui_notes::{note_letter, NoteSource};
+    let top = ui.cursor().min.y;
+    ui.add_space(KEYBOARD_STRIP_BASE_GAP * scale);
+    let size = egui::vec2(ui.available_width(), KEYBOARD_STRIP_BASE_HEIGHT * scale);
+    let (rect, response) = ui.allocate_exact_size(size, egui::Sense::click_and_drag());
+    ui.painter().rect_filled(
+        egui::Rect::from_min_max(egui::pos2(rect.min.x, top), rect.max),
+        0.0,
+        DARK_STEEL,
+    );
+    let keys = strip_keys(rect);
+    #[cfg(test)]
+    DRAWN_KEYBOARD.with(|drawn| *drawn.borrow_mut() = Some((rect, keys.clone())));
+
+    // Computer keys, only while the window has focus and no text field
+    // takes the typing.
+    let ctx = ui.ctx().clone();
+    let (events, focused) = ctx.input(|input| (input.events.clone(), input.focused));
+    let lost_focus = !focused
+        || events
+            .iter()
+            .any(|event| matches!(event, egui::Event::WindowFocused(false)));
+    if lost_focus && strip.focused {
+        strip.release_all();
+    }
+    strip.focused = !lost_focus;
+    let gate_open = strip.focused && !ctx.wants_keyboard_input();
+    for event in &events {
+        if let egui::Event::Key {
+            key,
+            physical_key,
+            pressed,
+            repeat,
+            ..
+        } = *event
+        {
+            if let Some(letter) = key_letter(key, physical_key) {
+                strip.sender.key_event(letter, pressed, repeat, gate_open);
+            }
+        }
+    }
+
+    // Mouse: the key under the pointer while the button is down on the
+    // strip; moving onto another key is a glissando.
+    let target = if response.is_pointer_button_down_on() && strip.focused {
+        ctx.input(|input| input.pointer.interact_pos())
+            .and_then(|pos| key_at(&keys, pos).map(|note| (note, pos)))
+    } else {
+        None
+    };
+    if target.map(|(note, _)| note) != strip.mouse_note {
+        if let Some(previous) = strip.mouse_note.take() {
+            strip.sender.release(previous, NoteSource::Mouse);
+        }
+        if let Some((note, pos)) = target {
+            let key_rect = keys
+                .iter()
+                .find(|(n, _)| *n == note)
+                .map_or(rect, |&(_, r)| r);
+            strip
+                .sender
+                .press(note, press_velocity(key_rect, pos.y), NoteSource::Mouse);
+            strip.mouse_note = Some(note);
+        }
+    }
+    strip.sender.flush();
+
+    // Paint: white keys, then black keys over them.
+    let held = strip.sender.shared().held();
+    let painter = ui.painter();
+    let outline = egui::Stroke::new((scale).max(0.5), RECESSED_BG);
+    let font = egui::FontId::proportional(width_pct(scale, 0.0083333));
+    let mut lit = false;
+    for &(note, key_rect) in &keys {
+        let black = crate::gui_notes::is_black_key(note);
+        let on = strip.sender.holds_any(note) || held.contains(note);
+        lit |= on;
+        let fill = match (black, on) {
+            (false, false) => OFF_WHITE,
+            (false, true) => DANGER_RED.linear_multiply(0.75),
+            (true, false) => RECESSED_BG,
+            (true, true) => DANGER_RED,
+        };
+        let key_rect = if black {
+            key_rect
+        } else {
+            key_rect.shrink2(egui::vec2(0.5 * scale, 0.0))
+        };
+        painter.rect_filled(key_rect, 1.0 * scale, fill);
+        painter.rect_stroke(key_rect, 1.0 * scale, outline, egui::StrokeKind::Inside);
+        if let Some(letter) = note_letter(note) {
+            painter.text(
+                egui::pos2(key_rect.center().x, key_rect.max.y - 3.0 * scale),
+                egui::Align2::CENTER_BOTTOM,
+                letter.to_string(),
+                font.clone(),
+                if black {
+                    OFF_WHITE.linear_multiply(0.6)
+                } else {
+                    MUTED_GREY
+                },
+            );
+        }
+    }
+    // Keep repainting while anything is held or lit, so the highlight
+    // follows notes that end on the audio side.
+    if lit || strip.mouse_note.is_some() {
+        ctx.request_repaint();
+    } else {
+        ctx.request_repaint_after(std::time::Duration::from_millis(50));
+    }
+}
+
+#[cfg(test)]
+thread_local! {
+    /// The strip's rect and keys as last drawn, for the layout tests.
+    static DRAWN_KEYBOARD: std::cell::RefCell<Option<(egui::Rect, Vec<(u8, egui::Rect)>)>> =
+        const { std::cell::RefCell::new(None) };
 }
 
 // ---------------------------------------------------------------------------
@@ -4244,8 +4510,8 @@ mod tests {
     /// editor state.
     #[test]
     fn ui_scale_change_requests_a_host_resize() {
-        let editor_state = nih_plug_egui::EguiState::from_size(810, 576);
-        let mut state = super::EditorUiState::new(1, (810, 576));
+        let editor_state = nih_plug_egui::EguiState::from_size(810, 630);
+        let mut state = super::EditorUiState::new(1, (810, 630));
         let host = ResizeRecordingGui {
             accept: true,
             requests: std::sync::atomic::AtomicUsize::new(0),
@@ -4261,10 +4527,10 @@ mod tests {
         // 75 % -> 100 %: one request, the new size reported to the host.
         assert_eq!(
             super::request_window_size(&mut state, 2, &editor_state, &host),
-            Some((1080, 768))
+            Some((1080, 840))
         );
         assert_eq!(host.requests.load(std::sync::atomic::Ordering::Relaxed), 1);
-        assert_eq!(editor_state.size(), (1080, 768));
+        assert_eq!(editor_state.size(), (1080, 840));
 
         // Asked once per change, not every frame.
         assert_eq!(
@@ -4288,16 +4554,16 @@ mod tests {
         );
     }
 
-    /// A new instance opens at 75 % (810 x 576), small enough for a host
-    /// window on a 1080p screen.
+    /// A new instance opens at 75 % (810 x 630, with the keyboard strip),
+    /// small enough for a host window on a 1080p screen.
     #[test]
     fn editor_opens_at_75_percent_by_default() {
         let params = crate::params::CorrosionParams::default();
         assert_eq!(params.ui_scale.value(), 1);
-        assert_eq!(params.editor_state.size(), (810, 576));
+        assert_eq!(params.editor_state.size(), (810, 630));
         assert_eq!(
             super::scaled_editor_size(super::ui_scale_factor(1)),
-            (810, 576)
+            (810, 630)
         );
     }
 
@@ -5157,20 +5423,21 @@ mod tests {
 
     #[test]
     fn ui_scale_resizes_window_from_base_dimensions() {
-        assert_eq!(scaled_editor_size(ui_scale_factor(0)), (540, 384));
-        assert_eq!(scaled_editor_size(ui_scale_factor(1)), (810, 576));
-        assert_eq!(scaled_editor_size(ui_scale_factor(2)), (1080, 768));
-        assert_eq!(scaled_editor_size(ui_scale_factor(3)), (1350, 960));
-        assert_eq!(scaled_editor_size(ui_scale_factor(4)), (1620, 1152));
+        // 768 of panels plus the 72-point keyboard strip (`add-editor-keyboard`).
+        assert_eq!(scaled_editor_size(ui_scale_factor(0)), (540, 420));
+        assert_eq!(scaled_editor_size(ui_scale_factor(1)), (810, 630));
+        assert_eq!(scaled_editor_size(ui_scale_factor(2)), (1080, 840));
+        assert_eq!(scaled_editor_size(ui_scale_factor(3)), (1350, 1050));
+        assert_eq!(scaled_editor_size(ui_scale_factor(4)), (1620, 1260));
     }
 
     #[test]
     fn ui_scale_persists_host_facing_editor_size() {
-        let editor_state = EguiState::from_size(1080, 768);
+        let editor_state = EguiState::from_size(1080, 840);
 
         persist_editor_size(&editor_state, scaled_editor_size(ui_scale_factor(1)));
 
-        assert_eq!(editor_state.size(), (810, 576));
+        assert_eq!(editor_state.size(), (810, 630));
     }
 
     #[test]
@@ -5235,5 +5502,339 @@ mod tests {
     fn knob_drag_value_clamps_to_range() {
         assert_eq!(knob_drag_value(0.5, -500.0, 0.0, 1.0, 1.0), 1.0);
         assert_eq!(knob_drag_value(0.5, 500.0, 0.0, 1.0, 1.0), 0.0);
+    }
+
+    // --- Keyboard strip (`add-editor-keyboard`) ---
+
+    mod keyboard_strip {
+        use super::NullGui;
+        use crate::gui_notes::{EditorNoteEvent, EditorNotes, KEY_VELOCITY};
+        use nih_plug_egui::egui;
+        use std::sync::Arc;
+
+        const SCALE: f32 = 0.75;
+
+        /// The editor window at 75 %, driven frame by frame.
+        struct Harness {
+            ctx: egui::Context,
+            state: super::super::EditorUiState,
+            shared: Arc<EditorNotes>,
+            params: crate::params::CorrosionParams,
+            frame: u32,
+        }
+
+        impl Harness {
+            fn new() -> Self {
+                let shared = Arc::new(EditorNotes::new());
+                let state = super::super::EditorUiState {
+                    keyboard: super::super::KeyboardStrip::new(shared.clone()),
+                    ..super::super::EditorUiState::new(1, super::super::scaled_editor_size(SCALE))
+                };
+                let ctx = egui::Context::default();
+                super::super::apply_editor_style(&ctx, SCALE);
+                let mut harness = Self {
+                    ctx,
+                    state,
+                    shared,
+                    params: crate::params::CorrosionParams::default(),
+                    frame: 0,
+                };
+                harness.run(Vec::new(), true);
+                harness
+            }
+
+            /// One frame with `events`; returns the drawn texts and where.
+            fn run(
+                &mut self,
+                events: Vec<egui::Event>,
+                focused: bool,
+            ) -> Vec<(String, egui::Pos2)> {
+                let (w, h) = super::super::scaled_editor_size(SCALE);
+                let input = egui::RawInput {
+                    screen_rect: Some(egui::Rect::from_min_size(
+                        egui::Pos2::ZERO,
+                        egui::vec2(w as f32, h as f32),
+                    )),
+                    time: Some(f64::from(self.frame) * 0.02),
+                    focused,
+                    events,
+                    ..Default::default()
+                };
+                self.frame += 1;
+                let gui = NullGui;
+                let setter = nih_plug::prelude::ParamSetter::new(&gui);
+                let (state, params) = (&mut self.state, &self.params);
+                let output = self.ctx.run(input, |ctx| {
+                    egui::CentralPanel::default()
+                        .frame(egui::Frame::NONE)
+                        .show(ctx, |ui| {
+                            super::super::render_window_body(ui, params, &setter, state, SCALE);
+                        });
+                });
+                output
+                    .shapes
+                    .iter()
+                    .filter_map(|clipped| match &clipped.shape {
+                        // Only what is visible: the scroll view clips the
+                        // panels below its edge.
+                        egui::Shape::Text(text) if clipped.clip_rect.contains(text.pos) => {
+                            Some((text.galley.job.text.clone(), text.pos))
+                        }
+                        _ => None,
+                    })
+                    .collect()
+            }
+
+            fn keys(&self) -> (egui::Rect, Vec<(u8, egui::Rect)>) {
+                super::super::DRAWN_KEYBOARD
+                    .with(|drawn| drawn.borrow().clone())
+                    .expect("the keyboard strip was drawn")
+            }
+
+            fn key_rect(&self, note: u8) -> egui::Rect {
+                self.keys()
+                    .1
+                    .into_iter()
+                    .find(|(n, _)| *n == note)
+                    .map(|(_, rect)| rect)
+                    .unwrap()
+            }
+
+            fn sent(&self) -> Vec<EditorNoteEvent> {
+                let mut events = Vec::new();
+                self.shared.drain(|event| events.push(event));
+                events
+            }
+
+            fn press_at(&mut self, pos: egui::Pos2) {
+                self.run(
+                    vec![egui::Event::PointerMoved(pos), button(pos, true)],
+                    true,
+                );
+            }
+        }
+
+        fn button(pos: egui::Pos2, pressed: bool) -> egui::Event {
+            egui::Event::PointerButton {
+                pos,
+                button: egui::PointerButton::Primary,
+                pressed,
+                modifiers: egui::Modifiers::NONE,
+            }
+        }
+
+        fn key(letter: egui::Key, pressed: bool, repeat: bool) -> egui::Event {
+            egui::Event::Key {
+                key: letter,
+                physical_key: None,
+                pressed,
+                repeat,
+                modifiers: egui::Modifiers::NONE,
+            }
+        }
+
+        fn on(note: u8, velocity: u8) -> EditorNoteEvent {
+            EditorNoteEvent::On { note, velocity }
+        }
+
+        fn off(note: u8) -> EditorNoteEvent {
+            EditorNoteEvent::Off { note }
+        }
+
+        /// Spec "The strip is the bottom-most element": pinned to the
+        /// window's bottom edge under the panels' scroll view, whatever the
+        /// panels' height.
+        #[test]
+        fn the_strip_is_pinned_to_the_bottom() {
+            let harness = Harness::new();
+            let (rect, _) = harness.keys();
+            let (w, h) = super::super::scaled_editor_size(SCALE);
+            assert_eq!((w, h), (810, 630));
+            assert!(rect.max.y <= h as f32 + 0.5, "strip ends at {}", rect.max.y);
+            assert!(rect.max.y >= h as f32 - 1.0, "strip ends at {}", rect.max.y);
+            let strip_top = h as f32
+                - (super::super::KEYBOARD_STRIP_BASE_HEIGHT
+                    + super::super::KEYBOARD_STRIP_BASE_GAP)
+                    * SCALE;
+            assert!(rect.min.y >= strip_top - 0.5);
+            assert!((rect.width() - w as f32).abs() < 1.0);
+        }
+
+        /// Spec "The strip covers C3 to C6".
+        #[test]
+        fn the_strip_covers_c3_to_c6() {
+            let harness = Harness::new();
+            let (_, keys) = harness.keys();
+            let mut notes: Vec<u8> = keys.iter().map(|&(n, _)| n).collect();
+            notes.sort_unstable();
+            assert_eq!(notes, (48..=84).collect::<Vec<_>>());
+            for &(note, rect) in &keys {
+                let short = rect.height() < harness.keys().0.height() - 0.5;
+                assert_eq!(
+                    short,
+                    matches!(note % 12, 1 | 3 | 6 | 8 | 10),
+                    "note {note}"
+                );
+            }
+        }
+
+        #[test]
+        fn mapped_keys_show_their_letters() {
+            let mut harness = Harness::new();
+            let texts = harness.run(Vec::new(), true);
+            let (strip, _) = harness.keys();
+            let letters: Vec<&str> = texts
+                .iter()
+                .filter(|(_, pos)| strip.expand(1.0).contains(*pos))
+                .map(|(text, _)| text.as_str())
+                .collect();
+            assert_eq!(letters.len(), 13, "{letters:?}");
+            for letter in [
+                "A", "W", "S", "E", "D", "F", "T", "G", "Y", "H", "U", "J", "K",
+            ] {
+                assert!(letters.contains(&letter), "{letter} missing: {letters:?}");
+            }
+        }
+
+        /// Spec "Click and release".
+        #[test]
+        fn click_and_release() {
+            let mut harness = Harness::new();
+            let pos = harness.key_rect(60).center_bottom() - egui::vec2(0.0, 4.0);
+            harness.press_at(pos);
+            harness.run(vec![button(pos, false)], true);
+            let sent = harness.sent();
+            assert!(
+                matches!(sent[0], EditorNoteEvent::On { note: 60, .. }),
+                "{sent:?}"
+            );
+            assert_eq!(&sent[1..], &[off(60)]);
+        }
+
+        /// Spec "Drag across keys".
+        #[test]
+        fn drag_across_keys() {
+            let mut harness = Harness::new();
+            let from = harness.key_rect(60).center_bottom() - egui::vec2(0.0, 4.0);
+            let to = harness.key_rect(62).center_bottom() - egui::vec2(0.0, 4.0);
+            harness.press_at(from);
+            harness.run(vec![egui::Event::PointerMoved(to)], true);
+            harness.run(vec![button(to, false)], true);
+            let sent = harness.sent();
+            assert_eq!(sent.len(), 4, "{sent:?}");
+            assert!(matches!(sent[0], EditorNoteEvent::On { note: 60, .. }));
+            assert_eq!(sent[1], off(60));
+            assert!(matches!(sent[2], EditorNoteEvent::On { note: 62, .. }));
+            assert_eq!(sent[3], off(62));
+        }
+
+        /// Spec "Velocity follows the press position".
+        #[test]
+        fn velocity_follows_the_press_position() {
+            let mut harness = Harness::new();
+            let rect = harness.key_rect(64);
+            let mut velocity_at = |y: f32| {
+                let pos = egui::pos2(rect.center().x, y);
+                harness.press_at(pos);
+                harness.run(vec![button(pos, false)], true);
+                match harness.sent()[0] {
+                    EditorNoteEvent::On { velocity, .. } => velocity,
+                    other => panic!("{other:?}"),
+                }
+            };
+            let top = velocity_at(rect.min.y + 1.0);
+            let bottom = velocity_at(rect.max.y - 1.0);
+            assert!(bottom > top, "top {top}, bottom {bottom}");
+        }
+
+        /// Spec "Black key over white key".
+        #[test]
+        fn black_key_over_white_key() {
+            let mut harness = Harness::new();
+            let black = harness.key_rect(61);
+            let white = harness.key_rect(60);
+            let pos = egui::pos2(black.min.x + 1.0, black.center().y);
+            assert!(white.contains(pos), "not an overlap");
+            harness.press_at(pos);
+            assert!(matches!(
+                harness.sent()[0],
+                EditorNoteEvent::On { note: 61, .. }
+            ));
+        }
+
+        /// Spec "The home row plays C4 to C5", through the editor's events.
+        #[test]
+        fn computer_keys_play_through_the_editor() {
+            use egui::Key::*;
+            let mut harness = Harness::new();
+            harness.run(vec![key(A, true, false), key(K, true, false)], true);
+            harness.run(vec![key(A, true, true)], true);
+            harness.run(vec![key(A, false, false), key(K, false, false)], true);
+            assert_eq!(
+                harness.sent(),
+                vec![on(60, KEY_VELOCITY), on(72, KEY_VELOCITY), off(60), off(72)]
+            );
+        }
+
+        /// Spec "Unfocused editor ignores keys".
+        #[test]
+        fn an_unfocused_editor_ignores_keys() {
+            use egui::Key::*;
+            let mut harness = Harness::new();
+            harness.run(vec![key(A, true, false), key(S, true, false)], false);
+            harness.run(vec![key(A, false, false), key(S, false, false)], false);
+            assert!(harness.sent().is_empty());
+        }
+
+        /// Spec "Typing a preset name does not play".
+        #[test]
+        fn typing_a_preset_name_does_not_play() {
+            use egui::Key::*;
+            let mut harness = Harness::new();
+            let texts = harness.run(Vec::new(), true);
+            let (_, hint) = texts
+                .iter()
+                .find(|(text, _)| text == "Preset name")
+                .expect("the preset name field is drawn");
+            let field = *hint + egui::vec2(4.0, 4.0);
+            harness.run(
+                vec![egui::Event::PointerMoved(field), button(field, true)],
+                true,
+            );
+            harness.run(vec![button(field, false)], true);
+            assert!(
+                harness.ctx.wants_keyboard_input(),
+                "the field did not take focus"
+            );
+            let _ = harness.sent();
+            for (letter, text) in [(A, "a"), (W, "w"), (S, "s")] {
+                harness.run(
+                    vec![key(letter, true, false), egui::Event::Text(text.into())],
+                    true,
+                );
+                harness.run(vec![key(letter, false, false)], true);
+            }
+            assert!(harness.sent().is_empty());
+            assert_eq!(harness.state.save_name, "aws");
+        }
+
+        /// Spec "Losing focus releases held notes".
+        #[test]
+        fn losing_focus_releases_held_notes() {
+            use egui::Key::*;
+            let mut harness = Harness::new();
+            let pos = harness.key_rect(67).center_bottom() - egui::vec2(0.0, 4.0);
+            harness.run(vec![key(A, true, false)], true);
+            harness.press_at(pos);
+            let _ = harness.sent();
+            harness.run(vec![egui::Event::WindowFocused(false)], false);
+            let mut sent = harness.sent();
+            sent.sort_by_key(|event| match event {
+                EditorNoteEvent::On { note, .. } | EditorNoteEvent::Off { note } => *note,
+            });
+            assert_eq!(sent, vec![off(60), off(67)]);
+            harness.run(vec![key(A, false, false), button(pos, false)], true);
+            assert!(harness.sent().is_empty());
+        }
     }
 }

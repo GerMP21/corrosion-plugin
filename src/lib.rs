@@ -61,6 +61,9 @@ pub mod gui;
 /// Offline rendering module - batch processing and export utilities
 pub mod offline;
 
+/// Notes played from the editor keyboard, shared with the audio thread
+pub mod gui_notes;
+
 /// Parameter definitions - host-facing parameter interface
 mod params;
 
@@ -913,6 +916,11 @@ pub struct Corrosion {
     /// The diode stage's reduction, published once per block for the
     /// editor's limiter dot (`add-asymmetric-diode-stage`).
     diode_meter: Arc<dsp::DiodeMeter>,
+    /// Notes played on the editor's keyboard, and the held notes published
+    /// back for its highlights (`add-editor-keyboard`).
+    editor_notes: Arc<gui_notes::EditorNotes>,
+    /// Which notes the editor turned on, so a release-all stops only those.
+    editor_note_state: gui_notes::EditorNoteState,
     /// Removes the voices' static deflection from their mix before the
     /// master drive (`block-voice-mix-dc`).
     mix_dc_blocker: dsp::StereoDcBlocker,
@@ -952,6 +960,8 @@ impl Default for Corrosion {
             panic_gain: 1.0,
             panic_step: 0.0,
             diode_meter: Arc::new(dsp::DiodeMeter::new()),
+            editor_notes: Arc::new(gui_notes::EditorNotes::new()),
+            editor_note_state: gui_notes::EditorNoteState::default(),
             mix_dc_blocker: dsp::StereoDcBlocker::new(VOICE_MIX_DC_CUTOFF_HZ),
             mix_dc_blocker_enabled: true,
         }
@@ -1247,6 +1257,7 @@ impl Corrosion {
         W: FnMut(usize, (f32, f32), (f32, f32)),
     {
         let block = self.begin_block(sample_rate, host_tempo);
+        self.handle_editor_notes();
         for sample_id in 0..block_len {
             // Handle any MIDI events scheduled for this sample
             process_pending_events(self, sample_id as u32, next_event, &mut fetch_next);
@@ -1254,7 +1265,38 @@ impl Corrosion {
             let limited = self.limit_frame(left, right, &block);
             write(sample_id, limited, (left, right));
         }
+        self.editor_notes
+            .publish_held(self.voice_manager.active_notes());
         block
+    }
+
+    /// Play the notes the editor's keyboard queued since the last block, as
+    /// host notes on channel 0 with no voice ID at the block's first sample,
+    /// before the block's host events (`add-editor-keyboard`).
+    /// Allocation-free: the `Arc` clone only bumps a count.
+    fn handle_editor_notes(&mut self) {
+        let shared = Arc::clone(&self.editor_notes);
+        let mut state = self.editor_note_state;
+        state.drain(&shared, |event| {
+            let event = match event {
+                gui_notes::EditorNoteEvent::On { note, velocity } => NoteEvent::NoteOn {
+                    timing: 0,
+                    voice_id: None,
+                    channel: 0,
+                    note,
+                    velocity: f32::from(velocity) / 127.0,
+                },
+                gui_notes::EditorNoteEvent::Off { note } => NoteEvent::NoteOff {
+                    timing: 0,
+                    voice_id: None,
+                    channel: 0,
+                    note,
+                    velocity: 0.0,
+                },
+            };
+            handle_note_event(self, event);
+        });
+        self.editor_note_state = state;
     }
 }
 
@@ -1372,6 +1414,12 @@ impl Plugin for Corrosion {
         let sample_rate = context.transport().sample_rate as u32;
         let host_tempo = context.transport().tempo.map(|t| t as f32);
 
+        // A closed editor releases the notes it was holding
+        // (`add-editor-keyboard`); its state outlives the window.
+        #[cfg(feature = "gui")]
+        self.editor_note_state
+            .observe_editor_open(self.params.editor_state.is_open(), &self.editor_notes);
+
         // Everything from here to the output samples is `process_block`,
         // shared with the offline renderer (`offline::render_preset`, H13).
         let block_len = buffer.samples();
@@ -1416,6 +1464,7 @@ impl Plugin for Corrosion {
                 self.params.clone(),
                 self.params.editor_state.clone(),
                 self.diode_meter.clone(),
+                self.editor_notes.clone(),
             )
         }
         #[cfg(not(feature = "gui"))]
@@ -4267,5 +4316,156 @@ mod note_expression_tests {
             "the tail got pressure"
         );
         assert!((voices[1].poly_pressure_for_test() - 0.6).abs() < 1e-6);
+    }
+}
+
+/// The editor keyboard's path into the engine (`add-editor-keyboard`).
+#[cfg(test)]
+mod editor_keyboard_tests {
+    use crate::gui_notes::EditorNoteEvent;
+    use nih_plug::prelude::NoteEvent;
+
+    const SR: u32 = 48_000;
+    const BLOCK: usize = 256;
+
+    /// Render one block, with `host` as the block's host events, and return
+    /// the output samples.
+    fn block(plugin: &mut crate::Corrosion, host: Vec<NoteEvent<()>>) -> Vec<(f32, f32)> {
+        let mut host = host.into_iter();
+        let mut next = host.next();
+        let mut out = Vec::with_capacity(BLOCK);
+        plugin.process_block(
+            BLOCK,
+            SR,
+            None,
+            &mut next,
+            || host.next(),
+            |_, frame, _| out.push(frame),
+        );
+        out
+    }
+
+    fn held(plugin: &crate::Corrosion) -> Vec<u8> {
+        let mut notes: Vec<u8> = plugin.voice_manager.active_notes().collect();
+        notes.sort_unstable();
+        notes
+    }
+
+    /// Spec "An editor note plays a voice": an editor note-on renders
+    /// exactly like a host note-on on channel 0 with no voice ID.
+    #[test]
+    fn an_editor_note_plays_like_a_host_note() {
+        let mut editor = crate::Corrosion::default();
+        let mut host = crate::Corrosion::default();
+        assert!(editor.editor_notes.try_push(EditorNoteEvent::On {
+            note: 60,
+            velocity: 100
+        }));
+        let host_on = NoteEvent::NoteOn {
+            timing: 0,
+            voice_id: None,
+            channel: 0,
+            note: 60,
+            velocity: 100.0 / 127.0,
+        };
+        let mut a = block(&mut editor, Vec::new());
+        let mut b = block(&mut host, vec![host_on]);
+        assert_eq!(held(&editor), vec![60]);
+        for _ in 0..4 {
+            a.extend(block(&mut editor, Vec::new()));
+            b.extend(block(&mut host, Vec::new()));
+        }
+        assert!(
+            a.iter().any(|&(l, _)| l.abs() > 1e-4),
+            "the editor note is silent"
+        );
+        assert_eq!(a, b);
+    }
+
+    /// Spec "Order is kept".
+    #[test]
+    fn editor_events_keep_their_order_in_one_block() {
+        let mut plugin = crate::Corrosion::default();
+        for event in [
+            EditorNoteEvent::On {
+                note: 60,
+                velocity: 100,
+            },
+            EditorNoteEvent::Off { note: 60 },
+            EditorNoteEvent::On {
+                note: 62,
+                velocity: 100,
+            },
+        ] {
+            assert!(plugin.editor_notes.try_push(event));
+        }
+        let _ = block(&mut plugin, Vec::new());
+        assert_eq!(held(&plugin), vec![62]);
+    }
+
+    /// Editor notes come before the block's host events.
+    #[test]
+    fn editor_notes_come_before_host_events() {
+        let mut plugin = crate::Corrosion::default();
+        plugin.editor_notes.try_push(EditorNoteEvent::On {
+            note: 60,
+            velocity: 100,
+        });
+        let host_off = NoteEvent::NoteOff {
+            timing: 0,
+            voice_id: None,
+            channel: 0,
+            note: 60,
+            velocity: 0.0,
+        };
+        let _ = block(&mut plugin, vec![host_off]);
+        assert!(held(&plugin).is_empty());
+    }
+
+    /// Spec "Closing the editor releases held notes", on the engine side:
+    /// a release-all stops editor notes and leaves host notes alone.
+    #[test]
+    fn release_all_stops_only_editor_notes() {
+        let mut plugin = crate::Corrosion::default();
+        plugin.editor_notes.try_push(EditorNoteEvent::On {
+            note: 60,
+            velocity: 100,
+        });
+        let host_on = NoteEvent::NoteOn {
+            timing: 0,
+            voice_id: None,
+            channel: 0,
+            note: 67,
+            velocity: 0.8,
+        };
+        let _ = block(&mut plugin, vec![host_on]);
+        assert_eq!(held(&plugin), vec![60, 67]);
+        plugin.editor_notes.request_release_all();
+        let _ = block(&mut plugin, Vec::new());
+        assert_eq!(held(&plugin), vec![67]);
+    }
+
+    /// Spec "Host MIDI lights a key".
+    #[test]
+    fn host_notes_are_published_as_held() {
+        let mut plugin = crate::Corrosion::default();
+        let on = NoteEvent::NoteOn {
+            timing: 10,
+            voice_id: None,
+            channel: 0,
+            note: 64,
+            velocity: 0.8,
+        };
+        let _ = block(&mut plugin, vec![on]);
+        assert!(plugin.editor_notes.held().contains(64));
+        let off = NoteEvent::NoteOff {
+            timing: 10,
+            voice_id: None,
+            channel: 0,
+            note: 64,
+            velocity: 0.0,
+        };
+        let _ = block(&mut plugin, vec![off]);
+        assert!(!plugin.editor_notes.held().contains(64));
     }
 }
