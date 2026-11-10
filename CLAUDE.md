@@ -28,7 +28,7 @@ The 50 factory presets (`presets/factory/`, seeded by `src/bin/seed_presets.rs`)
 - Keep them loading and passing the existing tests (`preset_levels_are_sane`, `tests/preset_roundtrip.rs`). If a schema change adds a field, regenerate them with `cargo run --bin seed_presets` so they stay valid.
 - **User presets and saved DAW projects still matter: keep their migrations** (see "Migrations" below).
 
-## Current state (2026-11-09)
+## Current state (2026-11-10)
 
 The work follows the code review in `FABLE-CODE-REVIEW-2026-07-07.md`. Each fixed finding there is struck through, with a `Status: FIXED` note naming its OpenSpec change.
 
@@ -39,7 +39,7 @@ The work follows the code review in `FABLE-CODE-REVIEW-2026-07-07.md`. Each fixe
 | H11 (prune unsoundable modes), H12 (skip redundant retunes) | Fixed. H12 bounds re-verified: bent 1.019×, dynamics 1.535× (median of 5) |
 | H13 `h13-render-presets-through-post-chain` | Fixed. Also fixed `reset()`'s unbiased drive start |
 | H14 `h14-wrap-low-kit-notes` | Fixed |
-| Medium M1–M20 | 7 OpenSpec changes, applied in the order under "Execution order for the M changes" below. **Done:** `m03-m20-start-at-host-rate-and-report-latency` (also restarts four exciters' per-note state), `m13-sustain-pedal-and-panic`, `m07-m08-interpolate-echo-and-tidy-spread`, `m06-m09-smooth-starvation-and-oversample-clipper`, `m01-m04-m05-clarify-parameters`. **Next:** `add-asymmetric-diode-stage`. M16 fixed with H10; M2 and M19 already resolved (marked by the last change) |
+| Medium M1–M20 | 7 OpenSpec changes, applied in the order under "Execution order for the M changes" below. **Done:** `m03-m20-start-at-host-rate-and-report-latency` (also restarts four exciters' per-note state), `m13-sustain-pedal-and-panic`, `m07-m08-interpolate-echo-and-tidy-spread`, `m06-m09-smooth-starvation-and-oversample-clipper`, `m01-m04-m05-clarify-parameters`. **Next:** `block-voice-mix-dc` (new, 2026-11-10), then `add-asymmetric-diode-stage` resumes. M16 fixed with H10; M2 and M19 already resolved (marked by the last change) |
 | Rust, Damage, Heat (reported by the maintainer, not in the review) | Fixed by `fix-rust-damage-heat-response`: Rust and Damage no longer silence notes or lose the fundamental (worst −3.2 dB across their ranges); Heat darkens spectrally and warbles. Softening the exciter for Heat was dropped (maintainer, 2026-11-09) |
 | Backlog | `docs/BACKLOG.md` (P0–P4): Windows CI, DAW smoke automation, GUI tests, benchmark baselines |
 
@@ -56,10 +56,11 @@ Apply them one at a time, in this order, each closed out (tests, docs, review st
 | 3 ✅ | `m07-m08-interpolate-echo-and-tidy-spread` | M7, M8 | Echo sound changes; the spread stays bit-identical (maintainer's choice). |
 | 4 ✅ | `m06-m09-smooth-starvation-and-oversample-clipper` | M6, M9 | Half-band IIR clipper (maintainer's choice). Bias Starvation also rescaled to act across its range. The clipper clips at the ceiling ÷ 1.3 when oversampling (headroom for the hard clamp) and delays 4–5 samples, unreported. Alias −51 dB Normal, −76 dB Render; CPU within noise (Normal 1.031×, Render 0.992×, median of 5). |
 | 5 ✅ | `m01-m04-m05-clarify-parameters` | M1, M4, M5 | Onset Level with preset and host migrations (default renders bit-identical, all 16 exciters); unique names; Output in dB, +40 dB kept (0 dB at 57.5 % of the travel, −20..+6 dB over 18.9 %). **BREAKING** for Output automation. Factory presets regenerated. |
-| 6 | `add-asymmetric-diode-stage` | (maintainer request) | The clipper as a feature: tanh knee set by Diode Softness, new Diode Asymmetry (default 0.25, even harmonics, 2 Hz DC blocker), the same curve and headroom in Eco, the brickwall panel's red dot as a diode meter. Older presets and projects migrate to Softness 0 / Asymmetry 0. **BREAKING** for Softness automation. Its `output-clipper` delta modifies the spec m06 created (archived). Stop and ask if the headroom must exceed 1.3 or Render is more than 20 % slower. |
-| 7 | `add-parameter-tooltips` | (maintainer request) | GUI only: ⓘ badge (painted 1 px circle and "i" in `MUTED_GREY`) right of each label, hover on the badge only, 1–2 sentences; selector help is a removable trial. After m01 and the diode stage so texts use the final names and controls. |
-| 8 | `m12-per-note-expression` | M12 | Voice-ID addressing, PolyTuning, Choke. Channel MPE out of scope. |
-| 9 | `m10-m18-tidy-dead-code-and-docs` | M10, M11, M14, M15, M17, M18 | Sound-neutral cleanup (prove with render hashes); also marks M2 and M19, already resolved. |
+| 6 | `block-voice-mix-dc` | (found by the diode stage) | The voices carry a static modal deflection under one-signed forces (bow, mallet): 21 of 50 factory presets have ≥ 1 % of their output power at DC, 9 ≥ 20 %. A 5 Hz one-pole DC blocker per channel on the voice mix, before the master drive. Stop and ask if 5 Hz can't meet both the strike bound and the low-end bound. |
+| 7 ⏸ | `add-asymmetric-diode-stage` | (maintainer request) | **Paused 2026-11-10 at 10/12 tasks** (curve, DC blocker, tanh table, headroom, CPU, migrations, fader and dot done; left: 4.4 preset levels, 5.1 docs) until `block-voice-mix-dc` lands: its whole-signal blocker removed the voices' offset and moved preset levels 4–9 dB. Then re-run `preset_levels_are_sane` and decide whether its blocker filters only the curve's DC. | The clipper as a feature: tanh knee set by Diode Softness, new Diode Asymmetry (default 0.25, even harmonics, 2 Hz DC blocker), the same curve and headroom in Eco, the brickwall panel's red dot as a diode meter. Older presets and projects migrate to Softness 0 / Asymmetry 0. **BREAKING** for Softness automation. Its `output-clipper` delta modifies the spec m06 created (archived). Stop and ask if the headroom must exceed 1.3 or Render is more than 20 % slower. |
+| 8 | `add-parameter-tooltips` | (maintainer request) | GUI only: ⓘ badge (painted 1 px circle and "i" in `MUTED_GREY`) right of each label, hover on the badge only, 1–2 sentences; selector help is a removable trial. After m01 and the diode stage so texts use the final names and controls. |
+| 9 | `m12-per-note-expression` | M12 | Voice-ID addressing, PolyTuning, Choke. Channel MPE out of scope. |
+| 10 | `m10-m18-tidy-dead-code-and-docs` | M10, M11, M14, M15, M17, M18 | Sound-neutral cleanup (prove with render hashes); also marks M2 and M19, already resolved. |
 
 ## OpenSpec workflow
 
