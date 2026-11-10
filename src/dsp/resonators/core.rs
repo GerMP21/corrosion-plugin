@@ -2048,7 +2048,15 @@ mod tests {
     /// zero, Damage saturates, and Heat tilts the spectrum. Every case
     /// builds its bank with Rust 0.4 and Heat 0.2, so all 108 cases change;
     /// the mode counts are unchanged.
+    ///
+    /// Linux only: the banks come from the platform's libm (trigonometry,
+    /// `exp`, `powf`), and macOS rounds differently (`extend-ci-windows-
+    /// linux-macos`, CI 2026-11-10). gnu and musl agree.
     #[test]
+    #[cfg_attr(
+        not(target_os = "linux"),
+        ignore = "bank hashes depend on the platform libm; checked on Linux"
+    )]
     fn mode_banks_match_golden_fixture() {
         let current = current_fingerprints();
         if std::env::var_os("CORROSION_UPDATE_GOLDEN").is_some() {

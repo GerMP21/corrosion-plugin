@@ -118,7 +118,7 @@ const LEVELS: &[(&str, u32, f32)] = &[
     ),
     ("experimental/felt_mallet/pipe.corrosion-preset", 0, 2.252),
     ("experimental/felt_mallet/plate.corrosion-preset", 0, 0.9335),
-    ("experimental/felt_mallet/tank.corrosion-preset", 0, 1.0),
+    ("experimental/felt_mallet/tank.corrosion-preset", 1, 2.49),
     ("experimental/felt_mallet/chain.corrosion-preset", 0, 13.33),
     ("experimental/felt_mallet/i_beam.corrosion-preset", 0, 100.0),
     (
@@ -515,7 +515,7 @@ const LEVELS: &[(&str, u32, f32)] = &[
     ("experimental/tension_snap/pipe.corrosion-preset", 0, 1.982),
     ("experimental/tension_snap/plate.corrosion-preset", 0, 100.0),
     ("experimental/tension_snap/tank.corrosion-preset", 0, 2.411),
-    ("experimental/tension_snap/chain.corrosion-preset", 0, 31.22),
+    ("experimental/tension_snap/chain.corrosion-preset", 1, 1.72),
     (
         "experimental/tension_snap/i_beam.corrosion-preset",
         0,

@@ -91,4 +91,114 @@ Same mechanism as today, extended to six zips: `gh release delete nightly --yes 
 
 ## Measurements
 
-(to be filled during implementation: run times per job cold and cached, validator results per platform, platform-dependent test results, `no_alloc` on Windows)
+(Still to fill: run times per job, cold and cached; validator results per platform; `no_alloc` on Windows.)
+
+### First runs on Windows and macOS (2026-11-10)
+
+Runs #74–#100 never started: the organization's Actions billing blocked
+them ("recent account payments have failed or your spending limit needs to
+be increased"), not the workflow. Once billing was fixed, the first run on
+`main` (#100, attempt 2) gave these results:
+
+| Test | Linux | Windows (MSVC) | macOS (aarch64) |
+|---|---|---|---|
+| `dsp::envelopes::tests::loop_output_matches_golden` | pass | hash differs | hash differs |
+| `dsp::resonators::core::tests::mode_banks_match_golden_fixture` | pass | pass | hash differs (first case: Plate scale 0.5) |
+| `every_factory_preset_meets_the_quality_floor` | pass | `felt_mallet/tank` at −8.0 dB (±6) | pass |
+
+Everything else passed on all three platforms (437 tests).
+
+**Golden hashes (maintainer's choice: Linux only).** Both tests hash output
+whose values come from the platform's libm (`powf`, trigonometry, `exp`).
+They now run on Linux only, where gnu and musl agree. Elsewhere they are
+ignored, with the reason in `#[cfg_attr(not(target_os = "linux"), ignore = …)]`.
+The level, character and decay tests still run on every platform.
+
+**`felt_mallet/tank` (maintainer's choice: investigate, then re-draw).** A
+temporary diagnostic, run on the Windows runner, printed the level with each
+parameter reset to the base preset:
+
+- Parameters that do nothing for this preset (Rust, Width, Chaos Depth)
+  gave exactly the platform's own level: 0.00 dB on Linux, −8.0 dB on
+  Windows. The render itself is consistent on each platform.
+- Other parameters flipped the two platforms between the same two states.
+  Resetting Compression Curve gave −6.2 dB on Linux and +0.1 dB on Windows.
+  Resetting Violence gave −8.9 dB and −0.6 dB.
+
+So the preset is bistable, and rounding decides which state it falls into.
+On Linux, changing Size, Damage or Pressure by 0.01 % moved it 4–8 dB. The
+engine is not at fault: the first seed happened to land on a knife edge.
+
+**As built:** the seeder also rejects an experimental preset whose floor
+level moves more than `MAX_LEVEL_INSTABILITY_DB` (2 dB) when Size, Damage,
+Drive or Pressure moves by +0.01 % or −0.1 % (`level_instability_db`), and
+re-draws it.
+
+Bank ranking on Linux:
+
+| Preset | Spread |
+|---|---|
+| `felt_mallet/tank` | 8.06 dB |
+| `tension_snap/chain` | 3.75 dB |
+| next highest (`tension_rise/sheet_metal`) | 1.65 dB |
+| `hard_mallet/pipe` (reference) | 0.03 dB |
+| every other preset | ≤ 1.65 dB |
+
+Re-drawn to try 1:
+
+| Preset | Output | Level before |
+|---|---|---|
+| `felt_mallet/tank` | 1.0 → 2.49 | — |
+| `tension_snap/chain` | 31.22 → 1.72 | −3.85 dB |
+
+No other preset changed. Covered by the tests
+`level_stability_rejects_a_knife_edge_preset`,
+`level_stability_accepts_a_steady_preset` and
+`the_felt_mallet_tank_in_the_bank_is_stable`, plus the ignored
+`print_experimental_level_instability`. The temporary diagnostic and its CI
+step are removed.
+
+### First validator run (2026-11-10, run #102)
+
+pluginval (strictness 5, no GUI tests) passed on Linux. clap-validator 0.3.2
+ran 21 tests on each platform: 17 passed on Linux and macOS, 16 on Windows,
+and the rest were skipped (preset discovery is not implemented). One test
+failed on all three platforms, `param-conversions`, on Filter Cutoff:
+`0.1171646878594357 → '294.2767' → 0.11716467887163162 → '294.27667'`.
+The text a parameter shows has to read back to the same text.
+
+**Cause:** parameters without a formatter showed every digit of the `f32`,
+and the last digit moves when the value goes from normalized to plain and
+back. `display_float_param` used six decimals, which is also more than an
+`f32` holds above 1.
+
+**Test:** `params::tests::parameter_text_round_trips` checks every parameter
+over a grid, the reported value and 20 000 pseudo-random values. Before the
+fix it failed on 14 parameters: Size, the six envelope times, Time Scale, Tip
+Stiffness, Plate Aspect, Chain Link Mass, Filter Cutoff, plus Pressure,
+which showed `-0.0 dB` against `+0.0 dB`.
+
+**Fix:**
+- Every parameter without its own formatter (74 constructors, including
+  `display_float_param`) shows 5 significant digits, with trailing zeros
+  dropped (`significant_text`). For example 1100.0438 shows as 1100 and
+  0.50075006 as 0.50075.
+- Pressure rounds before formatting, so a value just under 0 dB shows
+  `+0.0 dB`.
+
+Only the displayed text changes; no parameter's value or sound changes.
+
+### Validators green (2026-11-10, run #104)
+
+Run #104 (merge of `main` into `dev`, same tree as the param-conversions fix)
+passed every job: checks and bundles on Linux, Windows and macOS.
+
+| Platform | pluginval v1.0.4 (VST3, strictness 5, no GUI) | clap-validator 0.3.2 (CLAP) |
+|---|---|---|
+| Linux | passed | passed (step green; count not read) |
+| Windows | passed | 17 passed, 0 failed, 4 skipped |
+| macOS | passed | passed (step green; count not read) |
+
+The four skipped clap-validator tests are the preset-discovery ones: the
+plugin implements no preset-discovery factory. Validation takes 2–3 s per
+platform.
