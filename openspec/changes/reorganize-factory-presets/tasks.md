@@ -3,8 +3,8 @@
 ## 1. Tests first
 
 - [x] 1.1 Replace the factory-file fixtures in the 24 failing test runs (14 CI, 10 GUI, 9 shared) with in-test fixtures, each with a comment on what it needs; the benchmark and `render_presets` get a fixture or a path. Check each still tests its original claim; the full lanes go green with the bank still empty
-- [ ] 1.2 Bank tests over `presets::factory` (fail until it exists): five folders × 12, unique names, the experimental grid covers 16 × 9 exactly once, regeneration is byte-identical, parameters vary, and the generated presets equal the files on disk
-- [ ] 1.3 Quality-floor test (all presets) and character tests (curated: bass low, pitched, chords harmonic/sustaining/clean, drones sustain, percussion decays), with the measurement helpers; verify each fails on a deliberately wrong preset
+- [x] 1.2 Bank tests over `presets::factory` (fail until it exists): five folders × 12, unique names, the experimental grid covers 16 × 9 exactly once, regeneration is byte-identical, parameters vary, and the generated presets equal the files on disk
+- [x] 1.3 Quality-floor test (all presets) and character tests (curated: bass low, pitched, chords harmonic/sustaining/clean, drones sustain, percussion decays), with the measurement helpers; verify each fails on a deliberately wrong preset
 - [ ] 1.4 User-preset tests: recursive listing with folders, save into a subfolder, the folder selector lists only user folders, Open folder builds the right command per platform (the command is built by a pure function and run separately), a disabled button when there is no folder
 - [ ] 1.5 Browser tests (GUI lane): factory submenus in order, Experimental nested by exciter, User subfolders, arrows wrap within the folder
 

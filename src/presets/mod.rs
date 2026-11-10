@@ -15,6 +15,8 @@ use crate::params::{object_param, CorrosionParams, Object};
 /// - "4" — macros (Mass/Corrosion/Violence/Brightness), play_mode,
 ///   limiter_mode. Legacy presets get neutral defaults via the per-field
 ///   `#[serde(default = …)]` attributes.
+pub mod factory;
+
 pub const PRESET_VERSION: &str = "4";
 
 /// Run an in-place JSON migration on a raw preset value so it conforms to
