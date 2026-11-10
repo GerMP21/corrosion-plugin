@@ -147,7 +147,8 @@ src/
     utils/            budget (mode-count estimates), body, dc_blocker (voice mix),
                       deterministic_excitation
   gui/
-    editor.rs         egui editor: knobs/faders, UI scale (50–150%, default 75%: 810×576;
+    editor.rs         egui editor: knobs/faders, UI scale (50–150%, default 75%: 810×630,
+                      of which 54 are the keyboard strip;
                       a change asks the host to resize; the layout never exceeds the
                       window's width), quality,
                       play and limiter mode selectors, a macro strip (Mass,
@@ -157,8 +158,22 @@ src/
                       headlessly for every exciter, object and space mode, and
                       fails if a parameter has no control and isn't on
                       `HOST_ONLY_PARAMS` (with its reason).
+  gui_notes.rs        Editor keyboard → audio thread: EditorNotes (lock-free SPSC
+                      ring, release-all flag, held-note mask), NoteSender (GUI side),
+                      EditorNoteState (audio side); no GUI dependency
   presets/
-    mod.rs            Preset save/load + sanitization (out of scope for this review)
+    mod.rs            Preset save/load + sanitization; user presets: recursive listing
+                      (UserPreset, ≤ 4 levels), folders, save into a subfolder (never
+                      outside the user folder), open_folder / open_folder_command
+    factory/          The factory bank in code (reorganize-factory-presets):
+      mod.rs          bank(), layout, levelling (TARGET_RMS 0.13), quality floor
+      curated.rs      60 hand-designed presets (bass, lead, chords, drones, percussion)
+      experimental.rs 16 × 9 generated presets, seeded, varied by parameter ID
+      levels.rs       Output and seed try per preset, written by seed_presets
+      measure.rs      Offline measurement helpers (FFT, peaks, flatness, RMS windows)
+      character.rs    Folder character checks
+      tests.rs        Bank tests: counts, grid, determinism, variation, disk equality,
+                      floor, character
   offline/
     mod.rs            OfflineRenderer, comparison/rust/damage suites,
                       AliasingReport + analyze_post_chain_aliasing (DFT residual proxy)
@@ -170,6 +185,22 @@ src/
     render.rs         CLI: --suite family|rust|damage|all|aliasing
     render_presets.rs CLI: preset batch renderer → stereo WAVs via offline::render_preset
 ```
+
+
+### Factory bank
+
+`presets::factory` builds every factory preset in code; `seed_presets` only levels and writes them. The bank tests build the same presets, so they don't depend on the files, and one test checks the files on disk equal the code byte for byte.
+
+- **Layout.** `presets/factory/<folder>/<slug>.corrosion-preset`. The curated folders are `bass`, `lead`, `chords`, `drones` and `percussion` (12 each). Experimental presets are at `experimental/<exciter>/<object>`. The folder is the category: there's no category field in the file.
+- **Experimental generator.** It draws every parameter except output, quality mode, limiter mode, ceiling and UI scale (`EXPERIMENTAL_FIXED_IDS`), from playable ranges. The seed is SplitMix64 over (exciter, object, seed try), mixed with a hash of the parameter ID. Values are written by parameter ID into the preset JSON and parsed back, which clamps them like a loaded file. The exciter slot and object character lists mirror the editor's panels, and a GUI-lane test keeps them equal. Continuous exciters play in Drone mode half the time.
+- **Levelling.** One render of a held middle C (2 s, velocity 100) at Output 1 gives the gain to `TARGET_RMS`. The level before the limiter scales with Output. A second render of the same note at velocity 127 caps Output, so its 99th-percentile sample sits at 0.995 × the ceiling. The quality floor then checks: finite samples, RMS within ±6 dB of the target, and ≤ 1 % of samples over the ceiling at both velocities. The velocity-127 note must also sit no more than 12 dB under the target. An experimental preset that fails is re-drawn with the next seed (up to 8 tries). A curated one stops the seeder. The chosen Output and seed try go to `levels.rs`, so `bank()` reproduces the files without rendering.
+- **Character checks** (`character.rs`), on offline renders through the plugin's output path:
+  - bass: ≥ 70 % of the energy under 500 Hz at C2;
+  - lead and chords: the strongest peak within 50 cents of C3, C4 or C5;
+  - chords: the first six partials within 15 cents of harmonics, ≥ −20 dB at 2 s, flatness < 0.1;
+  - drones: the 8th second within 6 dB of the 2nd;
+  - percussion: ≤ −30 dB at 1.5 s while held.
+- **Browser.** The editor walks the embedded `include_dir!` tree into entries with a display folder (`["Experimental", "Bow"]`). A pure `menu_tree` turns them into nested `ui.menu_button` submenus. The arrows step within the current preset's folder. The user list is re-read when the menu or the Save folder selector opens, because the editor state outlives the window.
 
 ---
 
@@ -187,7 +218,7 @@ The audio callback guarantees:
   vacuously. The non-Windows build enables nih_plug's `assert_process_allocs`
   feature (`Cargo.toml` target cfg).
 - **No locks / blocking / I/O / logging** in `process()`.
-- **Fixed voice array** — 8 `Voice` instances, each owning all 16 exciter structs
+- **Fixed voice array** — 16 `Voice` instances (`MAX_VOICES`), each owning all 16 exciter structs
   so dispatch is a `match` on an integer (no trait objects, no allocation).
 - **Bounded loops** — modal banks have fixed sizes; MSEG stages are bounded.
 - **Denormal protection** — `DENORMAL_FLUSH` add/subtract at the voice boundary;
@@ -238,13 +269,28 @@ Idle ──note_on──▶ Active(rendering) ──note_off──▶ Tail(rende
   pedal, mod wheel, bend and pressure), the post chain and the lookahead
   limiters in place. CC121 lifts the pedal and returns mod wheel, bend and
   channel pressure to rest (`m13-sustain-pedal-and-panic`).
+- **Note addressing** (`m12-per-note-expression`): each voice stores the host's
+  `voice_id` and `channel` from its note-on (`VoiceManager::note_on_addressed`,
+  `NoteAddress`). Note-off, `PolyPressure`, `PolyTuning` and `Choke` share one
+  rule: the voice with the event's voice ID, or, when the event has none or no
+  voice has it, key and channel (note-off: the oldest held voice; pressure: the
+  first sounding voice; tuning and choke: every sounding voice on that key).
+  The plugin sends no voice-terminated event, so a host may reuse an ID while
+  the old note's tail still sounds: among voices with the same ID, the held
+  note wins over a tail, then the newest.
+  Per-note tuning is stored on the voice and added to the channel bend before
+  `pitch_bend_semitones_to_factor` (±24 semitones together), so it retunes
+  through the same exact path and a held value is skipped like a held bend.
+  A choke releases the note and fades the voice linearly over
+  `CHOKE_FADE_FRAMES` (96 at 48 kHz, 2 ms at any rate), then resets it to idle;
+  the fade is an out-of-line branch in the per-sample voice loop. Channel MPE
+  is out of scope: channel bend, pressure and CC1 stay global.
 - **Object per note** (`handle_note_event`): in Tonal and Drone play modes the
-  Object parameter picks the object. In **Kit** mode the note does
-  (`note_to_kit_object`): 10-note slots in object order from MIDI 24, repeating
-  in both directions, slot = `(note − 24).div_euclid(10).rem_euclid(9)`. So
-  114–123 is Pipe again, and below the block 14–23 is object 8, 4–13 object 7
-  and 0–3 object 6 (`h14-wrap-low-kit-notes`; every note under 24 used to play
-  Pipe).
+  Object parameter picks the object, through `note_setup` (profile, size, rust,
+  damage, exciter and `VoiceControls` from the live parameters). In **Kit** mode
+  the key's pad does (see "Kit mode" below); a key without a pad is silent.
+  (The old Kit mode's 10-note object slots, `note_to_kit_object`, were removed
+  by `per-key-kits`.)
 
 ---
 
@@ -461,6 +507,15 @@ plays every exciter 12 dB over its drive with the governor off.
 - Bow, StiffPoint, CorrugatedDrag, TensionRise and PneumaticJet read the
   resonator's velocity explicitly: their friction and flow laws aren't
   monotone, which the solver needs, and none of them runs away.
+- **The jet saturates, it doesn't stall.** PneumaticJet's force goes as
+  `v² − chaos·v³` of the relative air velocity, held at its peak above the
+  knee `2/(3·chaos)` (computed in `set_parameters`), so more air pressure or
+  velocity never silences it (`fix-pneumatic-jet-saturation`).
+- **Releasing a friction exciter snaps the object free.** Bow, StiffPoint and
+  CorrugatedDrag hold a static deflection while in contact (the voice-mix DC
+  blocker hides it); note-off drops the contact at once and the object rings
+  out from it, up to +30 dB over the held note on the default patch. Kept as
+  a feature; a Release Snap control is proposed in `docs/BACKLOG.md`.
 
 ### Noise
 
@@ -603,6 +658,13 @@ Stage summary (as implemented):
 
 ### Quality modes (`QualityMode` → `PostQualityMode`)
 
+**Two timings** (M14): the post chain reads the mode every block, so the
+clipper's oversampling changes at once; each voice's mode count is taken at
+note-on (`VoiceControls.mode_count_scale`), so sounding notes keep theirs until
+they end. Switching Eco ↔ Render mid-note therefore changes the clipper
+immediately and the modal density only for new notes. Rebuilding held notes'
+banks on a mode change is a possible later change, not done.
+
 | Mode | Clipper | Clips from | Alias, 5 kHz at 2× ceiling | Delay at 1 kHz |
 |---|---|---|---|---|
 | Eco | 1× (curve at the host rate) | ceiling ÷ 1.3 | −19.7 dB | −0.015 samples (the DC blocker's lead) |
@@ -640,6 +702,17 @@ Every parameter's display name is unique (`parameter_names_are_unique`), and
 (`into_params_uses_the_live_names_and_output_range`): Resonator / Macro
 Brightness, Brush / Spring Wire Stiffness, Onset Time / Onset Level
 (`m01-m04-m05-clarify-parameters`).
+
+**One constructor per parameter** (`m10-m18-tidy-dead-code-and-docs`, M15):
+each parameter is built by a `params.rs` function taking its value
+(`<id>_param(value)`, e.g. `ui_scale_param`, `filter_cutoff_param`, plus the
+older shared builders such as `exciter_param` and `output_param`), which sets
+its name, range, clamp and formatters. `CorrosionParams::default()` calls it
+with the default and `Preset::into_params` with the preset's value, so a
+preset-built parameter displays exactly like the live one
+(`preset_built_parameters_display_like_the_live_ones` checks every parameter
+of every factory preset). A new parameter needs one such function, used in
+both places.
 
 ### Output protection
 
@@ -698,13 +771,55 @@ knee width `w`, the curve is linear below `K = L·(1 − w)` and
 
 ### Editor inline help (`add-parameter-tooltips`)
 
-Every widget helper (`industrial_knob[_text]`, `industrial_fader[_text]`, `industrial_vfader`, `vfader_global`) paints its label with `paint_label_with_badge`: the label plus a painted ⓘ badge (1 physical px circle and "i" in `MUTED_GREY`; egui's fonts have no U+24D8). Only the badge's own hover area shows the tooltip. The text comes from `help_for(label)`, one table keyed by display label, so slot help follows the selected exciter or object. When a control's behaviour changes, update its entry. `industrial_combo` shows `selector_help(label, selected)` for the selected option: a **trial**, removable by deleting that function and the marked block. `every_drawn_control_has_help` and `every_slot_spec_has_help` check coverage; the hover tests check that the badge, not the knob, opens the tooltip.
+Every widget helper (`industrial_knob[_text]`, `industrial_fader[_text]`, `industrial_vfader`, `vfader_global`) paints its label with `paint_label_with_badge`: the label plus a painted ⓘ badge (1 physical px circle and "i" in `MUTED_GREY`; egui's fonts have no U+24D8). Only the badge's own hover area shows the tooltip. The text comes from `help_for(label)`, one table keyed by display label, so slot help follows the selected exciter or object. When a control's behaviour changes, update its entry. `industrial_combo` shows `selector_help(label, selected)` for the selected option: a **trial**, removable by deleting that function and the marked block. `every_drawn_control_has_help` and `every_slot_spec_has_help` check coverage; the hover tests check that the badge, not the knob, opens the tooltip; `help_follows_the_selected_exciter` / `_object`, `selector_help_describes_the_selection` and `badge_scales_with_the_ui` cover the other scenarios. Because help is keyed by label, a slot label shared between models shares its tooltip: `shared_slot_labels_are_reviewed` fails unless such a label is listed in `SHARED_SLOT_LABELS` (today only "Mallet Mass") after checking it means the same in each model.
+
+### Editor keyboard (`add-editor-keyboard`)
+
+`render_window_body` puts the panels in a vertical scroll view and pins the keyboard strip (`render_keyboard_strip`, C2–C6, MIDI 36–84 since `per-key-kits`) under it, so the strip stays in view.
+- The window is 72 points taller than the 768-point layout height at 100 % (`BASE_EDITOR_HEIGHT` vs `BASE_LAYOUT_HEIGHT`; `height_pct` uses the latter, so the panels did not move).
+- The mouse plays the key under the pointer while the button is down on the strip, with velocity 0.25–1.0 from the key's top to its bottom; black keys are hit-tested first.
+- The computer keys `A W S E D F T G Y H U J K` play notes 60–72 by letter (egui-baseview reports no physical key), or 36–48 in Kit mode (`NoteSender::set_key_base`; a held key releases the note it started).
+
+**When the keys are live.** They play only while the window is focused, the pointer is over the editor (`PointerState::has_pointer`), and no text field has focus (`wants_keyboard_input`; only the preset-name field takes focus).
+- baseview reports focus loss only on macOS. On Windows and X11 the pointer leaving (`PointerGone`) stands in for it: it releases everything the strip holds.
+- It also removes the mapped keys from egui's `keys_down`. egui never clears that set and marks a press of a key still in it as a repeat, so after a key-up lost to another window the next press would be ignored.
+- X11 auto-repeat arrives as a key-up and key-down pair in one frame, unflagged; `key_actions` turns such a pair into one repeat.
+
+**Path to the voices.** `NoteSender` (GUI) tracks which source holds each note (mouse, key), so a note held by both stops when both let go. It pushes `EditorNoteEvent`s into `EditorNotes`, a 256-slot `AtomicU32` ring; producers are serialised by a mutex the audio thread never takes. When the ring is full, events wait in a GUI-side `VecDeque` and are retried each frame, so none is lost.
+- `Corrosion::process_block` drains the ring after `begin_block` through `handle_note_event`, as channel-0 notes with no voice ID at the block's first sample, before the host's events.
+- After the block, it publishes `voice_manager.active_notes()` as a 128-bit mask for the highlights.
+- nih-plug-egui keeps the editor state between openings, so a close is seen on the audio side: `process()` watches `editor_state.is_open()`, and on the open → closed edge `EditorNoteState` sends a note-off for every note the editor turned on (host notes are untouched). The strip forgets its holders when the window reopens.
+- `editor_note_drain_is_alloc_free` covers the drain.
+
+### Kit mode (`per-key-kits`)
+
+**Data.** `src/kit/`.
+- `KitPad { key, tune, level_db, values }` is the stored pad: the plain value of every parameter except `NON_PAD_PARAMS` (post chain, master, quality, sync, UI), keyed by parameter ID. `KitPad::from_params` snapshots the live parameters (modulated values, so the macros' voice-side bias is in the pad); `KitPad::params` rebuilds a `CorrosionParams` by overlaying the values on the default preset.
+- `KitState { pads }` is the kit: a `#[persist = "kit"]` field of `CorrosionParams` (`Arc<RwLock<KitState>>`, saved with the project) and the optional `kit` field of a preset file (schema "4"; absent means no pads).
+- `Pad` is the audio-side form, built once per pad by `KitPad::build`: the `NoteSetup` that `note_setup` returns for the pad's parameters, the tune, and the level as a linear gain.
+
+**Pad table.** `KitTable` (`params.kit_table`): 128 seqlock slots (`AtomicU32` sequence + `UnsafeCell<MaybeUninit<Option<Pad>>>`). Writers (GUI, preset load, state restore) are serialised by a mutex the audio thread never takes; a reader copies the slot with volatile reads and retries up to 4 times while the sequence is odd or changes, then plays nothing. `KitTable::load(&KitState)` replaces every slot.
+- nih-plug calls `initialize()` again after restoring state, so `initialize` rebuilds the table from `params.kit`; nothing deserialises on the audio thread.
+
+**Note-on.** In Kit mode `handle_note_event` reads the key's pad and calls `Pad::play` → `VoiceManager::note_on_pad`, which shares `start_voice` with `note_on_addressed`:
+- The voice starts at note `key + tune` into the mode bank, so a pad renders bit-identically to a live note at that pitch; `Voice::mark_pad` then sets the voice's note back to the key, so note-offs, chokes and expression still match it.
+- `pad_voice` makes `update_live_controls` return early: knob moves don't reach pad voices. `pad_gain` multiplies the voice output after its clamp (mono and stereo paths), so the post chain sees the pad's level; it compresses above about −20 dB of pad level (the diode knee).
+- Quality follows the live setting at note-on (`mode_count_scale`). `pad_note_ons_are_alloc_free_while_pads_are_assigned` covers real-time safety; a pad note-on costs the same as a live one (0.89–0.97×).
+
+**Editor.** In Kit mode `render_window_body` takes `KIT_BAR_BASE_HEIGHT` (24 points at 100 %) from the scroll view for the kit bar (`render_kit_bar`: KEY, Tune, Assign, Clear, Full keyboard); the window keeps its size.
+- `KitEditor { selected, full_keyboard, last_auditioned }`. A fresh press selects a key (`select_kit_key`), and a key with a pad loads its sound into the editor through the `ParamSetter` (`load_pad`, skipping the macros, `PAD_MACRO_PARAMS`, which also move post-chain controls).
+- Assign stores `KitPad::from_params` with tune = `last_auditioned − key` (0 if none). `last_auditioned` is set by any editor note outside Kit mode and by selecting a pad (key + its tune); empty keys in Kit mode play nothing and don't set it.
+- Keys outside `KIT_ZONE` (36–59) are painted `KIT_LOCKED_*` and filtered out of the mouse and computer keys unless Full keyboard is on; pads get a `KIT_PAD_BAND` band, the selected key an outline.
+
+**Migration.** A preset (`migrate_old_kit_mode`) or project (`migrate_host_old_kit_mode` in `filter_state`) with Play Mode Kit and no `kit` field loads as Tonal. Host automation can't be migrated (BREAKING).
+
+**Factory kits.** `src/presets/factory/drums.rs`: ten kits, 12 GM pads each, role-tuned (kicks −12, snares and claps +12, side sticks +24, hats +48, cymbals +36, toms 0). The seeder levels each pad alone with `level_pad` (to the bank's floor, capped for headroom at velocity 127) and stores the levels in `levels.rs` (`PAD_LEVELS`, range `PAD_LEVEL_RANGE_DB` −40…+60 dB: one-shot hats put little energy in the floor's 2 s window). `every_drum_pad_meets_the_quality_floor` and `drum_kits_have_drum_character` check them.
 
 ## 10. Build, Test, and QA Infrastructure
 
 | Component | Purpose |
 |---|---|
-| `.github/workflows/ci.yml` | fmt, clippy (`-D warnings`), no-default-features tests, native gnu lib tests, `render --suite family` smoke, WAV check, `bundle.sh release` |
+| `.github/workflows/ci.yml` | Runs on `dev`, `main`, fork pull requests and by hand (`extend-ci-windows-linux-macos`). `checks` on Linux (fmt, clippy `-D warnings`, musl tests, gnu GUI lane, `no_alloc`, docs with warnings denied, benchmarks compiled, renderer smoke and WAV check), Windows MSVC and macOS (clippy, tests, GUI lane, renderer smoke; `no_alloc` on macOS). `bundle`: native VST3 and CLAP per platform with `scripts/bundle.sh` (macOS universal, ad-hoc signed), `scripts/check_bundle.sh`, clap-validator and pluginval. `nightly`: replaces the rolling `nightly` pre-release after a fully green run on main |
 | `scripts/verify-local.sh` | local mirror of CI |
 | `scripts/validate-plugins.sh` | optional `pluginval` + `clap-validator` wrapper |
 | `scripts/check_wav.py` / `analyze_wav.py` / `check_clicks.py` | offline artifact validation |
@@ -712,8 +827,9 @@ Every widget helper (`industrial_knob[_text]`, `industrial_fader[_text]`, `indus
 | `tests/` | integration tests: no_alloc, automation_stress, preset_roundtrip, body, drive, stereo, velocity, chain distinctness, limiter, damage rattle, bow, plugin metrics |
 | `src/bin/render.rs` | offline QA renderer incl. `--suite aliasing` → `aliasing_report.txt` |
 
-Default local target is `x86_64-unknown-linux-musl` (`.cargo/config.toml`); the
-bundle/validator flow uses `x86_64-unknown-linux-gnu`.
+`.cargo/config.toml` defaults the target to `x86_64-pc-windows-gnu` (the maintainer's
+Windows host); on Linux set `CARGO_BUILD_TARGET`. CI tests on `x86_64-unknown-linux-musl`,
+and the Linux bundle/validator flow uses `x86_64-unknown-linux-gnu`.
 
 ---
 

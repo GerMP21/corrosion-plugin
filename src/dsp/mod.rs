@@ -43,11 +43,6 @@ pub use utils::{
     StereoDcBlocker,
 };
 
-pub use crate::offline::{
-    DamageVariationRenderSpec, RustVariationRenderSpec, DAMAGE_VARIATION_SPECS,
-    FAMILY_COMPARISON_SPECS, RUST_VARIATION_SPECS,
-};
-
 #[cfg(test)]
 pub(crate) use profile::{
     PIPE_MODAL_PROFILE_MODES, PLATE_MODAL_PROFILE_MODES, TANK_MODAL_PROFILE_MODES,

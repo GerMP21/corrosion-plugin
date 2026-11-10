@@ -1696,7 +1696,6 @@ impl ResonatorCore for ModalResonator {
             .state
             .coupling_stiffness
             .clamp(0.0, 1.0);
-        self.interaction_bus.state.set_exciter_force(excitation);
         let track_any = self.ring.enabled;
         let track = track_any && self.ring.countdown == 0;
         let boost = self.ring.boost;
@@ -1785,7 +1784,6 @@ impl ResonatorCore for ModalResonator {
             .state
             .coupling_stiffness
             .clamp(0.0, 1.0);
-        self.interaction_bus.state.set_exciter_force(excitation);
         let track_any = self.ring.enabled;
         let track = track_any && self.ring.countdown == 0;
         let boost = self.ring.boost;

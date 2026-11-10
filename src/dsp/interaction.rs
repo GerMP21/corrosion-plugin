@@ -20,7 +20,11 @@ pub fn mode_coefficient_1d(mode_index: usize, position: f32) -> f32 {
 // Removed 2026-05-28 as part of the P3.1 dead-code sweep — re-introduce them
 // alongside the upgraded model if a future feature needs them.
 
-/// Tracks the bidirectional exchange between exciter and resonator.
+/// Contact state shared by exciter and resonator. The resonator writes its
+/// displacement and velocity at the strike point every sample, and the voice
+/// feeds them back to the exciter (`Voice::process_exciter`), so the coupling
+/// is bidirectional. The exciter's force goes straight into the modes and
+/// isn't stored here (`m10-m18-tidy-dead-code-and-docs`, M10).
 #[derive(Clone, Debug)]
 pub struct InteractionState {
     /// Strike position normalized `[0, 1]`.
@@ -31,8 +35,6 @@ pub struct InteractionState {
     pub resonator_displacement: f32,
     /// Current resonator velocity at the strike point.
     pub resonator_velocity: f32,
-    /// Force calculated by the exciter for the current sample.
-    pub exciter_force: f32,
     /// Whether fundamental lock is active.
     pub fundamental_lock: bool,
     /// Minimum coefficient for the fundamental when locked.
@@ -60,7 +62,6 @@ impl InteractionState {
             coupling_stiffness: 1.0,
             resonator_displacement: 0.0,
             resonator_velocity: 0.0,
-            exciter_force: 0.0,
             fundamental_lock: true,
             fundamental_minimum: 0.3,
             position_wander_amount: 0.0,
@@ -117,11 +118,6 @@ impl InteractionState {
         }
 
         coefficients
-    }
-
-    /// Set the force calculated by the exciter.
-    pub fn set_exciter_force(&mut self, force: f32) {
-        self.exciter_force = force;
     }
 
     // `update_resonator_state` and `distribute_force_to_modes` allocated a

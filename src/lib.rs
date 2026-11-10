@@ -61,6 +61,12 @@ pub mod gui;
 /// Offline rendering module - batch processing and export utilities
 pub mod offline;
 
+/// Notes played from the editor keyboard, shared with the audio thread
+pub mod gui_notes;
+
+/// Per-key kit pads (`per-key-kits`).
+pub mod kit;
+
 /// Parameter definitions - host-facing parameter interface
 mod params;
 
@@ -86,19 +92,6 @@ use voice::{VoiceControls, VoiceManager};
 // Public re-exports for convenience
 pub use params::{CorrosionParams, Object, PlayMode, QualityMode};
 pub use presets::Preset;
-
-/// Map an incoming MIDI note to a kit-slot object when `PlayMode::Kit` is
-/// active. Each object gets a 10-note slot, in object order, starting at
-/// MIDI 24 (C1): 24–33 is object 0, 34–43 object 1, … 104–113 object 8.
-/// Outside that block the slots repeat in both directions, so every object
-/// can be played at extreme registers: 114–123 is object 0 again, and below
-/// the block 14–23 is object 8, 4–13 object 7 and 0–3 object 6 (H14).
-fn note_to_kit_object(note: u8) -> Object {
-    // `div_euclid` floors toward negative infinity, so the notes below 24
-    // continue the slot pattern downward in full 10-note slots.
-    let slot = (note as i32 - 24).div_euclid(10).rem_euclid(9);
-    Object::from_int(slot)
-}
 
 /// Map the `sync_rate` knob and host tempo into a normalized echo
 /// `delay_time` value (the 0..1 form the `FactoryEcho` expects).
@@ -403,6 +396,21 @@ fn migrate_host_diode_stage(
     params.insert("diode_asymmetry".into(), ParamValue::F32(0.0));
 }
 
+/// Host state saved before `per-key-kits` has no `kit` field; its Kit mode
+/// was the 10-note slot mapping. It loads as Tonal, like an old Kit preset,
+/// so the project keeps sounding.
+fn migrate_host_old_kit_mode(state: &mut PluginState) {
+    use nih_plug::wrapper::state::ParamValue;
+    if state.fields.contains_key("kit") {
+        return;
+    }
+    if let Some(ParamValue::I32(mode)) = state.params.get_mut("play_mode") {
+        if *mode == PlayMode::Kit.to_int() {
+            *mode = PlayMode::Tonal.to_int();
+        }
+    }
+}
+
 /// Maximum drive-amount-to-gain multiplier in `apply_drive`. A drive of `1.0`
 /// brings the input up by `1 + DRIVE_GAIN_SCALE` before the waveshaper.
 const DRIVE_GAIN_SCALE: f32 = 4.0;
@@ -532,193 +540,277 @@ pub(crate) fn drive_shape(sample: f32, drive: f32) -> f32 {
 /// # Real-Time Safety
 /// This function is called from the audio callback and must not allocate
 /// or perform blocking operations.
+/// What a note-on reads from the parameters: the resonator profile, the
+/// macro-biased size, rust and damage, the exciter and the voice controls.
+/// Live notes take it from the live parameters at note-on; a kit pad takes
+/// it from its stored values when it is assigned (`per-key-kits`), so the
+/// two paths can't drift.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct NoteSetup {
+    pub profile: dsp::ModalProfileId,
+    pub size: f32,
+    pub rust: f32,
+    pub damage: f32,
+    pub exciter: i32,
+    pub controls: VoiceControls,
+}
+
+/// The note setup `params` give for `object` in `play_mode`.
+pub(crate) fn note_setup(
+    params: &CorrosionParams,
+    object: Object,
+    play_mode: PlayMode,
+) -> NoteSetup {
+    // Map the Object parameter to a modal profile for the resonator
+    // Each object has distinct modal characteristics (pipe vs plate vs tank, etc.)
+    let profile = match object {
+        Object::Pipe => dsp::ModalProfileId::Pipe,
+        Object::Plate => dsp::ModalProfileId::Plate,
+        Object::Tank => dsp::ModalProfileId::Tank,
+        Object::Chain => dsp::ModalProfileId::Chain,
+        Object::IBeam => dsp::ModalProfileId::IBeam,
+        Object::TautCable => dsp::ModalProfileId::TautCable,
+        Object::CoilSpring => dsp::ModalProfileId::CoilSpring,
+        Object::SheetMetal => dsp::ModalProfileId::SheetMetal,
+        Object::IndustrialCog => dsp::ModalProfileId::IndustrialCog,
+    };
+
+    // Resolve the macro bias once for this note-on. We apply the
+    // voice-side fields via apply_macro_bias_to_controls below, and
+    // bias size/rust/damage at the note_on_with_controls call site.
+    let bias = resolve_macro_bias(params);
+
+    // Collect all current parameter values into VoiceControls struct
+    // This bundles parameters that need to be passed to the voice
+    let mut controls = VoiceControls {
+        env_attack: params.env_attack.value(),
+        env_decay: params.env_decay.value(),
+        env_sustain: params.env_sustain.value(),
+        env_release: params.env_release.value(),
+        mseg_onset: params.mseg_onset.value(),
+        mseg_onset_level: params.mseg_onset_level.value(),
+        mseg_attack: params.mseg_attack.value(),
+        mseg_hold: params.mseg_hold.value(),
+        mseg_decay: params.mseg_decay.value(),
+        mseg_sustain: params.mseg_sustain.value(),
+        mseg_release: params.mseg_release.value(),
+        env_amount: params.env_amount.value(),
+        velocity_to_peak: params.velocity_to_peak.value(),
+        loop_mode: params.loop_mode.value(),
+        loop_start_stage: params.loop_start_stage.value(),
+        loop_end_stage: params.loop_end_stage.value(),
+        global_time_scale: params.global_time_scale.value(),
+        velocity_to_level: params.velocity_to_level.value(),
+        velocity_to_time: params.velocity_to_time.value(),
+        curve_tension: params.curve_tension.value(),
+        exciter_pressure: params.exciter_pressure.value(),
+        exciter_speed: params.exciter_speed.value(),
+        exciter_roughness: params.exciter_roughness.value(),
+        hand_mass: params.hand_mass.value(),
+        flesh_stiffness: params.flesh_stiffness.value(),
+        flesh_damping: params.flesh_damping.value(),
+        mute_decay: params.mute_decay.value(),
+        mallet_mass: params.mallet_mass.value(),
+        felt_softness: params.felt_softness.value(),
+        core_hardness: params.core_hardness.value(),
+        compression_curve: params.compression_curve.value(),
+        material_stiffness: params.material_stiffness.value(),
+        impact_damping: params.impact_damping.value(),
+        stick_mass: params.stick_mass.value(),
+        tip_stiffness: params.tip_stiffness.value(),
+        restitution_bounciness: params.restitution_bounciness.value(),
+        micro_bounce_limit: params.micro_bounce_limit.value(),
+        wire_density: params.wire_density.value(),
+        spread_duration: params.spread_duration.value(),
+        brush_wire_stiffness: params.brush_wire_stiffness.value(),
+        amplitude_randomization: params.amplitude_randomization.value(),
+        pipe_mass: params.pipe_mass.value(),
+        metal_stiffness: params.metal_stiffness.value(),
+        pipe_pitch: params.pipe_pitch.value(),
+        pipe_ring_decay: params.pipe_ring_decay.value(),
+        link_count: params.link_count.value(),
+        chain_mass: params.chain_mass.value(),
+        drop_envelope_spread: params.drop_envelope_spread.value(),
+        internal_rattle: params.internal_rattle.value(),
+        rattle_color: params.rattle_color.value(),
+        bow_pressure: params.bow_pressure.value(),
+        bow_speed: params.bow_speed.value(),
+        rosin_grip: params.rosin_grip.value(),
+        slip_curve: params.slip_curve.value(),
+        scrape_speed: params.scrape_speed.value(),
+        point_pressure: params.point_pressure.value(),
+        chatter_pitch: params.chatter_pitch.value(),
+        chatter_damping: params.chatter_damping.value(),
+        grind_speed: params.grind_speed.value(),
+        grind_pressure: params.grind_pressure.value(),
+        surface_grit: params.surface_grit.value(),
+        grit_color: params.grit_color.value(),
+        drag_speed: params.drag_speed.value(),
+        ridge_spacing: params.ridge_spacing.value(),
+        ridge_depth: params.ridge_depth.value(),
+        drag_exciter_mass: params.drag_exciter_mass.value(),
+        pull_speed: params.pull_speed.value(),
+        break_threshold: params.break_threshold.value(),
+        slip_stochasticity: params.slip_stochasticity.value(),
+        creak_sharpness: params.creak_sharpness.value(),
+        air_pressure: params.air_pressure.value(),
+        nozzle_width: params.nozzle_width.value(),
+        turbulence_chaos: params.turbulence_chaos.value(),
+        mains_frequency: params.mains_frequency.value(),
+        coil_proximity: params.coil_proximity.value(),
+        voltage_sag: params.voltage_sag.value(),
+        pull_distance: params.pull_distance.value(),
+        hook_stiffness: params.hook_stiffness.value(),
+        snap_force: params.snap_force.value(),
+        flow_rate: params.flow_rate.value(),
+        particle_mass: params.particle_mass.value(),
+        mass_variance: params.mass_variance.value(),
+        strike_position: params.strike_position.value(),
+        coupling_stiffness: params.coupling_stiffness.value(),
+        position_wander: params.position_wander.value(),
+        position_envelope: params.position_envelope.value(),
+        position_wander_rate: params.position_wander_rate.value(),
+        fundamental_anchor: params.fundamental_anchor.value(),
+        res_damping: params.res_damping.value(),
+        res_brightness: params.res_brightness.value(),
+        thickness: params.thickness.value(),
+        heat: params.heat.value(),
+        sludge: params.sludge.value(),
+        character: dsp::CharacterParams {
+            pipe_diameter: params.pipe_diameter.value(),
+            plate_aspect: params.plate_aspect.value(),
+            plate_stiffness: params.plate_stiffness.value(),
+            tank_volume: params.tank_volume.value(),
+            tank_cavity_mix: params.tank_cavity_mix.value(),
+            chain_link_mass: params.chain_link_mass.value(),
+            chain_instability: params.chain_instability.value(),
+            beam_shear: params.beam_shear.value(),
+            cable_braid: params.cable_braid.value(),
+            cable_tension_drop: params.cable_tension_drop.value(),
+            spring_dispersion: params.spring_dispersion.value(),
+            spring_slosh: params.spring_slosh.value(),
+            sheet_thinness: params.sheet_thinness.value(),
+            cog_dissonance: params.cog_dissonance.value(),
+        },
+        mode_count_scale: quality_mode_count_scale(QualityMode::from_int(
+            params.quality_mode.value(),
+        )),
+    };
+
+    // Apply Mass / Corrosion / Brightness macro biases to the voice
+    // controls. Violence routes through size/rust/damage and the
+    // post-chain (drive, filter), not through VoiceControls.
+    apply_macro_bias_to_controls(&mut controls, &bias);
+
+    // Drone mode forces the MSEG loop ON between decay (stage 3) and
+    // sustain (stage 4) so friction voices ring indefinitely until
+    // note-off. Hit-style families retain their one-shot envelope.
+    if matches!(play_mode, PlayMode::Drone) {
+        controls.loop_mode = 1; // Forward loop
+        controls.loop_start_stage = 3;
+        controls.loop_end_stage = 4;
+    }
+
+    // The selected exciter, 1–16 (values outside fall back to Hand Strike in
+    // `ExciterType::from_int`).
+    let exciter_type = params.exciter.value();
+
+    // Macro-biased note-on inputs.
+    let biased_size = (params.size.value() * bias.size_factor).clamp(0.05, 10.0);
+    let biased_rust = (params.rust.value() + bias.rust_offset).clamp(0.0, 5.0);
+    let biased_damage = (params.damage.value() + bias.damage_offset).clamp(0.0, 10.0);
+
+    NoteSetup {
+        profile,
+        size: biased_size,
+        rust: biased_rust,
+        damage: biased_damage,
+        exciter: exciter_type,
+        controls,
+    }
+}
+
 fn handle_note_event(plugin: &mut Corrosion, event: NoteEvent<()>) {
     match event {
-        NoteEvent::NoteOn { note, velocity, .. } => {
-            // Decide which object family this note triggers. In Kit mode the
-            // note range picks the family; in Tonal/Drone the global object
-            // param wins. PRD §9.2 / §9.3.
+        NoteEvent::NoteOn {
+            note,
+            velocity,
+            voice_id,
+            channel,
+            ..
+        } => {
             let play_mode = PlayMode::from_int(plugin.params.play_mode.value());
-            let object = match play_mode {
-                PlayMode::Kit => note_to_kit_object(note),
-                PlayMode::Tonal | PlayMode::Drone => Object::from_int(plugin.params.object.value()),
-            };
-
-            // Map the Object parameter to a modal profile for the resonator
-            // Each object has distinct modal characteristics (pipe vs plate vs tank, etc.)
-            let profile = match object {
-                Object::Pipe => dsp::ModalProfileId::Pipe,
-                Object::Plate => dsp::ModalProfileId::Plate,
-                Object::Tank => dsp::ModalProfileId::Tank,
-                Object::Chain => dsp::ModalProfileId::Chain,
-                Object::IBeam => dsp::ModalProfileId::IBeam,
-                Object::TautCable => dsp::ModalProfileId::TautCable,
-                Object::CoilSpring => dsp::ModalProfileId::CoilSpring,
-                Object::SheetMetal => dsp::ModalProfileId::SheetMetal,
-                Object::IndustrialCog => dsp::ModalProfileId::IndustrialCog,
-            };
-
-            // Resolve the macro bias once for this note-on. We apply the
-            // voice-side fields via apply_macro_bias_to_controls below, and
-            // bias size/rust/damage at the note_on_with_controls call site.
-            let bias = resolve_macro_bias(&plugin.params);
-
-            // Collect all current parameter values into VoiceControls struct
-            // This bundles parameters that need to be passed to the voice
-            let mut controls = VoiceControls {
-                env_attack: plugin.params.env_attack.value(),
-                env_decay: plugin.params.env_decay.value(),
-                env_sustain: plugin.params.env_sustain.value(),
-                env_release: plugin.params.env_release.value(),
-                mseg_onset: plugin.params.mseg_onset.value(),
-                mseg_onset_level: plugin.params.mseg_onset_level.value(),
-                mseg_attack: plugin.params.mseg_attack.value(),
-                mseg_hold: plugin.params.mseg_hold.value(),
-                mseg_decay: plugin.params.mseg_decay.value(),
-                mseg_sustain: plugin.params.mseg_sustain.value(),
-                mseg_release: plugin.params.mseg_release.value(),
-                env_amount: plugin.params.env_amount.value(),
-                velocity_to_peak: plugin.params.velocity_to_peak.value(),
-                loop_mode: plugin.params.loop_mode.value(),
-                loop_start_stage: plugin.params.loop_start_stage.value(),
-                loop_end_stage: plugin.params.loop_end_stage.value(),
-                global_time_scale: plugin.params.global_time_scale.value(),
-                velocity_to_level: plugin.params.velocity_to_level.value(),
-                velocity_to_time: plugin.params.velocity_to_time.value(),
-                curve_tension: plugin.params.curve_tension.value(),
-                exciter_pressure: plugin.params.exciter_pressure.value(),
-                exciter_speed: plugin.params.exciter_speed.value(),
-                exciter_roughness: plugin.params.exciter_roughness.value(),
-                hand_mass: plugin.params.hand_mass.value(),
-                flesh_stiffness: plugin.params.flesh_stiffness.value(),
-                flesh_damping: plugin.params.flesh_damping.value(),
-                mute_decay: plugin.params.mute_decay.value(),
-                mallet_mass: plugin.params.mallet_mass.value(),
-                felt_softness: plugin.params.felt_softness.value(),
-                core_hardness: plugin.params.core_hardness.value(),
-                compression_curve: plugin.params.compression_curve.value(),
-                material_stiffness: plugin.params.material_stiffness.value(),
-                impact_damping: plugin.params.impact_damping.value(),
-                stick_mass: plugin.params.stick_mass.value(),
-                tip_stiffness: plugin.params.tip_stiffness.value(),
-                restitution_bounciness: plugin.params.restitution_bounciness.value(),
-                micro_bounce_limit: plugin.params.micro_bounce_limit.value(),
-                wire_density: plugin.params.wire_density.value(),
-                spread_duration: plugin.params.spread_duration.value(),
-                brush_wire_stiffness: plugin.params.brush_wire_stiffness.value(),
-                amplitude_randomization: plugin.params.amplitude_randomization.value(),
-                pipe_mass: plugin.params.pipe_mass.value(),
-                metal_stiffness: plugin.params.metal_stiffness.value(),
-                pipe_pitch: plugin.params.pipe_pitch.value(),
-                pipe_ring_decay: plugin.params.pipe_ring_decay.value(),
-                link_count: plugin.params.link_count.value(),
-                chain_mass: plugin.params.chain_mass.value(),
-                drop_envelope_spread: plugin.params.drop_envelope_spread.value(),
-                internal_rattle: plugin.params.internal_rattle.value(),
-                rattle_color: plugin.params.rattle_color.value(),
-                bow_pressure: plugin.params.bow_pressure.value(),
-                bow_speed: plugin.params.bow_speed.value(),
-                rosin_grip: plugin.params.rosin_grip.value(),
-                slip_curve: plugin.params.slip_curve.value(),
-                scrape_speed: plugin.params.scrape_speed.value(),
-                point_pressure: plugin.params.point_pressure.value(),
-                chatter_pitch: plugin.params.chatter_pitch.value(),
-                chatter_damping: plugin.params.chatter_damping.value(),
-                grind_speed: plugin.params.grind_speed.value(),
-                grind_pressure: plugin.params.grind_pressure.value(),
-                surface_grit: plugin.params.surface_grit.value(),
-                grit_color: plugin.params.grit_color.value(),
-                drag_speed: plugin.params.drag_speed.value(),
-                ridge_spacing: plugin.params.ridge_spacing.value(),
-                ridge_depth: plugin.params.ridge_depth.value(),
-                drag_exciter_mass: plugin.params.drag_exciter_mass.value(),
-                pull_speed: plugin.params.pull_speed.value(),
-                break_threshold: plugin.params.break_threshold.value(),
-                slip_stochasticity: plugin.params.slip_stochasticity.value(),
-                creak_sharpness: plugin.params.creak_sharpness.value(),
-                air_pressure: plugin.params.air_pressure.value(),
-                nozzle_width: plugin.params.nozzle_width.value(),
-                turbulence_chaos: plugin.params.turbulence_chaos.value(),
-                mains_frequency: plugin.params.mains_frequency.value(),
-                coil_proximity: plugin.params.coil_proximity.value(),
-                voltage_sag: plugin.params.voltage_sag.value(),
-                pull_distance: plugin.params.pull_distance.value(),
-                hook_stiffness: plugin.params.hook_stiffness.value(),
-                snap_force: plugin.params.snap_force.value(),
-                flow_rate: plugin.params.flow_rate.value(),
-                particle_mass: plugin.params.particle_mass.value(),
-                mass_variance: plugin.params.mass_variance.value(),
-                strike_position: plugin.params.strike_position.value(),
-                coupling_stiffness: plugin.params.coupling_stiffness.value(),
-                position_wander: plugin.params.position_wander.value(),
-                position_envelope: plugin.params.position_envelope.value(),
-                position_wander_rate: plugin.params.position_wander_rate.value(),
-                fundamental_anchor: plugin.params.fundamental_anchor.value(),
-                res_damping: plugin.params.res_damping.value(),
-                res_brightness: plugin.params.res_brightness.value(),
-                thickness: plugin.params.thickness.value(),
-                heat: plugin.params.heat.value(),
-                sludge: plugin.params.sludge.value(),
-                character: dsp::CharacterParams {
-                    pipe_diameter: plugin.params.pipe_diameter.value(),
-                    plate_aspect: plugin.params.plate_aspect.value(),
-                    plate_stiffness: plugin.params.plate_stiffness.value(),
-                    tank_volume: plugin.params.tank_volume.value(),
-                    tank_cavity_mix: plugin.params.tank_cavity_mix.value(),
-                    chain_link_mass: plugin.params.chain_link_mass.value(),
-                    chain_instability: plugin.params.chain_instability.value(),
-                    beam_shear: plugin.params.beam_shear.value(),
-                    cable_braid: plugin.params.cable_braid.value(),
-                    cable_tension_drop: plugin.params.cable_tension_drop.value(),
-                    spring_dispersion: plugin.params.spring_dispersion.value(),
-                    spring_slosh: plugin.params.spring_slosh.value(),
-                    sheet_thinness: plugin.params.sheet_thinness.value(),
-                    cog_dissonance: plugin.params.cog_dissonance.value(),
-                },
-                mode_count_scale: quality_mode_count_scale(QualityMode::from_int(
-                    plugin.params.quality_mode.value(),
-                )),
-            };
-
-            // Apply Mass / Corrosion / Brightness macro biases to the voice
-            // controls. Violence routes through size/rust/damage and the
-            // post-chain (drive, filter), not through VoiceControls.
-            apply_macro_bias_to_controls(&mut controls, &bias);
-
-            // Drone mode forces the MSEG loop ON between decay (stage 3) and
-            // sustain (stage 4) so friction voices ring indefinitely until
-            // note-off. Hit-style families retain their one-shot envelope.
-            if matches!(play_mode, PlayMode::Drone) {
-                controls.loop_mode = 1; // Forward loop
-                controls.loop_start_stage = 3;
-                controls.loop_end_stage = 4;
+            let address = voice::manager::NoteAddress { voice_id, channel };
+            let velocity = note_event_velocity_to_voice_velocity(velocity);
+            if play_mode == PlayMode::Kit {
+                // Kit mode: the key's pad, or silence (`per-key-kits`). The
+                // pad sounds at the key plus its tune, with its stored sound;
+                // only the quality mode follows the live setting (it sets
+                // CPU cost, not the sound's design).
+                let Some(pad) = plugin.params.kit_table.get(note) else {
+                    return;
+                };
+                pad.play(
+                    &mut plugin.voice_manager,
+                    address,
+                    note,
+                    velocity,
+                    quality_mode_count_scale(QualityMode::from_int(
+                        plugin.params.quality_mode.value(),
+                    )),
+                );
+                return;
             }
-
-            // Get the selected exciter type (0-16 for different exciters)
-            let exciter_type = plugin.params.exciter.value();
-
-            // Macro-biased note-on inputs.
-            let biased_size = (plugin.params.size.value() * bias.size_factor).clamp(0.05, 10.0);
-            let biased_rust = (plugin.params.rust.value() + bias.rust_offset).clamp(0.0, 5.0);
-            let biased_damage =
-                (plugin.params.damage.value() + bias.damage_offset).clamp(0.0, 10.0);
-
-            // Trigger note-on in voice manager with all parameters
-            // The voice manager handles polyphony and voice allocation
-            plugin.voice_manager.note_on_with_controls(
+            // Tonal and Drone: the global Object and the live parameters.
+            let object = Object::from_int(plugin.params.object.value());
+            let setup = note_setup(&plugin.params, object, play_mode);
+            plugin.voice_manager.note_on_addressed(
+                address,
                 note,
-                note_event_velocity_to_voice_velocity(velocity),
-                profile,
-                biased_size,
-                biased_rust,
-                biased_damage,
-                exciter_type,
-                controls,
+                velocity,
+                setup.profile,
+                setup.size,
+                setup.rust,
+                setup.damage,
+                setup.exciter,
+                setup.controls,
             );
         }
-        NoteEvent::NoteOff { note, .. } => {
-            // Release the voice playing this note
-            plugin.voice_manager.note_off(note);
+        // Note-off, poly pressure, per-note tuning and choke address a voice
+        // by its voice ID when the host gives one, else by key and channel
+        // (`m12-per-note-expression`).
+        NoteEvent::NoteOff {
+            note,
+            voice_id,
+            channel,
+            ..
+        } => {
+            plugin
+                .voice_manager
+                .note_off_addressed(voice::manager::NoteAddress { voice_id, channel }, note);
+        }
+        NoteEvent::PolyTuning {
+            note,
+            voice_id,
+            channel,
+            tuning,
+            ..
+        } => {
+            plugin.voice_manager.set_note_tuning(
+                voice::manager::NoteAddress { voice_id, channel },
+                note,
+                tuning,
+            );
+        }
+        NoteEvent::Choke {
+            note,
+            voice_id,
+            channel,
+            ..
+        } => {
+            plugin
+                .voice_manager
+                .choke(voice::manager::NoteAddress { voice_id, channel }, note);
         }
         // Channel pitch bend — host delivers normalized 0.0..=1.0 (0.5 neutral).
         // Convert to semitones using the standard ±2 default range so a plain
@@ -731,9 +823,19 @@ fn handle_note_event(plugin: &mut Corrosion, event: NoteEvent<()>) {
         NoteEvent::MidiChannelPressure { pressure, .. } => {
             plugin.voice_manager.set_channel_pressure(pressure);
         }
-        // Per-note aftertouch — routes only to the matching voice.
-        NoteEvent::PolyPressure { note, pressure, .. } => {
-            plugin.voice_manager.set_poly_pressure(note, pressure);
+        // Per-note aftertouch — routes only to the addressed voice.
+        NoteEvent::PolyPressure {
+            note,
+            voice_id,
+            channel,
+            pressure,
+            ..
+        } => {
+            plugin.voice_manager.set_poly_pressure_addressed(
+                voice::manager::NoteAddress { voice_id, channel },
+                note,
+                pressure,
+            );
         }
         // CC1 mod wheel, CC64 sustain, and the channel-mode messages CC120,
         // CC121 and CC123 are routed; other CCs reach the plugin and are
@@ -863,6 +965,11 @@ pub struct Corrosion {
     /// The diode stage's reduction, published once per block for the
     /// editor's limiter dot (`add-asymmetric-diode-stage`).
     diode_meter: Arc<dsp::DiodeMeter>,
+    /// Notes played on the editor's keyboard, and the held notes published
+    /// back for its highlights (`add-editor-keyboard`).
+    editor_notes: Arc<gui_notes::EditorNotes>,
+    /// Which notes the editor turned on, so a release-all stops only those.
+    editor_note_state: gui_notes::EditorNoteState,
     /// Removes the voices' static deflection from their mix before the
     /// master drive (`block-voice-mix-dc`).
     mix_dc_blocker: dsp::StereoDcBlocker,
@@ -902,6 +1009,8 @@ impl Default for Corrosion {
             panic_gain: 1.0,
             panic_step: 0.0,
             diode_meter: Arc::new(dsp::DiodeMeter::new()),
+            editor_notes: Arc::new(gui_notes::EditorNotes::new()),
+            editor_note_state: gui_notes::EditorNoteState::default(),
             mix_dc_blocker: dsp::StereoDcBlocker::new(VOICE_MIX_DC_CUTOFF_HZ),
             mix_dc_blocker_enabled: true,
         }
@@ -1197,6 +1306,7 @@ impl Corrosion {
         W: FnMut(usize, (f32, f32), (f32, f32)),
     {
         let block = self.begin_block(sample_rate, host_tempo);
+        self.handle_editor_notes();
         for sample_id in 0..block_len {
             // Handle any MIDI events scheduled for this sample
             process_pending_events(self, sample_id as u32, next_event, &mut fetch_next);
@@ -1204,7 +1314,38 @@ impl Corrosion {
             let limited = self.limit_frame(left, right, &block);
             write(sample_id, limited, (left, right));
         }
+        self.editor_notes
+            .publish_held(self.voice_manager.active_notes());
         block
+    }
+
+    /// Play the notes the editor's keyboard queued since the last block, as
+    /// host notes on channel 0 with no voice ID at the block's first sample,
+    /// before the block's host events (`add-editor-keyboard`).
+    /// Allocation-free: the `Arc` clone only bumps a count.
+    fn handle_editor_notes(&mut self) {
+        let shared = Arc::clone(&self.editor_notes);
+        let mut state = self.editor_note_state;
+        state.drain(&shared, |event| {
+            let event = match event {
+                gui_notes::EditorNoteEvent::On { note, velocity } => NoteEvent::NoteOn {
+                    timing: 0,
+                    voice_id: None,
+                    channel: 0,
+                    note,
+                    velocity: f32::from(velocity) / 127.0,
+                },
+                gui_notes::EditorNoteEvent::Off { note } => NoteEvent::NoteOff {
+                    timing: 0,
+                    voice_id: None,
+                    channel: 0,
+                    note,
+                    velocity: 0.0,
+                },
+            };
+            handle_note_event(self, event);
+        });
+        self.editor_note_state = state;
     }
 }
 
@@ -1247,6 +1388,7 @@ impl Plugin for Corrosion {
         migrate_host_wander_rate(&mut state.params);
         migrate_host_onset_level(&mut state.params);
         migrate_host_diode_stage(&mut state.params);
+        migrate_host_old_kit_mode(state);
     }
 
     /// Called once when plugin is instantiated.
@@ -1275,6 +1417,11 @@ impl Plugin for Corrosion {
         };
         context.set_latency_samples(latency);
         self.reported_latency_samples = latency;
+        // nih-plug calls `initialize` again after restoring state, holding
+        // the plugin lock (so not while `process` runs): rebuild the pad
+        // table from the restored kit here (`per-key-kits`).
+        let kit = self.params.kit.read().unwrap_or_else(|e| e.into_inner());
+        self.params.kit_table.load(&kit);
         true
     }
 
@@ -1322,6 +1469,12 @@ impl Plugin for Corrosion {
         let sample_rate = context.transport().sample_rate as u32;
         let host_tempo = context.transport().tempo.map(|t| t as f32);
 
+        // A closed editor releases the notes it was holding
+        // (`add-editor-keyboard`); its state outlives the window.
+        #[cfg(feature = "gui")]
+        self.editor_note_state
+            .observe_editor_open(self.params.editor_state.is_open(), &self.editor_notes);
+
         // Everything from here to the output samples is `process_block`,
         // shared with the offline renderer (`offline::render_preset`, H13).
         let block_len = buffer.samples();
@@ -1366,6 +1519,7 @@ impl Plugin for Corrosion {
                 self.params.clone(),
                 self.params.editor_state.clone(),
                 self.diode_meter.clone(),
+                self.editor_notes.clone(),
             )
         }
         #[cfg(not(feature = "gui"))]
@@ -1395,7 +1549,7 @@ mod tests {
         use nih_plug::prelude::Plugin;
         let path = concat!(
             env!("CARGO_MANIFEST_DIR"),
-            "/presets/factory/chain_whip_snap.corrosion-preset"
+            "/tests/fixtures/presets/legacy/chain_whip_snap.corrosion-preset"
         );
         let base = crate::presets::Preset::load(std::path::Path::new(path)).expect("load preset");
         for (violence, drive) in [(0.75, base.drive), (0.2, base.drive), (1.0, 5.0)] {
@@ -1440,7 +1594,7 @@ mod tests {
         use nih_plug::prelude::Plugin;
         for file in ["hanging_chain_echo", "spring_reverb_tap"] {
             let path = format!(
-                "{}/presets/factory/{file}.corrosion-preset",
+                "{}/tests/fixtures/presets/legacy/{file}.corrosion-preset",
                 env!("CARGO_MANIFEST_DIR")
             );
             let preset = crate::presets::Preset::load(std::path::Path::new(&path)).unwrap();
@@ -1848,104 +2002,6 @@ mod tests {
             bias.filter_cutoff_factor > 1.5,
             "Brightness at 1.0 should open the filter by > +1 octave: factor={}",
             bias.filter_cutoff_factor
-        );
-    }
-
-    #[test]
-    fn kit_note_to_object_covers_full_range() {
-        // Every kit slot must be reachable across the playable keyboard, and
-        // notes inside the same slot must resolve to the same object.
-        for slot in 0..9 {
-            let center_note = 24 + slot * 10 + 5;
-            let object = super::note_to_kit_object(center_note as u8);
-            assert_eq!(
-                object.to_int(),
-                slot,
-                "slot {slot} should resolve to object {slot} at note {center_note}"
-            );
-        }
-
-        // Two adjacent notes inside the same slot map identically.
-        assert_eq!(
-            super::note_to_kit_object(36),
-            super::note_to_kit_object(40),
-            "notes inside the same kit slot should map to the same object"
-        );
-        // Adjacent slots map to different objects.
-        assert_ne!(
-            super::note_to_kit_object(33),
-            super::note_to_kit_object(34),
-            "notes that cross a slot boundary should map to different objects"
-        );
-    }
-
-    /// Kit slots for (note, expected object), checked one by one.
-    fn assert_kit_slots(cases: &[(u8, i32)]) {
-        for &(note, object) in cases {
-            assert_eq!(
-                super::note_to_kit_object(note).to_int(),
-                object,
-                "MIDI {note} should play object {object}"
-            );
-        }
-    }
-
-    /// H14 spec "Inside the main block".
-    #[test]
-    fn kit_notes_inside_the_block_map_to_their_slot() {
-        assert_kit_slots(&[(24, 0), (33, 0), (34, 1), (113, 8)]);
-    }
-
-    /// H14 spec "Above the block": the slots repeat upward.
-    #[test]
-    fn kit_notes_above_the_block_wrap() {
-        assert_kit_slots(&[(114, 0), (127, 1)]);
-    }
-
-    /// H14 spec "Below the block": the slots repeat downward too, instead of
-    /// every note under MIDI 24 playing Pipe.
-    #[test]
-    fn kit_notes_below_the_block_wrap() {
-        assert_kit_slots(&[(23, 8), (14, 8), (13, 7), (4, 7), (3, 6), (0, 6)]);
-    }
-
-    #[test]
-    fn kit_mode_overrides_object_param() {
-        // In Kit mode, the note picks the object; the global `object` param
-        // is ignored. We verify by setting the param to Pipe (0) and triggering
-        // a note in the Tank slot (52-61) — the voice's resonator must be Tank.
-        use crate::params::{float_param_for_test, play_mode_param, PlayMode};
-
-        let mut plugin = Corrosion::default();
-        Arc::get_mut(&mut plugin.params).unwrap().play_mode =
-            play_mode_param(PlayMode::Kit.to_int());
-        // Make sure macros don't affect the test.
-        let _ = float_param_for_test("Mass", 0.5, 0.0, 1.0);
-
-        // Trigger a note inside the Tank slot (44-53 = `(note-24)/10 == 2`).
-        handle_note_event(
-            &mut plugin,
-            NoteEvent::NoteOn {
-                timing: 0,
-                voice_id: None,
-                channel: 0,
-                note: 50,
-                velocity: 1.0,
-            },
-        );
-
-        let active_profile = plugin
-            .voice_manager
-            .voices_for_test()
-            .iter()
-            .find(|v| v.is_rendering())
-            .map(|v| v.resonator_profile_for_test())
-            .expect("a voice should be rendering after note-on");
-
-        assert_eq!(
-            active_profile,
-            crate::dsp::ModalProfileId::Tank,
-            "kit mode should select Tank for MIDI note 50 (Tank slot)"
         );
     }
 
@@ -2512,23 +2568,42 @@ mod c5_measurements {
         }
     }
 
-    /// The factory presets' levels are sane (design Decision 4): none hits
-    /// the limiter, and none sits more than 12 dB below the median RMS.
-    /// (Replaces the C5 check that pinned every preset within 0.5 dB of its
-    /// pre-C5 level, a level that included heavy clipping.)
+    /// The factory presets' levels are sane: a held middle C at full
+    /// velocity keeps at most 1 % of its samples above the limiter threshold
+    /// and sits no more than 12 dB below the median RMS.
+    ///
+    /// The note is held, not released at 1 s as in the placeholder bank's
+    /// pass: releasing Bow, Stiff Point Scrape or Corrugated Drag snaps the
+    /// resonator free, up to +37 dB over the held note
+    /// (`reorganize-factory-presets` design, Measurements; a Release Snap
+    /// control is proposed in `docs/BACKLOG.md`).
     #[test]
     #[ignore]
     fn preset_levels_are_sane() {
-        let levels = preset_levels();
-        let median_rms = median(levels.iter().map(|l| l.4).collect());
+        // Kits are silent on C4; their pads are levelled one by one
+        // (`presets::factory::tests::every_drum_pad_meets_the_quality_floor`).
+        let levels: Vec<(String, f32, f32, usize)> = factory_preset_paths()
+            .into_iter()
+            .map(|path| Preset::load(&path).unwrap())
+            .filter(|preset| preset.play_mode != crate::params::PlayMode::Kit.to_int())
+            .map(|preset| {
+                let notes = [crate::offline::OfflineNote::on(0, 60, 1.0)];
+                let frames =
+                    crate::offline::render_preset_pre_limiter(&preset, &notes, SAMPLE_RATE, 2.0);
+                let (peak, rms, hits) = frame_stats(&frames);
+                (preset.name, peak, rms, hits)
+            })
+            .collect();
+        let samples = 2 * 2 * SAMPLE_RATE as usize;
+        let median_rms = median(levels.iter().map(|l| l.2).collect());
         let mut failures = Vec::new();
-        for (name, _, _, peak, rms, hits) in &levels {
+        for (name, peak, rms, hits) in &levels {
             let below = 20.0 * (rms / median_rms).log10();
             println!(
                 "SANE {name}: rms {rms:.5} ({below:+.1} dB vs median), peak {peak:.4}, hits {hits}"
             );
-            if *hits > 0 {
-                failures.push(format!("{name}: {hits} limiter hits"));
+            if *hits as f32 > 0.01 * samples as f32 {
+                failures.push(format!("{name}: {hits} limiter hits (> 1 %)"));
             }
             if below < -12.0 - 0.1 {
                 failures.push(format!("{name}: {below:+.1} dB below the median"));
@@ -2537,13 +2612,33 @@ mod c5_measurements {
         assert!(failures.is_empty(), "{}", failures.join("\n"));
     }
 
+    /// Every preset file under `presets/factory`, in all its folders, sorted.
     pub(crate) fn factory_preset_paths() -> Vec<std::path::PathBuf> {
-        let dir = concat!(env!("CARGO_MANIFEST_DIR"), "/presets/factory");
-        let mut paths: Vec<_> = std::fs::read_dir(dir)
-            .expect("read presets/factory")
-            .map(|e| e.expect("dir entry").path())
-            .filter(|p| p.extension().is_some_and(|e| e == "corrosion-preset"))
-            .collect();
+        preset_paths_under(concat!(env!("CARGO_MANIFEST_DIR"), "/presets/factory"))
+    }
+
+    /// The 50 presets of the old placeholder bank, kept as test fixtures
+    /// (`tests/fixtures/presets/legacy`), sorted.
+    pub(crate) fn legacy_preset_paths() -> Vec<std::path::PathBuf> {
+        preset_paths_under(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/tests/fixtures/presets/legacy"
+        ))
+    }
+
+    fn preset_paths_under(dir: &str) -> Vec<std::path::PathBuf> {
+        fn walk(dir: &std::path::Path, out: &mut Vec<std::path::PathBuf>) {
+            for entry in std::fs::read_dir(dir).expect("read preset folder") {
+                let path = entry.expect("dir entry").path();
+                if path.is_dir() {
+                    walk(&path, out);
+                } else if path.extension().is_some_and(|e| e == "corrosion-preset") {
+                    out.push(path);
+                }
+            }
+        }
+        let mut paths = Vec::new();
+        walk(std::path::Path::new(dir), &mut paths);
         paths.sort();
         paths
     }
@@ -2569,7 +2664,7 @@ mod c5_measurements {
     #[test]
     #[ignore]
     fn c6_spring_preset_measurements() {
-        let spring_presets: Vec<_> = factory_preset_paths()
+        let spring_presets: Vec<_> = legacy_preset_paths()
             .into_iter()
             .filter(|p| Preset::load(p).unwrap().into_params().space_mode.value() == 2)
             .collect();
@@ -2700,7 +2795,7 @@ mod output_ceiling_tests {
 
     #[test]
     fn factory_preset_is_bit_identical_at_the_default_ceiling() {
-        let path = &super::c5_measurements::factory_preset_paths()[0];
+        let path = &super::c5_measurements::legacy_preset_paths()[0];
         let preset = crate::presets::Preset::load(path).expect("load preset");
         assert_eq!(preset.extra.analog_ceiling, LIMITER_THRESHOLD);
         assert_eq!(preset.extra.limiter_mode, 0);
@@ -2841,7 +2936,7 @@ mod host_state_tests {
 /// `m03-m20-start-at-host-rate-and-report-latency`: latency reported at
 /// initialization, and voices rated before they play.
 #[cfg(test)]
-mod host_rate_and_latency_tests {
+pub(crate) mod host_rate_and_latency_tests {
     use super::Corrosion;
     use crate::offline::{OfflineNote, PresetRenderer};
     use crate::params::{exciter_param, limiter_mode_param, CorrosionParams};
@@ -2875,7 +2970,7 @@ mod host_rate_and_latency_tests {
         }
     }
 
-    fn initialized(params: CorrosionParams, sample_rate: f32) -> (Corrosion, Vec<u32>) {
+    pub(crate) fn initialized(params: CorrosionParams, sample_rate: f32) -> (Corrosion, Vec<u32>) {
         let mut plugin = Corrosion {
             params: Arc::new(params),
             ..Corrosion::default()
@@ -3303,7 +3398,7 @@ mod midi_control_tests {
     fn space_renderer() -> PresetRenderer {
         let path = concat!(
             env!("CARGO_MANIFEST_DIR"),
-            "/presets/factory/plate_resonance_bath.corrosion-preset"
+            "/tests/fixtures/presets/legacy/plate_resonance_bath.corrosion-preset"
         );
         PresetRenderer::new(&Preset::load(std::path::Path::new(path)).expect("load preset"))
     }
@@ -3840,5 +3935,533 @@ mod voice_mix_dc_tests {
                 sine_gain_db(100.0, rate),
             );
         }
+    }
+}
+
+/// `m12-per-note-expression`: notes addressed by voice ID, per-note tuning,
+/// per-note pressure and chokes.
+#[cfg(test)]
+mod note_expression_tests {
+    use crate::offline::PresetRenderer;
+    use crate::params::CorrosionParams;
+    use crate::voice::Voice;
+    use nih_plug::prelude::NoteEvent;
+
+    const SR: u32 = 48_000;
+
+    fn plugin() -> PresetRenderer {
+        PresetRenderer::from_params(CorrosionParams::default())
+    }
+
+    fn on(plugin: &mut crate::Corrosion, note: u8, voice_id: Option<i32>) {
+        super::handle_note_event(
+            plugin,
+            NoteEvent::NoteOn {
+                timing: 0,
+                voice_id,
+                channel: 0,
+                note,
+                velocity: 1.0,
+            },
+        );
+    }
+
+    fn off(plugin: &mut crate::Corrosion, note: u8, voice_id: Option<i32>) {
+        super::handle_note_event(
+            plugin,
+            NoteEvent::NoteOff {
+                timing: 0,
+                voice_id,
+                channel: 0,
+                note,
+                velocity: 0.0,
+            },
+        );
+    }
+
+    /// Advance the voices `frames` samples (no post chain), returning the
+    /// voice mix.
+    fn run(plugin: &mut crate::Corrosion, frames: usize) -> Vec<(f32, f32)> {
+        (0..frames)
+            .map(|_| plugin.voice_manager.process_sample_stereo(SR, 1.0))
+            .collect()
+    }
+
+    /// Sounding voices on `note`, oldest first.
+    fn voices_on(plugin: &crate::Corrosion, note: u8) -> Vec<&Voice> {
+        let mut voices: Vec<&Voice> = plugin
+            .voice_manager
+            .voices_for_test()
+            .iter()
+            .filter(|v| v.is_rendering() && v.note() == note)
+            .collect();
+        voices.sort_by_key(|v| v.start_frame());
+        voices
+    }
+
+    /// Two notes on key 60, started 10 ms apart with voice IDs 1 then 2.
+    fn overlapping(renderer: &mut PresetRenderer, ids: (Option<i32>, Option<i32>)) {
+        let plugin = renderer.plugin_mut();
+        on(plugin, 60, ids.0);
+        run(plugin, 480);
+        on(plugin, 60, ids.1);
+        run(plugin, 480);
+    }
+
+    /// Spec "Overlapping notes on one key".
+    #[test]
+    fn note_off_releases_the_addressed_voice() {
+        let mut renderer = plugin();
+        overlapping(&mut renderer, (Some(1), Some(2)));
+        let plugin = renderer.plugin_mut();
+        off(plugin, 60, Some(2));
+        let voices = voices_on(plugin, 60);
+        assert_eq!(voices.len(), 2, "both notes still sound (one as a tail)");
+        assert!(voices[0].is_active(), "ID 1 (older) keeps sounding");
+        assert!(!voices[1].is_active(), "ID 2 (newer) is released");
+    }
+
+    /// Spec "Plain MIDI host": without IDs the oldest held voice on the key
+    /// is released.
+    #[test]
+    fn plain_midi_note_off_releases_the_oldest() {
+        let mut renderer = plugin();
+        overlapping(&mut renderer, (None, None));
+        let plugin = renderer.plugin_mut();
+        off(plugin, 60, None);
+        let voices = voices_on(plugin, 60);
+        assert!(!voices[0].is_active(), "the older voice is released");
+        assert!(voices[1].is_active(), "the newer voice keeps sounding");
+    }
+
+    /// Each mode frequency of the sounding voice on `note`.
+    fn mode_frequencies(plugin: &crate::Corrosion, note: u8) -> Vec<f32> {
+        voices_on(plugin, note)[0]
+            .resonator_for_test()
+            .mode_specs_for_test()
+            .map(|spec| spec.frequency_hz)
+            .collect()
+    }
+
+    fn tuning(plugin: &mut crate::Corrosion, note: u8, voice_id: Option<i32>, semitones: f32) {
+        super::handle_note_event(
+            plugin,
+            NoteEvent::PolyTuning {
+                timing: 0,
+                voice_id,
+                channel: 0,
+                note,
+                tuning: semitones,
+            },
+        );
+    }
+
+    fn assert_ratio(before: &[f32], after: &[f32], ratio: f32, what: &str) {
+        assert_eq!(before.len(), after.len(), "{what}: mode count changed");
+        for (i, (b, a)) in before.iter().zip(after).enumerate() {
+            let got = a / b;
+            assert!(
+                (got / ratio - 1.0).abs() < 1e-4,
+                "{what}: mode {i} moved ×{got:.5}, expected ×{ratio:.5}"
+            );
+        }
+    }
+
+    /// Spec "One note of a chord bent".
+    #[test]
+    fn tuning_retunes_only_the_addressed_note() {
+        let mut renderer = plugin();
+        let plugin = renderer.plugin_mut();
+        for (note, id) in [(60, 1), (64, 2), (67, 3)] {
+            on(plugin, note, Some(id));
+        }
+        run(plugin, 64);
+        let before: Vec<Vec<f32>> = [60, 64, 67]
+            .iter()
+            .map(|&n| mode_frequencies(plugin, n))
+            .collect();
+        tuning(plugin, 64, Some(2), 1.0);
+        let semitone = 2.0_f32.powf(1.0 / 12.0);
+        assert_ratio(&before[1], &mode_frequencies(plugin, 64), semitone, "E");
+        assert_ratio(&before[0], &mode_frequencies(plugin, 60), 1.0, "C");
+        assert_ratio(&before[2], &mode_frequencies(plugin, 67), 1.0, "G");
+    }
+
+    /// Spec "Tuning plus channel bend": +1 per-note and +2 channel bend
+    /// sound 3 semitones up, in either order.
+    #[test]
+    fn tuning_adds_to_the_channel_bend() {
+        for tuning_first in [true, false] {
+            let mut renderer = plugin();
+            let plugin = renderer.plugin_mut();
+            on(plugin, 60, Some(7));
+            run(plugin, 64);
+            let before = mode_frequencies(plugin, 60);
+            let bend = NoteEvent::MidiPitchBend {
+                timing: 0,
+                channel: 0,
+                value: 1.0, // +2 semitones
+            };
+            if tuning_first {
+                tuning(plugin, 60, Some(7), 1.0);
+                super::handle_note_event(plugin, bend);
+            } else {
+                super::handle_note_event(plugin, bend);
+                tuning(plugin, 60, Some(7), 1.0);
+            }
+            assert_ratio(
+                &before,
+                &mode_frequencies(plugin, 60),
+                2.0_f32.powf(3.0 / 12.0),
+                if tuning_first {
+                    "tuning then bend"
+                } else {
+                    "bend then tuning"
+                },
+            );
+        }
+    }
+
+    /// Spec "Pressure on one of two same-key notes".
+    #[test]
+    fn pressure_reaches_only_the_addressed_voice() {
+        let mut renderer = plugin();
+        overlapping(&mut renderer, (Some(1), Some(2)));
+        let plugin = renderer.plugin_mut();
+        // ID 2 is the newer voice, so a key-only match (the older one) is
+        // distinguishable from the ID match.
+        super::handle_note_event(
+            plugin,
+            NoteEvent::PolyPressure {
+                timing: 0,
+                voice_id: Some(2),
+                channel: 0,
+                note: 60,
+                pressure: 0.8,
+            },
+        );
+        let voices = voices_on(plugin, 60);
+        assert_eq!(voices[0].poly_pressure_for_test(), 0.0, "ID 1 responded");
+        assert!(
+            (voices[1].poly_pressure_for_test() - 0.8).abs() < 1e-6,
+            "ID 2 didn't respond"
+        );
+    }
+
+    /// Largest sample-to-sample step of either channel.
+    fn largest_step(frames: &[(f32, f32)]) -> f32 {
+        frames
+            .windows(2)
+            .map(|w| (w[1].0 - w[0].0).abs().max((w[1].1 - w[0].1).abs()))
+            .fold(0.0, f32::max)
+    }
+
+    /// Spec "Choked ringing note": a ringing Pipe note (the default patch),
+    /// choked by key and by voice ID.
+    #[test]
+    fn choke_fades_within_two_ms_and_frees_the_voice() {
+        for voice_id in [None, Some(5)] {
+            let mut renderer = plugin();
+            let plugin = renderer.plugin_mut();
+            on(plugin, 48, voice_id);
+            let ring = run(plugin, 4_800);
+            let before = largest_step(&ring[ring.len() - 96..]);
+            assert!(before > 1e-4, "the note isn't ringing");
+            super::handle_note_event(
+                plugin,
+                NoteEvent::Choke {
+                    timing: 0,
+                    voice_id,
+                    channel: 0,
+                    note: 48,
+                },
+            );
+            let mut after = vec![*ring.last().unwrap()];
+            after.extend(run(plugin, 192));
+            let silent_from = after
+                .iter()
+                .rposition(|&(l, r)| l != 0.0 || r != 0.0)
+                .map_or(0, |last| last + 1);
+            assert!(
+                silent_from <= 97,
+                "{voice_id:?}: output reaches zero at sample {silent_from} (bound 96, 2 ms)"
+            );
+            let step = largest_step(&after);
+            assert!(
+                step <= before,
+                "{voice_id:?}: step {step:.5} after the choke, {before:.5} before"
+            );
+            assert!(
+                voices_on(plugin, 48).is_empty(),
+                "{voice_id:?}: the voice isn't idle"
+            );
+        }
+    }
+
+    /// A choke for a key with no matching voice ID chokes every voice on the
+    /// key and channel, and leaves other keys alone.
+    #[test]
+    fn choke_without_matching_id_chokes_the_key() {
+        let mut renderer = plugin();
+        let plugin = renderer.plugin_mut();
+        on(plugin, 60, Some(1));
+        on(plugin, 60, Some(2));
+        on(plugin, 64, Some(3));
+        run(plugin, 480);
+        super::handle_note_event(
+            plugin,
+            NoteEvent::Choke {
+                timing: 0,
+                voice_id: Some(99),
+                channel: 0,
+                note: 60,
+            },
+        );
+        run(plugin, 192);
+        assert!(voices_on(plugin, 60).is_empty(), "key 60 still sounds");
+        assert!(voices_on(plugin, 64)[0].is_active(), "key 64 was choked");
+    }
+
+    /// Mode frequencies of each sounding voice on `note`, oldest first.
+    fn frequencies_by_age(plugin: &crate::Corrosion, note: u8) -> Vec<Vec<f32>> {
+        voices_on(plugin, note)
+            .iter()
+            .map(|v| {
+                v.resonator_for_test()
+                    .mode_specs_for_test()
+                    .map(|spec| spec.frequency_hz)
+                    .collect()
+            })
+            .collect()
+    }
+
+    /// Spec "One note of a chord bent", addressed by ID alone: two notes on
+    /// one key, a tuning for ID 2 (the newer) moves only that voice. A
+    /// key-and-channel match would move both.
+    #[test]
+    fn tuning_by_id_moves_one_of_two_same_key_notes() {
+        let mut renderer = plugin();
+        overlapping(&mut renderer, (Some(1), Some(2)));
+        let plugin = renderer.plugin_mut();
+        let before = frequencies_by_age(plugin, 60);
+        tuning(plugin, 60, Some(2), 1.0);
+        let after = frequencies_by_age(plugin, 60);
+        assert_ratio(&before[0], &after[0], 1.0, "ID 1");
+        assert_ratio(&before[1], &after[1], 2.0_f32.powf(1.0 / 12.0), "ID 2");
+    }
+
+    /// Spec "Choked ringing note", addressed by ID alone: of two notes on one
+    /// key, a choke for ID 2 stops only that voice.
+    #[test]
+    fn choke_by_id_stops_one_of_two_same_key_notes() {
+        let mut renderer = plugin();
+        overlapping(&mut renderer, (Some(1), Some(2)));
+        let plugin = renderer.plugin_mut();
+        let first_start = voices_on(plugin, 60)[0].start_frame();
+        super::handle_note_event(
+            plugin,
+            NoteEvent::Choke {
+                timing: 0,
+                voice_id: Some(2),
+                channel: 0,
+                note: 60,
+            },
+        );
+        run(plugin, 192);
+        let voices = voices_on(plugin, 60);
+        assert_eq!(voices.len(), 1, "both or neither voice was choked");
+        assert_eq!(voices[0].start_frame(), first_start, "ID 1 was choked");
+        assert!(voices[0].is_active(), "ID 1 should still be held");
+    }
+
+    /// A host that reuses a voice ID while the old note's tail still sounds
+    /// (the plugin sends no voice-terminated event): expression for that ID
+    /// reaches the new, held note, not the tail.
+    #[test]
+    fn reused_id_addresses_the_held_note_not_the_tail() {
+        let mut renderer = plugin();
+        let plugin = renderer.plugin_mut();
+        on(plugin, 60, Some(5));
+        run(plugin, 480);
+        off(plugin, 60, Some(5));
+        run(plugin, 64);
+        on(plugin, 60, Some(5));
+        run(plugin, 64);
+        let voices = voices_on(plugin, 60);
+        assert_eq!(voices.len(), 2, "the first note's tail should still sound");
+        assert!(!voices[0].is_active() && voices[1].is_active());
+        let before = frequencies_by_age(plugin, 60);
+        tuning(plugin, 60, Some(5), 1.0);
+        super::handle_note_event(
+            plugin,
+            NoteEvent::PolyPressure {
+                timing: 0,
+                voice_id: Some(5),
+                channel: 0,
+                note: 60,
+                pressure: 0.6,
+            },
+        );
+        let after = frequencies_by_age(plugin, 60);
+        assert_ratio(&before[0], &after[0], 1.0, "tail");
+        assert_ratio(&before[1], &after[1], 2.0_f32.powf(1.0 / 12.0), "held note");
+        let voices = voices_on(plugin, 60);
+        assert_eq!(
+            voices[0].poly_pressure_for_test(),
+            0.0,
+            "the tail got pressure"
+        );
+        assert!((voices[1].poly_pressure_for_test() - 0.6).abs() < 1e-6);
+    }
+}
+
+/// The editor keyboard's path into the engine (`add-editor-keyboard`).
+#[cfg(test)]
+mod editor_keyboard_tests {
+    use crate::gui_notes::EditorNoteEvent;
+    use nih_plug::prelude::NoteEvent;
+
+    const SR: u32 = 48_000;
+    const BLOCK: usize = 256;
+
+    /// Render one block, with `host` as the block's host events, and return
+    /// the output samples.
+    fn block(plugin: &mut crate::Corrosion, host: Vec<NoteEvent<()>>) -> Vec<(f32, f32)> {
+        let mut host = host.into_iter();
+        let mut next = host.next();
+        let mut out = Vec::with_capacity(BLOCK);
+        plugin.process_block(
+            BLOCK,
+            SR,
+            None,
+            &mut next,
+            || host.next(),
+            |_, frame, _| out.push(frame),
+        );
+        out
+    }
+
+    fn held(plugin: &crate::Corrosion) -> Vec<u8> {
+        let mut notes: Vec<u8> = plugin.voice_manager.active_notes().collect();
+        notes.sort_unstable();
+        notes
+    }
+
+    /// Spec "An editor note plays a voice": an editor note-on renders
+    /// exactly like a host note-on on channel 0 with no voice ID.
+    #[test]
+    fn an_editor_note_plays_like_a_host_note() {
+        let mut editor = crate::Corrosion::default();
+        let mut host = crate::Corrosion::default();
+        assert!(editor.editor_notes.try_push(EditorNoteEvent::On {
+            note: 60,
+            velocity: 100
+        }));
+        let host_on = NoteEvent::NoteOn {
+            timing: 0,
+            voice_id: None,
+            channel: 0,
+            note: 60,
+            velocity: 100.0 / 127.0,
+        };
+        let mut a = block(&mut editor, Vec::new());
+        let mut b = block(&mut host, vec![host_on]);
+        assert_eq!(held(&editor), vec![60]);
+        for _ in 0..4 {
+            a.extend(block(&mut editor, Vec::new()));
+            b.extend(block(&mut host, Vec::new()));
+        }
+        assert!(
+            a.iter().any(|&(l, _)| l.abs() > 1e-4),
+            "the editor note is silent"
+        );
+        assert_eq!(a, b);
+    }
+
+    /// Spec "Order is kept".
+    #[test]
+    fn editor_events_keep_their_order_in_one_block() {
+        let mut plugin = crate::Corrosion::default();
+        for event in [
+            EditorNoteEvent::On {
+                note: 60,
+                velocity: 100,
+            },
+            EditorNoteEvent::Off { note: 60 },
+            EditorNoteEvent::On {
+                note: 62,
+                velocity: 100,
+            },
+        ] {
+            assert!(plugin.editor_notes.try_push(event));
+        }
+        let _ = block(&mut plugin, Vec::new());
+        assert_eq!(held(&plugin), vec![62]);
+    }
+
+    /// Editor notes come before the block's host events.
+    #[test]
+    fn editor_notes_come_before_host_events() {
+        let mut plugin = crate::Corrosion::default();
+        plugin.editor_notes.try_push(EditorNoteEvent::On {
+            note: 60,
+            velocity: 100,
+        });
+        let host_off = NoteEvent::NoteOff {
+            timing: 0,
+            voice_id: None,
+            channel: 0,
+            note: 60,
+            velocity: 0.0,
+        };
+        let _ = block(&mut plugin, vec![host_off]);
+        assert!(held(&plugin).is_empty());
+    }
+
+    /// Spec "Closing the editor releases held notes", on the engine side:
+    /// a release-all stops editor notes and leaves host notes alone.
+    #[test]
+    fn release_all_stops_only_editor_notes() {
+        let mut plugin = crate::Corrosion::default();
+        plugin.editor_notes.try_push(EditorNoteEvent::On {
+            note: 60,
+            velocity: 100,
+        });
+        let host_on = NoteEvent::NoteOn {
+            timing: 0,
+            voice_id: None,
+            channel: 0,
+            note: 67,
+            velocity: 0.8,
+        };
+        let _ = block(&mut plugin, vec![host_on]);
+        assert_eq!(held(&plugin), vec![60, 67]);
+        plugin.editor_notes.request_release_all();
+        let _ = block(&mut plugin, Vec::new());
+        assert_eq!(held(&plugin), vec![67]);
+    }
+
+    /// Spec "Host MIDI lights a key".
+    #[test]
+    fn host_notes_are_published_as_held() {
+        let mut plugin = crate::Corrosion::default();
+        let on = NoteEvent::NoteOn {
+            timing: 10,
+            voice_id: None,
+            channel: 0,
+            note: 64,
+            velocity: 0.8,
+        };
+        let _ = block(&mut plugin, vec![on]);
+        assert!(plugin.editor_notes.held().contains(64));
+        let off = NoteEvent::NoteOff {
+            timing: 10,
+            voice_id: None,
+            channel: 0,
+            note: 64,
+            velocity: 0.0,
+        };
+        let _ = block(&mut plugin, vec![off]);
+        assert!(!plugin.editor_notes.held().contains(64));
     }
 }

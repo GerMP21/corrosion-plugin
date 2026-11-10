@@ -9,7 +9,7 @@
 
 use assert_no_alloc::assert_no_alloc;
 use corrosion::dsp::ModalProfileId;
-use corrosion::voice::manager::VoiceManager;
+use corrosion::voice::manager::{NoteAddress, VoiceManager};
 use corrosion::voice::{VoiceControls, MAX_VOICES};
 
 const SAMPLE_RATE: u32 = 48_000;
@@ -225,6 +225,59 @@ fn live_expression_is_alloc_free() {
     });
 }
 
+/// Spec "Expression events in a checked zone" (`m12-per-note-expression`):
+/// notes with voice IDs get tuning, pressure, note-offs and chokes, and a
+/// fresh addressed note-on, all inside the checked zone.
+#[test]
+fn note_expression_is_alloc_free() {
+    let mut manager = VoiceManager::new();
+    let address = |id: i32| NoteAddress {
+        voice_id: Some(id),
+        channel: 0,
+    };
+    for (id, note) in [(1, 60), (2, 60), (3, 64), (4, 67)] {
+        manager.note_on_addressed(
+            address(id),
+            note,
+            100.0,
+            ModalProfileId::Plate,
+            1.0,
+            0.0,
+            0.0,
+            1,
+            controls(1.0),
+        );
+    }
+    run(&mut manager, 512);
+    assert_no_alloc(|| {
+        for step in 0..24 {
+            let semitones = step as f32 / 4.0 - 3.0;
+            manager.set_note_tuning(address(3), 64, semitones);
+            manager.set_poly_pressure_addressed(address(1), 60, step as f32 / 24.0);
+            manager.set_pitch_bend_semitones(semitones * 0.5);
+            run(&mut manager, 64);
+        }
+        manager.note_off_addressed(address(2), 60);
+        manager.note_off_addressed(NoteAddress::default(), 67);
+        run(&mut manager, 256);
+        manager.choke(address(1), 60);
+        manager.choke(address(99), 64);
+        run(&mut manager, 256);
+        manager.note_on_addressed(
+            address(5),
+            72,
+            100.0,
+            ModalProfileId::Pipe,
+            1.0,
+            0.0,
+            0.0,
+            2,
+            controls(1.0),
+        );
+        run(&mut manager, 256);
+    });
+}
+
 #[test]
 fn plugin_reset_is_alloc_free() {
     use nih_plug::prelude::Plugin;
@@ -303,4 +356,92 @@ fn rate_change_and_retrigger_are_alloc_free() {
             }
         }
     });
+}
+
+/// Spec "Draining does not allocate" (`add-editor-keyboard`): the audio
+/// side drains editor note-ons and note-offs and a release-all, plays them
+/// on the voices, and publishes the held notes, all inside the checked zone.
+/// (`Corrosion::handle_editor_notes` is this drain feeding
+/// `handle_note_event`, whose note-on and note-off paths the tests above
+/// cover.)
+#[test]
+fn editor_note_drain_is_alloc_free() {
+    use corrosion::gui_notes::{EditorNoteEvent, EditorNoteState, EditorNotes};
+    let shared = EditorNotes::new();
+    let mut state = EditorNoteState::default();
+    let mut manager = VoiceManager::new();
+    for note in [60u8, 64, 67] {
+        assert!(shared.try_push(EditorNoteEvent::On {
+            note,
+            velocity: 100
+        }));
+    }
+    assert!(shared.try_push(EditorNoteEvent::Off { note: 64 }));
+    shared.request_release_all();
+    run(&mut manager, 64);
+    assert_no_alloc(|| {
+        state.drain(&shared, |event| match event {
+            EditorNoteEvent::On { note, velocity } => manager.note_on_with_controls(
+                note,
+                f32::from(velocity) / 127.0,
+                ModalProfileId::Plate,
+                1.0,
+                0.0,
+                0.0,
+                1,
+                controls(1.0),
+            ),
+            EditorNoteEvent::Off { note } => manager.note_off(note),
+        });
+        run(&mut manager, 256);
+        shared.publish_held(manager.active_notes());
+    });
+    assert!(shared.held().is_empty());
+}
+
+/// Spec "Pad note-ons in a checked zone" (`per-key-kits`): the audio side
+/// reads pads from the table and starts voices from them, and renders them,
+/// inside the checked zone, while another thread assigns and clears pads.
+#[test]
+fn pad_note_ons_are_alloc_free_while_pads_are_assigned() {
+    use corrosion::kit::{KitPad, KitTable};
+    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::sync::Arc;
+
+    let pad = KitPad::from_params(36, &corrosion::CorrosionParams::default(), 0, 0.0).build();
+    let table = Arc::new(KitTable::new());
+    for key in [36u8, 38, 42] {
+        table.set(key, Some(pad));
+    }
+    let stop = Arc::new(AtomicBool::new(false));
+    let writer = {
+        let (table, stop) = (Arc::clone(&table), Arc::clone(&stop));
+        std::thread::spawn(move || {
+            let mut on = false;
+            while !stop.load(Ordering::Relaxed) {
+                table.set(38, on.then_some(pad));
+                on = !on;
+            }
+        })
+    };
+    let mut manager = VoiceManager::new();
+    let address = NoteAddress {
+        voice_id: None,
+        channel: 0,
+    };
+    assert_no_alloc(|| {
+        for _ in 0..200 {
+            for key in [36u8, 38, 42, 40] {
+                if let Some(pad) = table.get(key) {
+                    pad.play(&mut manager, address, key, 100.0, 1.0);
+                }
+            }
+            run(&mut manager, 32);
+            for key in [36u8, 38, 42] {
+                manager.note_off(key);
+            }
+        }
+    });
+    stop.store(true, Ordering::Relaxed);
+    writer.join().unwrap();
 }

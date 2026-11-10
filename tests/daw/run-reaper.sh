@@ -6,7 +6,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
-VST3_PATH="${PROJECT_DIR}/target/bundled/Corrosion.vst3"
+VST3_PATH="${PROJECT_DIR}/target/bundled/linux/Corrosion.vst3"
 BOUNCE_PATH="/tmp/bounce-reaper-gate1.wav"
 
 echo "=== REAPER Gate 1 Smoke Test ==="
@@ -22,7 +22,7 @@ fi
 # Check VST3 bundle exists
 if [ ! -d "${VST3_PATH}" ]; then
     echo "ERROR: VST3 bundle not found at ${VST3_PATH}"
-    echo "Run ./bundle.sh first"
+    echo "Run scripts/bundle.sh linux first"
     exit 1
 fi
 

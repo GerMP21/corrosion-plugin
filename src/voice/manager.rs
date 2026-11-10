@@ -46,6 +46,15 @@ fn comparable_peak_hold(peak_hold: f32) -> f32 {
     }
 }
 
+/// How the host addressed a note event (`m12-per-note-expression`): its
+/// voice ID, when the host gives one (CLAP note IDs, VST3 note IDs), and its
+/// MIDI channel.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct NoteAddress {
+    pub voice_id: Option<i32>,
+    pub channel: u8,
+}
+
 impl VoiceManager {
     /// Create a voice manager with all slots initialized.
     ///
@@ -164,20 +173,118 @@ impl VoiceManager {
         exciter_type: i32,
         controls: VoiceControls,
     ) {
+        self.note_on_addressed(
+            NoteAddress::default(),
+            note,
+            velocity,
+            profile_id,
+            size,
+            rust,
+            damage,
+            exciter_type,
+            controls,
+        );
+    }
+
+    /// `note_on_with_controls` for a note the host addressed: the voice
+    /// remembers `address`, so later note-offs, chokes, pressure and tuning
+    /// can find it by voice ID (`m12-per-note-expression`).
+    #[allow(clippy::too_many_arguments)]
+    pub fn note_on_addressed(
+        &mut self,
+        address: NoteAddress,
+        note: u8,
+        velocity: f32,
+        profile_id: crate::dsp::ModalProfileId,
+        size: f32,
+        rust: f32,
+        damage: f32,
+        exciter_type: i32,
+        controls: VoiceControls,
+    ) {
+        self.start_voice(
+            address,
+            note,
+            note,
+            velocity,
+            profile_id,
+            size,
+            rust,
+            damage,
+            exciter_type,
+            controls,
+        );
+    }
+
+    /// Start a kit pad on `key`, sounding at `pitch_note`, with output gain
+    /// `gain` (`per-key-kits`). The voice answers note-offs and expression
+    /// on `key` and ignores live control updates.
+    #[allow(clippy::too_many_arguments)]
+    pub fn note_on_pad(
+        &mut self,
+        address: NoteAddress,
+        key: u8,
+        pitch_note: u8,
+        velocity: f32,
+        profile_id: crate::dsp::ModalProfileId,
+        size: f32,
+        rust: f32,
+        damage: f32,
+        exciter_type: i32,
+        controls: VoiceControls,
+        gain: f32,
+    ) {
+        if let Some(idx) = self.start_voice(
+            address,
+            key,
+            pitch_note,
+            velocity,
+            profile_id,
+            size,
+            rust,
+            damage,
+            exciter_type,
+            controls,
+        ) {
+            self.voices[idx].mark_pad(key, gain);
+        }
+    }
+
+    /// Start a voice for `key` sounding at `pitch_note`; returns its slot.
+    #[allow(clippy::too_many_arguments)]
+    fn start_voice(
+        &mut self,
+        address: NoteAddress,
+        key: u8,
+        pitch_note: u8,
+        velocity: f32,
+        profile_id: crate::dsp::ModalProfileId,
+        size: f32,
+        rust: f32,
+        damage: f32,
+        exciter_type: i32,
+        controls: VoiceControls,
+    ) -> Option<usize> {
         // Re-striking a note the pedal is holding releases the older
         // instance, so repeated notes under the pedal don't pile up.
         for voice in &mut self.voices {
-            if voice.is_pedal_held() && voice.note() == note {
+            if voice.is_pedal_held() && voice.note() == key {
                 voice.note_off();
             }
         }
 
         // First try: find an inactive voice; this keeps the common case
         // deterministic and avoids unnecessary stealing.
-        if let Some(idx) = self.voices.iter().position(|v| !v.is_rendering()) {
+        // Otherwise every slot is sounding: steal one (see `steal_index`).
+        let slot = self
+            .voices
+            .iter()
+            .position(|v| !v.is_rendering())
+            .or_else(|| self.steal_index());
+        if let Some(idx) = slot {
             self.apply_channel_expression_to(idx);
             self.voices[idx].note_on_with_controls(
-                note,
+                pitch_note,
                 velocity,
                 profile_id,
                 self.frame_counter,
@@ -187,24 +294,30 @@ impl VoiceManager {
                 exciter_type,
                 controls,
             );
-            return;
+            self.voices[idx].set_address(address.voice_id, address.channel);
         }
+        slot
+    }
 
-        // Every slot is sounding: steal one (see `steal_index`).
-        if let Some(idx) = self.steal_index() {
-            self.apply_channel_expression_to(idx);
-            self.voices[idx].note_on_with_controls(
-                note,
-                velocity,
-                profile_id,
-                self.frame_counter,
-                size,
-                rust,
-                damage,
-                exciter_type,
-                controls,
-            );
-        }
+    /// The voice the host's voice ID names, among voices that pass `filter`
+    /// (`m12-per-note-expression`). `None` when the event has no ID or no
+    /// such voice exists, so the caller falls back to key and channel.
+    ///
+    /// The plugin sends no voice-terminated event, so a host may reuse an ID
+    /// while the old note's tail still sounds. Among voices with the same
+    /// ID, a held note wins over a tail, and the newest wins after that.
+    fn voice_with_id(
+        &self,
+        voice_id: Option<i32>,
+        filter: impl Fn(&Voice) -> bool,
+    ) -> Option<usize> {
+        let id = voice_id?;
+        self.voices
+            .iter()
+            .enumerate()
+            .filter(|(_, v)| filter(v) && v.voice_id() == Some(id))
+            .max_by_key(|(_, v)| (v.is_active(), v.start_frame()))
+            .map(|(idx, _)| idx)
     }
 
     /// Choose the voice to steal when every slot is sounding.
@@ -335,6 +448,22 @@ impl VoiceManager {
         }
     }
 
+    /// Poly pressure as the host addressed it: the voice with its voice ID,
+    /// or else the first sounding voice on `note` and the address's channel
+    /// (`m12-per-note-expression`).
+    pub fn set_poly_pressure_addressed(&mut self, address: NoteAddress, note: u8, pressure: f32) {
+        let idx = self
+            .voice_with_id(address.voice_id, Voice::is_rendering)
+            .or_else(|| {
+                self.voices.iter().position(|v| {
+                    v.is_rendering() && v.note() == note && v.channel() == address.channel
+                })
+            });
+        if let Some(idx) = idx {
+            self.voices[idx].set_poly_pressure(pressure);
+        }
+    }
+
     /// Apply held-note automation to every active voice.
     ///
     /// Held-note (still-active) voices receive new damping/brightness/strike-
@@ -403,6 +532,57 @@ impl VoiceManager {
         {
             self.release_key(idx);
         }
+    }
+
+    /// A note-off as the host addressed it: the held voice with its voice
+    /// ID, or else the oldest held voice on `note` and the address's channel
+    /// (`m12-per-note-expression`).
+    pub fn note_off_addressed(&mut self, address: NoteAddress, note: u8) {
+        let held = |v: &Voice| v.is_active() && !v.is_pedal_held();
+        let idx = self.voice_with_id(address.voice_id, held).or_else(|| {
+            self.voices
+                .iter()
+                .enumerate()
+                .filter(|(_, v)| held(v) && v.note() == note && v.channel() == address.channel)
+                .min_by_key(|(_, v)| v.start_frame())
+                .map(|(idx, _)| idx)
+        });
+        if let Some(idx) = idx {
+            self.release_key(idx);
+        }
+    }
+
+    /// Apply `action` to the sounding voice with the address's voice ID, or
+    /// else to every sounding voice on `note` and the address's channel.
+    fn for_addressed_voices(
+        &mut self,
+        address: NoteAddress,
+        note: u8,
+        action: impl Fn(&mut Voice),
+    ) {
+        if let Some(idx) = self.voice_with_id(address.voice_id, Voice::is_rendering) {
+            action(&mut self.voices[idx]);
+            return;
+        }
+        for voice in &mut self.voices {
+            if voice.is_rendering() && voice.note() == note && voice.channel() == address.channel {
+                action(voice);
+            }
+        }
+    }
+
+    /// Per-note tuning (`PolyTuning`), in semitones on top of the channel
+    /// bend, for the addressed note.
+    pub fn set_note_tuning(&mut self, address: NoteAddress, note: u8, semitones: f32) {
+        self.for_addressed_voices(address, note, |voice| {
+            voice.set_note_tuning_semitones(semitones)
+        });
+    }
+
+    /// Host choke: the addressed note fades to silence in 2 ms and its voice
+    /// is freed.
+    pub fn choke(&mut self, address: NoteAddress, note: u8) {
+        self.for_addressed_voices(address, note, Voice::choke);
     }
 
     /// A key-up on voice `idx`: released, or held by a down sustain pedal.

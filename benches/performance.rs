@@ -306,7 +306,7 @@ fn bench_idle_post_chain(c: &mut Criterion) {
 fn bench_plugin_output_path(c: &mut Criterion) {
     let path = concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/presets/factory/sheet_lightning.corrosion-preset"
+        "/tests/fixtures/presets/legacy/sheet_lightning.corrosion-preset"
     );
     let preset = Preset::load(std::path::Path::new(path)).expect("load preset");
     let notes: Vec<OfflineNote> = (52..68)

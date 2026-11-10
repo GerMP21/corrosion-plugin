@@ -10,7 +10,9 @@ use std::sync::Arc;
 /// a user's plugin folder, the preset bank silently disappeared.
 static FACTORY_PRESETS_DIR: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/presets/factory");
 
-use crate::params::{exciter_model_items, CorrosionParams, ExciterFamily, ExciterType, Object};
+use crate::params::{
+    exciter_model_items, CorrosionParams, ExciterFamily, ExciterType, Object, PlayMode,
+};
 use crate::Preset;
 
 /// Parameters deliberately left without an editor control, each with the
@@ -104,8 +106,13 @@ const THUMB_BORDER: egui::Color32 = egui::Color32::from_rgb(0x66, 0x66, 0x66);
 
 /// Logical editor width for the 100% UI scale.
 const BASE_EDITOR_WIDTH: u32 = 1080;
-/// Logical editor height for the 100% UI scale.
-const BASE_EDITOR_HEIGHT: u32 = 768;
+/// Logical height the panels are laid out against (`height_pct`) at the
+/// 100% UI scale. The keyboard strip sits below it.
+const BASE_LAYOUT_HEIGHT: u32 = 768;
+/// Logical editor height for the 100% UI scale: the panels' scroll view
+/// plus the keyboard strip pinned under it (`add-editor-keyboard`).
+const BASE_EDITOR_HEIGHT: u32 =
+    BASE_LAYOUT_HEIGHT + (KEYBOARD_STRIP_BASE_HEIGHT + KEYBOARD_STRIP_BASE_GAP) as u32;
 
 // ---------------------------------------------------------------------------
 // State
@@ -114,16 +121,20 @@ const BASE_EDITOR_HEIGHT: u32 = 768;
 struct EditorUiState {
     last_ui_scale: i32,
     last_requested_size: (u32, u32),
-    factory_presets: Vec<FactoryPresetEntry>,
+    factory_presets: Vec<PresetEntry>,
     /// Index into the factory presets followed by the user presets.
     selected_factory_preset: usize,
     /// The user preset folder (`None` when the platform's variables are
-    /// unset), its presets, and how many of its files couldn't be read.
+    /// unset), its presets, its folders (relative, `""` for the root), and
+    /// how many of its files couldn't be read.
     user_preset_dir: Option<std::path::PathBuf>,
-    user_presets: Vec<(std::path::PathBuf, Preset)>,
+    user_presets: Vec<PresetEntry>,
+    user_folders: Vec<String>,
     unreadable_user_presets: usize,
-    /// The Save row: the typed name, whether it is waiting on an overwrite
-    /// confirmation, and the last save message (`true` for an error).
+    /// The Save row: the folder to save into (one of `user_folders`), the
+    /// typed name, whether it is waiting on an overwrite confirmation, and
+    /// the last save or Open folder message (`true` for an error).
+    save_folder: String,
     save_name: String,
     confirm_overwrite: bool,
     save_message: Option<(String, bool)>,
@@ -137,6 +148,8 @@ struct EditorUiState {
     /// and the editor time it was last updated.
     diode_dot_db: f32,
     diode_dot_time: Option<f64>,
+    /// The keyboard strip at the bottom (`add-editor-keyboard`).
+    keyboard: KeyboardStrip,
 }
 
 /// Reductions under this leave the limiter dot at rest.
@@ -186,13 +199,16 @@ impl EditorUiState {
             selected_factory_preset: 0,
             user_preset_dir: crate::presets::user_preset_dir(),
             user_presets: Vec::new(),
+            user_folders: vec![String::new()],
             unreadable_user_presets: 0,
+            save_folder: String::new(),
             save_name: String::new(),
             confirm_overwrite: false,
             save_message: None,
             diode_meter: Arc::new(crate::dsp::DiodeMeter::new()),
             diode_dot_db: 0.0,
             diode_dot_time: None,
+            keyboard: KeyboardStrip::new(Arc::new(crate::gui_notes::EditorNotes::new())),
             randomizer_mode: crate::randomizer::RandomizerMode::Safe,
             randomizer_noise: crate::dsp::utils::noise::Noise::new(
                 std::time::SystemTime::now()
@@ -211,8 +227,40 @@ impl EditorUiState {
             Some(dir) => crate::presets::list_user_presets(dir),
             None => (Vec::new(), 0),
         };
-        self.user_presets = presets;
+        self.user_presets = presets
+            .into_iter()
+            .map(|user| PresetEntry {
+                name: user.preset.name.clone(),
+                folder: user_display_folder(&user.folder),
+                source: PresetSource::User(Box::new(user.preset)),
+            })
+            .collect();
+        self.user_folders = match &self.user_preset_dir {
+            Some(dir) => crate::presets::list_user_folders(dir),
+            None => vec![String::new()],
+        };
+        if !self.user_folders.contains(&self.save_folder) {
+            self.save_folder = String::new();
+        }
         self.unreadable_user_presets = unreadable;
+    }
+
+    /// Re-read the user preset folder, keeping the selected preset (by
+    /// folder and name) selected.
+    fn refresh_user_presets_keeping_selection(&mut self) {
+        let index = self.selected_factory_preset;
+        let selected = (index < self.preset_count()).then(|| {
+            let entry = self.entry(index);
+            (entry.folder.clone(), entry.name.clone())
+        });
+        self.refresh_user_presets();
+        if let Some((folder, name)) = selected {
+            if let Some(found) = (0..self.preset_count())
+                .find(|&i| self.entry(i).folder == folder && self.entry(i).name == name)
+            {
+                self.selected_factory_preset = found;
+            }
+        }
     }
 
     /// Factory presets, then user presets.
@@ -220,25 +268,53 @@ impl EditorUiState {
         self.factory_presets.len() + self.user_presets.len()
     }
 
-    fn preset_name(&self, index: usize) -> &str {
+    fn entry(&self, index: usize) -> &PresetEntry {
         match index.checked_sub(self.factory_presets.len()) {
-            None => &self.factory_presets[index].name,
-            Some(user) => &self.user_presets[user].1.name,
+            None => &self.factory_presets[index],
+            Some(user) => &self.user_presets[user],
         }
+    }
+
+    fn preset_name(&self, index: usize) -> &str {
+        &self.entry(index).name
     }
 
     fn preset(&self, index: usize) -> Option<Preset> {
-        match index.checked_sub(self.factory_presets.len()) {
-            None => Preset::from_json_str(self.factory_presets[index].json).ok(),
-            Some(user) => self
-                .user_presets
-                .get(user)
-                .map(|(_, preset)| preset.clone()),
+        if index >= self.preset_count() {
+            return None;
+        }
+        match &self.entry(index).source {
+            PresetSource::Factory(json) => Preset::from_json_str(json).ok(),
+            PresetSource::User(preset) => Some((**preset).clone()),
         }
     }
 
-    /// Save the current sound under the typed name, asking before replacing
-    /// a user preset (`h05-expose-missing-gui-controls`).
+    /// The preset `step` places after (or, negative, before) `index` within
+    /// its own folder, wrapping around (spec "Arrows stay in the folder").
+    fn step_in_folder(&self, index: usize, step: isize) -> usize {
+        let folder = &self.entry(index).folder;
+        let same: Vec<usize> = (0..self.preset_count())
+            .filter(|&i| &self.entry(i).folder == folder)
+            .collect();
+        let at = same.iter().position(|&i| i == index).unwrap_or(0) as isize;
+        same[(at + step).rem_euclid(same.len() as isize) as usize]
+    }
+
+    /// The browser's menu: factory folders, then User.
+    fn menu(&self) -> Vec<MenuNode> {
+        let mut folders: Vec<(Vec<String>, usize)> = (0..self.preset_count())
+            .map(|i| (self.entry(i).folder.clone(), i))
+            .collect();
+        // User is always there, even empty, so its folder can be reached.
+        if self.user_presets.is_empty() {
+            folders.push((vec![USER_MENU.to_string()], usize::MAX));
+        }
+        menu_tree(&folders)
+    }
+
+    /// Save the current sound under the typed name into the chosen user
+    /// folder, asking before replacing a user preset
+    /// (`h05-expose-missing-gui-controls`).
     fn save(&mut self, params: &CorrosionParams, overwrite: bool) {
         use crate::presets::{save_user_preset, SaveOutcome};
         self.confirm_overwrite = false;
@@ -246,11 +322,16 @@ impl EditorUiState {
             self.save_message = Some(("No user preset folder on this system".to_string(), true));
             return;
         };
-        match save_user_preset(&dir, &self.save_name, params, overwrite) {
+        match save_user_preset(&dir, &self.save_folder, &self.save_name, params, overwrite) {
             Ok(SaveOutcome::Saved(_)) => {
                 let name = self.save_name.trim().to_string();
                 self.refresh_user_presets();
-                if let Some(user) = self.user_presets.iter().position(|(_, p)| p.name == name) {
+                let folder = user_display_folder(&self.save_folder);
+                if let Some(user) = self
+                    .user_presets
+                    .iter()
+                    .position(|p| p.name == name && p.folder == folder)
+                {
                     self.selected_factory_preset = self.factory_presets.len() + user;
                 }
                 self.save_message = Some((format!("Saved \"{name}\""), false));
@@ -259,12 +340,107 @@ impl EditorUiState {
             Err(error) => self.save_message = Some((format!("Couldn't save: {error}"), true)),
         }
     }
+
+    /// Show the user preset folder in the file manager (creating it first);
+    /// a failure goes to the message line.
+    fn open_user_folder(&mut self) {
+        let Some(dir) = self.user_preset_dir.clone() else {
+            return;
+        };
+        if let Err(error) = crate::presets::open_folder(&dir) {
+            self.save_message = Some((format!("Couldn't open the folder: {error}"), true));
+        }
+    }
+}
+
+/// The top-level menu name of the user presets.
+const USER_MENU: &str = "User";
+
+/// Whether Open folder is enabled, and its tooltip.
+fn open_folder_button(dir: Option<&std::path::Path>) -> (bool, String) {
+    match dir {
+        Some(dir) => (true, format!("Show {} in the file manager", dir.display())),
+        None => (
+            false,
+            "No user preset folder: this system doesn't set the variables it lives under \
+             (APPDATA on Windows, HOME elsewhere)"
+                .to_string(),
+        ),
+    }
+}
+
+/// A user folder (`"Basses/Old"`) as the browser shows it:
+/// `["User", "Basses", "Old"]`.
+fn user_display_folder(folder: &str) -> Vec<String> {
+    std::iter::once(USER_MENU.to_string())
+        .chain(
+            folder
+                .split('/')
+                .filter(|p| !p.is_empty())
+                .map(str::to_string),
+        )
+        .collect()
+}
+
+/// A user folder as the Save selector shows it: `User / Basses`.
+fn user_folder_label(folder: &str) -> String {
+    user_display_folder(folder).join(" / ")
+}
+
+/// A preset index with its display folder.
+type FolderedPreset = (Vec<String>, usize);
+
+/// One node of the preset menu: a submenu, or a preset by index.
+#[derive(Clone, Debug, PartialEq)]
+enum MenuNode {
+    Folder(String, Vec<MenuNode>),
+    Preset(usize),
+}
+
+/// The menu for presets given as (display folder, index), in order: each
+/// folder becomes a submenu at its first appearance, and presets at a level
+/// follow its submenus. An index of `usize::MAX` makes a folder without
+/// adding a preset.
+fn menu_tree(presets: &[FolderedPreset]) -> Vec<MenuNode> {
+    let mut folders: Vec<(String, Vec<FolderedPreset>)> = Vec::new();
+    let mut leaves = Vec::new();
+    for (folder, index) in presets {
+        match folder.split_first() {
+            None => {
+                if *index != usize::MAX {
+                    leaves.push(MenuNode::Preset(*index));
+                }
+            }
+            Some((head, rest)) => {
+                let child = (rest.to_vec(), *index);
+                match folders.iter_mut().find(|(name, _)| name == head) {
+                    Some((_, children)) => children.push(child),
+                    None => folders.push((head.clone(), vec![child])),
+                }
+            }
+        }
+    }
+    folders
+        .into_iter()
+        .map(|(name, children)| MenuNode::Folder(name, menu_tree(&children)))
+        .chain(leaves)
+        .collect()
+}
+
+/// One preset of the browser: its name, its display folder (`["Bass"]`,
+/// `["Experimental", "Bow"]`, `["User", "Basses"]`), and where it comes from.
+#[derive(Clone)]
+struct PresetEntry {
+    name: String,
+    folder: Vec<String>,
+    source: PresetSource,
 }
 
 #[derive(Clone)]
-struct FactoryPresetEntry {
-    name: String,
-    json: &'static str,
+enum PresetSource {
+    /// An embedded factory file's JSON.
+    Factory(&'static str),
+    User(Box<Preset>),
 }
 
 #[derive(Clone, Copy)]
@@ -988,6 +1164,7 @@ pub fn create_editor(
     params: Arc<CorrosionParams>,
     editor_state: Arc<EguiState>,
     diode_meter: Arc<crate::dsp::DiodeMeter>,
+    editor_notes: Arc<crate::gui_notes::EditorNotes>,
 ) -> Option<Box<dyn Editor>> {
     let initial_scale = params.ui_scale.value();
     let initial_size = scaled_editor_size(ui_scale_factor(initial_scale));
@@ -997,9 +1174,12 @@ pub fn create_editor(
         editor_state,
         EditorUiState {
             diode_meter,
+            keyboard: KeyboardStrip::new(editor_notes),
             ..EditorUiState::new(initial_scale, initial_size)
         },
-        |_, _| {},
+        // The state outlives the window; the audio thread released the
+        // editor's notes when it closed, so start the strip clean.
+        |_, state| state.keyboard.reopened(),
         move |egui_ctx, setter, state| {
             let ui_scale = params.ui_scale.value();
             let requested_scale = ui_scale_factor(ui_scale);
@@ -1025,17 +1205,45 @@ pub fn create_editor(
                     (BASE_EDITOR_HEIGHT as f32 * 0.5).round(),
                 ))
                 .show(egui_ctx, &resize_state, |ui| {
-                    let content_width = ui.available_width();
-                    egui::ScrollArea::vertical()
-                        .auto_shrink([false, false])
-                        .show(ui, |ui| {
-                            ui.set_width(content_width);
-                            ui.set_max_width(content_width);
-                            render_ui(ui, &params, setter, state, scale);
-                        });
+                    render_window_body(ui, &params, setter, state, scale);
                 });
         },
     )
+}
+
+/// The window's contents: the panels in a scroll view, and the keyboard
+/// strip pinned under it so it stays in view (`add-editor-keyboard`).
+fn render_window_body(
+    ui: &mut egui::Ui,
+    params: &CorrosionParams,
+    setter: &ParamSetter,
+    state: &mut EditorUiState,
+    scale: f32,
+) {
+    let content_width = ui.available_width();
+    let kit_mode = PlayMode::from_int(params.play_mode.value()) == PlayMode::Kit;
+    // In Kit mode the kit bar sits above the strip; it takes its height
+    // from the panels' scroll view, so the window keeps its size.
+    let kit_bar_height = if kit_mode {
+        KIT_BAR_BASE_HEIGHT * scale + ui.spacing().item_spacing.y
+    } else {
+        0.0
+    };
+    let strip_height = (KEYBOARD_STRIP_BASE_HEIGHT + KEYBOARD_STRIP_BASE_GAP) * scale
+        + ui.spacing().item_spacing.y
+        + kit_bar_height;
+    egui::ScrollArea::vertical()
+        .auto_shrink([false, false])
+        .max_height((ui.available_height() - strip_height).max(0.0))
+        .show(ui, |ui| {
+            ui.set_width(content_width);
+            ui.set_max_width(content_width);
+            render_ui(ui, params, setter, state, scale);
+        });
+    if kit_mode {
+        render_kit_bar(ui, params, setter, &mut state.keyboard, scale);
+    }
+    render_keyboard_strip(ui, &mut state.keyboard, params, setter, scale);
 }
 
 /// The editor's visual style at layout scale `scale`: colours, fonts and
@@ -1158,8 +1366,10 @@ fn editor_width(scale: f32) -> f32 {
     BASE_EDITOR_WIDTH as f32 * scale
 }
 
+/// The panels' layout height (`height_pct` is relative to it); the window
+/// is taller by the keyboard strip.
 fn editor_height(scale: f32) -> f32 {
-    BASE_EDITOR_HEIGHT as f32 * scale
+    BASE_LAYOUT_HEIGHT as f32 * scale
 }
 
 fn width_pct(scale: f32, pct: f32) -> f32 {
@@ -2073,7 +2283,7 @@ fn selector_help(label: &str, selected: &str) -> &'static str {
         ("mode", "High") => "More modes per voice and more clipper oversampling.",
         ("mode", "Render") => "Most detail and least aliasing, for bouncing. Uses the most CPU.",
         ("play", "Tonal") => "Notes play at their pitch and decay naturally.",
-        ("play", "Kit") => "Each key plays a fixed variation, like a drum kit.",
+        ("play", "Kit") => "Each key plays its own pad, set up on the keyboard below; keys without a pad are silent.",
         ("play", "Drone") => "Notes sustain while held, for bowed and continuous sounds.",
         ("limiter", "Hard") => "Clamps peaks at the ceiling with no added latency.",
         ("limiter", "Lookahead") => {
@@ -2546,6 +2756,46 @@ fn vfader_global(
     }
 }
 
+/// The preset menu's entries: a submenu per folder, a selectable label per
+/// preset (setting `load` when clicked), and a note in an empty folder.
+fn render_preset_menu(
+    ui: &mut egui::Ui,
+    state: &EditorUiState,
+    nodes: &[MenuNode],
+    text_size: f32,
+    load: &mut Option<usize>,
+) {
+    if nodes.is_empty() {
+        ui.label(
+            egui::RichText::new("No presets yet")
+                .size(text_size)
+                .color(MUTED_GREY),
+        );
+    }
+    for node in nodes {
+        match node {
+            MenuNode::Folder(name, children) => {
+                ui.menu_button(egui::RichText::new(name).size(text_size), |ui| {
+                    render_preset_menu(ui, state, children, text_size, load);
+                });
+            }
+            MenuNode::Preset(index) => {
+                let selected = *index == state.selected_factory_preset;
+                if ui
+                    .selectable_label(
+                        selected,
+                        egui::RichText::new(state.preset_name(*index)).size(text_size),
+                    )
+                    .clicked()
+                {
+                    *load = Some(*index);
+                    ui.close_menu();
+                }
+            }
+        }
+    }
+}
+
 fn render_preset_loader(
     ui: &mut egui::Ui,
     params: &CorrosionParams,
@@ -2572,67 +2822,57 @@ fn render_preset_loader(
                 }
 
                 state.selected_factory_preset = state.selected_factory_preset.min(count - 1);
-                let selected_name = state.preset_name(state.selected_factory_preset).to_string();
+                let current = state.selected_factory_preset;
+                let selected_text = {
+                    let entry = state.entry(current);
+                    let mut parts = entry.folder.clone();
+                    parts.push(entry.name.clone());
+                    parts.join(" / ")
+                };
                 let mut load = None;
+                let text_size = width_pct(scale, 0.012962963);
 
                 let arrow_size =
                     egui::vec2(width_pct(scale, 0.016666668), height_pct(scale, 0.0234375));
                 if ui
                     .add_sized(
                         arrow_size,
-                        egui::Button::new(
-                            egui::RichText::new("‹").size(width_pct(scale, 0.012962963)),
-                        ),
+                        egui::Button::new(egui::RichText::new("‹").size(text_size)),
                     )
                     .clicked()
                 {
-                    load = Some((state.selected_factory_preset + count - 1) % count);
+                    load = Some(state.step_in_folder(current, -1));
                 }
 
                 let spacing = ui.spacing().item_spacing.x;
-                let combo_width = (ui.available_width() - arrow_size.x - spacing).max(0.0);
-                let factory_count = state.factory_presets.len();
-                egui::ComboBox::from_id_salt("factory-preset-loader")
-                    .width(combo_width)
-                    .selected_text(
-                        egui::RichText::new(selected_name)
-                            .size(width_pct(scale, 0.012962963))
-                            .color(OFF_WHITE),
-                    )
-                    .show_ui(ui, |ui| {
-                        for index in 0..count {
-                            if index == factory_count {
-                                // User presets follow the factory bank.
-                                ui.separator();
-                                ui.label(
-                                    egui::RichText::new("USER")
-                                        .size(width_pct(scale, 0.0069444445))
-                                        .color(MUTED_GREY),
-                                );
-                            }
-                            if ui
-                                .selectable_label(
-                                    index == state.selected_factory_preset,
-                                    egui::RichText::new(state.preset_name(index))
-                                        .size(width_pct(scale, 0.012962963)),
-                                )
-                                .clicked()
-                            {
-                                load = Some(index);
-                            }
-                        }
-                    });
+                let menu_width = (ui.available_width() - arrow_size.x - spacing).max(0.0);
+                let button = egui::Button::new(
+                    egui::RichText::new(selected_text)
+                        .size(text_size)
+                        .color(OFF_WHITE),
+                )
+                .min_size(egui::vec2(menu_width, arrow_size.y))
+                .truncate();
+                let menu = state.menu();
+                let opened = egui::menu::menu_custom_button(ui, button, |ui| {
+                    render_preset_menu(ui, state, &menu, text_size, &mut load);
+                })
+                .response
+                .clicked();
+                // The user may have added presets or folders in the file
+                // manager (Open folder) since the last look.
+                if opened && load.is_none() {
+                    state.refresh_user_presets_keeping_selection();
+                }
 
                 if ui
                     .add_sized(
                         arrow_size,
-                        egui::Button::new(
-                            egui::RichText::new("›").size(width_pct(scale, 0.012962963)),
-                        ),
+                        egui::Button::new(egui::RichText::new("›").size(text_size)),
                     )
                     .clicked()
                 {
-                    load = Some((state.selected_factory_preset + 1) % count);
+                    load = Some(state.step_in_folder(current, 1));
                 }
 
                 if let Some(index) = load {
@@ -2663,6 +2903,29 @@ fn render_preset_loader(
                         state.confirm_overwrite = false;
                     }
                 } else {
+                    // The folder to save into: only user folders, never the
+                    // factory bank (spec "Saving targets a user folder").
+                    let folder_opened = egui::ComboBox::from_id_salt("save-folder")
+                        .width(width_pct(scale, 0.06))
+                        .selected_text(
+                            egui::RichText::new(user_folder_label(&state.save_folder))
+                                .size(text_size),
+                        )
+                        .show_ui(ui, |ui| {
+                            for folder in state.user_folders.clone() {
+                                let label = user_folder_label(&folder);
+                                ui.selectable_value(
+                                    &mut state.save_folder,
+                                    folder,
+                                    egui::RichText::new(label).size(text_size),
+                                );
+                            }
+                        })
+                        .response
+                        .clicked();
+                    if folder_opened {
+                        state.refresh_user_presets_keeping_selection();
+                    }
                     let field_width = (ui.available_width() - width_pct(scale, 0.05)).max(0.0);
                     ui.add_sized(
                         egui::vec2(field_width, height_pct(scale, 0.0234375)),
@@ -2673,6 +2936,20 @@ fn render_preset_loader(
                     if ui.add_enabled(can_save, save).clicked() {
                         state.save(params, false);
                     }
+                }
+            });
+            ui.horizontal(|ui| {
+                let text_size = width_pct(scale, 0.011111112);
+                let (enabled, tooltip) = open_folder_button(state.user_preset_dir.as_deref());
+                let open = ui
+                    .add_enabled(
+                        enabled,
+                        egui::Button::new(egui::RichText::new("Open folder").size(text_size)),
+                    )
+                    .on_hover_text(&tooltip)
+                    .on_disabled_hover_text(&tooltip);
+                if open.clicked() {
+                    state.open_user_folder();
                 }
             });
             let notice = match (&state.save_message, state.unreadable_user_presets) {
@@ -2749,6 +3026,10 @@ fn randomizer_assignments<'a>(
 /// host records it. Driven by the parameter map, so no parameter can be
 /// missed (`h04-load-every-preset-field-in-gui`).
 fn apply_preset(params: &CorrosionParams, setter: &ParamSetter, preset: &Preset) {
+    // The kit (`per-key-kits`): the preset's pads, or none.
+    let kit = preset.kit.clone().unwrap_or_default();
+    params.kit_table.load(&kit);
+    *params.kit.write().unwrap_or_else(|e| e.into_inner()) = kit;
     let values: std::collections::HashMap<String, f32> =
         preset.parameter_values(params).into_iter().collect();
     for (id, ptr, _) in params.param_map() {
@@ -2766,27 +3047,106 @@ fn apply_preset(params: &CorrosionParams, setter: &ParamSetter, preset: &Preset)
     }
 }
 
-fn load_factory_presets() -> Vec<FactoryPresetEntry> {
-    let mut presets: Vec<_> = FACTORY_PRESETS_DIR
-        .files()
-        .filter(|file| {
-            file.path()
-                .extension()
-                .and_then(|extension| extension.to_str())
-                .is_some_and(|extension| extension == "corrosion-preset")
+/// A factory folder's display name and its rank in the browser: the curated
+/// folders in their fixed order, then Experimental, then any other folder.
+fn factory_folder(slug: &str) -> (usize, String) {
+    use crate::presets::factory::{CURATED_FOLDERS, DRUMS_FOLDER, EXPERIMENTAL_FOLDER};
+    if let Some(rank) = CURATED_FOLDERS.iter().position(|f| *f == slug) {
+        return (rank, title_case(slug));
+    }
+    if slug == DRUMS_FOLDER {
+        return (CURATED_FOLDERS.len(), title_case(slug));
+    }
+    if slug == EXPERIMENTAL_FOLDER {
+        return (CURATED_FOLDERS.len() + 1, title_case(slug));
+    }
+    (CURATED_FOLDERS.len() + 2, title_case(slug))
+}
+
+/// An experimental exciter folder's display name (the exciter's name) and
+/// rank (its number).
+fn exciter_folder(slug: &str) -> (usize, String) {
+    use crate::presets::factory::{exciter_name, slug as slug_of, EXCITER_COUNT};
+    (1..=EXCITER_COUNT)
+        .find(|&e| slug_of(exciter_name(e)) == slug)
+        .map_or((usize::MAX, title_case(slug)), |e| {
+            (e as usize, exciter_name(e).to_string())
         })
-        .filter_map(|file| {
-            let json = file.contents_utf8()?;
-            let preset = Preset::from_json_str(json).ok()?;
-            Some(FactoryPresetEntry {
-                name: preset.name,
-                json,
+}
+
+fn title_case(slug: &str) -> String {
+    slug.split('_')
+        .map(|word| {
+            let mut chars = word.chars();
+            chars.next().map_or(String::new(), |first| {
+                first.to_uppercase().chain(chars).collect()
             })
         })
-        .collect();
+        .collect::<Vec<_>>()
+        .join(" ")
+}
 
-    presets.sort_by(|left, right| left.name.cmp(&right.name));
-    presets
+/// Every embedded factory preset with its display folder, in browser order:
+/// folders by rank (experimental exciters by number), presets by name.
+fn load_factory_presets() -> Vec<PresetEntry> {
+    fn walk(
+        dir: &'static Dir<'static>,
+        out: &mut Vec<(&'static include_dir::File<'static>, Vec<String>)>,
+    ) {
+        for file in dir.files() {
+            let slugs = file
+                .path()
+                .parent()
+                .map(|p| {
+                    p.components()
+                        .map(|c| c.as_os_str().to_string_lossy().into_owned())
+                        .collect()
+                })
+                .unwrap_or_default();
+            out.push((file, slugs));
+        }
+        for sub in dir.dirs() {
+            walk(sub, out);
+        }
+    }
+    let mut files = Vec::new();
+    walk(&FACTORY_PRESETS_DIR, &mut files);
+    let mut presets: Vec<((Vec<usize>, String), PresetEntry)> = files
+        .into_iter()
+        .filter(|(file, _)| {
+            file.path()
+                .extension()
+                .is_some_and(|extension| extension == crate::presets::PRESET_EXTENSION)
+        })
+        .filter_map(|(file, slugs)| {
+            let json = file.contents_utf8()?;
+            let preset = Preset::from_json_str(json).ok()?;
+            let (ranks, folder): (Vec<usize>, Vec<String>) = slugs
+                .iter()
+                .enumerate()
+                .map(|(depth, slug)| match depth {
+                    0 => factory_folder(slug),
+                    _ if slugs[0] == crate::presets::factory::EXPERIMENTAL_FOLDER => {
+                        exciter_folder(slug)
+                    }
+                    _ => (0, title_case(slug)),
+                })
+                .unzip();
+            let key = (ranks, preset.name.to_lowercase());
+            Some((
+                key,
+                PresetEntry {
+                    name: preset.name,
+                    folder,
+                    source: PresetSource::Factory(json),
+                },
+            ))
+        })
+        .collect();
+    // Within a folder by rank path (and then the folder's own name, for
+    // unranked folders), then by preset name.
+    presets.sort_by(|(a, ea), (b, eb)| (&a.0, &ea.folder, &a.1).cmp(&(&b.0, &eb.folder, &b.1)));
+    presets.into_iter().map(|(_, entry)| entry).collect()
 }
 
 // ---------------------------------------------------------------------------
@@ -3948,6 +4308,548 @@ fn render_footer(ui: &mut egui::Ui, scale: f32) {
         egui::FontId::proportional(width_pct(scale, 0.0074074073)),
         MUTED_GREY,
     );
+    // Claim the footer's space so the keyboard strip lands below it.
+    ui.allocate_rect(footer_rect, egui::Sense::hover());
+}
+
+// ---------------------------------------------------------------------------
+// Keyboard strip (`add-editor-keyboard`)
+// ---------------------------------------------------------------------------
+
+/// The strip's height at 100 % UI scale, and the gap above it.
+const KEYBOARD_STRIP_BASE_HEIGHT: f32 = 64.0;
+const KEYBOARD_STRIP_BASE_GAP: f32 = 8.0;
+/// Black keys' width and length, relative to a white key.
+const BLACK_KEY_WIDTH: f32 = 0.6;
+const BLACK_KEY_LENGTH: f32 = 0.62;
+/// Mouse velocity at the top of a key (it reaches 1.0 at the bottom).
+const KEY_TOP_VELOCITY: f32 = 0.25;
+
+/// The keyboard strip's editor-side state.
+struct KeyboardStrip {
+    sender: crate::gui_notes::NoteSender,
+    /// The note the mouse holds, if any.
+    mouse_note: Option<u8>,
+    /// Whether the strip was live last frame: window focused and the
+    /// pointer over the editor.
+    focused: bool,
+    /// The kit editor's state (`per-key-kits`).
+    kit: KitEditor,
+}
+
+/// The kit bar's state (`per-key-kits`).
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+struct KitEditor {
+    /// The key the kit bar acts on.
+    selected: Option<u8>,
+    /// Every key plays and is selectable, not only the kit zone.
+    full_keyboard: bool,
+    /// The pitch the editor's sound was last heard at: the last note
+    /// played outside Kit mode, or a loaded pad's key plus its tune.
+    /// Assign sets the tune from it.
+    last_auditioned: Option<u8>,
+}
+
+impl KeyboardStrip {
+    fn new(shared: Arc<crate::gui_notes::EditorNotes>) -> Self {
+        Self {
+            sender: crate::gui_notes::NoteSender::new(shared),
+            mouse_note: None,
+            focused: true,
+            kit: KitEditor::default(),
+        }
+    }
+
+    /// The window opened again: the audio thread released the editor's
+    /// notes when it closed.
+    fn reopened(&mut self) {
+        self.sender.forget_held();
+        self.mouse_note = None;
+        self.focused = true;
+    }
+
+    /// Release everything the strip holds (focus lost).
+    fn release_all(&mut self) {
+        self.sender.release_all_held();
+        self.mouse_note = None;
+    }
+}
+
+/// The strip's keys inside `rect`: white keys first, then black keys, so
+/// [`key_at`] can test the black keys (drawn on top) first.
+fn strip_keys(rect: egui::Rect) -> Vec<(u8, egui::Rect)> {
+    use crate::gui_notes::{is_black_key, STRIP_HIGH_NOTE, STRIP_LOW_NOTE};
+    let notes = STRIP_LOW_NOTE..=STRIP_HIGH_NOTE;
+    let whites = notes.clone().filter(|&n| !is_black_key(n)).count();
+    let white_width = rect.width() / whites as f32;
+    let mut keys = Vec::with_capacity(notes.clone().count());
+    let mut blacks = Vec::new();
+    let mut white_index = 0;
+    for note in notes {
+        if is_black_key(note) {
+            let boundary = rect.min.x + white_index as f32 * white_width;
+            let half = white_width * BLACK_KEY_WIDTH * 0.5;
+            blacks.push((
+                note,
+                egui::Rect::from_min_max(
+                    egui::pos2(boundary - half, rect.min.y),
+                    egui::pos2(
+                        boundary + half,
+                        rect.min.y + rect.height() * BLACK_KEY_LENGTH,
+                    ),
+                ),
+            ));
+        } else {
+            let left = rect.min.x + white_index as f32 * white_width;
+            keys.push((
+                note,
+                egui::Rect::from_min_max(
+                    egui::pos2(left, rect.min.y),
+                    egui::pos2(left + white_width, rect.max.y),
+                ),
+            ));
+            white_index += 1;
+        }
+    }
+    keys.extend(blacks);
+    keys
+}
+
+/// The note under `pos`, black keys first.
+fn key_at(keys: &[(u8, egui::Rect)], pos: egui::Pos2) -> Option<u8> {
+    keys.iter()
+        .rev()
+        .find(|(_, rect)| rect.contains(pos))
+        .map(|&(note, _)| note)
+}
+
+/// Mouse velocity for a press at height `y` on a key spanning `key`.
+fn press_velocity(key: egui::Rect, y: f32) -> u8 {
+    let depth = ((y - key.min.y) / key.height().max(1.0)).clamp(0.0, 1.0);
+    let velocity = KEY_TOP_VELOCITY + (1.0 - KEY_TOP_VELOCITY) * depth;
+    (velocity * 127.0).round().clamp(1.0, 127.0) as u8
+}
+
+/// The letter of a key event's key: the physical key when the backend
+/// gives one, else the logical key (egui-baseview gives no physical key).
+fn key_letter(key: egui::Key, physical_key: Option<egui::Key>) -> Option<char> {
+    let name = physical_key.unwrap_or(key).name();
+    let mut chars = name.chars();
+    match (chars.next(), chars.next()) {
+        (Some(letter), None) if letter.is_ascii_alphabetic() => Some(letter),
+        _ => None,
+    }
+}
+
+/// The mapped-key actions in one frame's events, as (letter, pressed,
+/// repeat). X11 auto-repeat arrives as a key-up immediately followed by a
+/// key-down of the same key, which baseview doesn't flag: such a pair
+/// becomes one repeat, so a held key doesn't retrigger. A person can't
+/// release and press a key again within one frame.
+fn key_actions(events: &[egui::Event]) -> Vec<(char, bool, bool)> {
+    let mut actions: Vec<(char, bool, bool)> = Vec::new();
+    for event in events {
+        if let egui::Event::Key {
+            key,
+            physical_key,
+            pressed,
+            repeat,
+            ..
+        } = *event
+        {
+            let Some(letter) = key_letter(key, physical_key) else {
+                continue;
+            };
+            if pressed && actions.last() == Some(&(letter, false, false)) {
+                actions.pop();
+                actions.push((letter, true, true));
+            } else {
+                actions.push((letter, pressed, repeat));
+            }
+        }
+    }
+    actions
+}
+
+/// The kit bar's height at 100 % UI scale (`per-key-kits`).
+const KIT_BAR_BASE_HEIGHT: f32 = 24.0;
+/// Locked keys' fills in Kit mode (outside the zone, Full keyboard off).
+const KIT_LOCKED_WHITE: egui::Color32 = egui::Color32::from_rgb(0x5A, 0x5A, 0x5A);
+const KIT_LOCKED_BLACK: egui::Color32 = egui::Color32::from_rgb(0x2A, 0x2A, 0x2A);
+/// Height of the band marking a key with a pad, at 100 %.
+const KIT_PAD_BAND: f32 = 4.0;
+
+/// A note's name in the plugin's naming (middle C, MIDI 60, is C4).
+fn note_name(note: u8) -> String {
+    const NAMES: [&str; 12] = [
+        "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B",
+    ];
+    format!(
+        "{}{}",
+        NAMES[usize::from(note % 12)],
+        i32::from(note / 12) - 1
+    )
+}
+
+/// Whether the editor may play and select `note`: everything outside Kit
+/// mode; in Kit mode the kit zone, or everything with Full keyboard on.
+fn key_unlocked(kit_mode: bool, kit: &KitEditor, note: u8) -> bool {
+    !kit_mode || kit.full_keyboard || crate::kit::KIT_ZONE.contains(&note)
+}
+
+/// Store `pad` in the kit and the audio thread's table.
+fn store_pad(params: &CorrosionParams, pad: crate::kit::KitPad) {
+    let key = pad.key;
+    let built = pad.build();
+    params
+        .kit
+        .write()
+        .unwrap_or_else(|e| e.into_inner())
+        .set(pad);
+    params.kit_table.set(key, Some(built));
+}
+
+/// Remove the pad on `key` from the kit and the table.
+fn clear_pad(params: &CorrosionParams, key: u8) {
+    params
+        .kit
+        .write()
+        .unwrap_or_else(|e| e.into_inner())
+        .clear(key);
+    params.kit_table.set(key, None);
+}
+
+/// Load `pad`'s sound into the editor's parameters: every pad parameter
+/// but the macros (they also drive the shared post chain), one host
+/// gesture each, as loading a preset does.
+fn load_pad(params: &CorrosionParams, setter: &ParamSetter, pad: &crate::kit::KitPad) {
+    let loaded = pad.params();
+    let values: std::collections::HashMap<String, f32> = loaded
+        .param_map()
+        .into_iter()
+        // SAFETY: the pointers come from `loaded`, alive for this call.
+        .map(|(id, ptr, _)| (id, unsafe { ptr.modulated_plain_value() }))
+        .collect();
+    for (id, ptr, _) in params.param_map() {
+        if !crate::kit::is_pad_param(&id) || crate::kit::PAD_MACRO_PARAMS.contains(&id.as_str()) {
+            continue;
+        }
+        let Some(&plain) = values.get(&id) else {
+            continue;
+        };
+        // SAFETY: `ptr` comes from the plugin's own parameter map, which
+        // outlives the editor.
+        unsafe {
+            let normalized = ptr.preview_normalized(plain);
+            setter.raw_context.raw_begin_set_parameter(ptr);
+            setter
+                .raw_context
+                .raw_set_parameter_normalized(ptr, normalized);
+            setter.raw_context.raw_end_set_parameter(ptr);
+        }
+    }
+}
+
+/// Select `note` in the kit bar; a key with a pad loads its sound.
+fn select_kit_key(params: &CorrosionParams, setter: &ParamSetter, kit: &mut KitEditor, note: u8) {
+    kit.selected = Some(note);
+    let pad = params
+        .kit
+        .read()
+        .unwrap_or_else(|e| e.into_inner())
+        .pad(note)
+        .cloned();
+    if let Some(pad) = pad {
+        load_pad(params, setter, &pad);
+        kit.last_auditioned = u8::try_from(i32::from(note) + pad.tune).ok();
+    }
+}
+
+/// The kit bar (`per-key-kits`): the selected key, its pad's tune, Assign,
+/// Clear and the Full keyboard toggle.
+fn render_kit_bar(
+    ui: &mut egui::Ui,
+    params: &CorrosionParams,
+    _setter: &ParamSetter,
+    strip: &mut KeyboardStrip,
+    scale: f32,
+) {
+    let size = egui::vec2(ui.available_width(), KIT_BAR_BASE_HEIGHT * scale);
+    let font = egui::FontId::proportional(width_pct(scale, 0.0101852));
+    ui.allocate_ui_with_layout(
+        size,
+        egui::Layout::left_to_right(egui::Align::Center),
+        |ui| {
+            ui.set_min_size(size);
+            let kit = &mut strip.kit;
+            let selected = kit.selected;
+            let pad = selected.and_then(|key| {
+                params
+                    .kit
+                    .read()
+                    .unwrap_or_else(|e| e.into_inner())
+                    .pad(key)
+                    .cloned()
+            });
+            let key_label = selected.map_or_else(
+                || "KEY —".to_string(),
+                |key| format!("KEY {} ({key})", note_name(key)),
+            );
+            ui.label(
+                egui::RichText::new(key_label)
+                    .font(font.clone())
+                    .color(SAFETY_YELLOW),
+            );
+            ui.add_space(8.0 * scale);
+            ui.label(
+                egui::RichText::new("Tune")
+                    .font(font.clone())
+                    .color(MUTED_GREY),
+            );
+            let mut tune = pad.as_ref().map_or(0, |p| p.tune);
+            let tune_edit = ui.add_enabled(
+                pad.is_some(),
+                egui::DragValue::new(&mut tune)
+                    .range(-crate::kit::MAX_TUNE..=crate::kit::MAX_TUNE)
+                    .suffix(" st"),
+            );
+            if tune_edit.changed() {
+                if let Some(mut pad) = pad.clone() {
+                    pad.tune = tune;
+                    store_pad(params, pad);
+                }
+            }
+            ui.add_space(8.0 * scale);
+            let assign = ui.add_enabled(
+                selected.is_some(),
+                egui::Button::new(egui::RichText::new("Assign").font(font.clone())),
+            );
+            if assign.clicked() {
+                if let Some(key) = selected {
+                    let tune = kit
+                        .last_auditioned
+                        .map_or(0, |pitch| i32::from(pitch) - i32::from(key));
+                    let level_db = pad.as_ref().map_or(0.0, |p| p.level_db);
+                    store_pad(
+                        params,
+                        crate::kit::KitPad::from_params(key, params, tune, level_db),
+                    );
+                }
+            }
+            let clear = ui.add_enabled(
+                pad.is_some(),
+                egui::Button::new(egui::RichText::new("Clear").font(font.clone())),
+            );
+            if clear.clicked() {
+                if let Some(key) = selected {
+                    clear_pad(params, key);
+                }
+            }
+            ui.add_space(8.0 * scale);
+            let toggle = ui.add(
+                egui::Button::new(egui::RichText::new("Full keyboard").font(font.clone()))
+                    .selected(kit.full_keyboard),
+            );
+            if toggle.clicked() {
+                kit.full_keyboard = !kit.full_keyboard;
+            }
+        },
+    );
+}
+
+/// The keyboard strip: mouse, computer keys and the held-note highlights.
+/// In Kit mode it also selects keys, locks the keys outside the kit zone
+/// and marks the keys that have pads (`per-key-kits`).
+fn render_keyboard_strip(
+    ui: &mut egui::Ui,
+    strip: &mut KeyboardStrip,
+    params: &CorrosionParams,
+    setter: &ParamSetter,
+    scale: f32,
+) {
+    use crate::gui_notes::{note_letter_from, NoteSource};
+    let kit_mode = PlayMode::from_int(params.play_mode.value()) == PlayMode::Kit;
+    strip.sender.set_key_base(if kit_mode {
+        crate::gui_notes::KIT_KEY_LOW_NOTE
+    } else {
+        crate::gui_notes::KEY_LOW_NOTE
+    });
+    let top = ui.cursor().min.y;
+    ui.add_space(KEYBOARD_STRIP_BASE_GAP * scale);
+    let size = egui::vec2(ui.available_width(), KEYBOARD_STRIP_BASE_HEIGHT * scale);
+    let (rect, response) = ui.allocate_exact_size(size, egui::Sense::click_and_drag());
+    ui.painter().rect_filled(
+        egui::Rect::from_min_max(egui::pos2(rect.min.x, top), rect.max),
+        0.0,
+        DARK_STEEL,
+    );
+    let keys = strip_keys(rect);
+    #[cfg(test)]
+    DRAWN_KEYBOARD.with(|drawn| *drawn.borrow_mut() = Some((rect, keys.clone())));
+
+    // Computer keys, only while the editor has focus, the pointer is over
+    // it, and no text field takes the typing. baseview reports focus loss
+    // only on macOS; on Windows and X11 a key held while focus moves away
+    // would never see its key-up, so the pointer leaving the window (which
+    // baseview reports everywhere) releases the strip's notes too.
+    let ctx = ui.ctx().clone();
+    let (events, focused, has_pointer) = ctx.input(|input| {
+        (
+            input.events.clone(),
+            input.focused,
+            input.pointer.has_pointer(),
+        )
+    });
+    let lost_focus = !focused
+        || !has_pointer
+        || events.iter().any(|event| {
+            matches!(
+                event,
+                egui::Event::WindowFocused(false) | egui::Event::PointerGone
+            )
+        });
+    if lost_focus && strip.focused {
+        strip.release_all();
+        // egui marks a press of a key it still thinks is down as a repeat,
+        // and the key-up may have gone to another window: forget the mapped
+        // keys so the next press plays.
+        ctx.input_mut(|input| {
+            input.keys_down.retain(|&key| {
+                key_letter(key, None)
+                    .and_then(crate::gui_notes::key_note)
+                    .is_none()
+            });
+        });
+    }
+    strip.focused = !lost_focus;
+    let gate_open = strip.focused && !ctx.wants_keyboard_input();
+    for (letter, pressed, repeat) in key_actions(&events) {
+        strip.sender.key_event(letter, pressed, repeat, gate_open);
+        if pressed && !repeat && gate_open && !kit_mode {
+            if let Some(note) = crate::gui_notes::key_note_from(letter, strip.sender.key_base()) {
+                strip.kit.last_auditioned = Some(note);
+            }
+        }
+    }
+
+    // Mouse: the key under the pointer while the button is down on the
+    // strip; moving onto another key is a glissando.
+    let target = if response.is_pointer_button_down_on() && strip.focused {
+        ctx.input(|input| input.pointer.interact_pos())
+            .and_then(|pos| key_at(&keys, pos).map(|note| (note, pos)))
+            // Locked keys (Kit mode, outside the zone) neither play nor
+            // select.
+            .filter(|&(note, _)| key_unlocked(kit_mode, &strip.kit, note))
+    } else {
+        None
+    };
+    if target.map(|(note, _)| note) != strip.mouse_note {
+        let was_down = strip.mouse_note.is_some();
+        if let Some(previous) = strip.mouse_note.take() {
+            strip.sender.release(previous, NoteSource::Mouse);
+        }
+        if let Some((note, pos)) = target {
+            if kit_mode {
+                // A press (not a glissando onto it) selects the key.
+                if !was_down {
+                    select_kit_key(params, setter, &mut strip.kit, note);
+                }
+            } else {
+                strip.kit.last_auditioned = Some(note);
+            }
+            let key_rect = keys
+                .iter()
+                .find(|(n, _)| *n == note)
+                .map_or(rect, |&(_, r)| r);
+            strip
+                .sender
+                .press(note, press_velocity(key_rect, pos.y), NoteSource::Mouse);
+            strip.mouse_note = Some(note);
+        }
+    }
+    strip.sender.flush();
+
+    // Paint: white keys, then black keys over them. In Kit mode, locked
+    // keys are greyed, keys with a pad get a band along the top and the
+    // selected key an outline.
+    let held = strip.sender.shared().held();
+    let pad_keys: Vec<u8> = if kit_mode {
+        params.kit_table.keys().collect()
+    } else {
+        Vec::new()
+    };
+    let painter = ui.painter();
+    let outline = egui::Stroke::new((scale).max(0.5), RECESSED_BG);
+    let font = egui::FontId::proportional(width_pct(scale, 0.0083333));
+    let key_base = strip.sender.key_base();
+    let mut lit = false;
+    for &(note, key_rect) in &keys {
+        let black = crate::gui_notes::is_black_key(note);
+        let on = strip.sender.holds_any(note) || held.contains(note);
+        let locked = !key_unlocked(kit_mode, &strip.kit, note);
+        lit |= on;
+        let fill = match (black, on, locked) {
+            (false, true, _) => DANGER_RED.linear_multiply(0.75),
+            (true, true, _) => DANGER_RED,
+            (false, false, false) => OFF_WHITE,
+            (false, false, true) => KIT_LOCKED_WHITE,
+            (true, false, false) => RECESSED_BG,
+            (true, false, true) => KIT_LOCKED_BLACK,
+        };
+        let key_rect = if black {
+            key_rect
+        } else {
+            key_rect.shrink2(egui::vec2(0.5 * scale, 0.0))
+        };
+        painter.rect_filled(key_rect, 1.0 * scale, fill);
+        painter.rect_stroke(key_rect, 1.0 * scale, outline, egui::StrokeKind::Inside);
+        if pad_keys.contains(&note) {
+            let band = egui::Rect::from_min_size(
+                key_rect.min,
+                egui::vec2(key_rect.width(), KIT_PAD_BAND * scale),
+            );
+            painter.rect_filled(band, 0.0, SAFETY_YELLOW);
+        }
+        if kit_mode && strip.kit.selected == Some(note) {
+            painter.rect_stroke(
+                key_rect,
+                1.0 * scale,
+                egui::Stroke::new(2.0 * scale, SAFETY_YELLOW),
+                egui::StrokeKind::Inside,
+            );
+        }
+        if let Some(letter) = note_letter_from(note, key_base) {
+            painter.text(
+                egui::pos2(key_rect.center().x, key_rect.max.y - 3.0 * scale),
+                egui::Align2::CENTER_BOTTOM,
+                letter.to_string(),
+                font.clone(),
+                if black {
+                    OFF_WHITE.linear_multiply(0.6)
+                } else {
+                    MUTED_GREY
+                },
+            );
+        }
+    }
+    // Keep repainting while anything is held or lit, so the highlight
+    // follows notes that end on the audio side.
+    if lit || strip.mouse_note.is_some() {
+        ctx.request_repaint();
+    } else {
+        ctx.request_repaint_after(std::time::Duration::from_millis(50));
+    }
+}
+
+/// The strip's rect and its keys, as drawn.
+#[cfg(test)]
+type DrawnKeyboard = (egui::Rect, Vec<(u8, egui::Rect)>);
+
+#[cfg(test)]
+thread_local! {
+    /// The strip's rect and keys as last drawn, for the layout tests.
+    static DRAWN_KEYBOARD: std::cell::RefCell<Option<DrawnKeyboard>> =
+        const { std::cell::RefCell::new(None) };
 }
 
 // ---------------------------------------------------------------------------
@@ -4244,8 +5146,8 @@ mod tests {
     /// editor state.
     #[test]
     fn ui_scale_change_requests_a_host_resize() {
-        let editor_state = nih_plug_egui::EguiState::from_size(810, 576);
-        let mut state = super::EditorUiState::new(1, (810, 576));
+        let editor_state = nih_plug_egui::EguiState::from_size(810, 630);
+        let mut state = super::EditorUiState::new(1, (810, 630));
         let host = ResizeRecordingGui {
             accept: true,
             requests: std::sync::atomic::AtomicUsize::new(0),
@@ -4261,10 +5163,10 @@ mod tests {
         // 75 % -> 100 %: one request, the new size reported to the host.
         assert_eq!(
             super::request_window_size(&mut state, 2, &editor_state, &host),
-            Some((1080, 768))
+            Some((1080, 840))
         );
         assert_eq!(host.requests.load(std::sync::atomic::Ordering::Relaxed), 1);
-        assert_eq!(editor_state.size(), (1080, 768));
+        assert_eq!(editor_state.size(), (1080, 840));
 
         // Asked once per change, not every frame.
         assert_eq!(
@@ -4288,16 +5190,16 @@ mod tests {
         );
     }
 
-    /// A new instance opens at 75 % (810 x 576), small enough for a host
-    /// window on a 1080p screen.
+    /// A new instance opens at 75 % (810 x 630, with the keyboard strip),
+    /// small enough for a host window on a 1080p screen.
     #[test]
     fn editor_opens_at_75_percent_by_default() {
         let params = crate::params::CorrosionParams::default();
         assert_eq!(params.ui_scale.value(), 1);
-        assert_eq!(params.editor_state.size(), (810, 576));
+        assert_eq!(params.editor_state.size(), (810, 630));
         assert_eq!(
             super::scaled_editor_size(super::ui_scale_factor(1)),
-            (810, 576)
+            (810, 630)
         );
     }
 
@@ -4710,6 +5612,271 @@ mod tests {
         );
     }
 
+    /// Help text each drawn parameter got in one frame of the editor
+    /// rendered with `params`.
+    fn drawn_help(
+        params: &crate::params::CorrosionParams,
+    ) -> std::collections::HashMap<nih_plug::prelude::ParamPtr, String> {
+        super::DRAWN_HELP.with(|help| help.borrow_mut().clear());
+        let _ = drawn_parameter_ids(params);
+        super::DRAWN_HELP.with(|help| help.borrow().clone())
+    }
+
+    /// Spec "Help changes with the exciter": each exciter control's tooltip
+    /// is the help for that control as the selected exciter uses it, and two
+    /// models with different controls show different help.
+    #[test]
+    fn help_follows_the_selected_exciter() {
+        use crate::params::{exciter_param, ExciterType};
+        use nih_plug::prelude::Param;
+        let mut panels = Vec::new();
+        for value in 1..=16 {
+            let params = crate::params::CorrosionParams {
+                exciter: exciter_param(value),
+                ..Default::default()
+            };
+            let help = drawn_help(&params);
+            let exciter = ExciterType::from_int(value);
+            let mut texts = Vec::new();
+            for spec in super::exciter_panel(exciter).controls {
+                let ptr = super::exciter_param_ref(&params, spec.id).as_ptr();
+                let expected = super::help_for(spec.label);
+                assert_eq!(
+                    help.get(&ptr).map(String::as_str),
+                    Some(expected),
+                    "{} / {}",
+                    exciter.name(),
+                    spec.label
+                );
+                texts.push(expected);
+            }
+            panels.push((exciter.name(), texts));
+        }
+        let panel = |name: &str| {
+            &panels
+                .iter()
+                .find(|(n, _)| *n == name)
+                .unwrap_or_else(|| panic!("no exciter named {name}"))
+                .1
+        };
+        assert_ne!(
+            panel("Hand Strike"),
+            panel("Bow"),
+            "Hand Strike and Bow show the same help"
+        );
+    }
+
+    /// Spec "Help changes with the object": the same for the object panel.
+    #[test]
+    fn help_follows_the_selected_object() {
+        use crate::params::{object_param, Object};
+        use nih_plug::prelude::Param;
+        let mut panels = Vec::new();
+        for value in 0..9 {
+            let params = crate::params::CorrosionParams {
+                object: object_param(value),
+                ..Default::default()
+            };
+            let help = drawn_help(&params);
+            let object = Object::from_int(value);
+            let mut texts = Vec::new();
+            for spec in super::resonator_panel(object).controls {
+                let ptr = super::resonator_param_ref(&params, spec.id).as_ptr();
+                let expected = super::help_for(spec.label);
+                assert_eq!(
+                    help.get(&ptr).map(String::as_str),
+                    Some(expected),
+                    "{} / {}",
+                    object.name(),
+                    spec.label
+                );
+                texts.push(expected);
+            }
+            panels.push(texts);
+        }
+        for (i, a) in panels.iter().enumerate() {
+            for b in &panels[i + 1..] {
+                assert_ne!(a, b, "two objects show the same slot help");
+            }
+        }
+    }
+
+    /// Spec "Selector help describes the selection": each selector's
+    /// tooltip describes the option it shows, so every option of a selector
+    /// has its own text, and exciter and object options use their panel's
+    /// description.
+    #[test]
+    fn selector_help_describes_the_selection() {
+        use crate::params::{
+            exciter_param, limiter_mode_param, object_param, play_mode_param, quality_mode_param,
+            ExciterType, Object,
+        };
+        use nih_plug::prelude::{IntParam, IntRange, Param};
+        type Edit = fn(&mut crate::params::CorrosionParams, i32);
+        type Ptr = fn(&crate::params::CorrosionParams) -> nih_plug::prelude::ParamPtr;
+        let selectors: [(&str, std::ops::RangeInclusive<i32>, Edit, Ptr); 6] = [
+            (
+                "Model Type",
+                1..=16,
+                |p, v| p.exciter = exciter_param(v),
+                |p| p.exciter.as_ptr(),
+            ),
+            (
+                "Material",
+                0..=8,
+                |p, v| p.object = object_param(v),
+                |p| p.object.as_ptr(),
+            ),
+            (
+                "MODE",
+                0..=3,
+                |p, v| p.quality_mode = quality_mode_param(v),
+                |p| p.quality_mode.as_ptr(),
+            ),
+            (
+                "PLAY",
+                0..=2,
+                |p, v| p.play_mode = play_mode_param(v),
+                |p| p.play_mode.as_ptr(),
+            ),
+            (
+                "LIMITER",
+                0..=1,
+                |p, v| p.limiter_mode = limiter_mode_param(v),
+                |p| p.limiter_mode.as_ptr(),
+            ),
+            (
+                "Loop",
+                0..=2,
+                |p, v| {
+                    // Loop is drawn only for friction exciters (the MSEG panel).
+                    let bow = (1..=16)
+                        .find(|&e| ExciterType::from_int(e).name() == "Bow")
+                        .expect("a Bow exciter");
+                    p.exciter = exciter_param(bow);
+                    p.loop_mode = IntParam::new("Loop Mode", v, IntRange::Linear { min: 0, max: 2 })
+                },
+                |p| p.loop_mode.as_ptr(),
+            ),
+        ];
+        for (label, values, edit, ptr) in selectors {
+            let mut seen = std::collections::BTreeMap::new();
+            for value in values {
+                let mut params = crate::params::CorrosionParams::default();
+                edit(&mut params, value);
+                let help = drawn_help(&params)
+                    .get(&ptr(&params))
+                    .cloned()
+                    .unwrap_or_default();
+                assert!(!help.is_empty(), "{label} = {value}: no help");
+                match label {
+                    "Model Type" => assert_eq!(
+                        help,
+                        super::exciter_panel(ExciterType::from_int(value)).description,
+                        "{label} = {value}"
+                    ),
+                    "Material" => assert_eq!(
+                        help,
+                        super::resonator_panel(Object::from_int(value)).description,
+                        "{label} = {value}"
+                    ),
+                    _ => {}
+                }
+                if let Some(other) = seen.insert(help.clone(), value) {
+                    panic!("{label}: options {other} and {value} share the help {help:?}");
+                }
+            }
+        }
+    }
+
+    /// Slot labels that more than one model uses, checked by hand to mean
+    /// the same thing in each (help is looked up by label, so a shared
+    /// label shares its tooltip).
+    const SHARED_SLOT_LABELS: &[&str] = &["Mallet Mass"];
+
+    /// Help is keyed by label, so two models that reuse a label with a
+    /// different meaning would silently show the wrong tooltip. Every slot
+    /// label shared between models has to be listed in `SHARED_SLOT_LABELS`
+    /// after checking that it means the same thing.
+    #[test]
+    fn shared_slot_labels_are_reviewed() {
+        use crate::params::{ExciterType, Object};
+        let mut users: std::collections::BTreeMap<String, Vec<String>> = Default::default();
+        for exciter in 1..=16 {
+            let exciter = ExciterType::from_int(exciter);
+            for spec in super::exciter_panel(exciter).controls {
+                users
+                    .entry(spec.label.to_ascii_lowercase())
+                    .or_default()
+                    .push(exciter.name().to_string());
+            }
+        }
+        for object in 0..9 {
+            let object = Object::from_int(object);
+            for spec in super::resonator_panel(object).controls {
+                users
+                    .entry(spec.label.to_ascii_lowercase())
+                    .or_default()
+                    .push(object.name().to_string());
+            }
+        }
+        let reviewed: Vec<String> = SHARED_SLOT_LABELS
+            .iter()
+            .map(|l| l.to_ascii_lowercase())
+            .collect();
+        let unreviewed: Vec<String> = users
+            .iter()
+            .filter(|(label, models)| models.len() > 1 && !reviewed.contains(label))
+            .map(|(label, models)| format!("{label:?} in {}", models.join(", ")))
+            .collect();
+        assert!(
+            unreviewed.is_empty(),
+            "slot labels shared between models; give each its own label or, if it \
+             means the same in both, add it to SHARED_SLOT_LABELS: {unreviewed:?}"
+        );
+        for label in &reviewed {
+            assert!(
+                users.get(label).is_some_and(|m| m.len() > 1),
+                "{label:?} is in SHARED_SLOT_LABELS but no longer shared"
+            );
+        }
+    }
+
+    /// The Cutoff knob's help badge side, with the editor laid out at
+    /// `scale` in a window that fits it.
+    fn cutoff_badge_side(scale: f32) -> f32 {
+        use nih_plug::prelude::Param;
+        let params = crate::params::CorrosionParams::default();
+        let window = (super::editor_width(scale), super::editor_height(scale));
+        let _ = rendered_right_edge(&params, scale, window);
+        let ptr = params.filter_cutoff.as_ptr();
+        let (badge, _) = super::DRAWN_BADGES
+            .with(|badges| badges.borrow().get(&ptr).copied())
+            .expect("the Cutoff knob draws a help badge");
+        assert!(
+            (badge.width() - badge.height()).abs() < 1e-3,
+            "badge isn't square"
+        );
+        badge.width()
+    }
+
+    /// Spec "Badge scales with the UI": the badge's size is proportional to
+    /// the UI scale (the content-fits-the-window part of the scenario is
+    /// `editor_content_fits_the_window_width`).
+    #[test]
+    fn badge_scales_with_the_ui() {
+        let base = cutoff_badge_side(1.0);
+        assert!(base > 4.0, "badge is {base} points at 100 %");
+        for scale in [0.5, 0.75, 1.5, 2.0] {
+            let side = cutoff_badge_side(scale);
+            let ratio = side / base;
+            assert!(
+                (ratio - scale).abs() < 0.02 * scale,
+                "at {scale}× the badge is {side:.2} points ({ratio:.3}× the 100 % size)"
+            );
+        }
+    }
+
     /// Every parameter the editor draws for some exciter, object and space
     /// mode (their panels differ).
     fn all_drawn_parameter_ids() -> std::collections::BTreeSet<String> {
@@ -4892,20 +6059,21 @@ mod tests {
 
     #[test]
     fn ui_scale_resizes_window_from_base_dimensions() {
-        assert_eq!(scaled_editor_size(ui_scale_factor(0)), (540, 384));
-        assert_eq!(scaled_editor_size(ui_scale_factor(1)), (810, 576));
-        assert_eq!(scaled_editor_size(ui_scale_factor(2)), (1080, 768));
-        assert_eq!(scaled_editor_size(ui_scale_factor(3)), (1350, 960));
-        assert_eq!(scaled_editor_size(ui_scale_factor(4)), (1620, 1152));
+        // 768 of panels plus the 72-point keyboard strip (`add-editor-keyboard`).
+        assert_eq!(scaled_editor_size(ui_scale_factor(0)), (540, 420));
+        assert_eq!(scaled_editor_size(ui_scale_factor(1)), (810, 630));
+        assert_eq!(scaled_editor_size(ui_scale_factor(2)), (1080, 840));
+        assert_eq!(scaled_editor_size(ui_scale_factor(3)), (1350, 1050));
+        assert_eq!(scaled_editor_size(ui_scale_factor(4)), (1620, 1260));
     }
 
     #[test]
     fn ui_scale_persists_host_facing_editor_size() {
-        let editor_state = EguiState::from_size(1080, 768);
+        let editor_state = EguiState::from_size(1080, 840);
 
         persist_editor_size(&editor_state, scaled_editor_size(ui_scale_factor(1)));
 
-        assert_eq!(editor_state.size(), (810, 576));
+        assert_eq!(editor_state.size(), (810, 630));
     }
 
     #[test]
@@ -4940,16 +6108,252 @@ mod tests {
         assert_eq!(resonator_panel(Object::IndustrialCog).controls.len(), 3);
     }
 
+    /// The ID of the parameter `param` points at in `params`.
+    fn param_id(params: &super::CorrosionParams, param: &super::FloatParam) -> String {
+        use nih_plug::prelude::{ParamPtr, Params};
+        params
+            .param_map()
+            .into_iter()
+            .find(|(_, ptr, _)| matches!(ptr, ParamPtr::FloatParam(p) if std::ptr::eq(*p, param)))
+            .map(|(id, _, _)| id)
+            .expect("panel parameter is in the parameter map")
+    }
+
+    #[test]
+    fn experimental_generator_varies_what_the_panels_show() {
+        // The generator (no GUI) keeps its own lists of exciter slot and
+        // object character parameters; they must be the panels' controls.
+        use super::{exciter_param_ref, resonator_param_ref, CorrosionParams};
+        use crate::presets::factory::{exciter_slot_ids, object_character_ids};
+        let params = CorrosionParams::default();
+        for exciter in 1..=16 {
+            let panel: Vec<String> = exciter_panel(ExciterType::from_int(exciter))
+                .controls
+                .iter()
+                .map(|c| param_id(&params, exciter_param_ref(&params, c.id)))
+                .collect();
+            assert_eq!(exciter_slot_ids(exciter), panel, "exciter {exciter}");
+        }
+        for object in 0..9 {
+            let object = Object::from_int(object);
+            let panel: Vec<String> = resonator_panel(object)
+                .controls
+                .iter()
+                .map(|c| param_id(&params, resonator_param_ref(&params, c.id)))
+                .filter(|id| id != "size" && id != "res_damping")
+                .collect();
+            assert_eq!(object_character_ids(object), panel, "{}", object.name());
+        }
+    }
+
     #[test]
     fn factory_preset_loader_finds_factory_bank() {
+        // Every embedded preset file loads, in all its folders. The bank
+        // itself (counts, grid) is checked by `presets::factory`'s tests.
+        fn count(dir: &include_dir::Dir<'_>) -> usize {
+            dir.files()
+                .filter(|f| {
+                    f.path()
+                        .extension()
+                        .is_some_and(|e| e == "corrosion-preset")
+                })
+                .count()
+                + dir.dirs().map(count).sum::<usize>()
+        }
         let presets = load_factory_presets();
+        assert_eq!(presets.len(), count(&super::FACTORY_PRESETS_DIR));
+        assert_eq!(presets.len(), 214);
+    }
 
-        // The factory bank is seeded by `src/bin/seed_presets.rs`. 50 curated
-        // presets cover every object × major exciter combination, with
-        // alphabetic sort applied inside `load_factory_presets`.
-        assert_eq!(presets.len(), 50);
-        assert_eq!(presets[0].name, "Beam Drag");
-        assert_eq!(presets[49].name, "Workshop Plate Scrape");
+    /// An editor state whose user preset folder is a fresh temporary folder.
+    fn state_with_user_dir(tag: &str) -> (super::EditorUiState, std::path::PathBuf) {
+        let dir = std::env::temp_dir().join(format!(
+            "corrosion-editor-{tag}-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+        let mut state =
+            super::EditorUiState::new(2, (super::BASE_EDITOR_WIDTH, super::BASE_EDITOR_HEIGHT));
+        state.user_preset_dir = Some(dir.clone());
+        state.refresh_user_presets();
+        (state, dir)
+    }
+
+    fn folder_names(nodes: &[super::MenuNode]) -> Vec<&str> {
+        nodes
+            .iter()
+            .filter_map(|n| match n {
+                super::MenuNode::Folder(name, _) => Some(name.as_str()),
+                super::MenuNode::Preset(_) => None,
+            })
+            .collect()
+    }
+
+    fn submenu<'a>(nodes: &'a [super::MenuNode], name: &str) -> &'a [super::MenuNode] {
+        nodes
+            .iter()
+            .find_map(|n| match n {
+                super::MenuNode::Folder(n, children) if n == name => Some(children.as_slice()),
+                _ => None,
+            })
+            .unwrap_or_else(|| panic!("no {name} submenu"))
+    }
+
+    #[test]
+    fn factory_folders_are_submenus() {
+        let (state, dir) = state_with_user_dir("menu");
+        let menu = state.menu();
+        assert_eq!(
+            folder_names(&menu),
+            [
+                "Bass",
+                "Lead",
+                "Chords",
+                "Drones",
+                "Percussion",
+                "Drums",
+                "Experimental",
+                "User"
+            ]
+        );
+        assert!(menu
+            .iter()
+            .all(|n| matches!(n, super::MenuNode::Folder(..))));
+        let experimental = submenu(&menu, "Experimental");
+        let exciters: Vec<&str> = (1..=16)
+            .map(crate::presets::factory::exciter_name)
+            .collect();
+        assert_eq!(folder_names(experimental), exciters);
+        for exciter in exciters {
+            let presets = submenu(experimental, exciter);
+            assert_eq!(presets.len(), 9, "{exciter}");
+            assert!(presets
+                .iter()
+                .all(|n| matches!(n, super::MenuNode::Preset(_))));
+        }
+        assert_eq!(submenu(&menu, "Bass").len(), 12);
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn user_subfolders_are_submenus() {
+        let (mut state, dir) = state_with_user_dir("subfolders");
+        let params = crate::params::CorrosionParams::default();
+        let preset = |name: &str| crate::presets::Preset::from_params(name, &params);
+        preset("Root Hit")
+            .save(dir.join("root.corrosion-preset"))
+            .unwrap();
+        preset("Deep Sub")
+            .save(dir.join("Basses").join("deep.corrosion-preset"))
+            .unwrap();
+        state.refresh_user_presets();
+        let menu = state.menu();
+        let user = submenu(&menu, "User");
+        assert_eq!(folder_names(user), ["Basses"]);
+        let basses = submenu(user, "Basses");
+        let name_of = |node: &super::MenuNode| match node {
+            super::MenuNode::Preset(i) => state.preset_name(*i).to_string(),
+            super::MenuNode::Folder(n, _) => panic!("unexpected folder {n}"),
+        };
+        assert_eq!(basses.iter().map(name_of).collect::<Vec<_>>(), ["Deep Sub"]);
+        // The root preset sits directly in User, after its submenus.
+        assert_eq!(name_of(&user[1]), "Root Hit");
+        assert_eq!(user.len(), 2);
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn arrows_stay_in_the_folder() {
+        let (state, dir) = state_with_user_dir("arrows");
+        let in_folder = |folder: &[&str]| -> Vec<usize> {
+            (0..state.preset_count())
+                .filter(|&i| state.entry(i).folder == folder)
+                .collect()
+        };
+        let bass = in_folder(&["Bass"]);
+        assert_eq!(bass.len(), 12);
+        let (first, last) = (bass[0], *bass.last().unwrap());
+        assert_eq!(
+            state.step_in_folder(last, 1),
+            first,
+            "next wraps to the first Bass"
+        );
+        assert_eq!(
+            state.step_in_folder(first, -1),
+            last,
+            "previous wraps to the last"
+        );
+        assert_eq!(state.step_in_folder(first, 1), bass[1]);
+        let bow = in_folder(&["Experimental", "Bow"]);
+        assert_eq!(bow.len(), 9);
+        assert_eq!(state.step_in_folder(*bow.last().unwrap(), 1), bow[0]);
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn save_into_a_user_subfolder() {
+        let (mut state, dir) = state_with_user_dir("save-folder");
+        std::fs::create_dir_all(dir.join("Basses")).unwrap();
+        state.refresh_user_presets();
+        // The folder selector offers only the user folder and its subfolders.
+        assert_eq!(state.user_folders, ["", "Basses"]);
+        let labels: Vec<String> = state
+            .user_folders
+            .iter()
+            .map(|f| super::user_folder_label(f))
+            .collect();
+        assert_eq!(labels, ["User", "User / Basses"]);
+
+        state.save_folder = "Basses".to_string();
+        state.save_name = "Deep Sub".to_string();
+        state.save(&crate::params::CorrosionParams::default(), false);
+        assert!(dir
+            .join("Basses")
+            .join("Deep Sub.corrosion-preset")
+            .exists());
+        let selected = state.entry(state.selected_factory_preset);
+        assert_eq!(selected.name, "Deep Sub");
+        assert_eq!(selected.folder, ["User", "Basses"]);
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn folders_added_outside_the_editor_appear_on_refresh() {
+        // The editor state outlives reopening the window, so a folder made
+        // in the file manager is picked up when the menu or the folder
+        // selector opens; the selected preset stays selected.
+        let (mut state, dir) = state_with_user_dir("refresh");
+        let bass = (0..state.preset_count())
+            .find(|&i| state.entry(i).folder == ["Bass"])
+            .unwrap();
+        state.selected_factory_preset = bass;
+        let selected = state.preset_name(bass).to_string();
+        std::fs::create_dir_all(dir.join("Basses")).unwrap();
+        crate::presets::Preset::from_params("Deep Sub", &crate::params::CorrosionParams::default())
+            .save(dir.join("Basses").join("deep.corrosion-preset"))
+            .unwrap();
+        assert_eq!(state.user_folders, [""]);
+        state.refresh_user_presets_keeping_selection();
+        assert_eq!(state.user_folders, ["", "Basses"]);
+        assert_eq!(state.preset_name(state.selected_factory_preset), selected);
+        let menu = state.menu();
+        assert_eq!(folder_names(submenu(&menu, "User")), ["Basses"]);
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn open_folder_is_disabled_without_a_user_folder() {
+        let (enabled, tooltip) = super::open_folder_button(None);
+        assert!(!enabled);
+        assert!(tooltip.contains("No user preset folder"), "{tooltip}");
+        let (enabled, tooltip) =
+            super::open_folder_button(Some(std::path::Path::new("/home/me/presets")));
+        assert!(enabled);
+        assert!(tooltip.contains("/home/me/presets"), "{tooltip}");
     }
 
     #[test]
@@ -4970,5 +6374,753 @@ mod tests {
     fn knob_drag_value_clamps_to_range() {
         assert_eq!(knob_drag_value(0.5, -500.0, 0.0, 1.0, 1.0), 1.0);
         assert_eq!(knob_drag_value(0.5, 500.0, 0.0, 1.0, 1.0), 0.0);
+    }
+
+    // --- Keyboard strip (`add-editor-keyboard`) ---
+
+    mod keyboard_strip {
+        use super::NullGui;
+        use crate::gui_notes::{EditorNoteEvent, EditorNotes, KEY_VELOCITY};
+        use nih_plug_egui::egui;
+        use std::sync::Arc;
+
+        const SCALE: f32 = 0.75;
+
+        /// The editor window at a UI scale (75 % unless a test picks
+        /// another), driven frame by frame.
+        struct Harness {
+            scale: f32,
+            /// Filled rectangles the last frame painted, in paint order.
+            rects: Vec<(egui::Rect, egui::Color32)>,
+            ctx: egui::Context,
+            state: super::super::EditorUiState,
+            shared: Arc<EditorNotes>,
+            params: crate::params::CorrosionParams,
+            frame: u32,
+            /// Parameter values the editor set (`per-key-kits` loads pads).
+            gui: SetRecorder,
+        }
+
+        /// A host that records the normalized values the editor sets.
+        #[derive(Default)]
+        struct SetRecorder {
+            sets: std::sync::Mutex<Vec<(nih_plug::prelude::ParamPtr, f32)>>,
+        }
+
+        // SAFETY: test-only; the pointers are compared, never dereferenced
+        // from another thread.
+        unsafe impl Send for SetRecorder {}
+        unsafe impl Sync for SetRecorder {}
+
+        impl nih_plug::prelude::GuiContext for SetRecorder {
+            fn plugin_api(&self) -> nih_plug::prelude::PluginApi {
+                nih_plug::prelude::PluginApi::Clap
+            }
+            fn request_resize(&self) -> bool {
+                false
+            }
+            unsafe fn raw_begin_set_parameter(&self, _param: nih_plug::prelude::ParamPtr) {}
+            unsafe fn raw_set_parameter_normalized(
+                &self,
+                param: nih_plug::prelude::ParamPtr,
+                normalized: f32,
+            ) {
+                self.sets.lock().unwrap().push((param, normalized));
+            }
+            unsafe fn raw_end_set_parameter(&self, _param: nih_plug::prelude::ParamPtr) {}
+            fn get_state(&self) -> nih_plug::prelude::PluginState {
+                unimplemented!("not used by headless renders")
+            }
+            fn set_state(&self, _state: nih_plug::prelude::PluginState) {}
+        }
+
+        impl Harness {
+            fn new() -> Self {
+                Self::at_scale(SCALE)
+            }
+
+            fn at_scale(scale: f32) -> Self {
+                let shared = Arc::new(EditorNotes::new());
+                let state = super::super::EditorUiState {
+                    keyboard: super::super::KeyboardStrip::new(shared.clone()),
+                    ..super::super::EditorUiState::new(1, super::super::scaled_editor_size(scale))
+                };
+                let ctx = egui::Context::default();
+                super::super::apply_editor_style(&ctx, scale);
+                let mut harness = Self {
+                    scale,
+                    rects: Vec::new(),
+                    ctx,
+                    state,
+                    shared,
+                    params: crate::params::CorrosionParams::default(),
+                    frame: 0,
+                    gui: SetRecorder::default(),
+                };
+                harness.run(Vec::new(), true);
+                harness
+            }
+
+            /// One frame with `events`; returns the drawn texts and where.
+            fn run(
+                &mut self,
+                events: Vec<egui::Event>,
+                focused: bool,
+            ) -> Vec<(String, egui::Pos2)> {
+                let scale = self.scale;
+                let (w, h) = super::super::scaled_editor_size(scale);
+                let input = egui::RawInput {
+                    screen_rect: Some(egui::Rect::from_min_size(
+                        egui::Pos2::ZERO,
+                        egui::vec2(w as f32, h as f32),
+                    )),
+                    time: Some(f64::from(self.frame) * 0.02),
+                    focused,
+                    events,
+                    ..Default::default()
+                };
+                self.frame += 1;
+                let setter = nih_plug::prelude::ParamSetter::new(&self.gui);
+                let (state, params) = (&mut self.state, &self.params);
+                let output = self.ctx.run(input, |ctx| {
+                    egui::CentralPanel::default()
+                        .frame(egui::Frame::NONE)
+                        .show(ctx, |ui| {
+                            super::super::render_window_body(ui, params, &setter, state, scale);
+                        });
+                });
+                self.rects = output
+                    .shapes
+                    .iter()
+                    .filter_map(|clipped| match &clipped.shape {
+                        egui::Shape::Rect(rect) => Some((rect.rect, rect.fill)),
+                        _ => None,
+                    })
+                    .collect();
+                output
+                    .shapes
+                    .iter()
+                    .filter_map(|clipped| match &clipped.shape {
+                        // Only what is visible: the scroll view clips the
+                        // panels below its edge.
+                        egui::Shape::Text(text) if clipped.clip_rect.contains(text.pos) => {
+                            Some((text.galley.job.text.clone(), text.pos))
+                        }
+                        _ => None,
+                    })
+                    .collect()
+            }
+
+            fn keys(&self) -> (egui::Rect, Vec<(u8, egui::Rect)>) {
+                super::super::DRAWN_KEYBOARD
+                    .with(|drawn| drawn.borrow().clone())
+                    .expect("the keyboard strip was drawn")
+            }
+
+            fn key_rect(&self, note: u8) -> egui::Rect {
+                self.keys()
+                    .1
+                    .into_iter()
+                    .find(|(n, _)| *n == note)
+                    .map(|(_, rect)| rect)
+                    .unwrap()
+            }
+
+            fn sent(&self) -> Vec<EditorNoteEvent> {
+                let mut events = Vec::new();
+                self.shared.drain(|event| events.push(event));
+                events
+            }
+
+            fn press_at(&mut self, pos: egui::Pos2) {
+                self.run(
+                    vec![egui::Event::PointerMoved(pos), button(pos, true)],
+                    true,
+                );
+            }
+        }
+
+        fn button(pos: egui::Pos2, pressed: bool) -> egui::Event {
+            egui::Event::PointerButton {
+                pos,
+                button: egui::PointerButton::Primary,
+                pressed,
+                modifiers: egui::Modifiers::NONE,
+            }
+        }
+
+        fn key(letter: egui::Key, pressed: bool, repeat: bool) -> egui::Event {
+            egui::Event::Key {
+                key: letter,
+                physical_key: None,
+                pressed,
+                repeat,
+                modifiers: egui::Modifiers::NONE,
+            }
+        }
+
+        fn on(note: u8, velocity: u8) -> EditorNoteEvent {
+            EditorNoteEvent::On { note, velocity }
+        }
+
+        fn off(note: u8) -> EditorNoteEvent {
+            EditorNoteEvent::Off { note }
+        }
+
+        /// Spec "The strip is the bottom-most element": pinned to the
+        /// window's bottom edge under the panels' scroll view, whatever the
+        /// panels' height.
+        #[test]
+        fn the_strip_is_pinned_to_the_bottom() {
+            let harness = Harness::new();
+            let (rect, _) = harness.keys();
+            let (w, h) = super::super::scaled_editor_size(SCALE);
+            assert_eq!((w, h), (810, 630));
+            assert!(rect.max.y <= h as f32 + 0.5, "strip ends at {}", rect.max.y);
+            assert!(rect.max.y >= h as f32 - 1.0, "strip ends at {}", rect.max.y);
+            let strip_top = h as f32
+                - (super::super::KEYBOARD_STRIP_BASE_HEIGHT
+                    + super::super::KEYBOARD_STRIP_BASE_GAP)
+                    * SCALE;
+            assert!(rect.min.y >= strip_top - 0.5);
+            assert!((rect.width() - w as f32).abs() < 1.0);
+        }
+
+        /// Spec "On-screen keyboard strip": at every UI scale the strip is
+        /// pinned to the window's bottom edge, inside it, and as wide as it.
+        #[test]
+        fn the_strip_fits_at_every_ui_scale() {
+            for ui_scale in 0..=4 {
+                let scale = super::super::ui_scale_factor(ui_scale);
+                let harness = Harness::at_scale(scale);
+                let (rect, keys) = harness.keys();
+                let (w, h) = super::super::scaled_editor_size(scale);
+                assert!(
+                    rect.max.y <= h as f32 + 0.5 && rect.max.y >= h as f32 - 1.0,
+                    "UI Scale {ui_scale}: strip ends at {} in a {h}-tall window",
+                    rect.max.y
+                );
+                assert!(
+                    (rect.height() - super::super::KEYBOARD_STRIP_BASE_HEIGHT * scale).abs() < 0.5,
+                    "UI Scale {ui_scale}: strip is {} tall",
+                    rect.height()
+                );
+                assert!(
+                    rect.min.x >= -0.5 && rect.max.x <= w as f32 + 0.5,
+                    "UI Scale {ui_scale}: strip spans {:?} in a {w}-wide window",
+                    rect.x_range()
+                );
+                assert!((rect.width() - w as f32).abs() < 1.0);
+                assert_eq!(keys.len(), 49);
+            }
+        }
+
+        /// The fill painted last under `pos`, among the strip's shapes.
+        fn fill_at(harness: &Harness, pos: egui::Pos2) -> egui::Color32 {
+            harness
+                .rects
+                .iter()
+                .rev()
+                // Outlines are rects with a transparent fill: skip them.
+                .find(|(rect, fill)| rect.contains(pos) && *fill != egui::Color32::TRANSPARENT)
+                .map(|&(_, fill)| fill)
+                .expect("something is painted there")
+        }
+
+        /// Spec "Held notes light up": a note the audio thread publishes as
+        /// held (host MIDI) is drawn in the highlight colour, and drawn plain
+        /// again once it is no longer held; the same for a black key.
+        #[test]
+        fn held_notes_are_drawn_lit() {
+            let mut harness = Harness::new();
+            let white = harness.key_rect(64).center_bottom() - egui::vec2(0.0, 3.0);
+            let black = harness.key_rect(66).center();
+            harness.run(Vec::new(), true);
+            let (white_plain, black_plain) = (fill_at(&harness, white), fill_at(&harness, black));
+            harness.shared.publish_held([64u8, 66].into_iter());
+            harness.run(Vec::new(), true);
+            assert_ne!(fill_at(&harness, white), white_plain, "E4 is not lit");
+            assert_ne!(fill_at(&harness, black), black_plain, "F#4 is not lit");
+            assert_eq!(fill_at(&harness, black), super::super::DANGER_RED);
+            harness.shared.publish_held(std::iter::empty());
+            harness.run(Vec::new(), true);
+            assert_eq!(fill_at(&harness, white), white_plain);
+            assert_eq!(fill_at(&harness, black), black_plain);
+        }
+
+        /// Specs "The strip covers C3 to C6" and "The strip covers C2 to
+        /// C6" (`per-key-kits` widened it to 36–84).
+        #[test]
+        fn the_strip_covers_c2_to_c6() {
+            let harness = Harness::new();
+            let (_, keys) = harness.keys();
+            let mut notes: Vec<u8> = keys.iter().map(|&(n, _)| n).collect();
+            notes.sort_unstable();
+            assert_eq!(notes, (36..=84).collect::<Vec<_>>());
+            assert!((48..=84).all(|n| notes.contains(&n)));
+            for &(note, rect) in &keys {
+                let short = rect.height() < harness.keys().0.height() - 0.5;
+                assert_eq!(
+                    short,
+                    matches!(note % 12, 1 | 3 | 6 | 8 | 10),
+                    "note {note}"
+                );
+            }
+        }
+
+        #[test]
+        fn mapped_keys_show_their_letters() {
+            let mut harness = Harness::new();
+            let texts = harness.run(Vec::new(), true);
+            let (strip, _) = harness.keys();
+            let letters: Vec<&str> = texts
+                .iter()
+                .filter(|(_, pos)| strip.expand(1.0).contains(*pos))
+                .map(|(text, _)| text.as_str())
+                .collect();
+            assert_eq!(letters.len(), 13, "{letters:?}");
+            for letter in [
+                "A", "W", "S", "E", "D", "F", "T", "G", "Y", "H", "U", "J", "K",
+            ] {
+                assert!(letters.contains(&letter), "{letter} missing: {letters:?}");
+            }
+        }
+
+        /// Spec "Click and release".
+        #[test]
+        fn click_and_release() {
+            let mut harness = Harness::new();
+            let pos = harness.key_rect(60).center_bottom() - egui::vec2(0.0, 4.0);
+            harness.press_at(pos);
+            harness.run(vec![button(pos, false)], true);
+            let sent = harness.sent();
+            assert!(
+                matches!(sent[0], EditorNoteEvent::On { note: 60, .. }),
+                "{sent:?}"
+            );
+            assert_eq!(&sent[1..], &[off(60)]);
+        }
+
+        /// Spec "Drag across keys".
+        #[test]
+        fn drag_across_keys() {
+            let mut harness = Harness::new();
+            let from = harness.key_rect(60).center_bottom() - egui::vec2(0.0, 4.0);
+            let to = harness.key_rect(62).center_bottom() - egui::vec2(0.0, 4.0);
+            harness.press_at(from);
+            harness.run(vec![egui::Event::PointerMoved(to)], true);
+            harness.run(vec![button(to, false)], true);
+            let sent = harness.sent();
+            assert_eq!(sent.len(), 4, "{sent:?}");
+            assert!(matches!(sent[0], EditorNoteEvent::On { note: 60, .. }));
+            assert_eq!(sent[1], off(60));
+            assert!(matches!(sent[2], EditorNoteEvent::On { note: 62, .. }));
+            assert_eq!(sent[3], off(62));
+        }
+
+        /// Spec "Velocity follows the press position".
+        #[test]
+        fn velocity_follows_the_press_position() {
+            let mut harness = Harness::new();
+            let rect = harness.key_rect(64);
+            let mut velocity_at = |y: f32| {
+                let pos = egui::pos2(rect.center().x, y);
+                harness.press_at(pos);
+                harness.run(vec![button(pos, false)], true);
+                match harness.sent()[0] {
+                    EditorNoteEvent::On { velocity, .. } => velocity,
+                    other => panic!("{other:?}"),
+                }
+            };
+            let top = velocity_at(rect.min.y + 1.0);
+            let bottom = velocity_at(rect.max.y - 1.0);
+            assert!(bottom > top, "top {top}, bottom {bottom}");
+        }
+
+        /// Spec "Black key over white key".
+        #[test]
+        fn black_key_over_white_key() {
+            let mut harness = Harness::new();
+            let black = harness.key_rect(61);
+            let white = harness.key_rect(60);
+            let pos = egui::pos2(black.min.x + 1.0, black.center().y);
+            assert!(white.contains(pos), "not an overlap");
+            harness.press_at(pos);
+            assert!(matches!(
+                harness.sent()[0],
+                EditorNoteEvent::On { note: 61, .. }
+            ));
+        }
+
+        /// Spec "The home row plays C4 to C5", through the editor's events.
+        #[test]
+        fn computer_keys_play_through_the_editor() {
+            use egui::Key::*;
+            let mut harness = Harness::new();
+            harness.run(
+                vec![
+                    egui::Event::PointerMoved(over_editor()),
+                    key(A, true, false),
+                    key(K, true, false),
+                ],
+                true,
+            );
+            harness.run(vec![key(A, true, true)], true);
+            harness.run(vec![key(A, false, false), key(K, false, false)], true);
+            assert_eq!(
+                harness.sent(),
+                vec![on(60, KEY_VELOCITY), on(72, KEY_VELOCITY), off(60), off(72)]
+            );
+        }
+
+        /// A point over the editor, away from the strip and any widget.
+        fn over_editor() -> egui::Pos2 {
+            egui::pos2(400.0, 5.0)
+        }
+
+        /// Spec "Keys need the pointer over the editor": baseview reports no
+        /// focus loss on Windows or X11, so the pointer stands in for focus.
+        #[test]
+        fn keys_need_the_pointer_over_the_editor() {
+            use egui::Key::*;
+            let mut harness = Harness::new();
+            harness.run(vec![egui::Event::PointerGone], true);
+            harness.run(vec![key(A, true, false)], true);
+            harness.run(vec![key(A, false, false)], true);
+            assert!(harness.sent().is_empty());
+            harness.run(vec![egui::Event::PointerMoved(over_editor())], true);
+            harness.run(vec![key(A, true, false)], true);
+            assert_eq!(harness.sent(), vec![on(60, KEY_VELOCITY)]);
+        }
+
+        /// Spec "The pointer leaving releases held notes".
+        #[test]
+        fn the_pointer_leaving_releases_held_notes() {
+            use egui::Key::*;
+            let mut harness = Harness::new();
+            harness.run(
+                vec![
+                    egui::Event::PointerMoved(over_editor()),
+                    key(D, true, false),
+                ],
+                true,
+            );
+            assert_eq!(harness.sent(), vec![on(64, KEY_VELOCITY)]);
+            harness.run(vec![egui::Event::PointerGone], true);
+            assert_eq!(harness.sent(), vec![off(64)]);
+            // The key-up lands elsewhere; coming back and pressing D plays.
+            harness.run(vec![egui::Event::PointerMoved(over_editor())], true);
+            harness.run(vec![key(D, true, false)], true);
+            assert_eq!(harness.sent(), vec![on(64, KEY_VELOCITY)]);
+        }
+
+        /// Spec "Unfocused editor ignores keys".
+        #[test]
+        fn an_unfocused_editor_ignores_keys() {
+            use egui::Key::*;
+            let mut harness = Harness::new();
+            harness.run(
+                vec![
+                    egui::Event::PointerMoved(over_editor()),
+                    key(A, true, false),
+                    key(S, true, false),
+                ],
+                false,
+            );
+            harness.run(vec![key(A, false, false), key(S, false, false)], false);
+            assert!(harness.sent().is_empty());
+        }
+
+        /// Spec "Typing a preset name does not play".
+        #[test]
+        fn typing_a_preset_name_does_not_play() {
+            use egui::Key::*;
+            let mut harness = Harness::new();
+            let texts = harness.run(Vec::new(), true);
+            let (_, hint) = texts
+                .iter()
+                .find(|(text, _)| text == "Preset name")
+                .expect("the preset name field is drawn");
+            let field = *hint + egui::vec2(4.0, 4.0);
+            harness.run(
+                vec![egui::Event::PointerMoved(field), button(field, true)],
+                true,
+            );
+            harness.run(vec![button(field, false)], true);
+            assert!(
+                harness.ctx.wants_keyboard_input(),
+                "the field did not take focus"
+            );
+            let _ = harness.sent();
+            for (letter, text) in [(A, "a"), (W, "w"), (S, "s")] {
+                harness.run(
+                    vec![key(letter, true, false), egui::Event::Text(text.into())],
+                    true,
+                );
+                harness.run(vec![key(letter, false, false)], true);
+            }
+            assert!(harness.sent().is_empty());
+            assert_eq!(harness.state.save_name, "aws");
+        }
+
+        /// X11 auto-repeat arrives as a key-up and key-down pair in the same
+        /// frame, and baseview doesn't flag it: it must not retrigger.
+        #[test]
+        fn x11_auto_repeat_pairs_do_not_retrigger() {
+            use egui::Key::*;
+            let mut harness = Harness::new();
+            harness.run(
+                vec![
+                    egui::Event::PointerMoved(over_editor()),
+                    key(D, true, false),
+                ],
+                true,
+            );
+            for _ in 0..4 {
+                harness.run(vec![key(D, false, false), key(D, true, false)], true);
+            }
+            harness.run(vec![key(D, false, false)], true);
+            assert_eq!(harness.sent(), vec![on(64, KEY_VELOCITY), off(64)]);
+            // A release and a press of different keys in one frame both count.
+            harness.run(vec![key(D, true, false)], true);
+            harness.run(vec![key(D, false, false), key(F, true, false)], true);
+            assert_eq!(
+                harness.sent(),
+                vec![on(64, KEY_VELOCITY), off(64), on(65, KEY_VELOCITY)]
+            );
+        }
+
+        /// Spec "Losing focus releases held notes".
+        #[test]
+        fn losing_focus_releases_held_notes() {
+            use egui::Key::*;
+            let mut harness = Harness::new();
+            let pos = harness.key_rect(67).center_bottom() - egui::vec2(0.0, 4.0);
+            harness.run(
+                vec![
+                    egui::Event::PointerMoved(over_editor()),
+                    key(A, true, false),
+                ],
+                true,
+            );
+            harness.press_at(pos);
+            let _ = harness.sent();
+            harness.run(vec![egui::Event::WindowFocused(false)], false);
+            let mut sent = harness.sent();
+            sent.sort_by_key(|event| match event {
+                EditorNoteEvent::On { note, .. } | EditorNoteEvent::Off { note } => *note,
+            });
+            assert_eq!(sent, vec![off(60), off(67)]);
+            harness.run(vec![key(A, false, false), button(pos, false)], true);
+            assert!(harness.sent().is_empty());
+        }
+
+        /// The kit editor (`per-key-kits`).
+        mod kit {
+            use super::{button, key, off, on, EditorNoteEvent, Harness};
+            use crate::kit::KitPad;
+            use crate::params::{play_mode_param, PlayMode};
+            use nih_plug::prelude::Params;
+            use nih_plug_egui::egui;
+
+            fn kit_mode(harness: &mut Harness) {
+                harness.params.play_mode = play_mode_param(PlayMode::Kit.to_int());
+                harness.run(Vec::new(), true);
+                harness.run(Vec::new(), true);
+            }
+
+            fn key_point(harness: &Harness, note: u8) -> egui::Pos2 {
+                harness.key_rect(note).center_bottom() - egui::vec2(0.0, 4.0)
+            }
+
+            /// Press and release a key.
+            fn tap(harness: &mut Harness, note: u8) {
+                let pos = key_point(harness, note);
+                harness.press_at(pos);
+                harness.run(vec![button(pos, false)], true);
+            }
+
+            /// Where `text` is drawn, if it is.
+            fn text_pos(harness: &mut Harness, text: &str) -> Option<egui::Pos2> {
+                harness
+                    .run(Vec::new(), true)
+                    .into_iter()
+                    .find(|(t, _)| t == text)
+                    .map(|(_, pos)| pos)
+            }
+
+            /// Click the button labelled `text`.
+            fn click(harness: &mut Harness, text: &str) {
+                let pos = text_pos(harness, text).unwrap_or_else(|| panic!("no {text:?} drawn"))
+                    + egui::vec2(2.0, 2.0);
+                harness.run(
+                    vec![egui::Event::PointerMoved(pos), button(pos, true)],
+                    true,
+                );
+                harness.run(vec![button(pos, false)], true);
+            }
+
+            fn pad(harness: &Harness, key: u8) -> Option<KitPad> {
+                harness.params.kit.read().unwrap().pad(key).cloned()
+            }
+
+            /// Spec "Pads are assigned from the editor": the kit bar is
+            /// drawn only in Kit mode.
+            #[test]
+            fn the_kit_bar_shows_only_in_kit_mode() {
+                let mut harness = Harness::new();
+                for text in ["Assign", "Clear", "Full keyboard"] {
+                    assert!(text_pos(&mut harness, text).is_none(), "{text} in Tonal");
+                }
+                kit_mode(&mut harness);
+                for text in ["Assign", "Clear", "Full keyboard"] {
+                    assert!(text_pos(&mut harness, text).is_some(), "no {text} in Kit");
+                }
+                // The strip stays pinned to the bottom with the bar above it.
+                let (rect, _) = harness.keys();
+                let (_, h) = super::super::super::scaled_editor_size(harness.scale);
+                assert!(rect.max.y <= h as f32 + 0.5);
+            }
+
+            /// Spec "Assign the current sound".
+            #[test]
+            fn assign_takes_the_tune_from_the_last_auditioned_note() {
+                let mut harness = Harness::new();
+                tap(&mut harness, 72);
+                kit_mode(&mut harness);
+                tap(&mut harness, 42);
+                assert_eq!(harness.state.keyboard.kit.selected, Some(42));
+                click(&mut harness, "Assign");
+                let stored = pad(&harness, 42).expect("a pad on 42");
+                assert_eq!(stored.tune, 30);
+                let expected = KitPad::from_params(42, &harness.params, 30, 0.0);
+                assert_eq!(stored, expected);
+                assert!(
+                    harness.params.kit_table.get(42).is_some(),
+                    "the table has no pad"
+                );
+            }
+
+            /// Spec "Clear a pad".
+            #[test]
+            fn clear_removes_the_pad() {
+                let mut harness = Harness::new();
+                kit_mode(&mut harness);
+                tap(&mut harness, 38);
+                click(&mut harness, "Assign");
+                assert!(pad(&harness, 38).is_some());
+                click(&mut harness, "Clear");
+                assert!(pad(&harness, 38).is_none());
+                assert!(harness.params.kit_table.get(38).is_none());
+            }
+
+            /// Spec "Selecting a pad loads it".
+            #[test]
+            fn selecting_a_pad_loads_it_and_assign_keeps_it() {
+                let mut harness = Harness::new();
+                kit_mode(&mut harness);
+                let mut sound = crate::presets::factory::base("Stick");
+                sound.exciter = 5;
+                sound.object = crate::params::Object::SheetMetal;
+                sound.size = 1.3;
+                let stored = KitPad::from_params(38, &sound.into_params(), -5, -2.0);
+                {
+                    let mut kit = harness.params.kit.write().unwrap();
+                    kit.set(stored.clone());
+                    harness.params.kit_table.load(&kit);
+                }
+                harness.gui.sets.lock().unwrap().clear();
+                tap(&mut harness, 38);
+                // The editor set every pad parameter but the macros to the
+                // pad's value.
+                let sets: std::collections::HashMap<_, _> =
+                    harness.gui.sets.lock().unwrap().iter().copied().collect();
+                let pad_params = stored.params();
+                let loaded: std::collections::HashMap<String, f32> = pad_params
+                    .param_map()
+                    .into_iter()
+                    // SAFETY: pointers from `pad_params`, alive here.
+                    .map(|(id, ptr, _)| (id, unsafe { ptr.modulated_plain_value() }))
+                    .collect();
+                for (id, ptr, _) in harness.params.param_map() {
+                    let expected = crate::kit::is_pad_param(&id)
+                        && !crate::kit::PAD_MACRO_PARAMS.contains(&id.as_str());
+                    let set = sets.get(&ptr).copied();
+                    if expected {
+                        // SAFETY: pointers from the harness's params.
+                        let want = unsafe { ptr.preview_normalized(loaded[&id]) };
+                        assert_eq!(set, Some(want), "{id}");
+                    } else {
+                        assert_eq!(set, None, "{id} should not be set");
+                    }
+                }
+                assert_eq!(harness.state.keyboard.kit.last_auditioned, Some(33));
+                // Re-assigning the loaded sound (the values the editor set)
+                // leaves the pad as it was.
+                let again = KitPad::from_params(38, &pad_params, 33 - 38, -2.0);
+                assert_eq!(again.values, stored.values);
+                assert_eq!(again.tune, stored.tune);
+            }
+
+            /// Spec "Keys outside the zone are locked" and "The toggle
+            /// unlocks the keyboard".
+            #[test]
+            fn keys_outside_the_zone_are_locked_until_full_keyboard() {
+                let mut harness = Harness::new();
+                kit_mode(&mut harness);
+                tap(&mut harness, 40);
+                harness.sent();
+                let white_open = super::fill_at(&harness, key_point(&harness, 40));
+                let white_locked = super::fill_at(&harness, key_point(&harness, 60));
+                assert_ne!(white_open, white_locked, "key 60 isn't greyed");
+                tap(&mut harness, 60);
+                assert!(harness.sent().is_empty(), "a locked key played");
+                assert_eq!(harness.state.keyboard.kit.selected, Some(40));
+
+                click(&mut harness, "Full keyboard");
+                tap(&mut harness, 60);
+                let sent = harness.sent();
+                assert!(
+                    matches!(sent[0], EditorNoteEvent::On { note: 60, .. }),
+                    "{sent:?}"
+                );
+                assert_eq!(harness.state.keyboard.kit.selected, Some(60));
+            }
+
+            /// Spec "In Kit mode the home row plays the kit zone".
+            #[test]
+            fn computer_keys_play_the_kit_zone_in_kit_mode() {
+                use egui::Key::{A, K};
+                let mut harness = Harness::new();
+                kit_mode(&mut harness);
+                harness.run(
+                    vec![
+                        egui::Event::PointerMoved(egui::pos2(400.0, 5.0)),
+                        key(A, true, false),
+                    ],
+                    true,
+                );
+                harness.run(vec![key(A, false, false)], true);
+                harness.run(vec![key(K, true, false)], true);
+                harness.run(vec![key(K, false, false)], true);
+                assert_eq!(
+                    harness.sent(),
+                    vec![
+                        on(36, crate::gui_notes::KEY_VELOCITY),
+                        off(36),
+                        on(48, 100),
+                        off(48)
+                    ]
+                );
+                let texts = harness.run(Vec::new(), true);
+                let a_key = harness.key_rect(36);
+                assert!(
+                    texts
+                        .iter()
+                        .any(|(t, pos)| t == "A" && a_key.x_range().contains(pos.x)),
+                    "A is not drawn on key 36"
+                );
+            }
+        }
     }
 }

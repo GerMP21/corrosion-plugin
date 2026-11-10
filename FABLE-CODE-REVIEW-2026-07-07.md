@@ -8,7 +8,8 @@ factory preset bank, test suite expectations, and build configuration.
 paths; numeric simulation used to verify the ladder-filter stability finding.
 **Status (2026-10-05):** C1–C6 are FIXED (OpenSpec changes archived under `openspec/changes/archive/`, specs in `openspec/specs/`), including the follow-ups from their verification pass.
 **Status (2026-11-08):** H1–H14 are FIXED too. Their OpenSpec changes are archived under `openspec/changes/archive/2026-11-08-h*`, and their requirements are in `openspec/specs/`. The medium findings (M1–M20) are open except M16.
-**Note:** `docs/CODE-REVIEW.md` (2026-05-27) is now partially stale — its Finding 1
+**Status (2026-11-10):** M1–M20 are closed: fixed by their OpenSpec changes, or, for M2, M14 and M19, resolved or documented as noted on each. M17's decorrelation is deliberately not done (it would change the sound).
+**Note:** the earlier review, now `docs/archive/CODE-REVIEW-2026-05-27.md` (2026-05-27), is partially stale — its Finding 1
 (clipper oversampling no-op) and the factory-reverb delay compounding have since been
 fixed (regression tests exist for both). This document supersedes it.
 
@@ -419,11 +420,11 @@ above the block. Minor, but the doc and tests promise symmetric behavior.
   `controls.mseg_onset` (a 0.001–1.0 s *time*) to both `set_stage_times` *and*
   `set_stage_levels` (as the onset *level*, clamped 0..1). The VoiceControls doc
   even calls it "Onset stage *level*" while params.rs calls it "onset *time*". One
-  knob silently controls two unrelated things.~~ — FIXED (2026-11-09, [`m01-m04-m05-clarify-parameters`](openspec/changes/m01-m04-m05-clarify-parameters/proposal.md)): new parameter Onset Level (`mseg_onset_level`, default 0.01) sets the onset stage's level, and Onset (now "Onset Time") only its length. The default keeps the old level, so all 16 exciters' default 48 kHz renders hash identically before and after. Older presets (`migrate_preset_json`) and host state (`filter_state`) get `clamp(mseg_onset, 0, 1)`. Proven by `onset_time_and_level_are_separate`, `default_onset_level_is_the_old_shared_level`, `old_host_state_keeps_its_onset_level` and `preset_without_onset_level_keeps_its_onset`.
-- **M2. Hit-family envelope ignores `env_decay`/`env_sustain`.** Hits use a pure
+  knob silently controls two unrelated things.~~ — FIXED (2026-11-09, [`m01-m04-m05-clarify-parameters`](openspec/changes/archive/2026-11-10-m01-m04-m05-clarify-parameters/proposal.md)): new parameter Onset Level (`mseg_onset_level`, default 0.01) sets the onset stage's level, and Onset (now "Onset Time") only its length. The default keeps the old level, so all 16 exciters' default 48 kHz renders hash identically before and after. Older presets (`migrate_preset_json`) and host state (`filter_state`) get `clamp(mseg_onset, 0, 1)`. Proven by `onset_time_and_level_are_separate`, `default_onset_level_is_the_old_shared_level`, `old_host_state_keeps_its_onset_level` and `preset_without_onset_level_keeps_its_onset`.
+- ~~**M2. Hit-family envelope ignores `env_decay`/`env_sustain`.** Hits use a pure
   AR one-shot (voice/mod.rs:540-547) — attack then immediate release, even while
   the key is held. The GUI shows full ADSR knobs for hit exciters; Decay/Sustain
-  do nothing there (only Specialty uses them).
+  do nothing there (only Specialty uses them).~~ — RESOLVED (marked 2026-11-10 by [`m10-m18-tidy-dead-code-and-docs`](openspec/changes/archive/2026-11-10-m10-m18-tidy-dead-code-and-docs/proposal.md)): the editor shows hit exciters a two-fader "Force Envelope (AD)" panel (Attack, Release) instead of ADSR knobs, so no control does nothing; the AR one-shot is the hit family's design.
 - ~~**M3. Hard-coded 48 kHz at note-on.**
   `with_algorithm_controls_and_note` → `set_live_resonator_controls(damping,
   brightness, 48_000)` (core.rs:569-571). Coefficients are wrong for one call at
@@ -435,11 +436,11 @@ above the block. Minor, but the doc and tests promise symmetric behavior.
   (`brush_wire_stiffness`, `wire_stiffness`), two named "Brightness"
   (`res_brightness`, `macro_brightness`), plus "Mass" (macro) vs the many masses.
   IDs are unique so state is safe, but host automation lists show
-  indistinguishable duplicates.~~ — FIXED (2026-11-09, [`m01-m04-m05-clarify-parameters`](openspec/changes/m01-m04-m05-clarify-parameters/proposal.md)): "Resonator Brightness" / "Macro Brightness" and "Brush Wire Stiffness" / "Spring Wire Stiffness", also in `into_params`. "Mass" was already unique (the other masses are "Pipe Mass", "Hand Mass", …), so it stays. Proven by `parameter_names_are_unique` and `into_params_uses_the_live_names_and_output_range`.
+  indistinguishable duplicates.~~ — FIXED (2026-11-09, [`m01-m04-m05-clarify-parameters`](openspec/changes/archive/2026-11-10-m01-m04-m05-clarify-parameters/proposal.md)): "Resonator Brightness" / "Macro Brightness" and "Brush Wire Stiffness" / "Spring Wire Stiffness", also in `into_params`. "Mass" was already unique (the other masses are "Pipe Mass", "Hand Mass", …), so it stays. Proven by `parameter_names_are_unique` and `into_params_uses_the_live_names_and_output_range`.
 - ~~**M5. `output` param is linear-in-gain 0..100 (0 → −∞, 100 → +40 dB), default
   1.0.** No dB display/units, and the linear taper means the useful −20..+6 dB
   region occupies ~1 % of the knob travel. Also +40 dB of clean digital gain into
-  a clipper is an odd ceiling.~~ — FIXED (2026-11-09, [`m01-m04-m05-clarify-parameters`](openspec/changes/m01-m04-m05-clarify-parameters/proposal.md)): Output is shown and typed in dB with a gain-skewed taper; 0 dB moved from 1.0 % to 57.5 % of the travel and −20..+6 dB from 1.9 % to 18.9 %. The stored value is still the gain, so presets and projects keep their level; the +40 dB maximum stays (maintainer's choice). BREAKING for existing Output automation. Proven by `output_is_shown_in_decibels`, `output_accepts_typed_decibels`, `output_taper_reaches_the_useful_range` and `old_project_keeps_its_output_gain`.
+  a clipper is an odd ceiling.~~ — FIXED (2026-11-09, [`m01-m04-m05-clarify-parameters`](openspec/changes/archive/2026-11-10-m01-m04-m05-clarify-parameters/proposal.md)): Output is shown and typed in dB with a gain-skewed taper; 0 dB moved from 1.0 % to 57.5 % of the travel and −20..+6 dB from 1.9 % to 18.9 %. The stored value is still the gain, so presets and projects keep their level; the +40 dB maximum stays (maintainer's choice). BREAKING for existing Output automation. Proven by `output_is_shown_in_decibels`, `output_accepts_typed_decibels`, `output_taper_reaches_the_useful_range` and `old_project_keeps_its_output_gain`.
 - ~~**M6. `LorenzDrive` bias-starvation gate is a hard 1.0↔0.3 gain switch**
   (lorenz_drive.rs:98-107) keyed off the chaotic z state — produces stepped gain
   discontinuities (clicks/crackle), which may be intended "circuit starvation" but
@@ -458,49 +459,49 @@ above the block. Minor, but the doc and tests promise symmetric behavior.
   box-filter decimates (adds ~half-sample delay and HF droop). It's a "transient
   smoother", not the true-peak/anti-aliasing stage the docs describe. Its
   `set_sample_rate` stores a value that is never used.~~ — FIXED (2026-11-09, same change): the clipper up-samples through cascaded 2× half-band IIR stages, clips at the high rate and comes back down (Normal/High/Render use 2/3/4 stages); `set_sample_rate` is gone. Flat to 20 kHz (0.000 dB; the box filter lost 8 dB at 18 kHz in Render); a 5 kHz sine at twice the ceiling folds back at −51.0 dB in Normal and −75.8 dB in Render (−32.4 and −33.0 before), also through the default hard clamp, because the oversampled curve starts at the ceiling ÷ 1.3 (maintainer's choice). The half-bands delay 1 kHz by 4.2–5.0 samples, not reported (maintainer's choice). Proven by `clipper_is_transparent_below_its_threshold`, `clipper_alias_bounds_hold`, `clipper_alias_bounds_hold_through_the_hard_clamp`, `clipper_fold_back_falls_with_quality`, `clipper_delays_less_than_eight_samples` (`offline/mod.rs`), `eco_is_plain_clipping` and the half-band stage test in `half_band.rs`.
-- **M10. `InteractionState.exciter_force` is write-only** (`set_exciter_force`
+- ~~**M10. `InteractionState.exciter_force` is write-only** (`set_exciter_force`
   is called each sample; nothing reads the field). The "bidirectional" bus is
   feed-forward: exciters read displacement/velocity, but the force distribution
-  path is vestigial.
-- **M11. `Voice::is_active()` doc contradicts behavior** — "voice can remain
+  path is vestigial.~~ — FIXED (2026-11-10, [`m10-m18-tidy-dead-code-and-docs`](openspec/changes/archive/2026-11-10-m10-m18-tidy-dead-code-and-docs/proposal.md)): `exciter_force` and `set_exciter_force` are removed. The bus is bidirectional where it matters: the resonator's contact displacement and velocity are read back by the exciter every sample (`Voice::process_exciter`), so the docs keep saying bidirectional; the force goes straight into the modes. Render hashes unchanged.
+- ~~**M11. `Voice::is_active()` doc contradicts behavior** — "voice can remain
   audible briefly after note_off" but `note_off()` sets `active = false`
   immediately; tails are tracked by `rendering`. The tail-deactivation branch
-  redundantly re-assigns `active = false`.
-- **M12. `VoiceManager::note_off` releases only the first matching voice.** Two
+  redundantly re-assigns `active = false`.~~ — FIXED (doc earlier; the redundant `active = false` in both tail branches removed 2026-11-10, [`m10-m18-tidy-dead-code-and-docs`](openspec/changes/archive/2026-11-10-m10-m18-tidy-dead-code-and-docs/proposal.md)). Render hashes unchanged.
+- ~~**M12. `VoiceManager::note_off` releases only the first matching voice.** Two
   note-ons of the same note (host retrigger without note-off, or after a steal)
   leave the second instance sounding until its envelope dies naturally. `voice_id`
   and `channel` are ignored throughout (no MPE per-note pitch bend — only channel
   bend; poly *pressure* is supported, poly *tuning* is not despite comments
-  mentioning it).
+  mentioning it).~~ — FIXED (2026-11-10, [`m12-per-note-expression`](openspec/changes/archive/2026-11-10-m12-per-note-expression/proposal.md)): voices store the host's voice ID and channel; note-off, poly pressure, `PolyTuning` (per-note semitones on top of the channel bend) and `Choke` (2 ms fade, then idle) address a voice by ID, else by key and channel, with the oldest-first rule for key-only note-offs. Proven by `note_expression_tests` (10 tests: tuning and chokes addressed by ID alone are told apart from the key fallback, and a reused ID reaches the held note, not the old tail) and `tests/no_alloc.rs::note_expression_is_alloc_free`; plain-MIDI renders are bit-identical for all 16 exciters. Channel MPE (per-channel bend and pressure zones) stays out of scope.
 - ~~**M13. No sustain pedal (CC64), no all-notes-off (CC123) handling** — CC1 is the
   only CC routed (lib.rs:636-638). For a physical-modeling instrument, missing
   sustain-pedal handling is a real playability gap.~~ — FIXED (2026-11-09, branch `claude/nice-mccarthy-9fm1p6`, [`m13-sustain-pedal-and-panic`](openspec/changes/archive/2026-11-09-m13-sustain-pedal-and-panic/proposal.md)): CC64 sustain with a pedal-held stealing tier, CC123 All Notes Off, CC120 All Sound Off (5 ms fade, then voices and tails cleared) and CC121 Reset All Controllers, proven by `midi_control_tests` (11 tests, including an allocation check).
-- **M14. Quality mode affects voices only at note-on** (`mode_count_scale`
+- ~~**M14. Quality mode affects voices only at note-on** (`mode_count_scale`
   captured into the bank), but the post chain switches instantly — flipping
   Eco↔Render mid-note changes the space topology immediately while held notes
-  keep their old modal density. Mixed semantics, worth documenting or unifying.
-- **M15. Preset `apply_to`/`into_params` rebuild params without their display
+  keep their old modal density. Mixed semantics, worth documenting or unifying.~~ — DOCUMENTED (2026-11-10, [`m10-m18-tidy-dead-code-and-docs`](openspec/changes/archive/2026-11-10-m10-m18-tidy-dead-code-and-docs/proposal.md)): the README, `docs/ARCHITECTURE.md` (Quality modes) and the parameter's doc say the clipper's oversampling changes at once while a voice's mode count is fixed at note-on. Rebuilding held notes on a mode change is left as a possible later change.
+- ~~**M15. Preset `apply_to`/`into_params` rebuild params without their display
   metadata** — e.g. `ui_scale` loses its "50 %…150 %" strings after
   `Preset::into_params` (presets/mod.rs:555-557 uses a bare `int_param`), and
   `filter_cutoff` loses its formatter. Only affects the (dead) `load_state` path
-  and `sanitized()` round-trips, but it's an asymmetry waiting to bite.
+  and `sanitized()` round-trips, but it's an asymmetry waiting to bite.~~ — FIXED (2026-11-10, [`m10-m18-tidy-dead-code-and-docs`](openspec/changes/archive/2026-11-10-m10-m18-tidy-dead-code-and-docs/proposal.md)): every parameter has one constructor in `params.rs` (`<id>_param(value)`, 136 generated from the old inline ones plus the existing shared builders), used by both `CorrosionParams::default()` and `Preset::into_params`; the bare helpers are gone. `preset_built_parameters_display_like_the_live_ones` checks name, normalization and display text for every parameter of all 50 factory presets (76 parameters differed before), and `ui_scale_and_filter_cutoff_display_like_the_live_ones` the two named here.
 - ~~**M16. `FactoryReverb.diffusion_y` is dead state**; allpass delays are
   hard-coded 200/300 samples (also not sample-rate scaled).~~ — FIXED (H10:
   `diffusion_y` removed; the allpass delays are sample-rate scaled).
-- **M17. `rattle_noise` "noise"** (`voice/mod.rs:1130-1148`) is
+- ~~**M17. `rattle_noise` "noise"** (`voice/mod.rs:1130-1148`) is
   `sin(φ)·43758.547` fract with φ stepping by the golden ratio — a deterministic
   chirpy pattern, identical in both stereo channels, gated by a threshold that
   produces on/off discontinuities at the boundary. Fine as a texture, but it's
   neither highpassed (despite `highpass_noise` naming — it's just `noise·0.5`)
-  nor decorrelated.
-- **M18. `ExciterType::from_int(0)` maps to HandStrike** while the param's range
+  nor decorrelated.~~ — PARTLY FIXED: the noise is real white noise and the gate has no step (earlier changes); on 2026-11-10 ([`m10-m18-tidy-dead-code-and-docs`](openspec/changes/archive/2026-11-10-m10-m18-tidy-dead-code-and-docs/proposal.md)) `highpass_noise` was renamed to what it is (`half_noise`) and the shared, mono rattle documented. **Not done:** high-passing or decorrelating it, which would change the sound.
+- ~~**M18. `ExciterType::from_int(0)` maps to HandStrike** while the param's range
   is 1–16; docs across lib.rs/params.rs repeatedly say "0-16" and "17 exciters".
   Off-by-one documentation everywhere; the `0` fallback silently masks bad preset
-  data instead of rejecting it.
-- **M19. `sync_rate_to_delay_time` quantizes divisions with `(normalized·6) as
+  data instead of rejecting it.~~ — FIXED (2026-11-10, [`m10-m18-tidy-dead-code-and-docs`](openspec/changes/archive/2026-11-10-m10-m18-tidy-dead-code-and-docs/proposal.md)): docs and comments say 1–16; `ExciterType::from_int` documents that any other value gives Hand Strike, the default, so one bad field doesn't reject a whole user preset (maintainer's design choice), pinned by `out_of_range_exciter_loads_as_hand_strike` and `every_valid_exciter_loads_and_saves_as_itself` (`tests/preset_roundtrip.rs`). The README and ARCHITECTURE also said 8 voices; corrected to 16.
+- ~~**M19. `sync_rate_to_delay_time` quantizes divisions with `(normalized·6) as
   usize`** — the six bands are uneven at the edges (band boundaries at 0.05 +
   k·0.158…), and there's no triplet/dotted support; fine, but the param tooltip
-  doesn't tell the user where the boundaries are (and there's no UI at all, H5).
+  doesn't tell the user where the boundaries are (and there's no UI at all, H5).~~ — RESOLVED (marked 2026-11-10 by [`m10-m18-tidy-dead-code-and-docs`](openspec/changes/archive/2026-11-10-m10-m18-tidy-dead-code-and-docs/proposal.md)): `params::sync_division` splits the range above Off into six equal bands, used by both the echo and the display (`h03-default-tempo-sync-off`), and the editor's Sync fader shows the division it plays (H5). Triplet and dotted divisions remain unsupported, by design.
 - ~~**M20. Latency is only reported when limiter mode changes** (lib.rs:897-905) —
   correct, but the initial `reported_latency_samples = 0` means a session loaded
   with Lookahead already active reports latency only on the first `process()`
@@ -517,15 +518,15 @@ above the block. Minor, but the doc and tests promise symmetric behavior.
   Nyquist safety (H11).
 - ~~`tests/no_alloc.rs` scopes note-on *outside* the no-alloc zone, so the strongest
   RT-safety claim in the docs is untested where it actually breaks (C3).~~ — FIXED (note: the check only runs in debug builds)
-- `dsp::mod` re-exports `crate::offline::*` specs (mod.rs:43-46) — an inverted
+- ~~`dsp::mod` re-exports `crate::offline::*` specs (mod.rs:43-46) — an inverted
   dependency (DSP core depending on the offline module) that exists only for
-  convenience re-export; it drags offline render specs into every DSP consumer.
+  convenience re-export; it drags offline render specs into every DSP consumer.~~ — FIXED (2026-11-10, [`m10-m18-tidy-dead-code-and-docs`](openspec/changes/archive/2026-11-10-m10-m18-tidy-dead-code-and-docs/proposal.md)): the re-export is gone; `src/dsp/tests.rs` imports the specs from `crate::offline`.
 - ~~`benches/performance.rs` exists but nothing benchmarks the dynamic-object /
   pitch-bend per-sample rebuild path (H12), which is the actual worst case.~~ — FIXED
   (H12: `voice_manager_sixteen_voices_bent` and `_cable_dynamics` / `_cable_static`,
   compared with their twins by `scripts/bench_ratios.py`).
-- `docs/CODE-REVIEW.md` should be updated or archived — two of its headline
-  findings are fixed, and readers may assume the rest of the file is current.
+- ~~`docs/CODE-REVIEW.md` should be updated or archived — two of its headline
+  findings are fixed, and readers may assume the rest of the file is current.~~ — FIXED (2026-11-10, [`m10-m18-tidy-dead-code-and-docs`](openspec/changes/archive/2026-11-10-m10-m18-tidy-dead-code-and-docs/proposal.md)): moved to `docs/archive/CODE-REVIEW-2026-05-27.md` with a superseded header; the README points at this review.
 
 ## Missing features (code-evident, not backlog speculation)
 
@@ -533,7 +534,7 @@ above the block. Minor, but the doc and tests promise symmetric behavior.
    user bank directory (GUI loads only the embedded `include_dir` factory bank).~~ — FIXED (H5)
 2. ~~Randomizer — fully implemented module, zero integration (no UI, no param).~~ — FIXED (H5)
 3. MSEG PingPong loop — placeholder (C2/H10 above). *(Not covered by the C2 fix; PingPong remains open.)*
-4. ~~Sustain pedal / CC64, all-sound-off~~ (FIXED, M13); MPE per-note bend (M12) still open.
+4. ~~Sustain pedal / CC64, all-sound-off~~ (FIXED, M13); ~~MPE per-note bend~~ (FIXED, M12: per-note tuning by voice ID; channel MPE out of scope).
 5. ~~GUI exposure of brightness, thickness, sync rate, play mode, limiter mode,
    macros (H5).~~ — FIXED
 6. ~~Envelope→strike-position routing promised by `position_envelope` (H9).~~ — FIXED

@@ -30,6 +30,7 @@ echo "==> rendered wav validation"
 python3 scripts/check_wav.py "${RENDER_DIR}/pipe_comparison.wav"
 
 echo "==> linux bundle"
-./bundle.sh release
+scripts/bundle.sh linux release
+scripts/check_bundle.sh linux
 
 echo "Local verification passed."

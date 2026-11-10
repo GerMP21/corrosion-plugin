@@ -225,7 +225,7 @@ mod tests {
 
     fn factory(stem: &str) -> Preset {
         let path = format!(
-            "{}/presets/factory/{stem}.corrosion-preset",
+            "{}/tests/fixtures/presets/legacy/{stem}.corrosion-preset",
             env!("CARGO_MANIFEST_DIR")
         );
         Preset::load(std::path::Path::new(&path)).expect("load preset")

@@ -548,6 +548,10 @@ pub struct Voice {
     /// Always on in use; tests turn it off to render a note as it was before
     /// the controls were connected (`h06-wire-global-exciter-controls`).
     pub(crate) global_controls_enabled: bool,
+    /// The voice plays a kit pad (`per-key-kits`): live control updates
+    /// skip it, and `pad_gain` scales its output.
+    pad_voice: bool,
+    pad_gain: f32,
     /// The force factor Pressure asks for (see `pressure_factor`).
     pressure_target: f32,
     /// The smoothed Pressure force factor, following `pressure_target`.
@@ -595,11 +599,25 @@ pub struct Voice {
     poly_pressure: f32,
     /// CC1 mod wheel, `0.0..=1.0`. Routed to brightness boost.
     mod_wheel: f32,
+
+    // Note addressing (`m12-per-note-expression`).
+    /// The host's voice ID for the note that started this voice, if any.
+    voice_id: Option<i32>,
+    /// The MIDI channel of the note that started this voice.
+    channel: u8,
+    /// Per-note tuning in semitones (`PolyTuning`), added to the channel
+    /// bend.
+    note_tuning_semitones: f32,
+    /// Samples left in a choke fade; 0 when not choking.
+    choke_remaining: u32,
 }
 
 const TAIL_ENERGY_THRESHOLD: f32 = 1e-4;
 /// Frames of near-silence before a released tail deactivates, at 48 kHz.
 const TAIL_DEACTIVATE_FRAMES: u32 = 4800;
+/// Length of a host choke's fade to silence: 2 ms at 48 kHz
+/// (`m12-per-note-expression`).
+const CHOKE_FADE_FRAMES: u32 = 96;
 /// Per-sample peak-hold decay, at 48 kHz.
 const PEAK_DECAY: f32 = 0.999;
 /// Drive level per exciter ID (index 0 unused): the force multiplier that
@@ -676,6 +694,7 @@ struct VoiceRateConstants {
     governor_attack: f32,
     governor_release: f32,
     pressure_smoothing: f32,
+    choke_frames: u32,
 }
 
 /// One-pole follower coefficient for time constant `seconds`, at 48 kHz.
@@ -699,6 +718,7 @@ impl VoiceRateConstants {
             governor_attack: rate::smoother(follower_coefficient(GOVERNOR_ATTACK_S), r),
             governor_release: rate::smoother(follower_coefficient(GOVERNOR_RELEASE_S), r),
             pressure_smoothing: rate::smoother(follower_coefficient(PRESSURE_SMOOTHING_S), r),
+            choke_frames: rate::frames(CHOKE_FADE_FRAMES, r).max(1),
         }
     }
 }
@@ -746,6 +766,8 @@ impl Voice {
             governor_level: 0.0,
             governor_gain: 1.0,
             global_controls_enabled: true,
+            pad_voice: false,
+            pad_gain: 1.0,
             pressure_target: 1.0,
             pressure_gain: 1.0,
             position_envelope_amount: 0.0,
@@ -778,6 +800,11 @@ impl Voice {
             channel_pressure: 0.0,
             poly_pressure: 0.0,
             mod_wheel: 0.0,
+
+            voice_id: None,
+            channel: 0,
+            note_tuning_semitones: 0.0,
+            choke_remaining: 0,
         }
     }
 
@@ -1034,6 +1061,8 @@ impl Voice {
         self.pedal_held = false;
         self.rendering = true;
         self.note = note;
+        self.pad_voice = false;
+        self.pad_gain = 1.0;
         self.velocity = velocity;
         let exciter_type = ExciterType::from_int(exciter_type).to_int();
         self.exciter_type = exciter_type;
@@ -1100,9 +1129,13 @@ impl Voice {
         // pressure and mod wheel persist for the same reason; poly pressure
         // is per-note and must reset.
         self.poly_pressure = 0.0;
-        let bend_factor = pitch_bend_semitones_to_factor(self.pitch_bend_semitones);
-        self.resonator
-            .set_pitch_bend_factor(bend_factor, self.sample_rate as u32);
+        // A new note starts untuned, unaddressed and not choking; the manager
+        // sets the address right after (`set_address`).
+        self.note_tuning_semitones = 0.0;
+        self.voice_id = None;
+        self.channel = 0;
+        self.choke_remaining = 0;
+        self.apply_pitch();
         self.configure_envelope(exciter_type, velocity_norm, controls);
 
         // The global Speed and Roughness scale the dedicated exciter controls
@@ -1291,7 +1324,7 @@ impl Voice {
         exciter_pressure: f32,
         sample_rate: u32,
     ) {
-        if !self.active {
+        if !self.active || self.pad_voice {
             return;
         }
         self.set_position_envelope_amount(position_envelope);
@@ -1326,9 +1359,72 @@ impl Voice {
     /// `ModalResonator::set_pitch_bend_factor`. Allocation-free.
     pub fn set_pitch_bend_semitones(&mut self, semitones: f32) {
         self.pitch_bend_semitones = semitones;
-        let factor = pitch_bend_semitones_to_factor(semitones);
+        self.apply_pitch();
+    }
+
+    /// Apply a per-note tuning (`PolyTuning`) in semitones to this voice, on
+    /// top of the channel bend. Allocation-free.
+    pub fn set_note_tuning_semitones(&mut self, semitones: f32) {
+        if semitones.is_finite() {
+            self.note_tuning_semitones = semitones;
+            self.apply_pitch();
+        }
+    }
+
+    /// Retune the bank for the channel bend plus the per-note tuning
+    /// (clamped to ±24 semitones together). A factor that hasn't changed is
+    /// skipped by `set_pitch_bend_factor`.
+    fn apply_pitch(&mut self) {
+        let factor =
+            pitch_bend_semitones_to_factor(self.pitch_bend_semitones + self.note_tuning_semitones);
         self.resonator
             .set_pitch_bend_factor(factor, self.sample_rate as u32);
+    }
+
+    /// Record the host's address of the note that started this voice.
+    pub fn set_address(&mut self, voice_id: Option<i32>, channel: u8) {
+        self.voice_id = voice_id;
+        self.channel = channel;
+    }
+
+    /// The host's voice ID of this voice's note, if it gave one.
+    pub fn voice_id(&self) -> Option<i32> {
+        self.voice_id
+    }
+
+    /// The MIDI channel of this voice's note.
+    pub fn channel(&self) -> u8 {
+        self.channel
+    }
+
+    /// Host choke: release the note and fade the voice to silence over
+    /// `CHOKE_FADE_FRAMES` (2 ms), then return it to idle. No-op on an idle
+    /// or already-choking voice.
+    pub fn choke(&mut self) {
+        if !self.rendering || self.choke_remaining != 0 {
+            return;
+        }
+        self.note_off();
+        self.choke_remaining = self.rate.choke_frames;
+    }
+
+    /// Whether the voice is fading out after a choke.
+    pub fn is_choking(&self) -> bool {
+        self.choke_remaining != 0
+    }
+
+    /// One sample of the choke fade: the gain for this sample, linear from
+    /// just under 1 down to 0 on the last sample, after which the voice is
+    /// idle. Out of line: it only runs for 2 ms after a choke.
+    #[cold]
+    #[inline(never)]
+    fn choke_gain(&mut self) -> f32 {
+        self.choke_remaining -= 1;
+        let gain = self.choke_remaining as f32 / self.rate.choke_frames as f32;
+        if self.choke_remaining == 0 {
+            self.reset();
+        }
+        gain
     }
 
     /// Update channel pressure (`MidiChannelPressure`) for this voice.
@@ -1341,6 +1437,12 @@ impl Voice {
     #[inline]
     pub fn set_poly_pressure(&mut self, value: f32) {
         self.poly_pressure = value.clamp(0.0, 1.0);
+    }
+
+    /// Test-only: the voice's per-note (poly) pressure.
+    #[cfg(test)]
+    pub(crate) fn poly_pressure_for_test(&self) -> f32 {
+        self.poly_pressure
     }
 
     /// Update CC1 mod wheel for this voice (channel-wide expression source).
@@ -1384,6 +1486,21 @@ impl Voice {
         self.electromagnetic_hum.release();
         self.tension_snap.release();
         self.particle_rain.release();
+    }
+
+    /// Make the voice just started a kit pad on `key` (`per-key-kits`): it
+    /// answers note-offs and expression on `key` while sounding at the
+    /// note it was started with, keeps its stored controls, and plays at
+    /// `gain`.
+    pub(crate) fn mark_pad(&mut self, key: u8, gain: f32) {
+        self.note = key;
+        self.pad_voice = true;
+        self.pad_gain = gain;
+    }
+
+    /// Whether the voice plays a kit pad.
+    pub fn is_pad_voice(&self) -> bool {
+        self.pad_voice
     }
 
     /// Test-only access to the voice's resonator.
@@ -1443,6 +1560,9 @@ impl Voice {
         self.channel_pressure = 0.0;
         self.poly_pressure = 0.0;
         self.mod_wheel = 0.0;
+        self.note_tuning_semitones = 0.0;
+        self.voice_id = None;
+        self.choke_remaining = 0;
     }
 
     pub fn is_rendering(&self) -> bool {
@@ -1474,13 +1594,6 @@ impl Voice {
     /// The frame counter snapshot captured at note-on time.
     pub fn start_frame(&self) -> u64 {
         self.start_frame
-    }
-
-    /// Test-only accessor for the resonator's modal profile, so lib-level
-    /// integration tests can confirm which family the voice picked.
-    #[cfg(test)]
-    pub(crate) fn resonator_profile_for_test(&self) -> ModalProfileId {
-        self.resonator.profile
     }
 
     /// Test-only accessor for whether the MSEG loop is engaged on this voice.
@@ -1518,6 +1631,9 @@ impl Voice {
         }
     }
 
+    /// The damage rattle for this sample: white noise gated by the
+    /// resonator's level, louder with Damage. Mono: the stereo path adds the
+    /// same value to both channels.
     fn rattle_noise(&mut self, signal_level: f32) -> f32 {
         if self.damage_amount <= 0.0 {
             return 0.0;
@@ -1534,9 +1650,13 @@ impl Voice {
             self.rattle_noise.bipolar(),
             crate::dsp::utils::rate::ratio(self.sample_rate),
         );
-        let highpass_noise = noise * 0.5;
+        // Plain white noise at half level (it was called `highpass_noise`, but
+        // nothing high-passes it), returned once and added to both channels,
+        // so the rattle is identical left and right. Filtering or decorrelating
+        // it would change the sound (`m10-m18-tidy-dead-code-and-docs`, M17).
+        let half_noise = noise * 0.5;
         let rattle_amount = self.damage_amount.min(1.0) * (signal_level - threshold) * 0.08;
-        highpass_noise * rattle_amount
+        half_noise * rattle_amount
     }
 
     /// The resonator's response to this sample's exciter force, as the
@@ -1746,7 +1866,7 @@ impl Voice {
         // it can swell past unity without distorting the resonator path. The
         // global limiter at the plugin boundary handles any per-voice over-1.0
         // peaks the expression curve produces.
-        let gained = clamped * self.expression_gain();
+        let gained = clamped * self.expression_gain() * self.pad_gain;
         const DENORMAL_FLUSH: f32 = 1e-20;
         let flushed = gained + DENORMAL_FLUSH - DENORMAL_FLUSH;
 
@@ -1757,13 +1877,16 @@ impl Voice {
         if !self.active && self.peak_hold < TAIL_ENERGY_THRESHOLD {
             self.frames_below_threshold += 1;
             if self.frames_below_threshold >= self.rate.tail_frames {
-                self.active = false;
+                // `active` is already false here (the branch requires it).
                 self.rendering = false;
             }
         } else {
             self.frames_below_threshold = 0;
         }
 
+        if self.choke_remaining != 0 {
+            return flushed * self.choke_gain();
+        }
         flushed
     }
 
@@ -1833,7 +1956,9 @@ impl Voice {
         let clamped_right = boosted_right.clamp(-1.0, 1.0);
         // Apply expression gain to both channels equally. Mirror of the mono
         // path; pressure/CC1 should sound balanced across the stereo field.
-        let exp_gain = self.expression_gain();
+        // A kit pad's level applies here too (`per-key-kits`); 1.0 for
+        // every other voice, which leaves the samples bit-identical.
+        let exp_gain = self.expression_gain() * self.pad_gain;
         let gained_left = clamped_left * exp_gain;
         let gained_right = clamped_right * exp_gain;
         const DENORMAL_FLUSH: f32 = 1e-20;
@@ -1848,13 +1973,17 @@ impl Voice {
         if !self.active && self.peak_hold < TAIL_ENERGY_THRESHOLD {
             self.frames_below_threshold += 1;
             if self.frames_below_threshold >= self.rate.tail_frames {
-                self.active = false;
+                // `active` is already false here (the branch requires it).
                 self.rendering = false;
             }
         } else {
             self.frames_below_threshold = 0;
         }
 
+        if self.choke_remaining != 0 {
+            let gain = self.choke_gain();
+            return (flushed_left * gain, flushed_right * gain);
+        }
         (flushed_left, flushed_right)
     }
 }
@@ -2975,6 +3104,85 @@ mod tests {
             sum += (y * y) as f64;
         }
         (voice.pre_clamp_peak, (sum / 96_000.0).sqrt() as f32)
+    }
+
+    /// Output RMS (dB) of a held Pneumatic Jet note: 1 s at 48 kHz.
+    fn jet_note_db(
+        profile: ModalProfileId,
+        velocity: f32,
+        air_pressure: f32,
+        turbulence_chaos: f32,
+    ) -> f32 {
+        let mut voice = Voice::new();
+        let controls = VoiceControls {
+            air_pressure,
+            turbulence_chaos,
+            ..VoiceControls::default()
+        };
+        voice.note_on_with_controls(60, velocity, profile, 0, 1.0, 0.0, 0.0, 13, controls);
+        let mut sum = 0.0f64;
+        for _ in 0..48_000 {
+            let y = voice.process_sample(48_000);
+            sum += (y * y) as f64;
+        }
+        10.0 * (sum / 48_000.0).max(1e-24).log10() as f32
+    }
+
+    /// Prints a hash and the RMS of each object's default Pneumatic Jet note
+    /// at velocities 100 and 127 (`fix-pneumatic-jet-saturation`, to compare
+    /// before and after).
+    #[test]
+    #[ignore]
+    fn print_jet_default_notes() {
+        for profile in ALL_PROFILES {
+            for velocity in [100.0, 127.0] {
+                let mut voice = Voice::new();
+                voice.note_on_with_controls(
+                    60,
+                    velocity,
+                    profile,
+                    0,
+                    1.0,
+                    0.0,
+                    0.0,
+                    13,
+                    VoiceControls::default(),
+                );
+                let (mut hash, mut sum) = (0xcbf2_9ce4_8422_2325_u64, 0.0f64);
+                for _ in 0..48_000 {
+                    let y = voice.process_sample(48_000);
+                    hash = (hash ^ y.to_bits() as u64).wrapping_mul(0x0100_0000_01b3);
+                    sum += (y * y) as f64;
+                }
+                let db = 10.0 * (sum / 48_000.0).max(1e-24).log10();
+                println!("JET {profile:?} v{velocity}: {hash:016x} {db:.2} dB");
+            }
+        }
+    }
+
+    /// `fix-pneumatic-jet-saturation`: playing harder never silences the
+    /// jet. Its saturation `v² − chaos·v³` turned over at `2/(3·chaos)` and
+    /// was cut to zero past `1/chaos`, so high Air Pressure or velocity went
+    /// silent. "Never silences": not below −120 dB and no more than 6 dB
+    /// under the velocity-64 note (as built, the worst is Pipe at −3.3 dB,
+    /// from the voice's dynamics, not the jet).
+    #[test]
+    fn harder_playing_never_silences_the_jet() {
+        let mut failures = Vec::new();
+        for profile in ALL_PROFILES {
+            for air in [0.1, 1.1, 2.1] {
+                for chaos in [0.0, 0.6, 2.0] {
+                    let soft = jet_note_db(profile, 64.0, air, chaos);
+                    let hard = jet_note_db(profile, 127.0, air, chaos);
+                    if hard < -120.0 || hard < soft - 6.0 {
+                        failures.push(format!(
+                            "{profile:?} air {air} chaos {chaos}: v64 {soft:.1} dB, v127 {hard:.1} dB"
+                        ));
+                    }
+                }
+            }
+        }
+        assert!(failures.is_empty(), "{}", failures.join("\n"));
     }
 
     #[test]
