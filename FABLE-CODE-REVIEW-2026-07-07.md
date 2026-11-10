@@ -424,7 +424,7 @@ above the block. Minor, but the doc and tests promise symmetric behavior.
 - ~~**M2. Hit-family envelope ignores `env_decay`/`env_sustain`.** Hits use a pure
   AR one-shot (voice/mod.rs:540-547) — attack then immediate release, even while
   the key is held. The GUI shows full ADSR knobs for hit exciters; Decay/Sustain
-  do nothing there (only Specialty uses them).~~ — RESOLVED (marked 2026-11-10 by [`m10-m18-tidy-dead-code-and-docs`](openspec/changes/m10-m18-tidy-dead-code-and-docs/proposal.md)): the editor shows hit exciters a two-fader "Force Envelope (AD)" panel (Attack, Release) instead of ADSR knobs, so no control does nothing; the AR one-shot is the hit family's design.
+  do nothing there (only Specialty uses them).~~ — RESOLVED (marked 2026-11-10 by [`m10-m18-tidy-dead-code-and-docs`](openspec/changes/archive/2026-11-10-m10-m18-tidy-dead-code-and-docs/proposal.md)): the editor shows hit exciters a two-fader "Force Envelope (AD)" panel (Attack, Release) instead of ADSR knobs, so no control does nothing; the AR one-shot is the hit family's design.
 - ~~**M3. Hard-coded 48 kHz at note-on.**
   `with_algorithm_controls_and_note` → `set_live_resonator_controls(damping,
   brightness, 48_000)` (core.rs:569-571). Coefficients are wrong for one call at
@@ -462,29 +462,29 @@ above the block. Minor, but the doc and tests promise symmetric behavior.
 - ~~**M10. `InteractionState.exciter_force` is write-only** (`set_exciter_force`
   is called each sample; nothing reads the field). The "bidirectional" bus is
   feed-forward: exciters read displacement/velocity, but the force distribution
-  path is vestigial.~~ — FIXED (2026-11-10, [`m10-m18-tidy-dead-code-and-docs`](openspec/changes/m10-m18-tidy-dead-code-and-docs/proposal.md)): `exciter_force` and `set_exciter_force` are removed. The bus is bidirectional where it matters: the resonator's contact displacement and velocity are read back by the exciter every sample (`Voice::process_exciter`), so the docs keep saying bidirectional; the force goes straight into the modes. Render hashes unchanged.
+  path is vestigial.~~ — FIXED (2026-11-10, [`m10-m18-tidy-dead-code-and-docs`](openspec/changes/archive/2026-11-10-m10-m18-tidy-dead-code-and-docs/proposal.md)): `exciter_force` and `set_exciter_force` are removed. The bus is bidirectional where it matters: the resonator's contact displacement and velocity are read back by the exciter every sample (`Voice::process_exciter`), so the docs keep saying bidirectional; the force goes straight into the modes. Render hashes unchanged.
 - ~~**M11. `Voice::is_active()` doc contradicts behavior** — "voice can remain
   audible briefly after note_off" but `note_off()` sets `active = false`
   immediately; tails are tracked by `rendering`. The tail-deactivation branch
-  redundantly re-assigns `active = false`.~~ — FIXED (doc earlier; the redundant `active = false` in both tail branches removed 2026-11-10, [`m10-m18-tidy-dead-code-and-docs`](openspec/changes/m10-m18-tidy-dead-code-and-docs/proposal.md)). Render hashes unchanged.
+  redundantly re-assigns `active = false`.~~ — FIXED (doc earlier; the redundant `active = false` in both tail branches removed 2026-11-10, [`m10-m18-tidy-dead-code-and-docs`](openspec/changes/archive/2026-11-10-m10-m18-tidy-dead-code-and-docs/proposal.md)). Render hashes unchanged.
 - ~~**M12. `VoiceManager::note_off` releases only the first matching voice.** Two
   note-ons of the same note (host retrigger without note-off, or after a steal)
   leave the second instance sounding until its envelope dies naturally. `voice_id`
   and `channel` are ignored throughout (no MPE per-note pitch bend — only channel
   bend; poly *pressure* is supported, poly *tuning* is not despite comments
-  mentioning it).~~ — FIXED (2026-11-10, [`m12-per-note-expression`](openspec/changes/m12-per-note-expression/proposal.md)): voices store the host's voice ID and channel; note-off, poly pressure, `PolyTuning` (per-note semitones on top of the channel bend) and `Choke` (2 ms fade, then idle) address a voice by ID, else by key and channel, with the oldest-first rule for key-only note-offs. Proven by `note_expression_tests` (10 tests: tuning and chokes addressed by ID alone are told apart from the key fallback, and a reused ID reaches the held note, not the old tail) and `tests/no_alloc.rs::note_expression_is_alloc_free`; plain-MIDI renders are bit-identical for all 16 exciters. Channel MPE (per-channel bend and pressure zones) stays out of scope.
+  mentioning it).~~ — FIXED (2026-11-10, [`m12-per-note-expression`](openspec/changes/archive/2026-11-10-m12-per-note-expression/proposal.md)): voices store the host's voice ID and channel; note-off, poly pressure, `PolyTuning` (per-note semitones on top of the channel bend) and `Choke` (2 ms fade, then idle) address a voice by ID, else by key and channel, with the oldest-first rule for key-only note-offs. Proven by `note_expression_tests` (10 tests: tuning and chokes addressed by ID alone are told apart from the key fallback, and a reused ID reaches the held note, not the old tail) and `tests/no_alloc.rs::note_expression_is_alloc_free`; plain-MIDI renders are bit-identical for all 16 exciters. Channel MPE (per-channel bend and pressure zones) stays out of scope.
 - ~~**M13. No sustain pedal (CC64), no all-notes-off (CC123) handling** — CC1 is the
   only CC routed (lib.rs:636-638). For a physical-modeling instrument, missing
   sustain-pedal handling is a real playability gap.~~ — FIXED (2026-11-09, branch `claude/nice-mccarthy-9fm1p6`, [`m13-sustain-pedal-and-panic`](openspec/changes/archive/2026-11-09-m13-sustain-pedal-and-panic/proposal.md)): CC64 sustain with a pedal-held stealing tier, CC123 All Notes Off, CC120 All Sound Off (5 ms fade, then voices and tails cleared) and CC121 Reset All Controllers, proven by `midi_control_tests` (11 tests, including an allocation check).
 - ~~**M14. Quality mode affects voices only at note-on** (`mode_count_scale`
   captured into the bank), but the post chain switches instantly — flipping
   Eco↔Render mid-note changes the space topology immediately while held notes
-  keep their old modal density. Mixed semantics, worth documenting or unifying.~~ — DOCUMENTED (2026-11-10, [`m10-m18-tidy-dead-code-and-docs`](openspec/changes/m10-m18-tidy-dead-code-and-docs/proposal.md)): the README, `docs/ARCHITECTURE.md` (Quality modes) and the parameter's doc say the clipper's oversampling changes at once while a voice's mode count is fixed at note-on. Rebuilding held notes on a mode change is left as a possible later change.
+  keep their old modal density. Mixed semantics, worth documenting or unifying.~~ — DOCUMENTED (2026-11-10, [`m10-m18-tidy-dead-code-and-docs`](openspec/changes/archive/2026-11-10-m10-m18-tidy-dead-code-and-docs/proposal.md)): the README, `docs/ARCHITECTURE.md` (Quality modes) and the parameter's doc say the clipper's oversampling changes at once while a voice's mode count is fixed at note-on. Rebuilding held notes on a mode change is left as a possible later change.
 - ~~**M15. Preset `apply_to`/`into_params` rebuild params without their display
   metadata** — e.g. `ui_scale` loses its "50 %…150 %" strings after
   `Preset::into_params` (presets/mod.rs:555-557 uses a bare `int_param`), and
   `filter_cutoff` loses its formatter. Only affects the (dead) `load_state` path
-  and `sanitized()` round-trips, but it's an asymmetry waiting to bite.~~ — FIXED (2026-11-10, [`m10-m18-tidy-dead-code-and-docs`](openspec/changes/m10-m18-tidy-dead-code-and-docs/proposal.md)): every parameter has one constructor in `params.rs` (`<id>_param(value)`, 136 generated from the old inline ones plus the existing shared builders), used by both `CorrosionParams::default()` and `Preset::into_params`; the bare helpers are gone. `preset_built_parameters_display_like_the_live_ones` checks name, normalization and display text for every parameter of all 50 factory presets (76 parameters differed before), and `ui_scale_and_filter_cutoff_display_like_the_live_ones` the two named here.
+  and `sanitized()` round-trips, but it's an asymmetry waiting to bite.~~ — FIXED (2026-11-10, [`m10-m18-tidy-dead-code-and-docs`](openspec/changes/archive/2026-11-10-m10-m18-tidy-dead-code-and-docs/proposal.md)): every parameter has one constructor in `params.rs` (`<id>_param(value)`, 136 generated from the old inline ones plus the existing shared builders), used by both `CorrosionParams::default()` and `Preset::into_params`; the bare helpers are gone. `preset_built_parameters_display_like_the_live_ones` checks name, normalization and display text for every parameter of all 50 factory presets (76 parameters differed before), and `ui_scale_and_filter_cutoff_display_like_the_live_ones` the two named here.
 - ~~**M16. `FactoryReverb.diffusion_y` is dead state**; allpass delays are
   hard-coded 200/300 samples (also not sample-rate scaled).~~ — FIXED (H10:
   `diffusion_y` removed; the allpass delays are sample-rate scaled).
@@ -493,15 +493,15 @@ above the block. Minor, but the doc and tests promise symmetric behavior.
   chirpy pattern, identical in both stereo channels, gated by a threshold that
   produces on/off discontinuities at the boundary. Fine as a texture, but it's
   neither highpassed (despite `highpass_noise` naming — it's just `noise·0.5`)
-  nor decorrelated.~~ — PARTLY FIXED: the noise is real white noise and the gate has no step (earlier changes); on 2026-11-10 ([`m10-m18-tidy-dead-code-and-docs`](openspec/changes/m10-m18-tidy-dead-code-and-docs/proposal.md)) `highpass_noise` was renamed to what it is (`half_noise`) and the shared, mono rattle documented. **Not done:** high-passing or decorrelating it, which would change the sound.
+  nor decorrelated.~~ — PARTLY FIXED: the noise is real white noise and the gate has no step (earlier changes); on 2026-11-10 ([`m10-m18-tidy-dead-code-and-docs`](openspec/changes/archive/2026-11-10-m10-m18-tidy-dead-code-and-docs/proposal.md)) `highpass_noise` was renamed to what it is (`half_noise`) and the shared, mono rattle documented. **Not done:** high-passing or decorrelating it, which would change the sound.
 - ~~**M18. `ExciterType::from_int(0)` maps to HandStrike** while the param's range
   is 1–16; docs across lib.rs/params.rs repeatedly say "0-16" and "17 exciters".
   Off-by-one documentation everywhere; the `0` fallback silently masks bad preset
-  data instead of rejecting it.~~ — FIXED (2026-11-10, [`m10-m18-tidy-dead-code-and-docs`](openspec/changes/m10-m18-tidy-dead-code-and-docs/proposal.md)): docs and comments say 1–16; `ExciterType::from_int` documents that any other value gives Hand Strike, the default, so one bad field doesn't reject a whole user preset (maintainer's design choice), pinned by `out_of_range_exciter_loads_as_hand_strike` and `every_valid_exciter_loads_and_saves_as_itself` (`tests/preset_roundtrip.rs`). The README and ARCHITECTURE also said 8 voices; corrected to 16.
+  data instead of rejecting it.~~ — FIXED (2026-11-10, [`m10-m18-tidy-dead-code-and-docs`](openspec/changes/archive/2026-11-10-m10-m18-tidy-dead-code-and-docs/proposal.md)): docs and comments say 1–16; `ExciterType::from_int` documents that any other value gives Hand Strike, the default, so one bad field doesn't reject a whole user preset (maintainer's design choice), pinned by `out_of_range_exciter_loads_as_hand_strike` and `every_valid_exciter_loads_and_saves_as_itself` (`tests/preset_roundtrip.rs`). The README and ARCHITECTURE also said 8 voices; corrected to 16.
 - ~~**M19. `sync_rate_to_delay_time` quantizes divisions with `(normalized·6) as
   usize`** — the six bands are uneven at the edges (band boundaries at 0.05 +
   k·0.158…), and there's no triplet/dotted support; fine, but the param tooltip
-  doesn't tell the user where the boundaries are (and there's no UI at all, H5).~~ — RESOLVED (marked 2026-11-10 by [`m10-m18-tidy-dead-code-and-docs`](openspec/changes/m10-m18-tidy-dead-code-and-docs/proposal.md)): `params::sync_division` splits the range above Off into six equal bands, used by both the echo and the display (`h03-default-tempo-sync-off`), and the editor's Sync fader shows the division it plays (H5). Triplet and dotted divisions remain unsupported, by design.
+  doesn't tell the user where the boundaries are (and there's no UI at all, H5).~~ — RESOLVED (marked 2026-11-10 by [`m10-m18-tidy-dead-code-and-docs`](openspec/changes/archive/2026-11-10-m10-m18-tidy-dead-code-and-docs/proposal.md)): `params::sync_division` splits the range above Off into six equal bands, used by both the echo and the display (`h03-default-tempo-sync-off`), and the editor's Sync fader shows the division it plays (H5). Triplet and dotted divisions remain unsupported, by design.
 - ~~**M20. Latency is only reported when limiter mode changes** (lib.rs:897-905) —
   correct, but the initial `reported_latency_samples = 0` means a session loaded
   with Lookahead already active reports latency only on the first `process()`
@@ -520,13 +520,13 @@ above the block. Minor, but the doc and tests promise symmetric behavior.
   RT-safety claim in the docs is untested where it actually breaks (C3).~~ — FIXED (note: the check only runs in debug builds)
 - ~~`dsp::mod` re-exports `crate::offline::*` specs (mod.rs:43-46) — an inverted
   dependency (DSP core depending on the offline module) that exists only for
-  convenience re-export; it drags offline render specs into every DSP consumer.~~ — FIXED (2026-11-10, [`m10-m18-tidy-dead-code-and-docs`](openspec/changes/m10-m18-tidy-dead-code-and-docs/proposal.md)): the re-export is gone; `src/dsp/tests.rs` imports the specs from `crate::offline`.
+  convenience re-export; it drags offline render specs into every DSP consumer.~~ — FIXED (2026-11-10, [`m10-m18-tidy-dead-code-and-docs`](openspec/changes/archive/2026-11-10-m10-m18-tidy-dead-code-and-docs/proposal.md)): the re-export is gone; `src/dsp/tests.rs` imports the specs from `crate::offline`.
 - ~~`benches/performance.rs` exists but nothing benchmarks the dynamic-object /
   pitch-bend per-sample rebuild path (H12), which is the actual worst case.~~ — FIXED
   (H12: `voice_manager_sixteen_voices_bent` and `_cable_dynamics` / `_cable_static`,
   compared with their twins by `scripts/bench_ratios.py`).
 - ~~`docs/CODE-REVIEW.md` should be updated or archived — two of its headline
-  findings are fixed, and readers may assume the rest of the file is current.~~ — FIXED (2026-11-10, [`m10-m18-tidy-dead-code-and-docs`](openspec/changes/m10-m18-tidy-dead-code-and-docs/proposal.md)): moved to `docs/archive/CODE-REVIEW-2026-05-27.md` with a superseded header; the README points at this review.
+  findings are fixed, and readers may assume the rest of the file is current.~~ — FIXED (2026-11-10, [`m10-m18-tidy-dead-code-and-docs`](openspec/changes/archive/2026-11-10-m10-m18-tidy-dead-code-and-docs/proposal.md)): moved to `docs/archive/CODE-REVIEW-2026-05-27.md` with a superseded header; the README points at this review.
 
 ## Missing features (code-evident, not backlog speculation)
 
