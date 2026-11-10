@@ -1,21 +1,61 @@
 # Corrosion
 
-Corrosion is an industrial physical-modeling instrument built as a VST3 and CLAP plugin. MIDI notes trigger modal resonators and post-processing tuned for damaged metal, friction, weight, and mechanical tension rather than synth-style oscillator framing.
+Corrosion is an industrial physical-modeling instrument built as a VST3 and CLAP plugin. MIDI notes strike, bow, scrape or blow modal models of metal objects (pipes, plates, tanks, chains, beams, cables, springs, sheets, cogs), and a post chain shapes them. It is tuned for damaged metal, friction, weight and mechanical tension, not for synth-style oscillators.
 
-Current package version: `0.1.0`. Preset schema version: `4` (with backwards-compatible migration for v1–v3 files — see `src/presets/mod.rs::migrate_preset_json`).
+Package version: `0.2.0`. Preset schema version: `4`; files from schemas 1–3 are migrated on load (`src/presets/mod.rs::migrate_preset_json`).
+
+## How to Use
+
+### Install
+
+1. Download the zip for your platform and format from the [`nightly` pre-release](../../releases/tag/nightly). It is rebuilt by every green CI run on `main`: tested on its platform and checked with clap-validator and pluginval.
+2. Unzip it into your plugin folder:
+
+   | Platform | VST3 | CLAP |
+   |---|---|---|
+   | Windows (x86_64) | `C:\Program Files\Common Files\VST3` | `C:\Program Files\Common Files\CLAP` |
+   | macOS (Apple Silicon and Intel) | `~/Library/Audio/Plug-Ins/VST3` | `~/Library/Audio/Plug-Ins/CLAP` |
+   | Linux (x86_64) | `~/.vst3` | `~/.clap` |
+
+3. **macOS only:** the bundles are ad-hoc signed, not notarized, so macOS quarantines them after a download. Before the first use run `xattr -dr com.apple.quarantine ~/Library/Audio/Plug-Ins/VST3/Corrosion.vst3` (and the same for `CLAP/Corrosion.clap`).
+4. Rescan plugins in your host and load **Corrosion** (vendor "Corrosion Audio") on an instrument track.
+
+To build it yourself instead, see [Build And Run](#build-and-run).
+
+### First sounds
+
+1. **Pick a preset.** Click the preset name in the header to open the browser: Bass, Lead, Chords, Drones, Percussion, Drums and Experimental, then your own presets under User. The **‹ ›** arrows step through the current folder.
+2. **Play it** from your MIDI keyboard or the host, or from the piano strip at the bottom of the editor: click the keys, or use the computer keys `A W S E D F T G Y H U J K` (C4 to C5) while the pointer is over the editor.
+3. **Change the object and how it is played.** **Exciter** chooses what plays the object (a bow, a mallet, a chain, a jet of air…), **Object** what is played. **Size** moves the pitch and weight (pitch is roughly the key divided by Size). **Rust**, **Damage** and **Heat** age the metal.
+4. **Shape the result** with the four **Macros** (Mass, Corrosion, Violence, Brightness), then the post chain: filter, **Drive**, **BODY**, spread and **Space** (Factory, Spring or Echo).
+5. **Hover the ⓘ badge** next to any control for a one- or two-sentence explanation.
+6. **Save** your sound: type a name next to the browser, pick a user folder and press Save. **Randomize** draws a variation within safe limits.
+
+### Playing a drum kit
+
+1. Load a kit from **Drums**; Play switches to **Kit**. Each key from C2 plays its own pad on the General MIDI layout (36 kick, 38 snare, 42 closed hat, …).
+2. To build your own: dial a sound in Tonal mode and play it, switch Play to Kit, click a key in the kit zone (C2–B3) and press **Assign**. The pad keeps the pitch you heard; change it with **Tune**. **Clear** removes a pad. See [Kit mode](#kit-mode).
+
+### Playing it expressively
+
+- Velocity, pitch bend, channel and polyphonic pressure, and the mod wheel act on held notes; CLAP and VST3 hosts can also address single notes (per-note tuning and choke).
+- The sustain pedal (CC64) holds notes; CC120 / CC123 stop everything.
+- **Drone** play mode keeps bowed, scraped and dragged notes sounding until you let go.
+- **Quality** trades CPU for density and smoother aliasing: Eco, Normal (default), High, Render (for bouncing).
 
 ## What It Ships
 
-- VST3 and CLAP plugin entrypoints via NIH-plug.
-- Stereo instrument layout (no audio input — audio-in "Effect mode" is on the roadmap, not shipped).
-- **Full MIDI expression**: notes, pitch bend (default ±2 semitones, ±24 safety clamp), channel + polyphonic pressure, and CC1 mod wheel. All routed live to active voices.
-- **Per-note expression** (CLAP and VST3 hosts): notes the host addresses by voice ID are released, pressed, retuned and choked individually, so two overlapping notes on one key stay separate. Per-note tuning (`PolyTuning`) shifts one note in semitones on top of the channel pitch bend; a host choke fades the note to silence in 2 ms without a click. Hosts that send plain MIDI behave as before (key and channel; the oldest note on a key is released first). Channel MPE (per-channel bend and pressure zones) isn't supported: channel messages stay global.
-- **Sustain pedal and panic**: CC64 holds released notes until the pedal lifts (re-striking a held note replaces it; pedal-held notes are stolen before held keys). CC123 All Notes Off releases every held key (a down pedal still holds them), CC120 All Sound Off fades everything, Space tails included, to silence in 5 ms, and CC121 Reset All Controllers lifts the pedal and returns mod wheel, bend and pressure to rest.
-- 16-voice polyphony. When the pool is full, released tails are stolen first, then held notes at least 100 ms old (quietest first, oldest on ties); a note that just started is only stolen if every held note is that young. Idle voices cost nothing, while a full pool at Render quality measured about 36 % of one core on the development machine.
-- 130+ host parameters covering exciters, objects, transformations, post-processing, four high-level macros, and three play modes.
-- An egui editor with UI scaling (50/75/100/125/150%), controls for every audible parameter (including play and limiter modes, sync and the four macros), user presets, and a randomizer.
-- Offline renderers for comparison suites, preset batch renders, and aliasing analysis with asserted budgets.
+- VST3 and CLAP plugins via NIH-plug, for Windows (x86_64), macOS (universal: Apple Silicon and Intel) and Linux (x86_64).
+- Stereo instrument layout (no audio input; an audio-in "Effect mode" is on the roadmap).
+- **MIDI expression**: notes with velocity, pitch bend (default ±2 semitones, ±24 safety clamp), channel and polyphonic pressure, and CC1 mod wheel, all routed live to active voices.
+- **Per-note expression** (CLAP and VST3 hosts): notes the host addresses by voice ID are released, pressed, retuned and choked individually, so two overlapping notes on one key stay separate. Per-note tuning (`PolyTuning`) shifts one note in semitones on top of the channel pitch bend; a host choke fades the note to silence in 2 ms without a click. Hosts that send plain MIDI match notes by key and channel; the oldest note on a key is released first. Channel MPE (per-channel bend and pressure zones) isn't supported: channel messages stay global.
+- **Sustain pedal and panic**: CC64 holds released notes until the pedal lifts (re-striking a held note replaces it; pedal-held notes are stolen before held keys). CC123 All Notes Off releases every held key (a down pedal still holds them), CC120 All Sound Off fades everything, Space tails included, to silence in 5 ms, and CC121 Reset All Controllers lifts the pedal and returns mod wheel, bend and pressure to rest. Other CCs are ignored (full CC mapping is on the roadmap).
+- 16-voice polyphony. When the pool is full, released tails are stolen first, then held notes at least 100 ms old (quietest first, oldest on ties); a note that just started is only stolen if every held note is that young. Idle voices cost nothing; a full pool at Render quality measured about 36 % of one core on the development machine.
+- 130+ host parameters covering exciters, objects, transformations, post-processing, four macros and three play modes.
+- An egui editor with UI scaling (50/75/100/125/150 %), controls for every audible parameter, inline help on every control, a piano strip, a preset browser with folders, user presets, a randomizer, and a kit editor.
+- **Kit mode**: an AFX-style drum kit, one pad (a whole sound with its own tune and level) per key, saved with presets and projects.
 - A factory bank of 214 presets in folders: 60 designed by hand (bass, lead, chords, drones, percussion), 10 drum kits and 144 experimental ones, one per exciter × resonator, all at a common loudness (`src/presets/factory/`, written by `src/bin/seed_presets.rs`).
+- Offline renderers for comparison suites, preset batch renders, and aliasing analysis with asserted budgets.
 
 ## Current Sound Surface
 
@@ -31,23 +71,25 @@ Grouped into three envelope families:
 | Friction | Bow, StiffPoint, HeavyGrinding, CorrugatedDrag, TensionRise | 6-stage MSEG (loopable) |
 | Specialty | PneumaticJet, ElectromagneticHum, TensionSnap, ParticleRain | ADSR |
 
+Each exciter has its own panel of physical controls (mass, stiffness, rosin, flow rate, …) that changes with the selection. The exciter and the object are coupled both ways: the object's displacement and velocity feed back into the exciter, so a bow sticks and slips on the surface it excites.
+
 ### Objects (9)
 
 `Pipe`, `Plate`, `Tank`, `Chain`, `IBeam`, `TautCable`, `CoilSpring`, `SheetMetal`, `IndustrialCog`.
 
-Each object is driven by an algorithmic resonator generator (the single resonator path; legacy profile-driven mode was retired 2026-05-27) and exposes a curated per-object **character param** (e.g. Pipe Diameter, Plate Aspect/Stiffness, Tank Volume/Cavity Mix, Chain Link Mass/Instability, Cable Tension Drop, Spring Dispersion/Slosh, Cog Dissonance — 14 in total). `TautCable` and `SheetMetal` also run per-sample dynamic hooks (amplitude→pitch drop, low-frequency warp) in `ModalResonator::process_sample`.
+Each object is an algorithmic modal resonator generator with curated **character controls** (Pipe Diameter, Plate Aspect and Stiffness, Tank Volume and Cavity Mix, Chain Link Mass and Instability, Beam Shear, Cable Braid and Tension Drop, Spring Dispersion and Slosh, Sheet Thinness, Cog Dissonance: 14 in total). `TautCable` and `SheetMetal` also run per-sample dynamics (an amplitude-driven pitch drop, a low-frequency warp). Struck Pipe, I-Beam and Taut Cable ring for seconds; Rust and Sludge shorten them.
 
 ### Main Control Groups
 
-- **Sound**: `Exciter`, `Object`, `Size`, `Rust`, `Damage`, `Drive`, `Output`, `Width`, `Body`. Master **Drive** (0–5) fades from clean to fully shaped over 0–1; above 1 it pushes the shaper harder (more saturation, not more level). **Output** is shown and typed in dB (−∞ to +40 dB); its knob puts 0 dB a little past the middle and spreads −20 to +6 dB over about a fifth of its travel. Presets and saved projects keep their level, but **host automation of Output recorded before this taper plays back at different levels** (the same automation position now means a different gain).
-- **Friction envelope (MSEG)**: **Onset Time** sets the onset stage's length and **Onset Level** (0–1, default 0.01) the level it rises to; they used to be one knob. Older presets and saved DAW projects load with Onset Level equal to their old Onset value (clamped to 0–1), so they sound as before.
+- **Sound**: `Exciter`, `Object`, `Size`, `Rust`, `Damage`, `Drive`, `Output`, `Width`, `Body`. Master **Drive** (0–5) fades from clean to fully shaped over 0–1; above 1 it pushes the shaper harder (more saturation, not more level). **Output** is shown and typed in dB (−∞ to +40 dB); its knob puts 0 dB a little past the middle and spreads −20 to +6 dB over about a fifth of its travel. Presets and saved projects keep their level, but **host automation of Output recorded before this taper plays back at different levels** (BREAKING).
+- **Friction envelope (MSEG)**: six stages; **Onset Time** sets the onset stage's length and **Onset Level** (0–1, default 0.01) the level it rises to. Loop modes Off, Forward and PingPong (PingPong currently always loops Decay → Sustain). **Env Amount** scales the whole envelope; at 0 the friction exciters are silent. Older presets and projects load with Onset Level equal to their old Onset value (clamped to 0–1).
 - **Host parameter names** are unique, so automation lists can tell them apart: `Resonator Brightness` and `Macro Brightness`, `Brush Wire Stiffness` and `Spring Wire Stiffness`, `Onset Time` and `Onset Level`. Parameter IDs are unchanged.
 - **Global exciter controls** (under the exciter selector, each neutral at its default): **Pressure** trims every exciter's force by −12 to +12 dB and follows automation on held notes; **Speed** scales motion speeds ×0.5 to ×2 (bow, scrape, grind, drag, pull, particle flow); **Roughness** scales grit and randomness ×0 to ×3.33 (rosin grip, surface grit, slip, turbulence, brush and rattle randomness, particle mass variance). Speed and Roughness apply at note-on. Exciters with no motion or grit parameter ignore them.
 - **Rust, Damage, Heat**: Rust (0–5) dulls and shortens the high partials first while the low thud keeps ringing; Damage (0–10) cracks the object into beating, detuned mode pairs without losing the note; Heat (0–1) lowers the pitch slightly, darkens, and adds a slow thermal warble. None of them silences a note: across each range the level stays within about 3 dB.
-- **Macros** (PRD §12, neutral midpoint at 0.5): `Mass`, `Corrosion`, `Violence`, `Brightness`. Each layers a bias across a cluster of related destinations (mass macro hits the exciter mass cluster + resonator size; corrosion adds damping and rust; violence pushes drive/chaos/damage; brightness opens the post-chain filter).
-- **Play mode**: `Tonal` (default — note → pitch), `Kit` (each key plays its own pad, see [Kit mode](#kit-mode); keys without a pad are silent), `Drone` (force MSEG loop on for friction voices so notes ring until release).
-- **Quality**: `Eco` / `Normal` / `High` / `Render`. Controls both the final clipper's oversampling (1×/4×/8×/16×, half-band IIR filters; every mode, Eco included, runs the same diode curve with its limit 2.3 dB below the Analog Ceiling, so the modes differ only in aliasing) **and** per-voice modal density (0.5×/1.0×/1.5×/2.0× the object's base mode count). Every mode runs the full post chain (Eco no longer skips body, spread or Space), so quality modes trade fidelity and CPU, not effects. **The two parts change at different times:** the clipper's oversampling switches at once, but a note's mode count is fixed when it starts, so held notes and their tails keep their density until the next note-on.
-- **Limiter**: `Hard` (default zero-latency hard clamp at ≈−0.3 dBFS) or `Lookahead` (48-sample window, instant attack, 50 ms release; reports its 1 ms latency to the host).
+- **Macros** (neutral at 0.5): `Mass`, `Corrosion`, `Violence`, `Brightness`. Each biases a cluster of destinations: Mass the exciter's mass controls and the object's size; Corrosion damping and rust; Violence drive, chaos and damage; Brightness the post-chain filter and resonator brightness.
+- **Play mode**: `Tonal` (default: the key sets the pitch), `Kit` (each key plays its own pad, see [Kit mode](#kit-mode); keys without a pad are silent), `Drone` (the friction envelope loops, so friction notes ring until release).
+- **Quality**: `Eco` / `Normal` / `High` / `Render`. Controls the final clipper's oversampling (1×/4×/8×/16×, half-band IIR filters) **and** per-voice modal density (0.5×/1.0×/1.5×/2.0× the object's base mode count). Every mode runs the full post chain and the same diode curve, so modes trade fidelity and CPU, not effects. **The two parts change at different times:** the clipper's oversampling switches at once, but a note's mode count is fixed when it starts, so held notes and their tails keep their density until the next note-on.
+- **Limiter**: `Hard` (default, zero-latency hard clamp at ≈−0.3 dBFS) or `Lookahead` (48-sample window, instant attack, 50 ms release; reports its 1 ms latency to the host).
 - **Diode stage** (the final clipper, in the Brickwall Limiter panel): a soft-knee diode curve that sounds good driven hot.
   - **Diode Softness** (0–1, default 0.5) sets the knee: 0 is a hard clip, 1 starts bending about 14 dB under the limit.
   - **Diode Asymmetry** (0–1, default 0.25) clips the negative half earlier (up to 6 dB at 1, like one diode against two), adding even harmonics. A slow DC blocker keeps the result centred; at 0 the curve is symmetric and unfiltered.
@@ -55,11 +97,17 @@ Each object is driven by an algorithmic resonator generator (the single resonato
   - Presets and projects saved before this stage load with Softness 0 and Asymmetry 0, close to their old hard clip. **Host automation of Diode Softness recorded before it plays back with a different knee** (BREAKING).
 - **Inline help**: every control has a small ⓘ badge after its label. Hover the badge (not the control) for a one- or two-sentence explanation; exciter and object controls explain themselves for the selected model. Selectors explain the selected option (a trial feature).
 - **No DC at the output**: bowed and slow-contact notes push the resonators to one side while they play. A 10 Hz high-pass on the voices' mix, before the master drive, removes that offset (30 Hz loses 0.05 dB), so the drives and the clipper bite both halves of the wave evenly and the host gets no DC.
-- **Post chain**: per-channel WDF-style 4-pole ladder filter → Lorenz drive (dual-mono, so the voice engine's stereo image survives), plus the FEM body resonance added in parallel on the mono sum → HRTF spread → Space (Factory / Spring / Echo) → oversampled clipper. **BODY** (0–5) sets the body's mix level; **Chassis Volume** only sets its size (larger = lower resonances, which also ring a little louder at the same BODY). Cutoff, resonance, and master drive are smoothed at audio rate (~20 ms tau) with a first-call snap so static configurations are unchanged.
+- **Post chain**: per-channel 4-pole ladder filter → Lorenz drive (dual-mono, so the stereo image survives), plus the FEM body resonance added in parallel on the mono sum → HRTF spread → Space (Factory / Spring / Echo) → oversampled diode clipper → limiter. **BODY** (0–5) sets the body's mix level; **Chassis Volume** only sets its size (larger = lower resonances, which also ring a little louder at the same BODY). Cutoff, resonance and master drive are smoothed at audio rate (~20 ms) with a first-call snap, so static settings are unchanged.
 - **Echo**: Machinery Movement sweeps the delay smoothly (interpolated reads, no zipper). High Frequency Damping darkens the repeats, more with each one, without changing their level: 0 leaves them full-range, 1 rolls them off above about 1.5 kHz.
-- **Tempo sync**: off by default. `sync_rate < 0.05` (shown as "Off") keeps the Echo free-running on Delay Time. Above it, six musical divisions (1/16 → 2/1, shown by name) drive the delay from `context.transport().tempo` when the host reports one. A division longer than the echo's 0.8 s is halved until it fits, so it stays on the beat (1/1 at 120 BPM plays as 1/4).
-- **Per-voice modulation**: damping, brightness, strike position, coupling, position wander and its rate, position envelope, and fundamental anchor automate through to held notes via `Voice::update_live_controls`; tail voices keep their note-on snapshot so decays stay consistent.
+- **Tempo sync**: off by default. `sync_rate < 0.05` (shown as "Off") keeps the Echo free-running on Delay Time. Above it, six musical divisions (1/16 → 2/1, shown by name) drive the delay from the host tempo when the host reports one. A division longer than the echo's 0.8 s is halved until it fits, so it stays on the beat (1/1 at 120 BPM plays as 1/4).
+- **Per-voice modulation**: damping, brightness, strike position, coupling, position wander and its rate, position envelope, and fundamental anchor automate through to held notes; released tails keep their note-on values so decays stay consistent.
 - **Strike position movement**: **Position Envelope** moves the strike point with the note's force envelope (up to half the bar at full envelope), so a strike or a bow swell sweeps the timbre. **Wander** adds a slow drift at its own **Wander Rate** (0.1–5 Hz). Older presets and saved DAW projects that used Position Envelope as the wander's rate load as the equivalent Wander Rate.
+- **Release snap**: releasing a bowed, scraped or dragged note snaps the object free of the friction and can ring out louder than the held note (up to about +30 dB on the default patch). It is kept as a feature; a control to tame it is on the roadmap.
+
+**Loudness.**
+- Every object's mode bank is normalized at note-on to one strike level, so objects, registers (C2–C6), quality modes and damage settings land within a few dB of each other.
+- Each exciter has a drive level that puts its typical note at one common level, so struck, bowed, scraped and blown exciters play about equally loud.
+- A per-voice drive governor turns the exciter's force down when a note would near full scale, so no note overdrives the voice and none is clipped, whatever the drive.
 
 ### Factory Presets
 
@@ -71,12 +119,27 @@ The factory bank lives under `presets/factory/`, in folders. The preset browser 
   - chord patches are harmonic and sustain, so they can be played as chords;
   - drones hold their level while the key is down;
   - percussion dies away on its own.
-- **Drums**: ten Kit-mode drum kits on the General MIDI layout (36 kick, 37 side stick, 38 snare, 39 clap, 41 / 45 / 48 toms, 42 / 44 / 46 hats, 49 crash, 51 ride), each from one family of objects (Foundry, Scrapyard, Pipe, Rust Belt, Boiler Room, Rail Yard, Wire, Sheet Storm, Clockwork, Junk Percussion). Each pad is levelled on its own.
+- **Drums**: ten Kit-mode drum kits on the General MIDI layout (36 kick, 37 side stick, 38 snare, 39 clap, 41 / 45 / 48 toms, 42 / 44 / 46 closed, pedal and open hats, 49 crash, 51 ride), each from one family of objects: Foundry, Scrapyard, Pipe, Rust Belt, Boiler Room, Rail Yard, Wire, Sheet Storm, Clockwork and Junk Percussion. Pads are tuned for their role (kicks an octave down, hats and cymbals three to four octaves up) and checked for drum character: a heavy, short kick, a snare brighter than the kick, bright hats with the open hat ringing longer than the closed one, and rising toms.
 - **Experimental**: one preset for every exciter on every resonator (16 × 9), grouped by exciter. Each draws every parameter from a fixed seed within playable ranges, so they're varied, sometimes strange, and always audible.
 
-Every factory preset is levelled so a held middle C sits at the same loudness (−17.7 dBFS RMS), with headroom so even a full-velocity note barely touches the limiter. Releasing a bowed, scraped or dragged note snaps the object free and can ring out louder than the held note. Regenerate the bank with `cargo run --release --bin seed_presets`.
+Every factory preset is levelled so a held middle C sits at the same loudness (−17.7 dBFS RMS), with headroom so even a full-velocity note barely touches the limiter. Drum pads are levelled the same way, each held alone on its own key. Regenerate the bank with `cargo run --release --bin seed_presets`.
 
 ### User Presets and Randomizer
+
+The editor's **Save** writes the current sound as a named preset (every parameter except UI Scale, and the kit if there is one) into your user preset folder, or one of its subfolders, picked in the selector next to the name. You can't save into the factory bank. Saving over an existing name asks first. The browser's **User** submenu mirrors the folder's subfolders (up to four levels deep), and picks up folders you add while the plugin is open. The **‹ ›** arrows step through the presets of the current folder. **Open folder** shows the user folder in your file manager (it is created if missing), so you can add, rename or delete folders and presets there. The folder:
+
+- Windows: `%APPDATA%\Corrosion\Presets`
+- macOS: `~/Library/Application Support/Corrosion/Presets`
+- Linux and others: `$XDG_DATA_HOME/corrosion/presets`, or `~/.local/share/corrosion/presets`
+
+**Randomize** draws a new Size, Rust, Damage, Drive, Width, BODY and Output within its mode's ranges and safety limits (patches stay audible, and extreme damage never meets extreme drive):
+
+- **Safe:** gentle variations.
+- **Object:** size only.
+- **Damage:** rust, damage and a little drive.
+- **Full:** everything, over wide ranges.
+
+Every change is sent to the host as a normal parameter edit, so host undo applies.
 
 The editor opens at 75 % (810 × 630). The **SCALE** selector (50–150 %) resizes the plugin window in hosts that allow it; the controls always fit the window's width, and taller exciter panels scroll.
 
@@ -93,74 +156,60 @@ A piano strip at the bottom of the editor (C2–C6, MIDI 36–84) stays in view 
 
 ### Kit mode
 
-In **Kit** mode each key plays its own **pad**: a whole sound (exciter, object and every voice control) stored for that key with a tune (±48 semitones) and a level. Keys without a pad are silent. The post chain (filter, drive, BODY, spread, Space, clipper, limiter, Output) is shared by the whole kit, so a kit's kick and hats go through the same drive and room.
+In **Kit** mode each key plays its own **pad**: a whole sound (exciter, object and every voice control) stored for that key with a tune (±48 semitones) and a level. Keys without a pad are silent. The post chain (filter, drive, BODY, spread, Space, clipper, limiter, Output) is shared by the whole kit, so a kit's kick and hats go through the same drive and room. Moving a knob doesn't change pads that are already sounding.
 
 When Play is set to Kit, a kit bar appears above the strip:
 
 - **Click a key** to select it (and play it). Selecting a key with a pad loads its sound into the editor, so you can tweak it.
-- **Assign** stores the editor's current sound on the selected key. Its tune keeps the pitch you last heard the sound at: dial a sound in Tonal mode, play it on C4, then assign it to 38 and the pad plays at C4's pitch (+22 st). **Tune** changes it afterwards.
+- **Assign** stores the editor's current sound on the selected key. Its tune keeps the pitch you last heard the sound at: dial a sound in Tonal mode, play it on C4, then assign it to 38 and the pad plays at C4's pitch (+22 st). Clicking an empty key in Kit mode plays nothing, so it doesn't count as hearing the sound there. **Tune** changes the pitch afterwards.
 - **Clear** removes the selected key's pad.
-- The kit zone is C2 to B3 (36–59); keys outside it are greyed and ignore the mouse and computer keys until **Full keyboard** is on.
+- The kit zone is C2 to B3 (36–59); keys outside it are greyed and ignore the mouse and computer keys until **Full keyboard** is on. Host MIDI plays every key that has a pad, whatever the toggle.
 - Keys with a pad get a coloured band; the selected key an outline.
 
 A kit is saved with presets and with your DAW project. Loading a pad moves every voice parameter, which a host recording automation will record, as when loading a preset.
 
 **BREAKING:** the old Kit mode, which mapped 10-note slots of the keyboard to objects, is gone. Presets and projects saved in the old Kit mode load in Tonal mode, with their other values kept; host automation of Play Mode that selects Kit now selects the new mode, which is silent until pads are assigned.
 
-The editor's **Save** writes the current sound as a named preset (every parameter except UI Scale) into your user preset folder, or one of its subfolders, picked in the selector next to the name. You can't save into the factory bank. Saving over an existing name asks first. The browser's **User** submenu mirrors the folder's subfolders (up to four levels deep). The **‹ ›** arrows step through the presets of the current folder. **Open folder** shows the user folder in your file manager (it is created if missing), so you can add, rename or delete folders and presets there. The folder:
-
-- Windows: `%APPDATA%\Corrosion\Presets`
-- macOS: `~/Library/Application Support/Corrosion/Presets`
-- Linux and others: `$XDG_DATA_HOME/corrosion/presets`, or `~/.local/share/corrosion/presets`
-
-**Randomize** draws a new Size, Rust, Damage, Drive, Width, BODY and Output within its mode's ranges and safety limits (patches stay audible, and extreme damage never meets extreme drive):
-
-- **Safe:** gentle variations.
-- **Object:** size only.
-- **Damage:** rust, damage and a little drive.
-- **Full:** everything, over wide ranges.
-
-Every change is sent to the host as a normal parameter edit, so host undo applies.
-
-
-**Loudness.**
-- Every object's mode bank is normalized at note-on to one strike level, so objects, registers (C2–C6), quality modes and damage settings land within a few dB of each other.
-- Each exciter has a drive level that puts its typical note at one common level, so struck, bowed, scraped and blown exciters play about equally loud.
-- A per-voice drive governor turns the exciter's force down when a note would near full scale, so no note overdrives the voice and none is clipped, whatever the drive.
-
 ## Repository Layout
 
 ```text
 .
 ├── Cargo.toml
-├── docs/                  ARCHITECTURE.md, BACKLOG.md, code-review.md,
-│                          corrosion_plugin_prd_and_specs.md, detailed-specs/
+├── .github/workflows/     ci.yml: checks, bundles and the nightly (Linux, Windows, macOS)
+├── docs/                  ARCHITECTURE.md, BACKLOG.md, PRD.md, detailed-specs/, archive/
+├── openspec/              specs/ (31 capabilities) and changes/ (active and archived)
 ├── presets/factory/       214 .corrosion-preset files in folders (written by seed_presets)
-├── scripts/               verify-local.sh, validate-plugins.sh, check_wav.py …
+├── scripts/               bundle.sh, check_bundle.sh, validate-plugins.sh, verify-local.sh,
+│                          check_wav.py, bench_ratios.py …; archive/ (old bundle wrappers)
 ├── src/
-│   ├── lib.rs             Plugin trait impls, MIDI routing (incl. CCs), macros,
-│   │                      play mode, lookahead wiring, drive/output smoothers
+│   ├── lib.rs             Plugin trait impls, MIDI routing (incl. CCs), note setup,
+│   │                      macros, play modes, state migration, drive/output smoothers
 │   ├── params.rs          130+ host parameters (ExciterType×16, Object×9,
 │   │                      QualityMode×4, PlayMode×3, character×14, macros×4 …)
+│   ├── kit/               Kit mode: pads, the lock-free pad table, persistence
+│   ├── gui_notes.rs       Editor notes to the audio thread (lock-free ring)
 │   ├── voice/             Voice + VoiceManager (16-voice pool, stealing, expression state)
 │   ├── dsp/               Resonators, exciters, interaction bus, transforms,
 │   │                      profiles, envelopes, post-processing
-│   ├── presets/           Versioned schema, JSON migration, sanitize-and-clamp
+│   ├── presets/           Versioned schema, JSON migration, user folders;
+│   │                      factory/ builds the factory bank and its levels
 │   ├── offline/           OfflineRenderer + analyze_post_chain_aliasing
-│   ├── randomizer/        Parameter randomization helpers
+│   ├── randomizer/        Parameter randomization
 │   ├── gui/               egui editor (feature-gated)
 │   └── bin/
 │       ├── render.rs          --suite family|rust|damage|aliasing|all
 │       ├── render_presets.rs  Batch-render presets to WAV + manifest (plugin output path)
 │       └── seed_presets.rs    Level and write the factory bank (presets::factory)
-├── tests/                 no_alloc, automation_stress, preset_roundtrip, body,
-│                          drive_dynamics, stereo_width, velocity_*,
-│                          chain_distinct, limiter, damage_rattle, bow_exciter,
-│                          plugin_metrics, daw/
-└── .sisyphus/             Legacy roadmap/evidence notes
+├── tests/                 no_alloc, automation_stress, preset_roundtrip, preset_loading,
+│                          body, drive_dynamics, stereo_width, velocity_*, chain_distinct,
+│                          limiter, damage_rattle, bow_exciter, mseg_loop_safety,
+│                          plugin_metrics, fixtures/ (golden hashes, legacy presets), daw/
+└── benches/               Criterion benchmarks (performance)
 ```
 
 ## Build And Run
+
+Requires stable Rust 1.99 or newer.
 
 ```bash
 # Test using the repo's default local target from .cargo/config.toml
@@ -189,14 +238,14 @@ cargo run --release --bin seed_presets
 cargo bench --no-default-features --target x86_64-unknown-linux-gnu --bench performance
 ```
 
-The repository's `.cargo/config.toml` defaults unqualified `cargo` commands to `x86_64-pc-windows-gnu` so the maintainer's Windows host doesn't need to type `--target` constantly. The Linux CI lane overrides this via `CARGO_BUILD_TARGET=x86_64-unknown-linux-musl` in the workflow env; `scripts/bundle.sh` passes each platform's `--target` explicitly. The old `bundle.sh` and `bundle-win.sh` are kept in `scripts/archive/` as wrappers around it. If you're on Linux/macOS and not building Windows DLLs locally, either pass `--target` per command or override the build target with `CARGO_BUILD_TARGET=<your-host-triple>`.
+The repository's `.cargo/config.toml` defaults unqualified `cargo` commands to `x86_64-pc-windows-gnu` and builds into `../corrosion-target`, so the maintainer's Windows host doesn't need `--target` on every command. On Linux or macOS, pass `--target` per command or set `CARGO_BUILD_TARGET=<your-host-triple>`. `scripts/bundle.sh` passes each platform's target itself and honours `CARGO_TARGET_DIR`. The old `bundle.sh` and `bundle-win.sh` are kept in `scripts/archive/` as wrappers around it. The Linux GUI build needs the X11 and GL development packages listed in `.github/workflows/ci.yml`.
 
 ## Validation
 
 If you have the tools installed, the local validation flow is:
 
 ```bash
-# Full local verification lane that mirrors CI
+# Full local verification lane that mirrors the Linux CI
 ./scripts/verify-local.sh
 
 # Or run the major steps manually
@@ -204,6 +253,7 @@ cargo fmt --check
 cargo clippy --workspace --all-targets --no-default-features -- -D warnings
 cargo test --workspace --no-default-features
 cargo test --lib --target x86_64-unknown-linux-gnu
+cargo test --no-default-features --test no_alloc   # debug build only
 cargo run --target x86_64-unknown-linux-gnu --bin render -- --suite family --out-dir /tmp/corrosion-verify-render
 python3 scripts/check_wav.py /tmp/corrosion-verify-render/pipe_comparison.wav
 scripts/bundle.sh linux release
@@ -212,70 +262,78 @@ scripts/bundle.sh linux release
 ./scripts/validate-plugins.sh linux
 ```
 
-The repository CI currently automates the formatter, clippy, the no-default-features workspace tests, the native Linux library lane, the offline renderer smoke test, WAV validation, and the Linux bundle script. DAW smoke scripts under `tests/daw/` and external plugin validators remain optional/manual because they depend on tools that are not guaranteed to exist in every environment. The aliasing tests assert the whole chain at Render stays under −18 dB (`offline::tests::render_mode_alias_ratio_stays_within_budget`; the Lorenz drive isn't oversampled), that Render beats Eco (`higher_quality_reduces_alias_ratio`), and that the clipper alone, with and without the hard clamp after it, folds a 5 kHz tone at twice the ceiling back at least 40 dB down in Normal and 60 dB in Render (`clipper_alias_bounds_hold`, `clipper_alias_bounds_hold_through_the_hard_clamp`).
+**CI** (`.github/workflows/ci.yml`) runs on every push to `dev` and `main`, on pull requests from forks, and by hand:
 
-Benchmark coverage is local/manual for now. Use `cargo bench --no-default-features --target x86_64-unknown-linux-gnu --bench performance` to measure the current hot-path baseline for voice rendering, stochastic excitation, post-processing, and offline rendering.
+- **checks** on Linux (formatting, clippy with warnings denied, the workspace tests on musl, the GUI library tests, the real-time safety tests, docs with warnings denied, the benchmarks compiled, the renderer smoke test and its WAV check), Windows with MSVC and macOS (clippy, the workspace and GUI tests, the renderer smoke test; real-time safety on macOS too);
+- **bundle**: VST3 and CLAP built on each platform's own runner (macOS universal and ad-hoc signed), their layout checked, then validated with clap-validator and pluginval;
+- **nightly**: after a fully green run on `main`, the `nightly` pre-release is replaced with that commit's six zips. Runs on `dev` and pull requests never publish, and a failing run leaves the previous nightly in place.
+
+DAW smoke tests (`tests/daw/`) remain manual. The aliasing tests assert the whole chain at Render stays under −18 dB (`offline::tests::render_mode_alias_ratio_stays_within_budget`; the Lorenz drive isn't oversampled), that Render beats Eco (`higher_quality_reduces_alias_ratio`), and that the clipper alone, with and without the hard clamp after it, folds a 5 kHz tone at twice the ceiling back at least 40 dB down in Normal and 60 dB in Render (`clipper_alias_bounds_hold`, `clipper_alias_bounds_hold_through_the_hard_clamp`). The factory bank tests check counts, determinism, a quality floor for every preset and drum pad, and each folder's character.
+
+Benchmarks are local and manual: `cargo bench --no-default-features --target x86_64-unknown-linux-gnu --bench performance` measures voice rendering, stochastic excitation, post-processing and offline rendering. Run-to-run noise is ±10–15 %; compare within one run (`scripts/bench_ratios.py`).
 
 ## Real-Time Safety
 
-- **No heap allocation** in `process()` — including note-on for every object, quality mode and exciter, voice stealing, live MIDI expression, and `reset()`. Each voice preallocates its worst-case modal bank (`MAX_MODES`) and rebuilds it in place at note-on. Verified by `tests/no_alloc.rs`, which must run in a **debug** build (`cargo test --no-default-features --test no_alloc`): the checking allocator only exists under `debug_assertions`, and a release run passes vacuously. The non-Windows build enables nih_plug's `assert_process_allocs` feature. The Windows lane is intentionally disabled (`assert_no_alloc`'s thread-local allocator hook conflicts with the Windows CRT during nih-plug test setup); document is in `docs/BACKLOG.md` → P4.
-- **No locks / blocking / I/O / logging** in the audio callback.
-- **Fixed voice array** — 16 `Voice` instances (`MAX_VOICES`), each owning all 16 exciter structs (allocation-free dispatch).
+- **No heap allocation** in `process()`, including note-on for every object, quality mode and exciter, kit pads, voice stealing, live MIDI expression, editor notes and `reset()`. Each voice preallocates its worst-case modal bank (`MAX_MODES`) and rebuilds it in place at note-on. Verified by `tests/no_alloc.rs`, which must run in a **debug** build (`cargo test --no-default-features --test no_alloc`): the checking allocator only exists under `debug_assertions`, and a release run passes vacuously. Builds off Windows enable nih-plug's `assert_process_allocs`; on Windows it stays off (its allocator hook hung nih-plug's test setup there), so the check runs on Linux and macOS.
+- **No locks / blocking / I/O / logging** in the audio callback. The kit's pad table is a seqlock read without locking; editor notes arrive through a lock-free ring.
+- **Fixed voice array**: 16 `Voice` instances (`MAX_VOICES`), each owning all 16 exciter structs (allocation-free dispatch).
 - **Denormal + NaN/Inf guards** at every voice boundary; non-finite peak holds sort as quietest within their stealing tier, so a corrupted voice is reclaimed.
-- **Per-buffer parameter setters.** Following the P0 fix, post-chain parameters update once per buffer (not per sample), with audio-rate one-pole smoothers (~20 ms tau, first-call snap) inside `WdfLadderFilter`, `LorenzDrive`, and the master drive / output gain paths.
+- **Per-buffer parameter setters**: post-chain parameters update once per buffer (not per sample), with audio-rate one-pole smoothers (~20 ms, first-call snap) inside the ladder filter, the Lorenz drive, and the master drive and output gain paths.
 
 ## Docs
 
 Active design and implementation references:
 
-- `docs/ARCHITECTURE.md` — as-built architecture, signal chain, and status of claimed work.
-- `docs/BACKLOG.md` — prioritized work tracker (P0–P4) with `[x] fixed`/`[ ]` status and decision banners for scoped-down items.
-- `FABLE-CODE-REVIEW-2026-07-07.md` — the current code review; each fixed finding names its OpenSpec change. The earlier review (2026-05-27) is in `docs/archive/CODE-REVIEW-2026-05-27.md`, superseded.
-- `docs/PRD.md` — product requirements (see §0 for current-state reconciliation).
-- `docs/MASTER-PROMPT.md` — production-hardening agent prompt (see "Current state" banner).
-- `docs/detailed-specs/` — DSP design notes (each file carries an implementation-status banner; treat as design targets, not descriptions of shipped behavior — see ARCHITECTURE.md §9 decision banner).
+- `docs/ARCHITECTURE.md`: as-built architecture, signal chain, and status of claimed work.
+- `docs/BACKLOG.md`: open work only (sound and behaviour items, deferred features, testing and release infrastructure), each with an acceptance check.
+- `openspec/specs/`: the behaviour contract, one spec per capability; `openspec/changes/archive/` holds every change's proposal, design, measurements and tasks.
+- `FABLE-CODE-REVIEW-2026-07-07.md`: the current code review; each fixed finding names its OpenSpec change. The earlier review (2026-05-27) is in `docs/archive/CODE-REVIEW-2026-05-27.md`, superseded.
+- `docs/PRD.md`: product requirements (see §0 for current-state reconciliation).
+- `docs/detailed-specs/`: DSP design notes (each file carries an implementation-status banner; treat them as design targets, not descriptions of shipped behaviour; see ARCHITECTURE.md §9).
 
-Legacy roadmap/evidence notes still live under `.sisyphus/`, but the docs above are the current reference for the shipped surface.
+## Roadmap
 
-## Roadmap (in priority order)
+From `docs/BACKLOG.md`, which has the details and acceptance checks for each item, plus the two larger features planned next.
 
-These are the headlines from `docs/BACKLOG.md`; the file has the full status and rationale per item.
+**Planned features:**
 
-**Shipped:**
+- **Sequencer with per-step locks** (PRD §18): step storage, per-step parameter snapshots, host-transport sync, a sequencer panel and preset persistence.
+- **Full MIDI CC implementation**: today only CC1, CC64, CC120, CC121 and CC123 act. Planned: map any CC to any parameter (MIDI learn), with the mapping saved in presets and projects.
 
-- **P0** — Oversampled clipper, FactoryReverb comb delays, per-sample post-chain setters: fixed 2026-05-27.
-- **P1** — Quality-mode modal density, aliasing regression budgets, held-note automation, parameter smoothing, tempo-synced echo (`sync_rate`).
-- **P2** — MIDI expression (pitch bend / channel + poly pressure / mod wheel), Macros (Mass / Corrosion / Violence / Brightness), Percussion Kit mode, Drone mode, opt-in Lookahead limiter, preset schema migration (v4).
-- **P3** — Dead code sweep, docstring corrections, `render_presets` declared in Cargo, WDF docstring clarification, `midi_to_hz` bound, drive curve constants named.
+**Sound and behaviour:**
 
-**Scoped down (documented decisions, not committed work):**
+- **Release Snap** control for the friction exciters, to bound the snap when a bowed, scraped or dragged note is released.
+- **Env Amount at 0** silences the friction exciters while its help says it flattens the envelope: decide whether to fix the text or the behaviour.
+- **The default patch's decay**: a struck Pipe, I-Beam or Taut Cable rings at the voice's safety clamp for 2–3 s; decide by ear whether it should decay sooner.
+- **MSEG PingPong** loops between the chosen loop stages instead of always Decay → Sustain.
 
-- **Sequencer + per-step locks** (PRD §18) — needs a dedicated module + GUI; deferred from P2.
-- **Effect mode** (audio-in excites the resonator) — needs `AUDIO_IO_LAYOUTS` change and feedback safety design.
-- **MSEG as routable mod source** — folded into the deferred mod-matrix / macro-routing work.
+**Deferred features:**
 
-**Open:**
+- **MSEG as a routable modulation source**, with a mod matrix (PRD §12).
+- **Effect mode** (PRD §9.4): audio input excites the resonator; needs a stereo input and feedback safety.
+- **Output level meter** in the header (today only the diode stage's clip indicator).
 
-- Windows CI lane / bundle smoke automation.
+**Testing and release infrastructure:**
+
 - DAW smoke automation across REAPER / Bitwig / Ardour / Live / FL.
-- GUI interaction / visual regression tests.
+- Visual regression tests for the GUI (screenshot comparison).
 - Persisted Criterion benchmark baselines.
 
 ## Community & Discussions
 
 GitHub Discussions are open for anything that isn't a concrete reproducible bug. Use them before opening an Issue if your topic is in any of these buckets:
 
-- **Questions** — usage, build setup, signal-flow understanding.
-- **Ideas** — feature proposals, preset concepts, parameter-tuning suggestions.
-- **DSP review** — algorithmic critique, modal-synthesis theory, oversampling/aliasing trade-offs.
-- **Architecture discussion** — module boundaries, voice/manager design, post-chain wiring.
+- **Questions**: usage, build setup, signal-flow understanding.
+- **Ideas**: feature proposals, preset concepts, parameter-tuning suggestions.
+- **DSP review**: algorithmic critique, modal-synthesis theory, oversampling/aliasing trade-offs.
+- **Architecture discussion**: module boundaries, voice/manager design, post-chain wiring.
 
 Issues are reserved for **confirmed, reproducible bugs** (steps to reproduce + expected vs. actual). Anything labeled `question`, `idea`, `discussion`, `DSP review`, or `parameter tuning` is more likely to find traction in Discussions than in the issue tracker.
 
 When you post, please distinguish between:
 
-- **Confirmed bugs** — steps to reproduce, host/version, expected vs. actual output.
-- **Subjective sound-design feedback** — "this preset sounds harsh" / "I'd like more warmth here".
-- **DSP theory concerns** — references to specs, papers, or competitive plugins where they apply.
-- **Implementation cleanup** — refactor or readability proposals, ideally with a sketch of the change.
-- **Experimental ideas** — speculative directions worth chewing over before anyone commits to building them.
+- **Confirmed bugs**: steps to reproduce, host/version, expected vs. actual output.
+- **Subjective sound-design feedback**: "this preset sounds harsh" / "I'd like more warmth here".
+- **DSP theory concerns**: references to specs, papers, or competitive plugins where they apply.
+- **Implementation cleanup**: refactor or readability proposals, ideally with a sketch of the change.
+- **Experimental ideas**: speculative directions worth chewing over before anyone commits to building them.

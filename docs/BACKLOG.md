@@ -51,6 +51,12 @@ Each item notes the relevant file(s) and an acceptance check.
 - [ ] **[MISSING] Sequencer with per-step locks** (PRD §18): step storage,
   per-step parameter snapshots, host-transport sync, a GUI panel, preset
   persistence. A dedicated feature change.
+- [ ] **[MISSING] Full MIDI CC implementation.** Only CC1 (mod wheel), CC64
+  (sustain), CC120, CC121 and CC123 act today (`src/lib.rs`); every other CC
+  is ignored. Needs CC-to-parameter mapping with MIDI learn, the mapping saved
+  in presets and projects, and real-time-safe dispatch. *Accept:* any CC can
+  be learned onto any automatable parameter, moves it on held notes, survives
+  a preset and a project round trip, with tests and `no_alloc` coverage.
 - [ ] **[MISSING] Effect mode** (PRD §9.4): audio input excites the resonator.
   Needs a stereo input in `AUDIO_IO_LAYOUTS` (today instrument-only), the
   input threaded into the exciter dispatch, the MIDI exciters gated, and
