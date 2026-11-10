@@ -466,12 +466,12 @@ above the block. Minor, but the doc and tests promise symmetric behavior.
   audible briefly after note_off" but `note_off()` sets `active = false`
   immediately; tails are tracked by `rendering`. The tail-deactivation branch
   redundantly re-assigns `active = false`.
-- **M12. `VoiceManager::note_off` releases only the first matching voice.** Two
+- ~~**M12. `VoiceManager::note_off` releases only the first matching voice.** Two
   note-ons of the same note (host retrigger without note-off, or after a steal)
   leave the second instance sounding until its envelope dies naturally. `voice_id`
   and `channel` are ignored throughout (no MPE per-note pitch bend — only channel
   bend; poly *pressure* is supported, poly *tuning* is not despite comments
-  mentioning it).
+  mentioning it).~~ — FIXED (2026-11-10, [`m12-per-note-expression`](openspec/changes/m12-per-note-expression/proposal.md)): voices store the host's voice ID and channel; note-off, poly pressure, `PolyTuning` (per-note semitones on top of the channel bend) and `Choke` (2 ms fade, then idle) address a voice by ID, else by key and channel, with the oldest-first rule for key-only note-offs. Proven by `note_expression_tests` (7 tests) and `tests/no_alloc.rs::note_expression_is_alloc_free`; plain-MIDI renders are bit-identical for all 16 exciters. Channel MPE (per-channel bend and pressure zones) stays out of scope.
 - ~~**M13. No sustain pedal (CC64), no all-notes-off (CC123) handling** — CC1 is the
   only CC routed (lib.rs:636-638). For a physical-modeling instrument, missing
   sustain-pedal handling is a real playability gap.~~ — FIXED (2026-11-09, branch `claude/nice-mccarthy-9fm1p6`, [`m13-sustain-pedal-and-panic`](openspec/changes/archive/2026-11-09-m13-sustain-pedal-and-panic/proposal.md)): CC64 sustain with a pedal-held stealing tier, CC123 All Notes Off, CC120 All Sound Off (5 ms fade, then voices and tails cleared) and CC121 Reset All Controllers, proven by `midi_control_tests` (11 tests, including an allocation check).
@@ -533,7 +533,7 @@ above the block. Minor, but the doc and tests promise symmetric behavior.
    user bank directory (GUI loads only the embedded `include_dir` factory bank).~~ — FIXED (H5)
 2. ~~Randomizer — fully implemented module, zero integration (no UI, no param).~~ — FIXED (H5)
 3. MSEG PingPong loop — placeholder (C2/H10 above). *(Not covered by the C2 fix; PingPong remains open.)*
-4. ~~Sustain pedal / CC64, all-sound-off~~ (FIXED, M13); MPE per-note bend (M12) still open.
+4. ~~Sustain pedal / CC64, all-sound-off~~ (FIXED, M13); ~~MPE per-note bend~~ (FIXED, M12: per-note tuning by voice ID; channel MPE out of scope).
 5. ~~GUI exposure of brightness, thickness, sync rate, play mode, limiter mode,
    macros (H5).~~ — FIXED
 6. ~~Envelope→strike-position routing promised by `position_envelope` (H9).~~ — FIXED

@@ -31,3 +31,35 @@
 ## Migration Plan
 
 None: no parameter or saved state changes.
+
+## Measurements
+
+### Tests first (task 1.1)
+
+`note_expression_tests` (`src/lib.rs`) on the code before this change: six scenario tests fail, each for the expected reason, and the plain-MIDI reference passes.
+
+| Test | Scenario | Before |
+|---|---|---|
+| `note_off_releases_the_addressed_voice` | Overlapping notes on one key | fails: the older voice (ID 1) is released |
+| `plain_midi_note_off_releases_the_oldest` | Plain MIDI host | passes (reference) |
+| `tuning_retunes_only_the_addressed_note` | One note of a chord bent | fails: E moved ×1.00000, expected ×1.05946 (`PolyTuning` dropped) |
+| `tuning_adds_to_the_channel_bend` | Tuning plus channel bend | fails: ×1.12246 (bend only), expected ×1.18921 |
+| `pressure_reaches_only_the_addressed_voice` | Pressure on one of two same-key notes | fails: ID 1 got 0.8 (key match, first voice) |
+| `choke_fades_within_two_ms_and_frees_the_voice` | Choked ringing note | fails: still sounding at sample 193 (`Choke` dropped) |
+| `choke_without_matching_id_chokes_the_key` | (fallback for chokes) | fails: key 60 still sounds |
+
+*As built (test):* the voices are identified by start order and note rather than by stored ID, so the tests compile against the old code. The `tests/no_alloc.rs` test (`note_expression_is_alloc_free`) needs the new manager API, so it was written with it in task 3.2 rather than run red first.
+
+### After (tasks 2.1–3.2)
+
+All seven pass, and `note_expression_is_alloc_free` passes in debug (allocation checker active). The choke test passes with the linear fade of decision 4: on a ringing Pipe C3 the output is zero at sample 96 (2 ms), and no step after the choke is larger than the largest step in the 2 ms before it, for both a key choke and an ID choke.
+
+*As built (API):* `VoiceManager::note_on_addressed(NoteAddress, …)` takes the address; `note_on_with_controls` and the key-only `note_off` / `set_poly_pressure` stay for existing callers and tests. `handle_note_event` routes every note event through the addressed versions, so a plain-MIDI note-off now matches key **and channel** (before: key on any channel). Single-channel hosts see no difference.
+
+### Defaults unchanged
+
+`print_48k_exciter_render_hashes` (one note per exciter, no voice IDs), this change against a clean worktree of the previous commit: identical for all 16 exciters on gnu.
+
+### CPU
+
+`voice_manager_sixteen_voices` group, this change against a clean worktree of the previous commit, five alternating runs of both frozen binaries, median of per-run ratios: plain 1.001×, render 1.010×, bent 1.021×, cable dynamics 1.025×, cable static 0.992× (per-run ratios 0.955–1.051): noise. The choke check is one well-predicted branch per voice sample; the fade itself is `#[cold] #[inline(never)]`.

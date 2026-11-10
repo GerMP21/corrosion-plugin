@@ -238,6 +238,19 @@ Idle ──note_on──▶ Active(rendering) ──note_off──▶ Tail(rende
   pedal, mod wheel, bend and pressure), the post chain and the lookahead
   limiters in place. CC121 lifts the pedal and returns mod wheel, bend and
   channel pressure to rest (`m13-sustain-pedal-and-panic`).
+- **Note addressing** (`m12-per-note-expression`): each voice stores the host's
+  `voice_id` and `channel` from its note-on (`VoiceManager::note_on_addressed`,
+  `NoteAddress`). Note-off, `PolyPressure`, `PolyTuning` and `Choke` share one
+  rule: the voice with the event's voice ID, or, when the event has none or no
+  voice has it, key and channel (note-off: the oldest held voice; pressure: the
+  first sounding voice; tuning and choke: every sounding voice on that key).
+  Per-note tuning is stored on the voice and added to the channel bend before
+  `pitch_bend_semitones_to_factor` (±24 semitones together), so it retunes
+  through the same exact path and a held value is skipped like a held bend.
+  A choke releases the note and fades the voice linearly over
+  `CHOKE_FADE_FRAMES` (96 at 48 kHz, 2 ms at any rate), then resets it to idle;
+  the fade is an out-of-line branch in the per-sample voice loop. Channel MPE
+  is out of scope: channel bend, pressure and CC1 stay global.
 - **Object per note** (`handle_note_event`): in Tonal and Drone play modes the
   Object parameter picks the object. In **Kit** mode the note does
   (`note_to_kit_object`): 10-note slots in object order from MIDI 24, repeating

@@ -534,7 +534,13 @@ pub(crate) fn drive_shape(sample: f32, drive: f32) -> f32 {
 /// or perform blocking operations.
 fn handle_note_event(plugin: &mut Corrosion, event: NoteEvent<()>) {
     match event {
-        NoteEvent::NoteOn { note, velocity, .. } => {
+        NoteEvent::NoteOn {
+            note,
+            velocity,
+            voice_id,
+            channel,
+            ..
+        } => {
             // Decide which object family this note triggers. In Kit mode the
             // note range picks the family; in Tonal/Drone the global object
             // param wins. PRD §9.2 / §9.3.
@@ -705,7 +711,8 @@ fn handle_note_event(plugin: &mut Corrosion, event: NoteEvent<()>) {
 
             // Trigger note-on in voice manager with all parameters
             // The voice manager handles polyphony and voice allocation
-            plugin.voice_manager.note_on_with_controls(
+            plugin.voice_manager.note_on_addressed(
+                voice::manager::NoteAddress { voice_id, channel },
                 note,
                 note_event_velocity_to_voice_velocity(velocity),
                 profile,
@@ -716,9 +723,41 @@ fn handle_note_event(plugin: &mut Corrosion, event: NoteEvent<()>) {
                 controls,
             );
         }
-        NoteEvent::NoteOff { note, .. } => {
-            // Release the voice playing this note
-            plugin.voice_manager.note_off(note);
+        // Note-off, poly pressure, per-note tuning and choke address a voice
+        // by its voice ID when the host gives one, else by key and channel
+        // (`m12-per-note-expression`).
+        NoteEvent::NoteOff {
+            note,
+            voice_id,
+            channel,
+            ..
+        } => {
+            plugin
+                .voice_manager
+                .note_off_addressed(voice::manager::NoteAddress { voice_id, channel }, note);
+        }
+        NoteEvent::PolyTuning {
+            note,
+            voice_id,
+            channel,
+            tuning,
+            ..
+        } => {
+            plugin.voice_manager.set_note_tuning(
+                voice::manager::NoteAddress { voice_id, channel },
+                note,
+                tuning,
+            );
+        }
+        NoteEvent::Choke {
+            note,
+            voice_id,
+            channel,
+            ..
+        } => {
+            plugin
+                .voice_manager
+                .choke(voice::manager::NoteAddress { voice_id, channel }, note);
         }
         // Channel pitch bend — host delivers normalized 0.0..=1.0 (0.5 neutral).
         // Convert to semitones using the standard ±2 default range so a plain
@@ -731,9 +770,19 @@ fn handle_note_event(plugin: &mut Corrosion, event: NoteEvent<()>) {
         NoteEvent::MidiChannelPressure { pressure, .. } => {
             plugin.voice_manager.set_channel_pressure(pressure);
         }
-        // Per-note aftertouch — routes only to the matching voice.
-        NoteEvent::PolyPressure { note, pressure, .. } => {
-            plugin.voice_manager.set_poly_pressure(note, pressure);
+        // Per-note aftertouch — routes only to the addressed voice.
+        NoteEvent::PolyPressure {
+            note,
+            voice_id,
+            channel,
+            pressure,
+            ..
+        } => {
+            plugin.voice_manager.set_poly_pressure_addressed(
+                voice::manager::NoteAddress { voice_id, channel },
+                note,
+                pressure,
+            );
         }
         // CC1 mod wheel, CC64 sustain, and the channel-mode messages CC120,
         // CC121 and CC123 are routed; other CCs reach the plugin and are
@@ -3840,5 +3889,290 @@ mod voice_mix_dc_tests {
                 sine_gain_db(100.0, rate),
             );
         }
+    }
+}
+
+/// `m12-per-note-expression`: notes addressed by voice ID, per-note tuning,
+/// per-note pressure and chokes.
+#[cfg(test)]
+mod note_expression_tests {
+    use crate::offline::PresetRenderer;
+    use crate::params::CorrosionParams;
+    use crate::voice::Voice;
+    use nih_plug::prelude::NoteEvent;
+
+    const SR: u32 = 48_000;
+
+    fn plugin() -> PresetRenderer {
+        PresetRenderer::from_params(CorrosionParams::default())
+    }
+
+    fn on(plugin: &mut crate::Corrosion, note: u8, voice_id: Option<i32>) {
+        super::handle_note_event(
+            plugin,
+            NoteEvent::NoteOn {
+                timing: 0,
+                voice_id,
+                channel: 0,
+                note,
+                velocity: 1.0,
+            },
+        );
+    }
+
+    fn off(plugin: &mut crate::Corrosion, note: u8, voice_id: Option<i32>) {
+        super::handle_note_event(
+            plugin,
+            NoteEvent::NoteOff {
+                timing: 0,
+                voice_id,
+                channel: 0,
+                note,
+                velocity: 0.0,
+            },
+        );
+    }
+
+    /// Advance the voices `frames` samples (no post chain), returning the
+    /// voice mix.
+    fn run(plugin: &mut crate::Corrosion, frames: usize) -> Vec<(f32, f32)> {
+        (0..frames)
+            .map(|_| plugin.voice_manager.process_sample_stereo(SR, 1.0))
+            .collect()
+    }
+
+    /// Sounding voices on `note`, oldest first.
+    fn voices_on(plugin: &crate::Corrosion, note: u8) -> Vec<&Voice> {
+        let mut voices: Vec<&Voice> = plugin
+            .voice_manager
+            .voices_for_test()
+            .iter()
+            .filter(|v| v.is_rendering() && v.note() == note)
+            .collect();
+        voices.sort_by_key(|v| v.start_frame());
+        voices
+    }
+
+    /// Two notes on key 60, started 10 ms apart with voice IDs 1 then 2.
+    fn overlapping(renderer: &mut PresetRenderer, ids: (Option<i32>, Option<i32>)) {
+        let plugin = renderer.plugin_mut();
+        on(plugin, 60, ids.0);
+        run(plugin, 480);
+        on(plugin, 60, ids.1);
+        run(plugin, 480);
+    }
+
+    /// Spec "Overlapping notes on one key".
+    #[test]
+    fn note_off_releases_the_addressed_voice() {
+        let mut renderer = plugin();
+        overlapping(&mut renderer, (Some(1), Some(2)));
+        let plugin = renderer.plugin_mut();
+        off(plugin, 60, Some(2));
+        let voices = voices_on(plugin, 60);
+        assert_eq!(voices.len(), 2, "both notes still sound (one as a tail)");
+        assert!(voices[0].is_active(), "ID 1 (older) keeps sounding");
+        assert!(!voices[1].is_active(), "ID 2 (newer) is released");
+    }
+
+    /// Spec "Plain MIDI host": without IDs the oldest held voice on the key
+    /// is released.
+    #[test]
+    fn plain_midi_note_off_releases_the_oldest() {
+        let mut renderer = plugin();
+        overlapping(&mut renderer, (None, None));
+        let plugin = renderer.plugin_mut();
+        off(plugin, 60, None);
+        let voices = voices_on(plugin, 60);
+        assert!(!voices[0].is_active(), "the older voice is released");
+        assert!(voices[1].is_active(), "the newer voice keeps sounding");
+    }
+
+    /// Each mode frequency of the sounding voice on `note`.
+    fn mode_frequencies(plugin: &crate::Corrosion, note: u8) -> Vec<f32> {
+        voices_on(plugin, note)[0]
+            .resonator_for_test()
+            .mode_specs_for_test()
+            .map(|spec| spec.frequency_hz)
+            .collect()
+    }
+
+    fn tuning(plugin: &mut crate::Corrosion, note: u8, voice_id: Option<i32>, semitones: f32) {
+        super::handle_note_event(
+            plugin,
+            NoteEvent::PolyTuning {
+                timing: 0,
+                voice_id,
+                channel: 0,
+                note,
+                tuning: semitones,
+            },
+        );
+    }
+
+    fn assert_ratio(before: &[f32], after: &[f32], ratio: f32, what: &str) {
+        assert_eq!(before.len(), after.len(), "{what}: mode count changed");
+        for (i, (b, a)) in before.iter().zip(after).enumerate() {
+            let got = a / b;
+            assert!(
+                (got / ratio - 1.0).abs() < 1e-4,
+                "{what}: mode {i} moved ×{got:.5}, expected ×{ratio:.5}"
+            );
+        }
+    }
+
+    /// Spec "One note of a chord bent".
+    #[test]
+    fn tuning_retunes_only_the_addressed_note() {
+        let mut renderer = plugin();
+        let plugin = renderer.plugin_mut();
+        for (note, id) in [(60, 1), (64, 2), (67, 3)] {
+            on(plugin, note, Some(id));
+        }
+        run(plugin, 64);
+        let before: Vec<Vec<f32>> = [60, 64, 67]
+            .iter()
+            .map(|&n| mode_frequencies(plugin, n))
+            .collect();
+        tuning(plugin, 64, Some(2), 1.0);
+        let semitone = 2.0_f32.powf(1.0 / 12.0);
+        assert_ratio(&before[1], &mode_frequencies(plugin, 64), semitone, "E");
+        assert_ratio(&before[0], &mode_frequencies(plugin, 60), 1.0, "C");
+        assert_ratio(&before[2], &mode_frequencies(plugin, 67), 1.0, "G");
+    }
+
+    /// Spec "Tuning plus channel bend": +1 per-note and +2 channel bend
+    /// sound 3 semitones up, in either order.
+    #[test]
+    fn tuning_adds_to_the_channel_bend() {
+        for tuning_first in [true, false] {
+            let mut renderer = plugin();
+            let plugin = renderer.plugin_mut();
+            on(plugin, 60, Some(7));
+            run(plugin, 64);
+            let before = mode_frequencies(plugin, 60);
+            let bend = NoteEvent::MidiPitchBend {
+                timing: 0,
+                channel: 0,
+                value: 1.0, // +2 semitones
+            };
+            if tuning_first {
+                tuning(plugin, 60, Some(7), 1.0);
+                super::handle_note_event(plugin, bend);
+            } else {
+                super::handle_note_event(plugin, bend);
+                tuning(plugin, 60, Some(7), 1.0);
+            }
+            assert_ratio(
+                &before,
+                &mode_frequencies(plugin, 60),
+                2.0_f32.powf(3.0 / 12.0),
+                if tuning_first {
+                    "tuning then bend"
+                } else {
+                    "bend then tuning"
+                },
+            );
+        }
+    }
+
+    /// Spec "Pressure on one of two same-key notes".
+    #[test]
+    fn pressure_reaches_only_the_addressed_voice() {
+        let mut renderer = plugin();
+        overlapping(&mut renderer, (Some(1), Some(2)));
+        let plugin = renderer.plugin_mut();
+        // ID 2 is the newer voice, so a key-only match (the older one) is
+        // distinguishable from the ID match.
+        super::handle_note_event(
+            plugin,
+            NoteEvent::PolyPressure {
+                timing: 0,
+                voice_id: Some(2),
+                channel: 0,
+                note: 60,
+                pressure: 0.8,
+            },
+        );
+        let voices = voices_on(plugin, 60);
+        assert_eq!(voices[0].poly_pressure_for_test(), 0.0, "ID 1 responded");
+        assert!(
+            (voices[1].poly_pressure_for_test() - 0.8).abs() < 1e-6,
+            "ID 2 didn't respond"
+        );
+    }
+
+    /// Largest sample-to-sample step of either channel.
+    fn largest_step(frames: &[(f32, f32)]) -> f32 {
+        frames
+            .windows(2)
+            .map(|w| (w[1].0 - w[0].0).abs().max((w[1].1 - w[0].1).abs()))
+            .fold(0.0, f32::max)
+    }
+
+    /// Spec "Choked ringing note": a ringing Pipe note (the default patch),
+    /// choked by key and by voice ID.
+    #[test]
+    fn choke_fades_within_two_ms_and_frees_the_voice() {
+        for voice_id in [None, Some(5)] {
+            let mut renderer = plugin();
+            let plugin = renderer.plugin_mut();
+            on(plugin, 48, voice_id);
+            let ring = run(plugin, 4_800);
+            let before = largest_step(&ring[ring.len() - 96..]);
+            assert!(before > 1e-4, "the note isn't ringing");
+            super::handle_note_event(
+                plugin,
+                NoteEvent::Choke {
+                    timing: 0,
+                    voice_id,
+                    channel: 0,
+                    note: 48,
+                },
+            );
+            let mut after = vec![*ring.last().unwrap()];
+            after.extend(run(plugin, 192));
+            let silent_from = after
+                .iter()
+                .rposition(|&(l, r)| l != 0.0 || r != 0.0)
+                .map_or(0, |last| last + 1);
+            assert!(
+                silent_from <= 97,
+                "{voice_id:?}: output reaches zero at sample {silent_from} (bound 96, 2 ms)"
+            );
+            let step = largest_step(&after);
+            assert!(
+                step <= before,
+                "{voice_id:?}: step {step:.5} after the choke, {before:.5} before"
+            );
+            assert!(
+                voices_on(plugin, 48).is_empty(),
+                "{voice_id:?}: the voice isn't idle"
+            );
+        }
+    }
+
+    /// A choke for a key with no matching voice ID chokes every voice on the
+    /// key and channel, and leaves other keys alone.
+    #[test]
+    fn choke_without_matching_id_chokes_the_key() {
+        let mut renderer = plugin();
+        let plugin = renderer.plugin_mut();
+        on(plugin, 60, Some(1));
+        on(plugin, 60, Some(2));
+        on(plugin, 64, Some(3));
+        run(plugin, 480);
+        super::handle_note_event(
+            plugin,
+            NoteEvent::Choke {
+                timing: 0,
+                voice_id: Some(99),
+                channel: 0,
+                note: 60,
+            },
+        );
+        run(plugin, 192);
+        assert!(voices_on(plugin, 60).is_empty(), "key 60 still sounds");
+        assert!(voices_on(plugin, 64)[0].is_active(), "key 64 was choked");
     }
 }

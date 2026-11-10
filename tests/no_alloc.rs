@@ -9,7 +9,7 @@
 
 use assert_no_alloc::assert_no_alloc;
 use corrosion::dsp::ModalProfileId;
-use corrosion::voice::manager::VoiceManager;
+use corrosion::voice::manager::{NoteAddress, VoiceManager};
 use corrosion::voice::{VoiceControls, MAX_VOICES};
 
 const SAMPLE_RATE: u32 = 48_000;
@@ -222,6 +222,59 @@ fn live_expression_is_alloc_free() {
             );
             run(&mut manager, 128);
         }
+    });
+}
+
+/// Spec "Expression events in a checked zone" (`m12-per-note-expression`):
+/// notes with voice IDs get tuning, pressure, note-offs and chokes, and a
+/// fresh addressed note-on, all inside the checked zone.
+#[test]
+fn note_expression_is_alloc_free() {
+    let mut manager = VoiceManager::new();
+    let address = |id: i32| NoteAddress {
+        voice_id: Some(id),
+        channel: 0,
+    };
+    for (id, note) in [(1, 60), (2, 60), (3, 64), (4, 67)] {
+        manager.note_on_addressed(
+            address(id),
+            note,
+            100.0,
+            ModalProfileId::Plate,
+            1.0,
+            0.0,
+            0.0,
+            1,
+            controls(1.0),
+        );
+    }
+    run(&mut manager, 512);
+    assert_no_alloc(|| {
+        for step in 0..24 {
+            let semitones = step as f32 / 4.0 - 3.0;
+            manager.set_note_tuning(address(3), 64, semitones);
+            manager.set_poly_pressure_addressed(address(1), 60, step as f32 / 24.0);
+            manager.set_pitch_bend_semitones(semitones * 0.5);
+            run(&mut manager, 64);
+        }
+        manager.note_off_addressed(address(2), 60);
+        manager.note_off_addressed(NoteAddress::default(), 67);
+        run(&mut manager, 256);
+        manager.choke(address(1), 60);
+        manager.choke(address(99), 64);
+        run(&mut manager, 256);
+        manager.note_on_addressed(
+            address(5),
+            72,
+            100.0,
+            ModalProfileId::Pipe,
+            1.0,
+            0.0,
+            0.0,
+            2,
+            controls(1.0),
+        );
+        run(&mut manager, 256);
     });
 }
 

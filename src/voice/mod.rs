@@ -595,11 +595,25 @@ pub struct Voice {
     poly_pressure: f32,
     /// CC1 mod wheel, `0.0..=1.0`. Routed to brightness boost.
     mod_wheel: f32,
+
+    // Note addressing (`m12-per-note-expression`).
+    /// The host's voice ID for the note that started this voice, if any.
+    voice_id: Option<i32>,
+    /// The MIDI channel of the note that started this voice.
+    channel: u8,
+    /// Per-note tuning in semitones (`PolyTuning`), added to the channel
+    /// bend.
+    note_tuning_semitones: f32,
+    /// Samples left in a choke fade; 0 when not choking.
+    choke_remaining: u32,
 }
 
 const TAIL_ENERGY_THRESHOLD: f32 = 1e-4;
 /// Frames of near-silence before a released tail deactivates, at 48 kHz.
 const TAIL_DEACTIVATE_FRAMES: u32 = 4800;
+/// Length of a host choke's fade to silence: 2 ms at 48 kHz
+/// (`m12-per-note-expression`).
+const CHOKE_FADE_FRAMES: u32 = 96;
 /// Per-sample peak-hold decay, at 48 kHz.
 const PEAK_DECAY: f32 = 0.999;
 /// Drive level per exciter ID (index 0 unused): the force multiplier that
@@ -676,6 +690,7 @@ struct VoiceRateConstants {
     governor_attack: f32,
     governor_release: f32,
     pressure_smoothing: f32,
+    choke_frames: u32,
 }
 
 /// One-pole follower coefficient for time constant `seconds`, at 48 kHz.
@@ -699,6 +714,7 @@ impl VoiceRateConstants {
             governor_attack: rate::smoother(follower_coefficient(GOVERNOR_ATTACK_S), r),
             governor_release: rate::smoother(follower_coefficient(GOVERNOR_RELEASE_S), r),
             pressure_smoothing: rate::smoother(follower_coefficient(PRESSURE_SMOOTHING_S), r),
+            choke_frames: rate::frames(CHOKE_FADE_FRAMES, r).max(1),
         }
     }
 }
@@ -778,6 +794,11 @@ impl Voice {
             channel_pressure: 0.0,
             poly_pressure: 0.0,
             mod_wheel: 0.0,
+
+            voice_id: None,
+            channel: 0,
+            note_tuning_semitones: 0.0,
+            choke_remaining: 0,
         }
     }
 
@@ -1100,9 +1121,13 @@ impl Voice {
         // pressure and mod wheel persist for the same reason; poly pressure
         // is per-note and must reset.
         self.poly_pressure = 0.0;
-        let bend_factor = pitch_bend_semitones_to_factor(self.pitch_bend_semitones);
-        self.resonator
-            .set_pitch_bend_factor(bend_factor, self.sample_rate as u32);
+        // A new note starts untuned, unaddressed and not choking; the manager
+        // sets the address right after (`set_address`).
+        self.note_tuning_semitones = 0.0;
+        self.voice_id = None;
+        self.channel = 0;
+        self.choke_remaining = 0;
+        self.apply_pitch();
         self.configure_envelope(exciter_type, velocity_norm, controls);
 
         // The global Speed and Roughness scale the dedicated exciter controls
@@ -1326,9 +1351,72 @@ impl Voice {
     /// `ModalResonator::set_pitch_bend_factor`. Allocation-free.
     pub fn set_pitch_bend_semitones(&mut self, semitones: f32) {
         self.pitch_bend_semitones = semitones;
-        let factor = pitch_bend_semitones_to_factor(semitones);
+        self.apply_pitch();
+    }
+
+    /// Apply a per-note tuning (`PolyTuning`) in semitones to this voice, on
+    /// top of the channel bend. Allocation-free.
+    pub fn set_note_tuning_semitones(&mut self, semitones: f32) {
+        if semitones.is_finite() {
+            self.note_tuning_semitones = semitones;
+            self.apply_pitch();
+        }
+    }
+
+    /// Retune the bank for the channel bend plus the per-note tuning
+    /// (clamped to ±24 semitones together). A factor that hasn't changed is
+    /// skipped by `set_pitch_bend_factor`.
+    fn apply_pitch(&mut self) {
+        let factor =
+            pitch_bend_semitones_to_factor(self.pitch_bend_semitones + self.note_tuning_semitones);
         self.resonator
             .set_pitch_bend_factor(factor, self.sample_rate as u32);
+    }
+
+    /// Record the host's address of the note that started this voice.
+    pub fn set_address(&mut self, voice_id: Option<i32>, channel: u8) {
+        self.voice_id = voice_id;
+        self.channel = channel;
+    }
+
+    /// The host's voice ID of this voice's note, if it gave one.
+    pub fn voice_id(&self) -> Option<i32> {
+        self.voice_id
+    }
+
+    /// The MIDI channel of this voice's note.
+    pub fn channel(&self) -> u8 {
+        self.channel
+    }
+
+    /// Host choke: release the note and fade the voice to silence over
+    /// `CHOKE_FADE_FRAMES` (2 ms), then return it to idle. No-op on an idle
+    /// or already-choking voice.
+    pub fn choke(&mut self) {
+        if !self.rendering || self.choke_remaining != 0 {
+            return;
+        }
+        self.note_off();
+        self.choke_remaining = self.rate.choke_frames;
+    }
+
+    /// Whether the voice is fading out after a choke.
+    pub fn is_choking(&self) -> bool {
+        self.choke_remaining != 0
+    }
+
+    /// One sample of the choke fade: the gain for this sample, linear from
+    /// just under 1 down to 0 on the last sample, after which the voice is
+    /// idle. Out of line: it only runs for 2 ms after a choke.
+    #[cold]
+    #[inline(never)]
+    fn choke_gain(&mut self) -> f32 {
+        self.choke_remaining -= 1;
+        let gain = self.choke_remaining as f32 / self.rate.choke_frames as f32;
+        if self.choke_remaining == 0 {
+            self.reset();
+        }
+        gain
     }
 
     /// Update channel pressure (`MidiChannelPressure`) for this voice.
@@ -1341,6 +1429,12 @@ impl Voice {
     #[inline]
     pub fn set_poly_pressure(&mut self, value: f32) {
         self.poly_pressure = value.clamp(0.0, 1.0);
+    }
+
+    /// Test-only: the voice's per-note (poly) pressure.
+    #[cfg(test)]
+    pub(crate) fn poly_pressure_for_test(&self) -> f32 {
+        self.poly_pressure
     }
 
     /// Update CC1 mod wheel for this voice (channel-wide expression source).
@@ -1443,6 +1537,9 @@ impl Voice {
         self.channel_pressure = 0.0;
         self.poly_pressure = 0.0;
         self.mod_wheel = 0.0;
+        self.note_tuning_semitones = 0.0;
+        self.voice_id = None;
+        self.choke_remaining = 0;
     }
 
     pub fn is_rendering(&self) -> bool {
@@ -1764,6 +1861,9 @@ impl Voice {
             self.frames_below_threshold = 0;
         }
 
+        if self.choke_remaining != 0 {
+            return flushed * self.choke_gain();
+        }
         flushed
     }
 
@@ -1855,6 +1955,10 @@ impl Voice {
             self.frames_below_threshold = 0;
         }
 
+        if self.choke_remaining != 0 {
+            let gain = self.choke_gain();
+            return (flushed_left * gain, flushed_right * gain);
+        }
         (flushed_left, flushed_right)
     }
 }
