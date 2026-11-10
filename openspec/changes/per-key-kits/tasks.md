@@ -28,7 +28,7 @@
 
 ## 4. Factory kits
 
-- [ ] 4.1 Ten drum kits in `presets::factory` on the General MIDI layout, levelled, every pad meeting the quality floor; regenerate `presets/factory/drums/`
+- [x] 4.1 Ten drum kits in `presets::factory` on the General MIDI layout, levelled, every pad meeting the quality floor; regenerate `presets/factory/drums/`
 
 ## 5. Docs and close-out
 

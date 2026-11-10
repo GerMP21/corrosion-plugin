@@ -317,3 +317,26 @@ fn a_pad_round_trips_through_its_parameters() {
     let again = KitPad::from_params(38, &pad.params(), pad.tune, pad.level_db);
     assert_eq!(again, pad);
 }
+
+/// A pad's level scales its output: −36 dB plays about 12 dB under
+/// −24 dB. (Both are under the diode stage's knee; a pad near full scale is
+/// compressed by the shared post chain, so a level step there moves the
+/// output less.)
+#[test]
+fn a_pads_level_scales_its_output() {
+    let rms = |level_db: f32| {
+        let mut pad = pad_from(&mallet_on_tank(), 36, 0);
+        pad.level_db = level_db;
+        let out = render(kit_params(&bow_on_pipe_kit(), &[pad]), 36, 24_000);
+        (out.iter()
+            .map(|&(l, r)| (l * l + r * r) as f64)
+            .sum::<f64>()
+            / out.len() as f64)
+            .sqrt()
+    };
+    let drop_db = 20.0 * (rms(-24.0) / rms(-36.0)).log10();
+    assert!(
+        drop_db > 10.0,
+        "12 dB less pad level dropped only {drop_db:.2} dB"
+    );
+}

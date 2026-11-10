@@ -1956,7 +1956,9 @@ impl Voice {
         let clamped_right = boosted_right.clamp(-1.0, 1.0);
         // Apply expression gain to both channels equally. Mirror of the mono
         // path; pressure/CC1 should sound balanced across the stereo field.
-        let exp_gain = self.expression_gain();
+        // A kit pad's level applies here too (`per-key-kits`); 1.0 for
+        // every other voice, which leaves the samples bit-identical.
+        let exp_gain = self.expression_gain() * self.pad_gain;
         let gained_left = clamped_left * exp_gain;
         let gained_right = clamped_right * exp_gain;
         const DENORMAL_FLUSH: f32 = 1e-20;

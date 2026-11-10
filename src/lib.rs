@@ -2580,10 +2580,13 @@ mod c5_measurements {
     #[test]
     #[ignore]
     fn preset_levels_are_sane() {
+        // Kits are silent on C4; their pads are levelled one by one
+        // (`presets::factory::tests::every_drum_pad_meets_the_quality_floor`).
         let levels: Vec<(String, f32, f32, usize)> = factory_preset_paths()
             .into_iter()
-            .map(|path| {
-                let preset = Preset::load(&path).unwrap();
+            .map(|path| Preset::load(&path).unwrap())
+            .filter(|preset| preset.play_mode != crate::params::PlayMode::Kit.to_int())
+            .map(|preset| {
                 let notes = [crate::offline::OfflineNote::on(0, 60, 1.0)];
                 let frames =
                     crate::offline::render_preset_pre_limiter(&preset, &notes, SAMPLE_RATE, 2.0);

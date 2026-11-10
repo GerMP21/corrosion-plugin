@@ -13,6 +13,7 @@
 
 pub mod character;
 mod curated;
+mod drums;
 mod experimental;
 mod levels;
 pub mod measure;
@@ -36,6 +37,15 @@ pub const CURATED_FOLDERS: [&str; 5] = ["bass", "lead", "chords", "drones", "per
 
 /// The folder of the generated exciter × resonator grid.
 pub const EXPERIMENTAL_FOLDER: &str = "experimental";
+
+/// The folder of the drum kits (`per-key-kits`) and how many it holds.
+pub const DRUMS_FOLDER: &str = "drums";
+pub const DRUM_KIT_COUNT: usize = 10;
+
+pub use drums::{
+    CLAP, CLOSED_HAT, CRASH, HIGH_TOM, KICK, LOW_TOM, MID_TOM, OPEN_HAT, PEDAL_HAT, RIDE,
+    SIDE_STICK, SNARE,
+};
 
 /// How many presets each curated folder holds.
 pub const CURATED_FOLDER_SIZE: usize = 12;
@@ -108,6 +118,18 @@ pub fn curated_presets() -> Vec<FactoryPreset> {
         .collect()
 }
 
+/// The drum kits, their pads unlevelled (level 0 dB), in browser order.
+pub fn drum_kits() -> Vec<FactoryPreset> {
+    drums::kits()
+        .into_iter()
+        .map(|preset| FactoryPreset {
+            folder: DRUMS_FOLDER.to_string(),
+            slug: slug(&preset.name),
+            preset,
+        })
+        .collect()
+}
+
 /// The experimental preset for one pair, drawn with seed try `try_index`,
 /// unlevelled.
 pub fn experimental_entry(exciter: i32, object: Object, try_index: u32) -> FactoryPreset {
@@ -119,11 +141,23 @@ pub fn experimental_entry(exciter: i32, object: Object, try_index: u32) -> Facto
     }
 }
 
-/// Every factory preset as the seeder writes it: the curated folders, then
-/// the experimental grid (by exciter, then object), each with its stored
-/// level and, for experimental presets, its stored seed try.
+/// Every factory preset as the seeder writes it: the curated folders, the
+/// drum kits, then the experimental grid (by exciter, then object), each
+/// with its stored level (a kit's per pad) and, for experimental presets,
+/// its stored seed try.
 pub fn bank() -> Vec<FactoryPreset> {
     let mut bank = curated_presets();
+    for mut entry in drum_kits() {
+        let path = entry.relative_path();
+        if let Some(kit) = entry.preset.kit.as_mut() {
+            for pad in &mut kit.pads {
+                if let Some(level_db) = levels::stored_pad(&path, pad.key) {
+                    pad.level_db = level_db;
+                }
+            }
+        }
+        bank.push(entry);
+    }
     for exciter in 1..=EXCITER_COUNT {
         for object in 0..OBJECT_COUNT {
             let object = Object::from_int(object);
@@ -238,11 +272,19 @@ impl FloorReport {
 }
 
 fn floor_notes() -> [OfflineNote; 1] {
-    [OfflineNote::on(0, FLOOR_NOTE, FLOOR_VELOCITY)]
+    floor_notes_at(FLOOR_NOTE)
 }
 
 fn headroom_notes() -> [OfflineNote; 1] {
-    [OfflineNote::on(0, FLOOR_NOTE, HEADROOM_VELOCITY)]
+    headroom_notes_at(FLOOR_NOTE)
+}
+
+fn floor_notes_at(note: u8) -> [OfflineNote; 1] {
+    [OfflineNote::on(0, note, FLOOR_VELOCITY)]
+}
+
+fn headroom_notes_at(note: u8) -> [OfflineNote; 1] {
+    [OfflineNote::on(0, note, HEADROOM_VELOCITY)]
 }
 
 fn frames() -> usize {
@@ -270,9 +312,20 @@ fn rms(frames: &[(f32, f32)]) -> f32 {
 /// Render `preset`'s floor note (a held middle C, 2 s) and the same note at
 /// full velocity, and measure them.
 pub fn measure_floor(preset: &Preset) -> FloorReport {
-    let rendered = PresetRenderer::new(preset).render(&floor_notes(), FLOOR_SAMPLE_RATE, frames());
-    let full =
-        render_preset_pre_limiter(preset, &headroom_notes(), FLOOR_SAMPLE_RATE, FLOOR_SECONDS);
+    measure_floor_at(preset, FLOOR_NOTE)
+}
+
+/// The floor measurements with `note` held instead of middle C (a drum
+/// pad's key).
+pub fn measure_floor_at(preset: &Preset, note: u8) -> FloorReport {
+    let rendered =
+        PresetRenderer::new(preset).render(&floor_notes_at(note), FLOOR_SAMPLE_RATE, frames());
+    let full = render_preset_pre_limiter(
+        preset,
+        &headroom_notes_at(note),
+        FLOOR_SAMPLE_RATE,
+        FLOOR_SECONDS,
+    );
     let ceiling = preset.extra.analog_ceiling;
     FloorReport {
         finite: rendered
@@ -332,6 +385,74 @@ fn allowed_peak(frames: &[(f32, f32)]) -> f32 {
     levels.sort_by(f32::total_cmp);
     let allowed = (levels.len() as f32 * MAX_CEILING_FRACTION) as usize;
     levels[levels.len() - 1 - allowed.min(levels.len() - 1)]
+}
+
+/// The kit `preset` with only its pad on `key` (a pad's floor is measured
+/// alone).
+pub fn pad_alone(preset: &Preset, key: u8) -> Preset {
+    let mut alone = preset.clone();
+    if let Some(kit) = alone.kit.as_mut() {
+        kit.pads.retain(|p| p.key == key);
+    }
+    alone
+}
+
+/// The range a drum pad's level may take.
+pub const PAD_LEVEL_RANGE_DB: std::ops::RangeInclusive<f32> = -40.0..=60.0;
+
+/// Set the level of the pad on `key` of the kit `preset` so the pad, held
+/// alone on its key, sits at [`TARGET_RMS`] with the full-velocity headroom
+/// of [`level`], and return its floor measurements. The pad's gain comes
+/// before the shared post chain, which may not be linear, so the level is
+/// found in a few correction steps; it is rounded to 0.1 dB.
+pub fn level_pad(preset: &mut Preset, key: u8) -> FloorReport {
+    let ceiling = preset.extra.analog_ceiling;
+    let set_level = |preset: &mut Preset, level_db: f32| {
+        if let Some(pad) = preset
+            .kit
+            .as_mut()
+            .and_then(|kit| kit.pads.iter_mut().find(|p| p.key == key))
+        {
+            pad.level_db = level_db;
+        }
+    };
+    let mut level_db = 0.0f32;
+    for _ in 0..5 {
+        set_level(preset, level_db);
+        let alone = pad_alone(preset, key);
+        let pre = render_preset_pre_limiter(
+            &alone,
+            &floor_notes_at(key),
+            FLOOR_SAMPLE_RATE,
+            FLOOR_SECONDS,
+        );
+        let full = render_preset_pre_limiter(
+            &alone,
+            &headroom_notes_at(key),
+            FLOOR_SAMPLE_RATE,
+            FLOOR_SECONDS,
+        );
+        let level = rms(&pre);
+        let peak = allowed_peak(&full);
+        if !(level.is_finite() && level > 0.0) {
+            break;
+        }
+        let mut step = TARGET_RMS / level;
+        if peak.is_finite() && peak > 0.0 {
+            step = step.min(HEADROOM_MARGIN * ceiling / peak);
+        }
+        let step_db = 20.0 * step.log10();
+        let next =
+            (level_db + step_db).clamp(*PAD_LEVEL_RANGE_DB.start(), *PAD_LEVEL_RANGE_DB.end());
+        let done = (next - level_db).abs() < 0.1;
+        level_db = next;
+        if done {
+            break;
+        }
+    }
+    level_db = (level_db * 10.0).round() / 10.0;
+    set_level(preset, level_db);
+    measure_floor_at(&pad_alone(preset, key), key)
 }
 
 fn round_significant(x: f32, digits: i32) -> f32 {

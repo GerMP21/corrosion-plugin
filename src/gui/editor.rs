@@ -3050,14 +3050,17 @@ fn apply_preset(params: &CorrosionParams, setter: &ParamSetter, preset: &Preset)
 /// A factory folder's display name and its rank in the browser: the curated
 /// folders in their fixed order, then Experimental, then any other folder.
 fn factory_folder(slug: &str) -> (usize, String) {
-    use crate::presets::factory::{CURATED_FOLDERS, EXPERIMENTAL_FOLDER};
+    use crate::presets::factory::{CURATED_FOLDERS, DRUMS_FOLDER, EXPERIMENTAL_FOLDER};
     if let Some(rank) = CURATED_FOLDERS.iter().position(|f| *f == slug) {
         return (rank, title_case(slug));
     }
-    if slug == EXPERIMENTAL_FOLDER {
+    if slug == DRUMS_FOLDER {
         return (CURATED_FOLDERS.len(), title_case(slug));
     }
-    (CURATED_FOLDERS.len() + 1, title_case(slug))
+    if slug == EXPERIMENTAL_FOLDER {
+        return (CURATED_FOLDERS.len() + 1, title_case(slug));
+    }
+    (CURATED_FOLDERS.len() + 2, title_case(slug))
 }
 
 /// An experimental exciter folder's display name (the exciter's name) and
@@ -6159,7 +6162,7 @@ mod tests {
         }
         let presets = load_factory_presets();
         assert_eq!(presets.len(), count(&super::FACTORY_PRESETS_DIR));
-        assert_eq!(presets.len(), 204);
+        assert_eq!(presets.len(), 214);
     }
 
     /// An editor state whose user preset folder is a fresh temporary folder.
@@ -6212,6 +6215,7 @@ mod tests {
                 "Chords",
                 "Drones",
                 "Percussion",
+                "Drums",
                 "Experimental",
                 "User"
             ]

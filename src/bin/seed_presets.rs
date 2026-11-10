@@ -3,13 +3,16 @@
 //! `cargo run --release --bin seed_presets` writes the factory bank built by
 //! `corrosion::presets::factory` to `presets/factory/`:
 //! - the curated folders (`bass`, `lead`, `chords`, `drones`, `percussion`),
+//! - `drums`, ten Kit-mode drum kits (`per-key-kits`),
 //! - `experimental/<exciter>/<object>.corrosion-preset`, one per pair.
 //!
 //! Every preset is levelled by an offline render (a held middle C, 2 s,
 //! through the plugin's output path) to the bank's target loudness and
 //! checked against the quality floor. An experimental preset that fails is
 //! re-drawn with the next seed (up to `MAX_SEED_TRIES`); a curated preset
-//! that fails stops the run, to be fixed by hand. The chosen Output and seed
+//! that fails stops the run, to be fixed by hand. A drum kit's pads are
+//! levelled one by one, each held alone on its key, and each must meet the
+//! floor. The chosen Output and seed
 //! of every preset are written to `src/presets/factory/levels.rs`, so the
 //! library builds the same bank without rendering.
 //!
@@ -20,8 +23,8 @@ use std::path::{Path, PathBuf};
 
 use clap::Parser;
 use corrosion::presets::factory::{
-    curated_presets, experimental_entry, level, measure_floor, FactoryPreset, EXCITER_COUNT,
-    MAX_SEED_TRIES, OBJECT_COUNT,
+    curated_presets, drum_kits, experimental_entry, level, level_pad, measure_floor, FactoryPreset,
+    EXCITER_COUNT, MAX_SEED_TRIES, OBJECT_COUNT,
 };
 use corrosion::Object;
 
@@ -41,6 +44,30 @@ struct Levelled {
 
 fn level_curated(mut entry: FactoryPreset) -> Levelled {
     let result = level(&mut entry.preset).check();
+    Levelled {
+        entry,
+        try_index: 0,
+        result,
+    }
+}
+
+fn level_kit(mut entry: FactoryPreset) -> Levelled {
+    let keys: Vec<u8> = entry
+        .preset
+        .kit
+        .as_ref()
+        .map_or_else(Vec::new, |kit| kit.pads.iter().map(|p| p.key).collect());
+    let mut failures = Vec::new();
+    for key in keys {
+        if let Err(why) = level_pad(&mut entry.preset, key).check() {
+            failures.push(format!("pad {key}: {why}"));
+        }
+    }
+    let result = if failures.is_empty() {
+        Ok(())
+    } else {
+        Err(failures.join("; "))
+    };
     Levelled {
         entry,
         try_index: 0,
@@ -130,6 +157,27 @@ fn write_levels(levelled: &[Levelled], path: &Path) -> std::io::Result<()> {
                 .iter()\n        \
                 .find(|(p, _, _)| *p == path)\n        \
                 .map(|&(_, try_index, output)| StoredLevel { try_index, output })\n\
+        }\n\n\
+        const PAD_LEVELS: &[(&str, u8, f32)] = &[\n";
+    for l in levelled {
+        if let Some(kit) = &l.entry.preset.kit {
+            for pad in &kit.pads {
+                source += &format!(
+                    "    (\"{}\", {}, {:?}),\n",
+                    l.entry.relative_path(),
+                    pad.key,
+                    pad.level_db
+                );
+            }
+        }
+    }
+    source += "];\n\n\
+        /// The stored level (dB) of the pad on `key` of the kit at `path`.\n\
+        pub(super) fn stored_pad(path: &str, key: u8) -> Option<f32> {\n    \
+            PAD_LEVELS\n        \
+                .iter()\n        \
+                .find(|(p, k, _)| *p == path && *k == key)\n        \
+                .map(|&(_, _, level)| level)\n\
         }\n";
     std::fs::write(path, source)
 }
@@ -162,6 +210,7 @@ fn main() -> std::io::Result<()> {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
 
     let mut levelled = parallel(curated_presets(), level_curated);
+    levelled.extend(parallel(drum_kits(), level_kit));
     let pairs: Vec<(i32, Object)> = (1..=EXCITER_COUNT)
         .flat_map(|e| (0..OBJECT_COUNT).map(move |o| (e, Object::from_int(o))))
         .collect();

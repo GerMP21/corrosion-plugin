@@ -291,10 +291,15 @@ fn every_factory_preset_meets_the_quality_floor() {
     let bank = bank();
     assert_eq!(
         bank.len(),
-        CURATED_FOLDERS.len() * CURATED_FOLDER_SIZE + (EXCITER_COUNT * OBJECT_COUNT) as usize
+        CURATED_FOLDERS.len() * CURATED_FOLDER_SIZE
+            + DRUM_KIT_COUNT
+            + (EXCITER_COUNT * OBJECT_COUNT) as usize
     );
+    // A kit is silent on C4; its pads are held to the floor one by one in
+    // `every_drum_pad_meets_the_quality_floor`.
     let failures: Vec<String> = bank
         .iter()
+        .filter(|e| e.folder != DRUMS_FOLDER)
         .filter_map(|e| {
             let report = measure_floor(&e.preset);
             report
@@ -594,4 +599,165 @@ fn print_velocity_sweep() {
     for line in lines {
         println!("{line}");
     }
+}
+
+/// Prints each drum pad's level, energy below 500 Hz, centroid and decay
+/// (held alone on its key, 2 s): the table in the `per-key-kits` design.
+#[test]
+#[ignore]
+fn drum_pad_measurements_table() {
+    use super::measure::{decay_to_minus_30, mono, render_held, Spectrum};
+    for entry in bank().into_iter().filter(|e| e.folder == DRUMS_FOLDER) {
+        let kit = entry.preset.kit.clone().unwrap();
+        for pad in &kit.pads {
+            let alone = pad_alone(&entry.preset, pad.key);
+            let samples = mono(&render_held(&alone, pad.key, 2.0).output);
+            let spectrum = Spectrum::of(&samples, 0, 65_536);
+            let decay =
+                decay_to_minus_30(&samples).map_or("—".to_string(), |d| format!("{d:.2} s"));
+            let floor = measure_floor_at(&alone, pad.key);
+            println!(
+                "PAD | {} | {} | {:+.1} dB | {:+.1} dB | {:.0} % | {:.0} Hz | {} |",
+                entry.preset.name,
+                pad.key,
+                pad.level_db,
+                floor.level_db(),
+                100.0 * spectrum.fraction_below(500.0),
+                spectrum.centroid(),
+                decay
+            );
+        }
+    }
+}
+
+// --- Drum kits (`per-key-kits`) -------------------------------------------
+
+/// Spec "Ten drum kits": the folder holds 10 Kit-mode presets with pads on
+/// at least the kick, snare, closed hat and open hat.
+#[test]
+fn the_drums_folder_holds_ten_kits() {
+    let kits: Vec<_> = bank()
+        .into_iter()
+        .filter(|e| e.folder == DRUMS_FOLDER)
+        .collect();
+    assert_eq!(kits.len(), DRUM_KIT_COUNT);
+    for entry in &kits {
+        assert_eq!(
+            entry.preset.play_mode,
+            crate::params::PlayMode::Kit.to_int(),
+            "{}",
+            entry.preset.name
+        );
+        let kit = entry.preset.kit.as_ref().expect("a kit");
+        for key in [KICK, SNARE, CLOSED_HAT, OPEN_HAT] {
+            assert!(
+                kit.pad(key).is_some(),
+                "{}: no pad on {key}",
+                entry.preset.name
+            );
+        }
+    }
+}
+
+/// Spec "Ten drum kits": every pad, played alone on its key, meets the
+/// quality floor.
+#[test]
+fn every_drum_pad_meets_the_quality_floor() {
+    let failures: Vec<String> = bank()
+        .into_iter()
+        .filter(|e| e.folder == DRUMS_FOLDER)
+        .flat_map(|entry| {
+            let keys: Vec<u8> = entry
+                .preset
+                .kit
+                .as_ref()
+                .map_or_else(Vec::new, |k| k.pads.iter().map(|p| p.key).collect());
+            keys.into_iter().filter_map(move |key| {
+                measure_floor_at(&pad_alone(&entry.preset, key), key)
+                    .check()
+                    .err()
+                    .map(|why| format!("{} pad {key}: {why}", entry.preset.name))
+            })
+        })
+        .collect();
+    assert!(failures.is_empty(), "{}", failures.join("\n"));
+}
+
+/// A drum pad's character, held alone on its key for 2 s.
+struct PadCharacter {
+    below_500: f64,
+    centroid: f32,
+    pitch: f32,
+    decay: Option<f32>,
+}
+
+fn pad_character(preset: &Preset, key: u8) -> PadCharacter {
+    use super::measure::{decay_to_minus_30, mono, render_held, Spectrum};
+    let samples = mono(&render_held(&pad_alone(preset, key), key, 2.0).output);
+    let spectrum = Spectrum::of(&samples, 0, 65_536);
+    PadCharacter {
+        below_500: spectrum.fraction_below(500.0),
+        centroid: spectrum.centroid(),
+        pitch: spectrum.strongest_peak(),
+        decay: decay_to_minus_30(&samples),
+    }
+}
+
+/// The kits sound like drum kits (design, "Drum kits"): a low, short kick;
+/// a short snare above it; bright hats, the closed one short and the open
+/// one longer; toms rising in pitch.
+#[test]
+fn drum_kits_have_drum_character() {
+    let mut failures = Vec::new();
+    for entry in bank().into_iter().filter(|e| e.folder == DRUMS_FOLDER) {
+        let name = &entry.preset.name;
+        let pad = |key| pad_character(&entry.preset, key);
+        let (kick, snare) = (pad(KICK), pad(SNARE));
+        let (closed, open) = (pad(CLOSED_HAT), pad(OPEN_HAT));
+        let toms = [pad(LOW_TOM), pad(MID_TOM), pad(HIGH_TOM)];
+        let mut fail = |why: String| failures.push(format!("{name}: {why}"));
+        if kick.below_500 < 0.7 {
+            fail(format!("kick {:.0} % below 500 Hz", 100.0 * kick.below_500));
+        }
+        if !kick.decay.is_some_and(|d| d <= 1.5) {
+            fail(format!("kick decay {:?}", kick.decay));
+        }
+        if !snare.decay.is_some_and(|d| d <= 1.5) {
+            fail(format!("snare decay {:?}", snare.decay));
+        }
+        if snare.centroid <= kick.centroid {
+            fail(format!(
+                "snare centroid {:.0} ≤ kick {:.0} Hz",
+                snare.centroid, kick.centroid
+            ));
+        }
+        for (hat, what) in [(&closed, "closed hat"), (&open, "open hat")] {
+            if hat.centroid < 2_000.0 || hat.below_500 > 0.3 {
+                fail(format!(
+                    "{what} centroid {:.0} Hz, {:.0} % below 500 Hz",
+                    hat.centroid,
+                    100.0 * hat.below_500
+                ));
+            }
+        }
+        if !closed.decay.is_some_and(|d| d <= 1.0) {
+            fail(format!("closed hat decay {:?}", closed.decay));
+        }
+        if open
+            .decay
+            .is_some_and(|o| closed.decay.is_some_and(|c| o <= c))
+        {
+            fail(format!(
+                "open hat {:?} not longer than closed {:?}",
+                open.decay, closed.decay
+            ));
+        }
+        if !(toms[0].pitch < toms[1].pitch && toms[1].pitch < toms[2].pitch) {
+            fail(format!(
+                "toms {:.0} / {:.0} / {:.0} Hz don't rise",
+                toms[0].pitch, toms[1].pitch, toms[2].pitch
+            ));
+        }
+    }
+    assert!(failures.is_empty(), "{}", failures.join("\n"));
 }
