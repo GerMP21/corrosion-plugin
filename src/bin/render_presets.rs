@@ -283,7 +283,7 @@ mod tests {
     #[test]
     fn written_wav_equals_the_quantized_offline_render() {
         let path = Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("presets/factory/sheet_lightning.corrosion-preset");
+            .join("tests/fixtures/presets/legacy/sheet_lightning.corrosion-preset");
         let preset = Preset::load(&path).expect("load preset");
         let spec = RenderSpec {
             note: 60,

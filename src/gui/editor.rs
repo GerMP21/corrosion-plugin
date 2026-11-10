@@ -5523,12 +5523,18 @@ mod tests {
     fn factory_preset_loader_finds_factory_bank() {
         let presets = load_factory_presets();
 
-        // The factory bank is seeded by `src/bin/seed_presets.rs`. 50 curated
-        // presets cover every object × major exciter combination, with
-        // alphabetic sort applied inside `load_factory_presets`.
-        assert_eq!(presets.len(), 50);
-        assert_eq!(presets[0].name, "Beam Drag");
-        assert_eq!(presets[49].name, "Workshop Plate Scrape");
+        // Every embedded preset file loads, sorted by name. The bank itself
+        // (its folders and counts) is checked by `presets::factory`'s tests.
+        let on_disk = super::FACTORY_PRESETS_DIR
+            .files()
+            .filter(|f| {
+                f.path()
+                    .extension()
+                    .is_some_and(|e| e == "corrosion-preset")
+            })
+            .count();
+        assert_eq!(presets.len(), on_disk);
+        assert!(presets.windows(2).all(|w| w[0].name <= w[1].name));
     }
 
     #[test]

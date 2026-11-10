@@ -29,8 +29,7 @@ The 50 factory presets (`presets/factory/`, seeded by `src/bin/seed_presets.rs`)
 - **Their levels don't matter:** the ignored `preset_levels_are_sane` may fail (today three presets sit under its −12 dB floor). Don't apply a level pass, and don't mark a task undone because of it; say in the task that the levels were not checked (maintainer, 2026-11-10).
 - **User presets and saved DAW projects still matter: keep their migrations** (see "Migrations" below).
 - **Deleted (maintainer, 2026-11-10):** `presets/factory/` holds only a `.gitkeep` (the editor's `include_dir!` needs the folder); the editor's preset list shows only user presets.
-  - Until the bank is regenerated, the tests that read a specific factory preset fail: 14 in the CI lane, and 10 in the GUI lane (9 of them the same).
-  - `benches/performance.rs` and `render_presets` also read `sheet_lightning`.
+  - Tests that need a specific preset read the old bank, kept as a corpus in `tests/fixtures/presets/legacy/` (also the benchmark's and `render_presets`' default `sheet_lightning`). All lanes pass with the bank empty.
   - `cargo run --bin seed_presets` writes the bank back.
 
 ## Current state (2026-11-10)

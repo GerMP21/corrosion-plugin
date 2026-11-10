@@ -553,17 +553,34 @@ fn display_mismatches(built: &corrosion::CorrosionParams) -> Vec<String> {
     mismatches
 }
 
-/// Spec "Every parameter": every factory preset's parameters display like
-/// the plugin's own.
+/// Every preset under `dirs` (relative to the crate), in all subfolders, sorted.
+fn preset_paths(dirs: &[&str]) -> Vec<std::path::PathBuf> {
+    fn walk(dir: &std::path::Path, out: &mut Vec<std::path::PathBuf>) {
+        for entry in std::fs::read_dir(dir).expect("read preset folder") {
+            let path = entry.expect("dir entry").path();
+            if path.is_dir() {
+                walk(&path, out);
+            } else if path.extension().is_some_and(|e| e == "corrosion-preset") {
+                out.push(path);
+            }
+        }
+    }
+    let mut paths = Vec::new();
+    for dir in dirs {
+        walk(
+            &std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(dir),
+            &mut paths,
+        );
+    }
+    paths.sort();
+    paths
+}
+
+/// Spec "Every parameter": every factory preset's (and legacy fixture's)
+/// parameters display like the plugin's own.
 #[test]
 fn preset_built_parameters_display_like_the_live_ones() {
-    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("presets/factory");
-    let mut paths: Vec<_> = fs::read_dir(&dir)
-        .expect("factory presets")
-        .map(|entry| entry.unwrap().path())
-        .filter(|p| p.extension().is_some_and(|e| e == "corrosion-preset"))
-        .collect();
-    paths.sort();
+    let paths = preset_paths(&["presets/factory", "tests/fixtures/presets/legacy"]);
     assert!(paths.len() >= 50, "found {} presets", paths.len());
     let mut mismatches = std::collections::BTreeSet::new();
     for path in paths {

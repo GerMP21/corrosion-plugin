@@ -9,10 +9,33 @@ use std::collections::HashMap;
 
 fn factory_preset(name: &str) -> Preset {
     let path = format!(
-        "{}/presets/factory/{name}.corrosion-preset",
+        "{}/tests/fixtures/presets/legacy/{name}.corrosion-preset",
         env!("CARGO_MANIFEST_DIR")
     );
     Preset::load(path).expect("load factory preset")
+}
+
+/// Every preset under `dirs` (relative to the crate), in all subfolders, sorted.
+fn preset_paths(dirs: &[&str]) -> Vec<std::path::PathBuf> {
+    fn walk(dir: &std::path::Path, out: &mut Vec<std::path::PathBuf>) {
+        for entry in std::fs::read_dir(dir).expect("read preset folder") {
+            let path = entry.expect("dir entry").path();
+            if path.is_dir() {
+                walk(&path, out);
+            } else if path.extension().is_some_and(|e| e == "corrosion-preset") {
+                out.push(path);
+            }
+        }
+    }
+    let mut paths = Vec::new();
+    for dir in dirs {
+        walk(
+            &std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(dir),
+            &mut paths,
+        );
+    }
+    paths.sort();
+    paths
 }
 
 /// Plain values of `params`, by ID.
@@ -90,12 +113,12 @@ fn loading_covers_every_parameter_but_ui_scale() {
 
 #[test]
 fn loaded_values_match_the_preset_on_every_parameter() {
-    // Every factory preset: each value a load sets is the value the preset's
-    // own parameter conversion holds.
-    let dir = format!("{}/presets/factory", env!("CARGO_MANIFEST_DIR"));
+    // Every factory preset and the legacy fixtures: each value a load sets is
+    // the value the preset's own parameter conversion holds.
     let live = CorrosionParams::default();
-    for entry in std::fs::read_dir(dir).unwrap() {
-        let path = entry.unwrap().path();
+    let paths = preset_paths(&["presets/factory", "tests/fixtures/presets/legacy"]);
+    assert!(paths.len() >= 50, "found {} presets", paths.len());
+    for path in paths {
         let preset = Preset::load(&path).unwrap();
         let expected = plain_values(&preset.clone().into_params());
         for (id, normalized) in preset.parameter_values(&live) {

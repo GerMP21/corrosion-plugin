@@ -990,7 +990,7 @@ mod user_preset_tests {
         use nih_plug::prelude::Params;
         // A factory preset's parameters stand in for the current sound.
         let path = format!(
-            "{}/presets/factory/beam_grind.{PRESET_EXTENSION}",
+            "{}/tests/fixtures/presets/legacy/beam_grind.{PRESET_EXTENSION}",
             env!("CARGO_MANIFEST_DIR")
         );
         let sound = Preset::load(path).unwrap().into_params();

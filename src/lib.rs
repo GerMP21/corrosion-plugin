@@ -1494,7 +1494,7 @@ mod tests {
         use nih_plug::prelude::Plugin;
         let path = concat!(
             env!("CARGO_MANIFEST_DIR"),
-            "/presets/factory/chain_whip_snap.corrosion-preset"
+            "/tests/fixtures/presets/legacy/chain_whip_snap.corrosion-preset"
         );
         let base = crate::presets::Preset::load(std::path::Path::new(path)).expect("load preset");
         for (violence, drive) in [(0.75, base.drive), (0.2, base.drive), (1.0, 5.0)] {
@@ -1539,7 +1539,7 @@ mod tests {
         use nih_plug::prelude::Plugin;
         for file in ["hanging_chain_echo", "spring_reverb_tap"] {
             let path = format!(
-                "{}/presets/factory/{file}.corrosion-preset",
+                "{}/tests/fixtures/presets/legacy/{file}.corrosion-preset",
                 env!("CARGO_MANIFEST_DIR")
             );
             let preset = crate::presets::Preset::load(std::path::Path::new(&path)).unwrap();
@@ -2636,13 +2636,33 @@ mod c5_measurements {
         assert!(failures.is_empty(), "{}", failures.join("\n"));
     }
 
+    /// Every preset file under `presets/factory`, in all its folders, sorted.
     pub(crate) fn factory_preset_paths() -> Vec<std::path::PathBuf> {
-        let dir = concat!(env!("CARGO_MANIFEST_DIR"), "/presets/factory");
-        let mut paths: Vec<_> = std::fs::read_dir(dir)
-            .expect("read presets/factory")
-            .map(|e| e.expect("dir entry").path())
-            .filter(|p| p.extension().is_some_and(|e| e == "corrosion-preset"))
-            .collect();
+        preset_paths_under(concat!(env!("CARGO_MANIFEST_DIR"), "/presets/factory"))
+    }
+
+    /// The 50 presets of the old placeholder bank, kept as test fixtures
+    /// (`tests/fixtures/presets/legacy`), sorted.
+    pub(crate) fn legacy_preset_paths() -> Vec<std::path::PathBuf> {
+        preset_paths_under(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/tests/fixtures/presets/legacy"
+        ))
+    }
+
+    fn preset_paths_under(dir: &str) -> Vec<std::path::PathBuf> {
+        fn walk(dir: &std::path::Path, out: &mut Vec<std::path::PathBuf>) {
+            for entry in std::fs::read_dir(dir).expect("read preset folder") {
+                let path = entry.expect("dir entry").path();
+                if path.is_dir() {
+                    walk(&path, out);
+                } else if path.extension().is_some_and(|e| e == "corrosion-preset") {
+                    out.push(path);
+                }
+            }
+        }
+        let mut paths = Vec::new();
+        walk(std::path::Path::new(dir), &mut paths);
         paths.sort();
         paths
     }
@@ -2668,7 +2688,7 @@ mod c5_measurements {
     #[test]
     #[ignore]
     fn c6_spring_preset_measurements() {
-        let spring_presets: Vec<_> = factory_preset_paths()
+        let spring_presets: Vec<_> = legacy_preset_paths()
             .into_iter()
             .filter(|p| Preset::load(p).unwrap().into_params().space_mode.value() == 2)
             .collect();
@@ -2799,7 +2819,7 @@ mod output_ceiling_tests {
 
     #[test]
     fn factory_preset_is_bit_identical_at_the_default_ceiling() {
-        let path = &super::c5_measurements::factory_preset_paths()[0];
+        let path = &super::c5_measurements::legacy_preset_paths()[0];
         let preset = crate::presets::Preset::load(path).expect("load preset");
         assert_eq!(preset.extra.analog_ceiling, LIMITER_THRESHOLD);
         assert_eq!(preset.extra.limiter_mode, 0);
@@ -3402,7 +3422,7 @@ mod midi_control_tests {
     fn space_renderer() -> PresetRenderer {
         let path = concat!(
             env!("CARGO_MANIFEST_DIR"),
-            "/presets/factory/plate_resonance_bath.corrosion-preset"
+            "/tests/fixtures/presets/legacy/plate_resonance_bath.corrosion-preset"
         );
         PresetRenderer::new(&Preset::load(std::path::Path::new(path)).expect("load preset"))
     }
