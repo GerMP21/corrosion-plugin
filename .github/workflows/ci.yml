@@ -236,12 +236,15 @@ jobs:
           base="Corrosion-${{ matrix.platform }}-${{ matrix.arch }}"
           mkdir -p dist
           dist="$PWD/dist"
+          # The licenses go next to the bundle: MIT for the source, and the
+          # GPLv3 that the VST3 build's vst3-sys bindings bring with them.
+          cp LICENSE LICENSE-GPL-3.0 target/bundled/${{ matrix.platform }}/
           cd target/bundled/${{ matrix.platform }}
           for format in vst3 clap; do
             if [ "$RUNNER_OS" = Windows ]; then
-              7z a -tzip "$dist/$base-$format.zip" "Corrosion.$format" >/dev/null
+              7z a -tzip "$dist/$base-$format.zip" "Corrosion.$format" LICENSE LICENSE-GPL-3.0 >/dev/null
             else
-              zip -qry "$dist/$base-$format.zip" "Corrosion.$format"
+              zip -qry "$dist/$base-$format.zip" "Corrosion.$format" LICENSE LICENSE-GPL-3.0
             fi
           done
           ls -l "$dist"
@@ -299,7 +302,7 @@ jobs:
           | macOS (Apple Silicon and Intel) | \`~/Library/Audio/Plug-Ins/VST3\` | \`~/Library/Audio/Plug-Ins/CLAP\` |
           | Linux (x86_64) | \`~/.vst3\` | \`~/.clap\` |
 
-          Unzip each archive into its folder.
+          Unzip each archive and move \`Corrosion.vst3\` or \`Corrosion.clap\` into its folder. Each zip also holds the licenses: \`LICENSE\` (MIT, the source) and \`LICENSE-GPL-3.0\` (the GPLv3, which covers the VST3 build through its vst3-sys bindings).
 
           **macOS:** the bundles are ad-hoc signed, not notarized, so macOS quarantines them after a download. Before the first use, run \`xattr -dr com.apple.quarantine ~/Library/Audio/Plug-Ins/VST3/Corrosion.vst3\` (and the same for \`CLAP/Corrosion.clap\`).
           EOF

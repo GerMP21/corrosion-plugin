@@ -9,7 +9,7 @@ Package version: `0.2.0`. Preset schema version: `4`; files from schemas 1–3 a
 ### Install
 
 1. Download the zip for your platform and format from the [`nightly` pre-release](../../releases/tag/nightly). It is rebuilt by every green CI run on `main`: tested on its platform and checked with clap-validator and pluginval.
-2. Unzip it into your plugin folder:
+2. Unzip it and move the `Corrosion.vst3` or `Corrosion.clap` bundle into your plugin folder (the zip also holds the license files):
 
    | Platform | VST3 | CLAP |
    |---|---|---|
@@ -18,7 +18,7 @@ Package version: `0.2.0`. Preset schema version: `4`; files from schemas 1–3 a
    | Linux (x86_64) | `~/.vst3` | `~/.clap` |
 
 3. **macOS only:** the bundles are ad-hoc signed, not notarized, so macOS quarantines them after a download. Before the first use run `xattr -dr com.apple.quarantine ~/Library/Audio/Plug-Ins/VST3/Corrosion.vst3` (and the same for `CLAP/Corrosion.clap`).
-4. Rescan plugins in your host and load **Corrosion** (vendor "Corrosion Audio") on an instrument track.
+4. Rescan plugins in your host and load **Corrosion** (vendor "Synaptech Solutions") on an instrument track.
 
 To build it yourself instead, see [Build And Run](#build-and-run).
 
@@ -344,4 +344,4 @@ When you post, please distinguish between:
 
 Corrosion's source code is released under the [MIT License](LICENSE).
 
-The VST3 build links the [vst3-sys](https://github.com/RustAudio/vst3-sys) bindings that NIH-plug uses, which are licensed under the GPLv3, so a distributed VST3 binary also has to comply with the GPLv3 (NIH-plug's README explains this). The full source is public in this repository, and MIT code can be combined with GPLv3 code. The CLAP build doesn't use those bindings.
+The VST3 build links the [vst3-sys](https://github.com/RustAudio/vst3-sys) bindings that NIH-plug uses, which are licensed under the GPLv3. A distributed VST3 binary therefore also falls under the [GNU General Public License v3](LICENSE-GPL-3.0), whose full text is in this repository (NIH-plug's README explains this). MIT code can be combined with GPLv3 code, and the complete source is public here. The CLAP build doesn't use those bindings.
