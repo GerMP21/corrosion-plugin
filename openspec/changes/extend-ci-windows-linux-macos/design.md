@@ -157,3 +157,33 @@ No other preset changed. Covered by the tests
 `the_felt_mallet_tank_in_the_bank_is_stable`, plus the ignored
 `print_experimental_level_instability`. The temporary diagnostic and its CI
 step are removed.
+
+### First validator run (2026-11-10, run #102)
+
+pluginval (strictness 5, no GUI tests) passed on Linux. clap-validator 0.3.2
+ran 21 tests on each platform: 17 passed on Linux and macOS, 16 on Windows,
+and the rest were skipped (preset discovery is not implemented). One test
+failed on all three platforms, `param-conversions`, on Filter Cutoff:
+`0.1171646878594357 → '294.2767' → 0.11716467887163162 → '294.27667'`.
+The text a parameter shows has to read back to the same text.
+
+**Cause:** parameters without a formatter showed every digit of the `f32`,
+and the last digit moves when the value goes from normalized to plain and
+back. `display_float_param` used six decimals, which is also more than an
+`f32` holds above 1.
+
+**Test:** `params::tests::parameter_text_round_trips` checks every parameter
+over a grid, the reported value and 20 000 pseudo-random values. Before the
+fix it failed on 14 parameters: Size, the six envelope times, Time Scale, Tip
+Stiffness, Plate Aspect, Chain Link Mass, Filter Cutoff, plus Pressure,
+which showed `-0.0 dB` against `+0.0 dB`.
+
+**Fix:**
+- Every parameter without its own formatter (74 constructors, including
+  `display_float_param`) shows 5 significant digits, with trailing zeros
+  dropped (`significant_text`). For example 1100.0438 shows as 1100 and
+  0.50075006 as 0.50075.
+- Pressure rounds before formatting, so a value just under 0 dB shows
+  `+0.0 dB`.
+
+Only the displayed text changes; no parameter's value or sound changes.

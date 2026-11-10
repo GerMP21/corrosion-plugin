@@ -1037,6 +1037,8 @@ pub fn exciter_pressure_param(default: f32) -> FloatParam {
     )
     .with_value_to_string(Arc::new(|value| {
         let db = 20.0 * crate::voice::pressure_factor(value).log10();
+        // Round first, so a value just under 0 dB shows "+0.0", not "-0.0".
+        let db = (db * 10.0).round() / 10.0 + 0.0;
         format!("{db:+.1} dB")
     }))
     .with_string_to_value(Arc::new(|string| {
@@ -1534,78 +1536,115 @@ pub fn quality_mode_param(default: i32) -> IntParam {
 /// formatting can expose last-digit `f32` rounding differences in that path, so
 /// parameters that need plain numeric display use a fixed decimal precision.
 fn display_float_param(name: &'static str, value: f32, min: f32, max: f32) -> FloatParam {
-    FloatParam::new(name, value, FloatRange::Linear { min, max })
-        .with_value_to_string(Arc::new(|value| format!("{value:.6}")))
+    significant_display(FloatParam::new(
+        name,
+        value,
+        FloatRange::Linear { min, max },
+    ))
+}
+
+/// Significant digits shown for a parameter without a formatter of its own.
+/// An `f32` holds about seven; five leave room for the normalized-to-plain
+/// conversion, so text read back shows the same text (clap-validator's
+/// `param-conversions`, `extend-ci-windows-linux-macos`).
+const SHOWN_SIGNIFICANT_DIGITS: i32 = 5;
+
+/// `value` with [`SHOWN_SIGNIFICANT_DIGITS`] significant digits, without
+/// trailing zeros: `1100.0438` shows as `1100`, `0.50075006` as `0.50075`.
+pub(crate) fn significant_text(value: f32) -> String {
+    if value == 0.0 || !value.is_finite() {
+        return if value.is_finite() {
+            "0".into()
+        } else {
+            value.to_string()
+        };
+    }
+    let magnitude = value.abs().log10().floor() as i32;
+    let decimals = (SHOWN_SIGNIFICANT_DIGITS - 1 - magnitude).max(0) as usize;
+    let mut text = format!("{value:.decimals$}");
+    if text.contains('.') {
+        text = text.trim_end_matches('0').trim_end_matches('.').to_string();
+    }
+    if text == "-0" {
+        text = "0".into();
+    }
+    text
+}
+
+/// Show `param` with [`significant_text`] and read plain numbers back.
+fn significant_display(param: FloatParam) -> FloatParam {
+    param
+        .with_value_to_string(Arc::new(significant_text))
         .with_string_to_value(Arc::new(|string| string.trim().parse().ok()))
 }
 
 /// Build the "Size" parameter, shared by the live parameters and
 /// `Preset::into_params` (`m10-m18-tidy-dead-code-and-docs`).
 pub(crate) fn size_param(value: f32) -> FloatParam {
-    FloatParam::new(
+    significant_display(FloatParam::new(
         "Size",
         value.clamp(0.05, 10.0),
         FloatRange::Linear {
             min: 0.05,
             max: 10.0,
         },
-    )
+    ))
 }
 
 /// Build the "Rust" parameter, shared by the live parameters and
 /// `Preset::into_params` (`m10-m18-tidy-dead-code-and-docs`).
 pub(crate) fn rust_param(value: f32) -> FloatParam {
-    FloatParam::new(
+    significant_display(FloatParam::new(
         "Rust",
         value.clamp(0.0, 5.0),
         FloatRange::Linear { min: 0.0, max: 5.0 },
-    )
+    ))
 }
 
 /// Build the "Damage" parameter, shared by the live parameters and
 /// `Preset::into_params` (`m10-m18-tidy-dead-code-and-docs`).
 pub(crate) fn damage_param(value: f32) -> FloatParam {
-    FloatParam::new(
+    significant_display(FloatParam::new(
         "Damage",
         value.clamp(0.0, 10.0),
         FloatRange::Linear {
             min: 0.0,
             max: 10.0,
         },
-    )
+    ))
 }
 
 /// Build the "Drive" parameter, shared by the live parameters and
 /// `Preset::into_params` (`m10-m18-tidy-dead-code-and-docs`).
 pub(crate) fn drive_param(value: f32) -> FloatParam {
-    FloatParam::new(
+    significant_display(FloatParam::new(
         "Drive",
         value.clamp(0.0, 5.0),
         FloatRange::Linear { min: 0.0, max: 5.0 },
-    )
+    ))
 }
 
 /// Build the "Width" parameter, shared by the live parameters and
 /// `Preset::into_params` (`m10-m18-tidy-dead-code-and-docs`).
 pub(crate) fn width_param(value: f32) -> FloatParam {
-    FloatParam::new(
+    significant_display(FloatParam::new(
         "Width",
         value.clamp(-2.0, 3.0),
         FloatRange::Linear {
             min: -2.0,
             max: 3.0,
         },
-    )
+    ))
 }
 
 /// Build the "Body" parameter, shared by the live parameters and
 /// `Preset::into_params` (`m10-m18-tidy-dead-code-and-docs`).
 pub(crate) fn body_param(value: f32) -> FloatParam {
-    FloatParam::new(
+    significant_display(FloatParam::new(
         "Body",
         value.clamp(0.0, 5.0),
         FloatRange::Linear { min: 0.0, max: 5.0 },
-    )
+    ))
 }
 
 /// Build the "UI Scale" parameter, shared by the live parameters and
@@ -1637,142 +1676,142 @@ pub(crate) fn ui_scale_param(value: i32) -> IntParam {
 /// Build the "Attack" parameter, shared by the live parameters and
 /// `Preset::into_params` (`m10-m18-tidy-dead-code-and-docs`).
 pub(crate) fn env_attack_param(value: f32) -> FloatParam {
-    FloatParam::new(
+    significant_display(FloatParam::new(
         "Attack",
         value.clamp(0.001, 2.0),
         FloatRange::Linear {
             min: 0.001,
             max: 2.0,
         },
-    )
+    ))
 }
 
 /// Build the "Decay" parameter, shared by the live parameters and
 /// `Preset::into_params` (`m10-m18-tidy-dead-code-and-docs`).
 pub(crate) fn env_decay_param(value: f32) -> FloatParam {
-    FloatParam::new(
+    significant_display(FloatParam::new(
         "Decay",
         value.clamp(0.01, 5.0),
         FloatRange::Linear {
             min: 0.01,
             max: 5.0,
         },
-    )
+    ))
 }
 
 /// Build the "Sustain" parameter, shared by the live parameters and
 /// `Preset::into_params` (`m10-m18-tidy-dead-code-and-docs`).
 pub(crate) fn env_sustain_param(value: f32) -> FloatParam {
-    FloatParam::new(
+    significant_display(FloatParam::new(
         "Sustain",
         value.clamp(0.0, 1.0),
         FloatRange::Linear { min: 0.0, max: 1.0 },
-    )
+    ))
 }
 
 /// Build the "Release" parameter, shared by the live parameters and
 /// `Preset::into_params` (`m10-m18-tidy-dead-code-and-docs`).
 pub(crate) fn env_release_param(value: f32) -> FloatParam {
-    FloatParam::new(
+    significant_display(FloatParam::new(
         "Release",
         value.clamp(0.01, 5.0),
         FloatRange::Linear {
             min: 0.01,
             max: 5.0,
         },
-    )
+    ))
 }
 
 /// Build the "Onset Time" parameter, shared by the live parameters and
 /// `Preset::into_params` (`m10-m18-tidy-dead-code-and-docs`).
 pub(crate) fn mseg_onset_param(value: f32) -> FloatParam {
-    FloatParam::new(
+    significant_display(FloatParam::new(
         "Onset Time",
         value.clamp(0.001, 1.0),
         FloatRange::Linear {
             min: 0.001,
             max: 1.0,
         },
-    )
+    ))
 }
 
 /// Build the "MSEG Attack" parameter, shared by the live parameters and
 /// `Preset::into_params` (`m10-m18-tidy-dead-code-and-docs`).
 pub(crate) fn mseg_attack_param(value: f32) -> FloatParam {
-    FloatParam::new(
+    significant_display(FloatParam::new(
         "MSEG Attack",
         value.clamp(0.001, 2.0),
         FloatRange::Linear {
             min: 0.001,
             max: 2.0,
         },
-    )
+    ))
 }
 
 /// Build the "Hold" parameter, shared by the live parameters and
 /// `Preset::into_params` (`m10-m18-tidy-dead-code-and-docs`).
 pub(crate) fn mseg_hold_param(value: f32) -> FloatParam {
-    FloatParam::new(
+    significant_display(FloatParam::new(
         "Hold",
         value.clamp(0.0, 2.0),
         FloatRange::Linear { min: 0.0, max: 2.0 },
-    )
+    ))
 }
 
 /// Build the "MSEG Decay" parameter, shared by the live parameters and
 /// `Preset::into_params` (`m10-m18-tidy-dead-code-and-docs`).
 pub(crate) fn mseg_decay_param(value: f32) -> FloatParam {
-    FloatParam::new(
+    significant_display(FloatParam::new(
         "MSEG Decay",
         value.clamp(0.01, 5.0),
         FloatRange::Linear {
             min: 0.01,
             max: 5.0,
         },
-    )
+    ))
 }
 
 /// Build the "MSEG Sustain" parameter, shared by the live parameters and
 /// `Preset::into_params` (`m10-m18-tidy-dead-code-and-docs`).
 pub(crate) fn mseg_sustain_param(value: f32) -> FloatParam {
-    FloatParam::new(
+    significant_display(FloatParam::new(
         "MSEG Sustain",
         value.clamp(0.0, 1.0),
         FloatRange::Linear { min: 0.0, max: 1.0 },
-    )
+    ))
 }
 
 /// Build the "MSEG Release" parameter, shared by the live parameters and
 /// `Preset::into_params` (`m10-m18-tidy-dead-code-and-docs`).
 pub(crate) fn mseg_release_param(value: f32) -> FloatParam {
-    FloatParam::new(
+    significant_display(FloatParam::new(
         "MSEG Release",
         value.clamp(0.01, 5.0),
         FloatRange::Linear {
             min: 0.01,
             max: 5.0,
         },
-    )
+    ))
 }
 
 /// Build the "Env Amount" parameter, shared by the live parameters and
 /// `Preset::into_params` (`m10-m18-tidy-dead-code-and-docs`).
 pub(crate) fn env_amount_param(value: f32) -> FloatParam {
-    FloatParam::new(
+    significant_display(FloatParam::new(
         "Env Amount",
         value.clamp(0.0, 1.0),
         FloatRange::Linear { min: 0.0, max: 1.0 },
-    )
+    ))
 }
 
 /// Build the "Velocity To Peak" parameter, shared by the live parameters and
 /// `Preset::into_params` (`m10-m18-tidy-dead-code-and-docs`).
 pub(crate) fn velocity_to_peak_param(value: f32) -> FloatParam {
-    FloatParam::new(
+    significant_display(FloatParam::new(
         "Velocity To Peak",
         value.clamp(0.0, 1.0),
         FloatRange::Linear { min: 0.0, max: 1.0 },
-    )
+    ))
 }
 
 /// Build the "Loop Mode" parameter, shared by the live parameters and
@@ -1808,47 +1847,47 @@ pub(crate) fn loop_end_stage_param(value: i32) -> IntParam {
 /// Build the "Global Time Scale" parameter, shared by the live parameters and
 /// `Preset::into_params` (`m10-m18-tidy-dead-code-and-docs`).
 pub(crate) fn global_time_scale_param(value: f32) -> FloatParam {
-    FloatParam::new(
+    significant_display(FloatParam::new(
         "Global Time Scale",
         value.clamp(0.1, 10.0),
         FloatRange::Linear {
             min: 0.1,
             max: 10.0,
         },
-    )
+    ))
 }
 
 /// Build the "Velocity To Level" parameter, shared by the live parameters and
 /// `Preset::into_params` (`m10-m18-tidy-dead-code-and-docs`).
 pub(crate) fn velocity_to_level_param(value: f32) -> FloatParam {
-    FloatParam::new(
+    significant_display(FloatParam::new(
         "Velocity To Level",
         value.clamp(0.0, 1.0),
         FloatRange::Linear { min: 0.0, max: 1.0 },
-    )
+    ))
 }
 
 /// Build the "Velocity To Time" parameter, shared by the live parameters and
 /// `Preset::into_params` (`m10-m18-tidy-dead-code-and-docs`).
 pub(crate) fn velocity_to_time_param(value: f32) -> FloatParam {
-    FloatParam::new(
+    significant_display(FloatParam::new(
         "Velocity To Time",
         value.clamp(0.0, 1.0),
         FloatRange::Linear { min: 0.0, max: 1.0 },
-    )
+    ))
 }
 
 /// Build the "Curve Tension" parameter, shared by the live parameters and
 /// `Preset::into_params` (`m10-m18-tidy-dead-code-and-docs`).
 pub(crate) fn curve_tension_param(value: f32) -> FloatParam {
-    FloatParam::new(
+    significant_display(FloatParam::new(
         "Curve Tension",
         value.clamp(-1.0, 1.0),
         FloatRange::Linear {
             min: -1.0,
             max: 1.0,
         },
-    )
+    ))
 }
 
 /// Build the "Hand Mass" parameter, shared by the live parameters and
@@ -2213,250 +2252,250 @@ pub(crate) fn mass_variance_param(value: f32) -> FloatParam {
 /// Build the "Strike Position" parameter, shared by the live parameters and
 /// `Preset::into_params` (`m10-m18-tidy-dead-code-and-docs`).
 pub(crate) fn strike_position_param(value: f32) -> FloatParam {
-    FloatParam::new(
+    significant_display(FloatParam::new(
         "Strike Position",
         value.clamp(0.0, 1.0),
         FloatRange::Linear { min: 0.0, max: 1.0 },
-    )
+    ))
 }
 
 /// Build the "Coupling Stiffness" parameter, shared by the live parameters and
 /// `Preset::into_params` (`m10-m18-tidy-dead-code-and-docs`).
 pub(crate) fn coupling_stiffness_param(value: f32) -> FloatParam {
-    FloatParam::new(
+    significant_display(FloatParam::new(
         "Coupling Stiffness",
         value.clamp(0.0, 1.0),
         FloatRange::Linear { min: 0.0, max: 1.0 },
-    )
+    ))
 }
 
 /// Build the "Position Wander" parameter, shared by the live parameters and
 /// `Preset::into_params` (`m10-m18-tidy-dead-code-and-docs`).
 pub(crate) fn position_wander_param(value: f32) -> FloatParam {
-    FloatParam::new(
+    significant_display(FloatParam::new(
         "Position Wander",
         value.clamp(0.0, 1.0),
         FloatRange::Linear { min: 0.0, max: 1.0 },
-    )
+    ))
 }
 
 /// Build the "Position Envelope" parameter, shared by the live parameters and
 /// `Preset::into_params` (`m10-m18-tidy-dead-code-and-docs`).
 pub(crate) fn position_envelope_param(value: f32) -> FloatParam {
-    FloatParam::new(
+    significant_display(FloatParam::new(
         "Position Envelope",
         value.clamp(0.0, 1.0),
         FloatRange::Linear { min: 0.0, max: 1.0 },
-    )
+    ))
 }
 
 /// Build the "Fundamental Anchor" parameter, shared by the live parameters and
 /// `Preset::into_params` (`m10-m18-tidy-dead-code-and-docs`).
 pub(crate) fn fundamental_anchor_param(value: f32) -> FloatParam {
-    FloatParam::new(
+    significant_display(FloatParam::new(
         "Fundamental Anchor",
         value.clamp(0.0, 1.0),
         FloatRange::Linear { min: 0.0, max: 1.0 },
-    )
+    ))
 }
 
 /// Build the "Damping" parameter, shared by the live parameters and
 /// `Preset::into_params` (`m10-m18-tidy-dead-code-and-docs`).
 pub(crate) fn res_damping_param(value: f32) -> FloatParam {
-    FloatParam::new(
+    significant_display(FloatParam::new(
         "Damping",
         value.clamp(0.0, 1.0),
         FloatRange::Linear { min: 0.0, max: 1.0 },
-    )
+    ))
 }
 
 /// Build the "Resonator Brightness" parameter, shared by the live parameters and
 /// `Preset::into_params` (`m10-m18-tidy-dead-code-and-docs`).
 pub(crate) fn res_brightness_param(value: f32) -> FloatParam {
-    FloatParam::new(
+    significant_display(FloatParam::new(
         "Resonator Brightness",
         value.clamp(0.0, 1.0),
         FloatRange::Linear { min: 0.0, max: 1.0 },
-    )
+    ))
 }
 
 /// Build the "Thickness" parameter, shared by the live parameters and
 /// `Preset::into_params` (`m10-m18-tidy-dead-code-and-docs`).
 pub(crate) fn thickness_param(value: f32) -> FloatParam {
-    FloatParam::new(
+    significant_display(FloatParam::new(
         "Thickness",
         value.clamp(0.0, 1.0),
         FloatRange::Linear { min: 0.0, max: 1.0 },
-    )
+    ))
 }
 
 /// Build the "Heat" parameter, shared by the live parameters and
 /// `Preset::into_params` (`m10-m18-tidy-dead-code-and-docs`).
 pub(crate) fn heat_param(value: f32) -> FloatParam {
-    FloatParam::new(
+    significant_display(FloatParam::new(
         "Heat",
         value.clamp(0.0, 1.0),
         FloatRange::Linear { min: 0.0, max: 1.0 },
-    )
+    ))
 }
 
 /// Build the "Sludge" parameter, shared by the live parameters and
 /// `Preset::into_params` (`m10-m18-tidy-dead-code-and-docs`).
 pub(crate) fn sludge_param(value: f32) -> FloatParam {
-    FloatParam::new(
+    significant_display(FloatParam::new(
         "Sludge",
         value.clamp(0.0, 1.0),
         FloatRange::Linear { min: 0.0, max: 1.0 },
-    )
+    ))
 }
 
 /// Build the "Pipe Diameter" parameter, shared by the live parameters and
 /// `Preset::into_params` (`m10-m18-tidy-dead-code-and-docs`).
 pub(crate) fn pipe_diameter_param(value: f32) -> FloatParam {
-    FloatParam::new(
+    significant_display(FloatParam::new(
         "Pipe Diameter",
         value.clamp(0.0, 1.0),
         FloatRange::Linear { min: 0.0, max: 1.0 },
-    )
+    ))
 }
 
 /// Build the "Plate Aspect" parameter, shared by the live parameters and
 /// `Preset::into_params` (`m10-m18-tidy-dead-code-and-docs`).
 pub(crate) fn plate_aspect_param(value: f32) -> FloatParam {
-    FloatParam::new(
+    significant_display(FloatParam::new(
         "Plate Aspect",
         value.clamp(0.1, 4.0),
         FloatRange::Linear { min: 0.1, max: 4.0 },
-    )
+    ))
 }
 
 /// Build the "Plate Stiffness" parameter, shared by the live parameters and
 /// `Preset::into_params` (`m10-m18-tidy-dead-code-and-docs`).
 pub(crate) fn plate_stiffness_param(value: f32) -> FloatParam {
-    FloatParam::new(
+    significant_display(FloatParam::new(
         "Plate Stiffness",
         value.clamp(0.25, 3.0),
         FloatRange::Linear {
             min: 0.25,
             max: 3.0,
         },
-    )
+    ))
 }
 
 /// Build the "Tank Volume" parameter, shared by the live parameters and
 /// `Preset::into_params` (`m10-m18-tidy-dead-code-and-docs`).
 pub(crate) fn tank_volume_param(value: f32) -> FloatParam {
-    FloatParam::new(
+    significant_display(FloatParam::new(
         "Tank Volume",
         value.clamp(0.0, 1.0),
         FloatRange::Linear { min: 0.0, max: 1.0 },
-    )
+    ))
 }
 
 /// Build the "Cavity Mix" parameter, shared by the live parameters and
 /// `Preset::into_params` (`m10-m18-tidy-dead-code-and-docs`).
 pub(crate) fn tank_cavity_mix_param(value: f32) -> FloatParam {
-    FloatParam::new(
+    significant_display(FloatParam::new(
         "Cavity Mix",
         value.clamp(0.0, 1.0),
         FloatRange::Linear { min: 0.0, max: 1.0 },
-    )
+    ))
 }
 
 /// Build the "Link Mass" parameter, shared by the live parameters and
 /// `Preset::into_params` (`m10-m18-tidy-dead-code-and-docs`).
 pub(crate) fn chain_link_mass_param(value: f32) -> FloatParam {
-    FloatParam::new(
+    significant_display(FloatParam::new(
         "Link Mass",
         value.clamp(0.1, 1.0),
         FloatRange::Linear { min: 0.1, max: 1.0 },
-    )
+    ))
 }
 
 /// Build the "Instability" parameter, shared by the live parameters and
 /// `Preset::into_params` (`m10-m18-tidy-dead-code-and-docs`).
 pub(crate) fn chain_instability_param(value: f32) -> FloatParam {
-    FloatParam::new(
+    significant_display(FloatParam::new(
         "Instability",
         value.clamp(0.0, 1.0),
         FloatRange::Linear { min: 0.0, max: 1.0 },
-    )
+    ))
 }
 
 /// Build the "Shear Density" parameter, shared by the live parameters and
 /// `Preset::into_params` (`m10-m18-tidy-dead-code-and-docs`).
 pub(crate) fn beam_shear_param(value: f32) -> FloatParam {
-    FloatParam::new(
+    significant_display(FloatParam::new(
         "Shear Density",
         value.clamp(0.0, 1.0),
         FloatRange::Linear { min: 0.0, max: 1.0 },
-    )
+    ))
 }
 
 /// Build the "Braid Stiffness" parameter, shared by the live parameters and
 /// `Preset::into_params` (`m10-m18-tidy-dead-code-and-docs`).
 pub(crate) fn cable_braid_param(value: f32) -> FloatParam {
-    FloatParam::new(
+    significant_display(FloatParam::new(
         "Braid Stiffness",
         value.clamp(0.0, 1.0),
         FloatRange::Linear { min: 0.0, max: 1.0 },
-    )
+    ))
 }
 
 /// Build the "Tension Drop" parameter, shared by the live parameters and
 /// `Preset::into_params` (`m10-m18-tidy-dead-code-and-docs`).
 pub(crate) fn cable_tension_drop_param(value: f32) -> FloatParam {
-    FloatParam::new(
+    significant_display(FloatParam::new(
         "Tension Drop",
         value.clamp(0.0, 1.0),
         FloatRange::Linear { min: 0.0, max: 1.0 },
-    )
+    ))
 }
 
 /// Build the "Dispersion Chirp" parameter, shared by the live parameters and
 /// `Preset::into_params` (`m10-m18-tidy-dead-code-and-docs`).
 pub(crate) fn spring_dispersion_param(value: f32) -> FloatParam {
-    FloatParam::new(
+    significant_display(FloatParam::new(
         "Dispersion Chirp",
         value.clamp(0.0, 1.0),
         FloatRange::Linear { min: 0.0, max: 1.0 },
-    )
+    ))
 }
 
 /// Build the "Spring Slosh" parameter, shared by the live parameters and
 /// `Preset::into_params` (`m10-m18-tidy-dead-code-and-docs`).
 pub(crate) fn spring_slosh_param(value: f32) -> FloatParam {
-    FloatParam::new(
+    significant_display(FloatParam::new(
         "Spring Slosh",
         value.clamp(0.0, 1.0),
         FloatRange::Linear { min: 0.0, max: 1.0 },
-    )
+    ))
 }
 
 /// Build the "Metal Thinness" parameter, shared by the live parameters and
 /// `Preset::into_params` (`m10-m18-tidy-dead-code-and-docs`).
 pub(crate) fn sheet_thinness_param(value: f32) -> FloatParam {
-    FloatParam::new(
+    significant_display(FloatParam::new(
         "Metal Thinness",
         value.clamp(0.0, 1.0),
         FloatRange::Linear { min: 0.0, max: 1.0 },
-    )
+    ))
 }
 
 /// Build the "Tooth Dissonance" parameter, shared by the live parameters and
 /// `Preset::into_params` (`m10-m18-tidy-dead-code-and-docs`).
 pub(crate) fn cog_dissonance_param(value: f32) -> FloatParam {
-    FloatParam::new(
+    significant_display(FloatParam::new(
         "Tooth Dissonance",
         value.clamp(0.0, 1.0),
         FloatRange::Linear { min: 0.0, max: 1.0 },
-    )
+    ))
 }
 
 /// Build the "Filter Cutoff" parameter, shared by the live parameters and
 /// `Preset::into_params` (`m10-m18-tidy-dead-code-and-docs`).
 pub(crate) fn filter_cutoff_param(value: f32) -> FloatParam {
-    FloatParam::new(
+    significant_display(FloatParam::new(
         "Filter Cutoff",
         value.clamp(20.0, 20000.0),
         FloatRange::Skewed {
@@ -2464,97 +2503,97 @@ pub(crate) fn filter_cutoff_param(value: f32) -> FloatParam {
             max: 20000.0,
             factor: 0.5,
         },
-    )
+    ))
 }
 
 /// Build the "Filter Resonance" parameter, shared by the live parameters and
 /// `Preset::into_params` (`m10-m18-tidy-dead-code-and-docs`).
 pub(crate) fn filter_resonance_param(value: f32) -> FloatParam {
-    FloatParam::new(
+    significant_display(FloatParam::new(
         "Filter Resonance",
         value.clamp(0.0, 1.0),
         FloatRange::Linear { min: 0.0, max: 1.0 },
-    )
+    ))
 }
 
 /// Build the "Component Tolerance" parameter, shared by the live parameters and
 /// `Preset::into_params` (`m10-m18-tidy-dead-code-and-docs`).
 pub(crate) fn component_tolerance_param(value: f32) -> FloatParam {
-    FloatParam::new(
+    significant_display(FloatParam::new(
         "Component Tolerance",
         value.clamp(0.0, 1.0),
         FloatRange::Linear { min: 0.0, max: 1.0 },
-    )
+    ))
 }
 
 /// Build the "Drive Amount" parameter, shared by the live parameters and
 /// `Preset::into_params` (`m10-m18-tidy-dead-code-and-docs`).
 pub(crate) fn drive_amount_param(value: f32) -> FloatParam {
-    FloatParam::new(
+    significant_display(FloatParam::new(
         "Drive Amount",
         value.clamp(0.0, 5.0),
         FloatRange::Linear { min: 0.0, max: 5.0 },
-    )
+    ))
 }
 
 /// Build the "Bias Starvation" parameter, shared by the live parameters and
 /// `Preset::into_params` (`m10-m18-tidy-dead-code-and-docs`).
 pub(crate) fn bias_starvation_param(value: f32) -> FloatParam {
-    FloatParam::new(
+    significant_display(FloatParam::new(
         "Bias Starvation",
         value.clamp(0.0, 1.0),
         FloatRange::Linear { min: 0.0, max: 1.0 },
-    )
+    ))
 }
 
 /// Build the "Chaos Depth" parameter, shared by the live parameters and
 /// `Preset::into_params` (`m10-m18-tidy-dead-code-and-docs`).
 pub(crate) fn chaos_depth_param(value: f32) -> FloatParam {
-    FloatParam::new(
+    significant_display(FloatParam::new(
         "Chaos Depth",
         value.clamp(0.0, 1.0),
         FloatRange::Linear { min: 0.0, max: 1.0 },
-    )
+    ))
 }
 
 /// Build the "Spread Width" parameter, shared by the live parameters and
 /// `Preset::into_params` (`m10-m18-tidy-dead-code-and-docs`).
 pub(crate) fn spread_width_param(value: f32) -> FloatParam {
-    FloatParam::new(
+    significant_display(FloatParam::new(
         "Spread Width",
         value.clamp(0.0, 1.0),
         FloatRange::Linear { min: 0.0, max: 1.0 },
-    )
+    ))
 }
 
 /// Build the "Listener Proximity" parameter, shared by the live parameters and
 /// `Preset::into_params` (`m10-m18-tidy-dead-code-and-docs`).
 pub(crate) fn listener_proximity_param(value: f32) -> FloatParam {
-    FloatParam::new(
+    significant_display(FloatParam::new(
         "Listener Proximity",
         value.clamp(0.0, 1.0),
         FloatRange::Linear { min: 0.0, max: 1.0 },
-    )
+    ))
 }
 
 /// Build the "Chassis Material" parameter, shared by the live parameters and
 /// `Preset::into_params` (`m10-m18-tidy-dead-code-and-docs`).
 pub(crate) fn chassis_material_param(value: f32) -> FloatParam {
-    FloatParam::new(
+    significant_display(FloatParam::new(
         "Chassis Material",
         value.clamp(0.0, 1.0),
         FloatRange::Linear { min: 0.0, max: 1.0 },
-    )
+    ))
 }
 
 /// Build the "Chassis Volume" parameter, shared by the live parameters and
 /// `Preset::into_params` (`m10-m18-tidy-dead-code-and-docs`).
 pub(crate) fn chassis_volume_param(value: f32) -> FloatParam {
-    FloatParam::new(
+    significant_display(FloatParam::new(
         "Chassis Volume",
         value.clamp(0.0, 1.0),
         FloatRange::Linear { min: 0.0, max: 1.0 },
-    )
+    ))
 }
 
 /// Build the "Space Mode" parameter, shared by the live parameters and
@@ -2570,161 +2609,161 @@ pub(crate) fn space_mode_param(value: i32) -> IntParam {
 /// Build the "Space Amount" parameter, shared by the live parameters and
 /// `Preset::into_params` (`m10-m18-tidy-dead-code-and-docs`).
 pub(crate) fn space_amount_param(value: f32) -> FloatParam {
-    FloatParam::new(
+    significant_display(FloatParam::new(
         "Space Amount",
         value.clamp(0.0, 1.0),
         FloatRange::Linear { min: 0.0, max: 1.0 },
-    )
+    ))
 }
 
 /// Build the "Factory Size" parameter, shared by the live parameters and
 /// `Preset::into_params` (`m10-m18-tidy-dead-code-and-docs`).
 pub(crate) fn factory_size_param(value: f32) -> FloatParam {
-    FloatParam::new(
+    significant_display(FloatParam::new(
         "Factory Size",
         value.clamp(0.0, 1.0),
         FloatRange::Linear { min: 0.0, max: 1.0 },
-    )
+    ))
 }
 
 /// Build the "Machinery Clutter" parameter, shared by the live parameters and
 /// `Preset::into_params` (`m10-m18-tidy-dead-code-and-docs`).
 pub(crate) fn machinery_clutter_param(value: f32) -> FloatParam {
-    FloatParam::new(
+    significant_display(FloatParam::new(
         "Machinery Clutter",
         value.clamp(0.0, 1.0),
         FloatRange::Linear { min: 0.0, max: 1.0 },
-    )
+    ))
 }
 
 /// Build the "Wall Impedance" parameter, shared by the live parameters and
 /// `Preset::into_params` (`m10-m18-tidy-dead-code-and-docs`).
 pub(crate) fn wall_impedance_param(value: f32) -> FloatParam {
-    FloatParam::new(
+    significant_display(FloatParam::new(
         "Wall Impedance",
         value.clamp(0.0, 1.0),
         FloatRange::Linear { min: 0.0, max: 1.0 },
-    )
+    ))
 }
 
 /// Build the "Spring Tension" parameter, shared by the live parameters and
 /// `Preset::into_params` (`m10-m18-tidy-dead-code-and-docs`).
 pub(crate) fn spring_tension_param(value: f32) -> FloatParam {
-    FloatParam::new(
+    significant_display(FloatParam::new(
         "Spring Tension",
         value.clamp(0.0, 1.0),
         FloatRange::Linear { min: 0.0, max: 1.0 },
-    )
+    ))
 }
 
 /// Build the "Spring Wire Stiffness" parameter, shared by the live parameters and
 /// `Preset::into_params` (`m10-m18-tidy-dead-code-and-docs`).
 pub(crate) fn wire_stiffness_param(value: f32) -> FloatParam {
-    FloatParam::new(
+    significant_display(FloatParam::new(
         "Spring Wire Stiffness",
         value.clamp(0.0, 1.0),
         FloatRange::Linear { min: 0.0, max: 1.0 },
-    )
+    ))
 }
 
 /// Build the "Spring Tank Size" parameter, shared by the live parameters and
 /// `Preset::into_params` (`m10-m18-tidy-dead-code-and-docs`).
 pub(crate) fn spring_tank_size_param(value: f32) -> FloatParam {
-    FloatParam::new(
+    significant_display(FloatParam::new(
         "Spring Tank Size",
         value.clamp(0.0, 1.0),
         FloatRange::Linear { min: 0.0, max: 1.0 },
-    )
+    ))
 }
 
 /// Build the "Delay Time" parameter, shared by the live parameters and
 /// `Preset::into_params` (`m10-m18-tidy-dead-code-and-docs`).
 pub(crate) fn delay_time_param(value: f32) -> FloatParam {
-    FloatParam::new(
+    significant_display(FloatParam::new(
         "Delay Time",
         value.clamp(0.0, 1.0),
         FloatRange::Linear { min: 0.0, max: 1.0 },
-    )
+    ))
 }
 
 /// Build the "Machinery Movement" parameter, shared by the live parameters and
 /// `Preset::into_params` (`m10-m18-tidy-dead-code-and-docs`).
 pub(crate) fn machinery_movement_param(value: f32) -> FloatParam {
-    FloatParam::new(
+    significant_display(FloatParam::new(
         "Machinery Movement",
         value.clamp(0.0, 1.0),
         FloatRange::Linear { min: 0.0, max: 1.0 },
-    )
+    ))
 }
 
 /// Build the "High Frequency Damping" parameter, shared by the live parameters and
 /// `Preset::into_params` (`m10-m18-tidy-dead-code-and-docs`).
 pub(crate) fn high_frequency_damping_param(value: f32) -> FloatParam {
-    FloatParam::new(
+    significant_display(FloatParam::new(
         "High Frequency Damping",
         value.clamp(0.0, 1.0),
         FloatRange::Linear { min: 0.0, max: 1.0 },
-    )
+    ))
 }
 
 /// Build the "Analog Ceiling" parameter, shared by the live parameters and
 /// `Preset::into_params` (`m10-m18-tidy-dead-code-and-docs`).
 pub(crate) fn analog_ceiling_param(value: f32) -> FloatParam {
-    FloatParam::new(
+    significant_display(FloatParam::new(
         "Analog Ceiling",
         value.clamp(0.5, 1.0),
         FloatRange::Linear { min: 0.5, max: 1.0 },
-    )
+    ))
 }
 
 /// Build the "Diode Softness" parameter, shared by the live parameters and
 /// `Preset::into_params` (`m10-m18-tidy-dead-code-and-docs`).
 pub(crate) fn diode_softness_param(value: f32) -> FloatParam {
-    FloatParam::new(
+    significant_display(FloatParam::new(
         "Diode Softness",
         value.clamp(0.0, 1.0),
         FloatRange::Linear { min: 0.0, max: 1.0 },
-    )
+    ))
 }
 
 /// Build the "Mass" parameter, shared by the live parameters and
 /// `Preset::into_params` (`m10-m18-tidy-dead-code-and-docs`).
 pub(crate) fn macro_mass_param(value: f32) -> FloatParam {
-    FloatParam::new(
+    significant_display(FloatParam::new(
         "Mass",
         value.clamp(0.0, 1.0),
         FloatRange::Linear { min: 0.0, max: 1.0 },
-    )
+    ))
 }
 
 /// Build the "Corrosion" parameter, shared by the live parameters and
 /// `Preset::into_params` (`m10-m18-tidy-dead-code-and-docs`).
 pub(crate) fn macro_corrosion_param(value: f32) -> FloatParam {
-    FloatParam::new(
+    significant_display(FloatParam::new(
         "Corrosion",
         value.clamp(0.0, 1.0),
         FloatRange::Linear { min: 0.0, max: 1.0 },
-    )
+    ))
 }
 
 /// Build the "Violence" parameter, shared by the live parameters and
 /// `Preset::into_params` (`m10-m18-tidy-dead-code-and-docs`).
 pub(crate) fn macro_violence_param(value: f32) -> FloatParam {
-    FloatParam::new(
+    significant_display(FloatParam::new(
         "Violence",
         value.clamp(0.0, 1.0),
         FloatRange::Linear { min: 0.0, max: 1.0 },
-    )
+    ))
 }
 
 /// Build the "Macro Brightness" parameter, shared by the live parameters and
 /// `Preset::into_params` (`m10-m18-tidy-dead-code-and-docs`).
 pub(crate) fn macro_brightness_param(value: f32) -> FloatParam {
-    FloatParam::new(
+    significant_display(FloatParam::new(
         "Macro Brightness",
         value.clamp(0.0, 1.0),
         FloatRange::Linear { min: 0.0, max: 1.0 },
-    )
+    ))
 }
 
 impl Default for CorrosionParams {
@@ -2958,6 +2997,54 @@ mod tests {
             }
         }
         assert!(duplicates.is_empty(), "shared names: {duplicates:?}");
+    }
+
+    /// clap-validator's `param-conversions` (`extend-ci-windows-linux-macos`):
+    /// a value shown as text, read back and shown again must give the same
+    /// text, for every parameter. The CLAP wrapper passes normalized values.
+    #[test]
+    fn parameter_text_round_trips() {
+        use nih_plug::prelude::Params;
+        let params = super::CorrosionParams::default();
+        // A grid plus the value clap-validator reported, and a few odd ones.
+        let mut values: Vec<f32> = (0..=400).map(|i| i as f32 / 400.0).collect();
+        values.extend([
+            0.117_164_69,
+            0.333_333_34,
+            0.666_666_7,
+            0.123_456_79,
+            0.987_654_3,
+        ]);
+        // And pseudo-random ones, as clap-validator draws.
+        let mut state = 0x2545_f491_4f6c_dd1d_u64;
+        values.extend((0..20_000).map(|_| {
+            state ^= state << 13;
+            state ^= state >> 7;
+            state ^= state << 17;
+            (state >> 40) as f32 / (1u64 << 24) as f32
+        }));
+        let mut failures = Vec::new();
+        for (id, ptr, _) in params.param_map() {
+            for &v in &values {
+                // SAFETY: the pointers come from `params`, alive for this loop.
+                let first = unsafe { ptr.normalized_value_to_string(v, true) };
+                let Some(back) = (unsafe { ptr.string_to_normalized_value(&first) }) else {
+                    failures.push(format!("{id}: {first:?} does not parse"));
+                    break;
+                };
+                let second = unsafe { ptr.normalized_value_to_string(back, true) };
+                if first != second {
+                    failures.push(format!("{id}: {v} -> {first:?} -> {back} -> {second:?}"));
+                    break;
+                }
+            }
+        }
+        assert!(
+            failures.is_empty(),
+            "{} parameters do not round-trip:\n{}",
+            failures.len(),
+            failures.join("\n")
+        );
     }
 
     #[test]
