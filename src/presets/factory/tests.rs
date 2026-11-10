@@ -46,7 +46,11 @@ fn curated_folders_hold_twelve_presets() {
         // Parses as a valid preset: the saved JSON loads back unchanged.
         let json = serde_json::to_string_pretty(&entry.preset).unwrap();
         let loaded = Preset::from_json_str(&json).expect("parse preset");
-        assert_eq!(loaded, entry.preset, "{} changes on load", entry.preset.name);
+        assert_eq!(
+            loaded, entry.preset,
+            "{} changes on load",
+            entry.preset.name
+        );
     }
     for folder in CURATED_FOLDERS {
         assert_eq!(
@@ -102,7 +106,10 @@ fn experimental_grid_covers_every_pair_once() {
     }
     for exciter in 1..=EXCITER_COUNT {
         for object in 0..OBJECT_COUNT {
-            assert!(pairs.contains(&(exciter, object)), "missing {exciter} × {object}");
+            assert!(
+                pairs.contains(&(exciter, object)),
+                "missing {exciter} × {object}"
+            );
         }
     }
 }
@@ -133,17 +140,31 @@ fn generator_parameter_lists_name_real_parameters() {
     let ids = parameter_ids();
     for exciter in 1..=EXCITER_COUNT {
         let slots = exciter_slot_ids(exciter);
-        assert!(!slots.is_empty(), "exciter {exciter} has no slot parameters");
+        assert!(
+            !slots.is_empty(),
+            "exciter {exciter} has no slot parameters"
+        );
         for id in slots {
-            assert!(ids.contains(*id), "exciter {exciter}: {id} is not a parameter");
+            assert!(
+                ids.contains(*id),
+                "exciter {exciter}: {id} is not a parameter"
+            );
         }
     }
     for object in 0..OBJECT_COUNT {
         let object = Object::from_int(object);
         let character = object_character_ids(object);
-        assert!(!character.is_empty(), "{} has no character parameters", object.name());
+        assert!(
+            !character.is_empty(),
+            "{} has no character parameters",
+            object.name()
+        );
         for id in character {
-            assert!(ids.contains(*id), "{}: {id} is not a parameter", object.name());
+            assert!(
+                ids.contains(*id),
+                "{}: {id} is not a parameter",
+                object.name()
+            );
         }
     }
     for (id, _) in EXPERIMENTAL_FIXED_IDS {
@@ -165,7 +186,10 @@ fn experimental_parameters_vary() {
     let mut specific = BTreeSet::new();
     // Each exciter-specific parameter varies across that exciter's 9 presets.
     for exciter in 1..=EXCITER_COUNT {
-        let own: Vec<_> = grid.iter().filter(|e| e.preset.exciter == exciter).collect();
+        let own: Vec<_> = grid
+            .iter()
+            .filter(|e| e.preset.exciter == exciter)
+            .collect();
         for id in exciter_slot_ids(exciter) {
             specific.insert(*id);
             assert!(
@@ -198,7 +222,10 @@ fn experimental_parameters_vary() {
         if specific.contains(id) || fixed.contains(id) || id == "exciter" || id == "object" {
             continue;
         }
-        assert!(distinct(&all, id) > 1, "shared {id} takes one value across the folder");
+        assert!(
+            distinct(&all, id) > 1,
+            "shared {id} takes one value across the folder"
+        );
     }
 }
 
@@ -236,17 +263,26 @@ fn generated_bank_equals_the_files_on_disk() {
             )
         })
         .collect();
-    let missing: Vec<_> = generated.keys().filter(|k| !on_disk.contains_key(*k)).collect();
-    let extra: Vec<_> = on_disk.keys().filter(|k| !generated.contains_key(*k)).collect();
+    let missing: Vec<_> = generated
+        .keys()
+        .filter(|k| !on_disk.contains_key(*k))
+        .collect();
+    let extra: Vec<_> = on_disk
+        .keys()
+        .filter(|k| !generated.contains_key(*k))
+        .collect();
     assert!(
         missing.is_empty() && extra.is_empty(),
-        "run `cargo run --bin seed_presets`: missing {missing:?}, stale {extra:?}"
+        "run `cargo run --release --bin seed_presets`: {} missing (first {:?}), {} stale (first {:?})",
+        missing.len(),
+        missing.iter().take(5).collect::<Vec<_>>(),
+        extra.len(),
+        extra.iter().take(5).collect::<Vec<_>>()
     );
     for (path, json) in &generated {
         assert_eq!(&on_disk[path], json, "{path} differs from its definition");
     }
 }
-
 
 // --- Quality floor and folder character -------------------------------------
 
@@ -353,7 +389,10 @@ const STIFF_POINT: i32 = 9;
 fn character_checks_reject_wrong_presets() {
     let fails = |folder: &str, preset: &Preset| {
         let report = character::measure(folder, preset);
-        assert!(report.check().is_err(), "{folder} accepts a wrong preset: {report:?}");
+        assert!(
+            report.check().is_err(),
+            "{folder} accepts a wrong preset: {report:?}"
+        );
     };
     let passes = |folder: &str, preset: &Preset| {
         let report = character::measure(folder, preset);
@@ -403,5 +442,45 @@ fn character_checks_reject_wrong_presets() {
     passes("bass", &probe(HARD_MALLET, Object::Pipe, 1.0));
 }
 
-
-
+/// The curated presets' measurements (design `## Measurements`): Output
+/// chosen by levelling, the floor-render RMS at Output 0 dB, the centroid
+/// and decay to −30 dB of a held middle C, and each character value, with
+/// whether the folder's check passes.
+#[test]
+#[ignore]
+fn curated_measurements_table() {
+    use super::measure::*;
+    println!("| Folder | Preset | Output | RMS @0 dB | Centroid (Hz) | Decay −30 dB (s) | Pitch err (c) | Low < 500 Hz | Partial dev (c) | Sustain 2 s (dB) | Flatness | Drone drift (dB) | Decay 1.5 s (dB) | Pass |");
+    println!("|---|---|---|---|---|---|---|---|---|---|---|---|---|---|");
+    let entries = bank();
+    let curated: Vec<_> = entries
+        .iter()
+        .filter(|e| !e.folder.starts_with(EXPERIMENTAL_FOLDER))
+        .collect();
+    let rows: Vec<String> = std::thread::scope(|scope| {
+        let handles: Vec<_> = curated.iter().map(|e| scope.spawn(move || {
+            let mut unity = e.preset.clone();
+            unity.output = 1.0;
+            let rms0 = measure_floor(&unity).rms;
+            let s = mono(&render_held(&e.preset, 60, 4.0).output);
+            let centroid = Spectrum::of(&s, (0.1 * SAMPLE_RATE as f32) as usize, 65_536).centroid();
+            let decay = decay_to_minus_30(&s).map_or("—".to_string(), |d| format!("{d:.2}"));
+            let mut r = character::CharacterReport::default();
+            character::measure_pitch(&e.preset, &mut r);
+            character::measure_bass(&e.preset, &mut r);
+            character::measure_chord(&e.preset, &mut r);
+            character::measure_drone(&e.preset, &mut r);
+            character::measure_percussion(&e.preset, &mut r);
+            let pass = character::measure(&e.folder, &e.preset).check();
+            format!("| {} | {} | {:.3} | {:.4} | {:.0} | {} | {:.0} | {:.2} | {:.1} | {:.1} | {:.4} | {:+.1} | {:.1} | {} |",
+                e.folder, e.preset.name, e.preset.output, rms0, centroid, decay,
+                r.pitch_error_cents.unwrap(), r.low_fraction.unwrap(), r.partial_deviation_cents.unwrap(),
+                r.sustain_db.unwrap(), r.flatness.unwrap(), r.drone_drift_db.unwrap(), r.decay_db.unwrap(),
+                match pass { Ok(()) => "yes".to_string(), Err(why) => format!("**no**: {why}") })
+        })).collect();
+        handles.into_iter().map(|h| h.join().unwrap()).collect()
+    });
+    for row in rows {
+        println!("{row}");
+    }
+}

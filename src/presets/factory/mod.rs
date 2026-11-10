@@ -27,7 +27,7 @@ use crate::params::{CorrosionParams, Object};
 use crate::presets::{Preset, PRESET_EXTENSION};
 
 pub use experimental::{
-    experimental_preset, exciter_slot_ids, object_character_ids, EXPERIMENTAL_FIXED_IDS,
+    exciter_slot_ids, experimental_preset, object_character_ids, EXPERIMENTAL_FIXED_IDS,
     MAX_SEED_TRIES,
 };
 
@@ -150,9 +150,10 @@ pub struct StoredLevel {
 // --- Levelling and the quality floor -------------------------------------
 
 /// The RMS (both channels, the whole render) every factory preset's floor
-/// render is levelled to. Chosen once from the curated presets at Output
-/// 0 dB (design decision 4).
-pub const TARGET_RMS: f32 = 0.1;
+/// render is levelled to (−17.7 dBFS). Chosen once (design decision 4): the
+/// median of the 60 curated presets at Output 0 dB was 0.1254
+/// (`seed_presets --target`), rounded to two digits.
+pub const TARGET_RMS: f32 = 0.13;
 
 /// How far (dB) a preset's floor-render RMS may sit from [`TARGET_RMS`].
 pub const FLOOR_TOLERANCE_DB: f32 = 6.0;

@@ -10,11 +10,11 @@
 
 ## 2. Generator and bank
 
-- [ ] 2.1 `presets::factory` module: layout, slugs and names; the seeder becomes a writer over it, with recursive output folders
-- [ ] 2.2 Experimental generator: per-pair seed, playable ranges, every slot/character/shared/post parameter varied, play mode by family
-- [ ] 2.3 Levelling and quality floor in the seeder (target loudness constant, re-draw up to 8 seeds, curated failures stop the run)
-- [ ] 2.4 Curated presets: 12 bass, 12 lead, 12 chords, 12 drones, 12 percussion, designed by hand with intent comments
-- [ ] 2.5 Regenerate `presets/factory/` (204 files) with `cargo run --bin seed_presets`
+- [x] 2.1 `presets::factory` module: layout, slugs and names; the seeder becomes a writer over it, with recursive output folders
+- [x] 2.2 Experimental generator: per-pair seed, playable ranges, every slot/character/shared/post parameter varied, play mode by family
+- [x] 2.3 Levelling and quality floor in the seeder (target loudness constant, re-draw up to 8 seeds, curated failures stop the run)
+- [x] 2.4 Curated presets: 12 bass, 12 lead, 12 chords, 12 drones, 12 percussion, designed by hand with intent comments
+- [x] 2.5 Regenerate `presets/factory/` (204 files) with `cargo run --bin seed_presets`
 
 ## 3. Editor and user presets
 

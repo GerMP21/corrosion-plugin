@@ -137,12 +137,17 @@ impl CharacterReport {
         let mut failures = Vec::new();
         if let Some(f) = self.low_fraction {
             if f < BASS_LOW_FRACTION {
-                failures.push(format!("{:.0} % of energy below 500 Hz (≥ 70 %)", f * 100.0));
+                failures.push(format!(
+                    "{:.0} % of energy below 500 Hz (≥ 70 %)",
+                    f * 100.0
+                ));
             }
         }
         if let (Some(hz), Some(e)) = (self.strongest_hz, self.pitch_error_cents) {
             if e > PITCH_CENTS {
-                failures.push(format!("strongest peak {hz:.1} Hz is {e:.0} cents off C3/C4/C5"));
+                failures.push(format!(
+                    "strongest peak {hz:.1} Hz is {e:.0} cents off C3/C4/C5"
+                ));
             }
         }
         if let Some(d) = self.partial_deviation_cents {

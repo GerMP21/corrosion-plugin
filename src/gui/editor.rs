@@ -5519,6 +5519,44 @@ mod tests {
         assert_eq!(resonator_panel(Object::IndustrialCog).controls.len(), 3);
     }
 
+    /// The ID of the parameter `param` points at in `params`.
+    fn param_id(params: &super::CorrosionParams, param: &super::FloatParam) -> String {
+        use nih_plug::prelude::{ParamPtr, Params};
+        params
+            .param_map()
+            .into_iter()
+            .find(|(_, ptr, _)| matches!(ptr, ParamPtr::FloatParam(p) if std::ptr::eq(*p, param)))
+            .map(|(id, _, _)| id)
+            .expect("panel parameter is in the parameter map")
+    }
+
+    #[test]
+    fn experimental_generator_varies_what_the_panels_show() {
+        // The generator (no GUI) keeps its own lists of exciter slot and
+        // object character parameters; they must be the panels' controls.
+        use super::{exciter_param_ref, resonator_param_ref, CorrosionParams};
+        use crate::presets::factory::{exciter_slot_ids, object_character_ids};
+        let params = CorrosionParams::default();
+        for exciter in 1..=16 {
+            let panel: Vec<String> = exciter_panel(ExciterType::from_int(exciter))
+                .controls
+                .iter()
+                .map(|c| param_id(&params, exciter_param_ref(&params, c.id)))
+                .collect();
+            assert_eq!(exciter_slot_ids(exciter), panel, "exciter {exciter}");
+        }
+        for object in 0..9 {
+            let object = Object::from_int(object);
+            let panel: Vec<String> = resonator_panel(object)
+                .controls
+                .iter()
+                .map(|c| param_id(&params, resonator_param_ref(&params, c.id)))
+                .filter(|id| id != "size" && id != "res_damping")
+                .collect();
+            assert_eq!(object_character_ids(object), panel, "{}", object.name());
+        }
+    }
+
     #[test]
     fn factory_preset_loader_finds_factory_bank() {
         let presets = load_factory_presets();

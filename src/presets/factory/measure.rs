@@ -93,8 +93,8 @@ impl Spectrum {
         for (i, slot) in re.iter_mut().enumerate() {
             let x = samples.get(start + i).copied().unwrap_or(0.0) as f64;
             let p = 2.0 * std::f64::consts::PI * i as f64 / n;
-            let w = 0.35875 - 0.48829 * p.cos() + 0.14128 * (2.0 * p).cos()
-                - 0.01168 * (3.0 * p).cos();
+            let w =
+                0.35875 - 0.48829 * p.cos() + 0.14128 * (2.0 * p).cos() - 0.01168 * (3.0 * p).cos();
             *slot = x * w;
         }
         fft(&mut re, &mut im);
@@ -188,6 +188,44 @@ impl Spectrum {
             bins.iter().map(|p| p.max(mean * 1e-12).ln()).sum::<f64>() / bins.len() as f64;
         log_mean.exp() / mean
     }
+}
+
+impl Spectrum {
+    /// Spectral centroid between 20 Hz and 20 kHz, in Hz.
+    pub fn centroid(&self) -> f32 {
+        let (lo, hi) = (self.bin(20.0), self.bin(20_000.0));
+        let (mut weighted, mut total) = (0.0f64, 0.0f64);
+        for k in lo..hi {
+            weighted += k as f64 * self.power[k];
+            total += self.power[k];
+        }
+        if total > 0.0 {
+            (weighted / total) as f32 * self.bin_hz
+        } else {
+            0.0
+        }
+    }
+}
+
+/// Seconds from the loudest window until the level first falls 30 dB under
+/// it (`None` if it never does).
+pub fn decay_to_minus_30(samples: &[f32]) -> Option<f32> {
+    let levels = window_levels(samples);
+    let (peak_index, peak) =
+        levels
+            .iter()
+            .copied()
+            .enumerate()
+            .fold(
+                (0, 0.0f32),
+                |best, (i, l)| if l > best.1 { (i, l) } else { best },
+            );
+    levels
+        .iter()
+        .enumerate()
+        .skip(peak_index)
+        .find(|(_, &l)| db(l, peak) <= -30.0)
+        .map(|(i, _)| (i - peak_index) as f32 * LEVEL_WINDOW_SECONDS)
 }
 
 /// In-place iterative radix-2 FFT.
