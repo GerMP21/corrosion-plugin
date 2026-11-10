@@ -202,3 +202,12 @@ passed every job: checks and bundles on Linux, Windows and macOS.
 The four skipped clap-validator tests are the preset-discovery ones: the
 plugin implements no preset-discovery factory. Validation takes 2–3 s per
 platform.
+
+### First nightly (2026-11-10, run #108 on `main`)
+
+The merge of the CI fixes into `main` (6af5fa2) ran every job green, and
+`nightly` replaced the rolling pre-release: "Nightly (6af5fa2)", marked
+pre-release, with the six zips (VST3 and CLAP for Linux x86_64, Windows
+x86_64 and macOS universal; 2.2–5.1 MB each) and the generated notes
+(install folders per OS, the macOS quarantine step). The run took 11 min
+(19:01–19:12 UTC).
