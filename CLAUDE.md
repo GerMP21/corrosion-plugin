@@ -19,18 +19,17 @@ Corrosion is a physical-modeling instrument plugin (VST3 + CLAP, Rust, nih-plug,
 - When a plan, spec bound or design decision turns out not to hold, stop and ask, with the numbers and the options. Don't silently relax a spec.
 - Report results faithfully: say what was measured, what failed, what was skipped.
 
-## Factory presets are placeholders
+## Factory presets
 
-The 50 factory presets (`presets/factory/`, seeded by `src/bin/seed_presets.rs`) are irrelevant for now: the maintainer will regenerate them all when the project is finished.
+The factory bank (204 presets in folders under `presets/factory/`) is built in code by `src/presets/factory/` and written by `cargo run --release --bin seed_presets`. Since `reorganize-factory-presets` it is real: **its levels and character matter.**
 
-- Don't spend effort keeping them bit-identical, re-levelling them, or measuring how a change affects them.
-- Don't treat "a factory preset changes" as a risk or a reason to avoid a change.
-- Keep them loading and passing the CI preset tests (`tests/preset_roundtrip.rs`). If a schema change adds a field, regenerate them with `cargo run --bin seed_presets` so they stay valid.
-- **Their levels don't matter:** the ignored `preset_levels_are_sane` may fail (today three presets sit under its −12 dB floor). Don't apply a level pass, and don't mark a task undone because of it; say in the task that the levels were not checked (maintainer, 2026-11-10).
+- Change a preset in `curated.rs` (or the generator in `experimental.rs`), then rerun the seeder. It re-levels every preset and rewrites the files and `src/presets/factory/levels.rs`. `generated_bank_equals_the_files_on_disk` fails if they drift.
+- The bank tests (`presets::factory::tests`, CI lane) must pass: counts, the 16 × 9 grid, determinism, parameter variation, the quality floor for all 204, and each curated folder's character checks. `curated_measurements_table` (ignored) prints the per-preset table for the change's design.
+- A change that moves levels or timbre engine-wide (a new stage, a gain change) can push presets off the floor or out of character: run the bank tests and reseed, and say what moved.
+- Tuning notes for designing presets are at the top of `curated.rs`. Pitch is roughly the key ÷ Size, with an offset per object. Space and BODY add partials of their own. Pipe, I-Beam and Taut Cable strikes ring for seconds.
+- A schema change that adds a field: reseed so the files stay valid.
 - **User presets and saved DAW projects still matter: keep their migrations** (see "Migrations" below).
-- **Deleted (maintainer, 2026-11-10):** `presets/factory/` holds only a `.gitkeep` (the editor's `include_dir!` needs the folder); the editor's preset list shows only user presets.
-  - Tests that need a specific preset read the old bank, kept as a corpus in `tests/fixtures/presets/legacy/` (also the benchmark's and `render_presets`' default `sheet_lightning`). All lanes pass with the bank empty.
-  - `cargo run --bin seed_presets` writes the bank back.
+- Tests that need one specific preset read the old placeholder bank, kept as a corpus in `tests/fixtures/presets/legacy/` (also the benchmark's and `render_presets`' default `sheet_lightning`). Don't regenerate the corpus: it doubles as a check that old presets keep loading.
 
 ## Current state (2026-11-10)
 

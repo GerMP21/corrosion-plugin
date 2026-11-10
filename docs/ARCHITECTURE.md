@@ -162,7 +162,18 @@ src/
                       ring, release-all flag, held-note mask), NoteSender (GUI side),
                       EditorNoteState (audio side); no GUI dependency
   presets/
-    mod.rs            Preset save/load + sanitization (out of scope for this review)
+    mod.rs            Preset save/load + sanitization; user presets: recursive listing
+                      (UserPreset, ≤ 4 levels), folders, save into a subfolder (never
+                      outside the user folder), open_folder / open_folder_command
+    factory/          The factory bank in code (reorganize-factory-presets):
+      mod.rs          bank(), layout, levelling (TARGET_RMS 0.13), quality floor
+      curated.rs      60 hand-designed presets (bass, lead, chords, drones, percussion)
+      experimental.rs 16 × 9 generated presets, seeded, varied by parameter ID
+      levels.rs       Output and seed try per preset, written by seed_presets
+      measure.rs      Offline measurement helpers (FFT, peaks, flatness, RMS windows)
+      character.rs    Folder character checks
+      tests.rs        Bank tests: counts, grid, determinism, variation, disk equality,
+                      floor, character
   offline/
     mod.rs            OfflineRenderer, comparison/rust/damage suites,
                       AliasingReport + analyze_post_chain_aliasing (DFT residual proxy)
@@ -174,6 +185,22 @@ src/
     render.rs         CLI: --suite family|rust|damage|all|aliasing
     render_presets.rs CLI: preset batch renderer → stereo WAVs via offline::render_preset
 ```
+
+
+### Factory bank
+
+`presets::factory` builds every factory preset in code; `seed_presets` only levels and writes them. The bank tests build the same presets, so they don't depend on the files, and one test checks the files on disk equal the code byte for byte.
+
+- **Layout.** `presets/factory/<folder>/<slug>.corrosion-preset`. The curated folders are `bass`, `lead`, `chords`, `drones` and `percussion` (12 each). Experimental presets are at `experimental/<exciter>/<object>`. The folder is the category: there's no category field in the file.
+- **Experimental generator.** It draws every parameter except output, quality mode, limiter mode, ceiling and UI scale (`EXPERIMENTAL_FIXED_IDS`), from playable ranges. The seed is SplitMix64 over (exciter, object, seed try), mixed with a hash of the parameter ID. Values are written by parameter ID into the preset JSON and parsed back, which clamps them like a loaded file. The exciter slot and object character lists mirror the editor's panels, and a GUI-lane test keeps them equal. Continuous exciters play in Drone mode half the time.
+- **Levelling.** One render of a held middle C (2 s, velocity 100) at Output 1 gives the gain to `TARGET_RMS`. The level before the limiter scales with Output. The quality floor then checks: finite samples, RMS within ±6 dB of the target, ≤ 1 % of samples over the ceiling. An experimental preset that fails is re-drawn with the next seed (up to 8 tries). A curated one stops the seeder. The chosen Output and seed try go to `levels.rs`, so `bank()` reproduces the files without rendering.
+- **Character checks** (`character.rs`), on offline renders through the plugin's output path:
+  - bass: ≥ 70 % of the energy under 500 Hz at C2;
+  - lead and chords: the strongest peak within 50 cents of C3, C4 or C5;
+  - chords: the first six partials within 15 cents of harmonics, ≥ −20 dB at 2 s, flatness < 0.1;
+  - drones: the 8th second within 6 dB of the 2nd;
+  - percussion: ≤ −30 dB at 1.5 s while held.
+- **Browser.** The editor walks the embedded `include_dir!` tree into entries with a display folder (`["Experimental", "Bow"]`). A pure `menu_tree` turns them into nested `ui.menu_button` submenus. The arrows step within the current preset's folder. The user list is re-read when the menu or the Save folder selector opens, because the editor state outlives the window.
 
 ---
 

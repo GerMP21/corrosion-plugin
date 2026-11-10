@@ -243,6 +243,24 @@ impl EditorUiState {
         self.unreadable_user_presets = unreadable;
     }
 
+    /// Re-read the user preset folder, keeping the selected preset (by
+    /// folder and name) selected.
+    fn refresh_user_presets_keeping_selection(&mut self) {
+        let index = self.selected_factory_preset;
+        let selected = (index < self.preset_count()).then(|| {
+            let entry = self.entry(index);
+            (entry.folder.clone(), entry.name.clone())
+        });
+        self.refresh_user_presets();
+        if let Some((folder, name)) = selected {
+            if let Some(found) = (0..self.preset_count())
+                .find(|&i| self.entry(i).folder == folder && self.entry(i).name == name)
+            {
+                self.selected_factory_preset = found;
+            }
+        }
+    }
+
     /// Factory presets, then user presets.
     fn preset_count(&self) -> usize {
         self.factory_presets.len() + self.user_presets.len()
@@ -2822,9 +2840,16 @@ fn render_preset_loader(
                 .min_size(egui::vec2(menu_width, arrow_size.y))
                 .truncate();
                 let menu = state.menu();
-                egui::menu::menu_custom_button(ui, button, |ui| {
+                let opened = egui::menu::menu_custom_button(ui, button, |ui| {
                     render_preset_menu(ui, state, &menu, text_size, &mut load);
-                });
+                })
+                .response
+                .clicked();
+                // The user may have added presets or folders in the file
+                // manager (Open folder) since the last look.
+                if opened && load.is_none() {
+                    state.refresh_user_presets_keeping_selection();
+                }
 
                 if ui
                     .add_sized(
@@ -2866,7 +2891,7 @@ fn render_preset_loader(
                 } else {
                     // The folder to save into: only user folders, never the
                     // factory bank (spec "Saving targets a user folder").
-                    egui::ComboBox::from_id_salt("save-folder")
+                    let folder_opened = egui::ComboBox::from_id_salt("save-folder")
                         .width(width_pct(scale, 0.06))
                         .selected_text(
                             egui::RichText::new(user_folder_label(&state.save_folder))
@@ -2881,7 +2906,12 @@ fn render_preset_loader(
                                     egui::RichText::new(label).size(text_size),
                                 );
                             }
-                        });
+                        })
+                        .response
+                        .clicked();
+                    if folder_opened {
+                        state.refresh_user_presets_keeping_selection();
+                    }
                     let field_width = (ui.available_width() - width_pct(scale, 0.05)).max(0.0);
                     ui.add_sized(
                         egui::vec2(field_width, height_pct(scale, 0.0234375)),
@@ -6007,6 +6037,30 @@ mod tests {
         let selected = state.entry(state.selected_factory_preset);
         assert_eq!(selected.name, "Deep Sub");
         assert_eq!(selected.folder, ["User", "Basses"]);
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn folders_added_outside_the_editor_appear_on_refresh() {
+        // The editor state outlives reopening the window, so a folder made
+        // in the file manager is picked up when the menu or the folder
+        // selector opens; the selected preset stays selected.
+        let (mut state, dir) = state_with_user_dir("refresh");
+        let bass = (0..state.preset_count())
+            .find(|&i| state.entry(i).folder == ["Bass"])
+            .unwrap();
+        state.selected_factory_preset = bass;
+        let selected = state.preset_name(bass).to_string();
+        std::fs::create_dir_all(dir.join("Basses")).unwrap();
+        crate::presets::Preset::from_params("Deep Sub", &crate::params::CorrosionParams::default())
+            .save(dir.join("Basses").join("deep.corrosion-preset"))
+            .unwrap();
+        assert_eq!(state.user_folders, [""]);
+        state.refresh_user_presets_keeping_selection();
+        assert_eq!(state.user_folders, ["", "Basses"]);
+        assert_eq!(state.preset_name(state.selected_factory_preset), selected);
+        let menu = state.menu();
+        assert_eq!(folder_names(submenu(&menu, "User")), ["Basses"]);
         std::fs::remove_dir_all(dir).unwrap();
     }
 

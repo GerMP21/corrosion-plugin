@@ -15,7 +15,7 @@ Current package version: `0.1.0`. Preset schema version: `4` (with backwards-com
 - 130+ host parameters covering exciters, objects, transformations, post-processing, four high-level macros, and three play modes.
 - An egui editor with UI scaling (50/75/100/125/150%), controls for every audible parameter (including play and limiter modes, sync and the four macros), user presets, and a randomizer.
 - Offline renderers for comparison suites, preset batch renders, and aliasing analysis with asserted budgets.
-- 50 curated factory presets seeded via a typed Rust binary (`src/bin/seed_presets.rs`).
+- A factory bank of 204 presets in folders: 60 designed by hand (bass, lead, chords, drones, percussion) and 144 experimental ones, one per exciter × resonator, all at a common loudness (`src/presets/factory/`, written by `src/bin/seed_presets.rs`).
 
 ## Current Sound Surface
 
@@ -63,12 +63,17 @@ Each object is driven by an algorithmic resonator generator (the single resonato
 
 ### Factory Presets
 
-50 curated presets live under `presets/factory/`. Coverage:
+The factory bank lives under `presets/factory/`, in folders. The preset browser shows them as submenus:
 
-- 6 Pipe, 6 Plate, 6 Tank, 6 Chain, 6 IBeam (36)
-- 5 TautCable, 5 CoilSpring, 5 SheetMetal, 5 IndustrialCog (14)
+- **Bass**, **Lead**, **Chords**, **Drones**, **Percussion**: 12 presets each, designed by hand and measured so each folder keeps its promise:
+  - basses keep most of their energy under 500 Hz;
+  - leads and chords play the key's pitch;
+  - chord patches are harmonic and sustain, so they can be played as chords;
+  - drones hold their level while the key is down;
+  - percussion dies away on its own.
+- **Experimental**: one preset for every exciter on every resonator (16 × 9), grouped by exciter. Each draws every parameter from a fixed seed within playable ranges, so they're varied, sometimes strange, and always audible.
 
-Each anchors on a distinct Object × Exciter pair and tunes the relevant character params, exciter parameters, macros, and post-chain choices. Several use `PlayMode::Drone` for sustained drones, one uses `sync_rate` for tempo-synced echo. Regenerate with `cargo run --bin seed_presets`.
+Every factory preset is levelled so a held middle C sits at the same loudness (−17.7 dBFS RMS), and none drives the limiter. Regenerate the bank with `cargo run --release --bin seed_presets`.
 
 ### User Presets and Randomizer
 
@@ -85,7 +90,7 @@ A piano strip at the bottom of the editor (C3–C6) stays in view while the pane
 - Notes from the strip play like MIDI notes on channel 0 (play mode, sustain pedal and voice stealing apply), but they don't reach the host's MIDI output and aren't recorded.
 - Some hosts keep keystrokes for their own shortcuts. In REAPER, keys reach the plugin while its window has focus; if they don't, enable "Send all keyboard input to plugin" in the FX window's menu. The mouse always works.
 
-The editor's **Save** writes the current sound as a named preset (every parameter except UI Scale) into a per-user folder, and the preset list shows the factory bank followed by your presets. Saving over an existing name asks first. The folder:
+The editor's **Save** writes the current sound as a named preset (every parameter except UI Scale) into your user preset folder, or one of its subfolders, picked in the selector next to the name. You can't save into the factory bank. Saving over an existing name asks first. The browser's **User** submenu mirrors the folder's subfolders (up to four levels deep). The **‹ ›** arrows step through the presets of the current folder. **Open folder** shows the user folder in your file manager (it is created if missing), so you can add, rename or delete folders and presets there. The folder:
 
 - Windows: `%APPDATA%\Corrosion\Presets`
 - macOS: `~/Library/Application Support/Corrosion/Presets`
@@ -100,7 +105,6 @@ The editor's **Save** writes the current sound as a named preset (every paramete
 
 Every change is sent to the host as a normal parameter edit, so host undo applies.
 
-The factory presets are placeholders, to be replaced by real ones. Their levels follow a light rule: none hits the limiter, and none is more than 12 dB below the bank's median (`preset_levels_are_sane`; per-preset numbers in `openspec/changes/archive/2026-11-08-resolve-exciter-tradeoffs/levels.md`).
 
 **Loudness.**
 - Every object's mode bank is normalized at note-on to one strike level, so objects, registers (C2–C6), quality modes and damage settings land within a few dB of each other.
@@ -116,7 +120,7 @@ The factory presets are placeholders, to be replaced by real ones. Their levels 
 ├── bundle-win.sh
 ├── docs/                  ARCHITECTURE.md, BACKLOG.md, code-review.md,
 │                          corrosion_plugin_prd_and_specs.md, detailed-specs/
-├── presets/factory/       50 .corrosion-preset JSON files
+├── presets/factory/       204 .corrosion-preset files in folders (written by seed_presets)
 ├── scripts/               verify-local.sh, validate-plugins.sh, check_wav.py …
 ├── src/
 │   ├── lib.rs             Plugin trait impls, MIDI routing (incl. CCs), macros,
@@ -133,7 +137,7 @@ The factory presets are placeholders, to be replaced by real ones. Their levels 
 │   └── bin/
 │       ├── render.rs          --suite family|rust|damage|aliasing|all
 │       ├── render_presets.rs  Batch-render presets to WAV + manifest (plugin output path)
-│       └── seed_presets.rs    Regenerate the 50 factory presets
+│       └── seed_presets.rs    Level and write the factory bank (presets::factory)
 ├── tests/                 no_alloc, automation_stress, preset_roundtrip, body,
 │                          drive_dynamics, stereo_width, velocity_*,
 │                          chain_distinct, limiter, damage_rattle, bow_exciter,
@@ -165,8 +169,8 @@ cargo run --target x86_64-unknown-linux-gnu --bin render -- --suite all
 # --velocity, --note-off, --duration, --sample-rate, --contains, --limit, --out-dir
 cargo run --release --target x86_64-unknown-linux-gnu --bin render_presets
 
-# Regenerate the 50 factory presets
-cargo run --bin seed_presets
+# Level and write the 204 factory presets (and src/presets/factory/levels.rs)
+cargo run --release --bin seed_presets
 
 # Run the benchmark harness on the supported native no-GUI lane
 cargo bench --no-default-features --target x86_64-unknown-linux-gnu --bench performance
