@@ -48,3 +48,10 @@ When the pool is full and every voice is held, a held note started less than 100
 #### Scenario: Protection is measured in time
 - **WHEN** at 44.1 kHz and at 96 kHz, a full pool holds loud old notes and one quiet held note, and a new note starts when the quiet note is 90 ms old, and again (from the same setup) when it is 110 ms old
 - **THEN** the quiet note survives at 90 ms and is stolen at 110 ms, at both sample rates
+
+### Requirement: Pedal-held notes are stolen before held keys
+When every voice is sounding, a note sounding only because the sustain pedal is down SHALL be stolen before any note whose key is still held, and after any released tail.
+
+#### Scenario: Full pool under the pedal
+- **WHEN** with the pedal down, 16 notes are played, the keys of the first 8 are released, the last 8 stay held, and a 17th note arrives
+- **THEN** the voice taken is one of the 8 pedal-held notes, not one of the held keys

@@ -49,6 +49,13 @@ impl ModalModeSpec {
         }
     }
 
+    /// Rust as a damping increase (`fix-rust-damage-heat-response`): the
+    /// decay is divided by `1 + rust·(0.2 + 0.54·w²)` and the gain by
+    /// `1 + rust·0.6·w^1.5`, `w` running from the fundamental (0) to the top
+    /// mode (1). Divisors never reach zero, so every mode keeps ringing and
+    /// the low thud survives the whole 0–5 range while the highs die first.
+    /// (It used to multiply by `1 − rust·k`, written for 0–1, which reached
+    /// zero at Rust 1.3 for the top mode and 3.3 for the fundamental.)
     pub fn corroded(
         self,
         rust_amount: crate::dsp::RustAmount,
@@ -56,18 +63,18 @@ impl ModalModeSpec {
         mode_count: usize,
     ) -> Self {
         let rust = rust_amount.amount();
-        let high_mode_weight = if mode_count <= 1 {
+        let w = if mode_count <= 1 {
             0.0
         } else {
             mode_index as f32 / (mode_count - 1) as f32
         };
-        let brightness_loss = 1.0 - rust * (0.20 + 0.65 * high_mode_weight);
-        let decay_loss = 1.0 - rust * (0.30 + 0.45 * high_mode_weight);
+        let decay_divisor = 1.0 + rust * (0.2 + 0.54 * w * w);
+        let gain_divisor = 1.0 + rust * 0.6 * w.powf(1.5);
 
         Self {
             frequency_hz: self.frequency_hz,
-            decay_seconds: (self.decay_seconds * decay_loss).max(f32::EPSILON),
-            gain: (self.gain * brightness_loss).max(f32::EPSILON),
+            decay_seconds: (self.decay_seconds / decay_divisor).max(f32::EPSILON),
+            gain: (self.gain / gain_divisor).max(f32::EPSILON),
         }
     }
 
@@ -87,15 +94,30 @@ impl ModalModeSpec {
         }
     }
 
-    pub fn heated(self, heat_amount: crate::dsp::HeatAmount) -> Self {
+    /// Heat: the metal softens. The pitch drops by up to 5 %, and the high
+    /// modes lose level and ring shorter than the low ones: `gain /= 1 +
+    /// heat·2·w^1.5`, `decay /= 1 + heat·0.5·w`, `w` from the fundamental
+    /// (0) to the top mode (1). The darkening was a uniform gain, which the
+    /// note-on bank normalization cancelled (`fix-rust-damage-heat-response`).
+    /// The thermal warble is a pitch dynamic on the resonator.
+    pub fn heated(
+        self,
+        heat_amount: crate::dsp::HeatAmount,
+        mode_index: usize,
+        mode_count: usize,
+    ) -> Self {
         let heat = heat_amount.amount();
+        let w = if mode_count <= 1 {
+            0.0
+        } else {
+            mode_index as f32 / (mode_count - 1) as f32
+        };
         let pitch_drop = 1.0 - heat * 0.05;
-        let brightness_loss = 1.0 - heat * 0.2;
 
         Self {
             frequency_hz: (self.frequency_hz * pitch_drop.max(0.5)).max(f32::EPSILON),
-            decay_seconds: self.decay_seconds,
-            gain: (self.gain * brightness_loss.max(0.1)).max(f32::EPSILON),
+            decay_seconds: (self.decay_seconds / (1.0 + heat * 0.5 * w)).max(f32::EPSILON),
+            gain: (self.gain / (1.0 + heat * 2.0 * w.powf(1.5))).max(f32::EPSILON),
         }
     }
 
@@ -127,6 +149,11 @@ impl ModalModeSpec {
         if damage <= 0.0 {
             return [self, self].into_iter().take(1);
         }
+        // Damage drives everything through a saturating amount: equal to
+        // `damage` near 0 (today's character for light damage), 2.85 at 10.
+        // Detunes stay bounded, so the fundamental keeps its note, and no
+        // decay factor reaches zero (`fix-rust-damage-heat-response`).
+        let amount = 3.0 * (1.0 - (-damage / 3.0).exp());
 
         let mode_position = if mode_count <= 1 {
             0.0
@@ -139,13 +166,13 @@ impl ModalModeSpec {
         } else {
             1.0
         };
-        let primary_detune = damage * (0.004 + 0.018 * mode_position);
-        let companion_detune = damage * (0.010 + 0.030 * mode_position);
-        let primary_decay_tilt = 1.0 - damage * (0.10 + 0.18 * low_mode_weight);
-        let primary_gain_tilt = 1.0 + damage * (0.05 + 0.12 * mode_position);
-        let companion_gain = self.gain * damage * (0.16 + 0.20 * mode_position);
-        let companion_decay =
-            self.decay_seconds * (0.28 + 0.18 * low_mode_weight + 0.14 * (1.0 - damage));
+        let primary_detune = amount * (0.004 + 0.018 * mode_position);
+        let companion_detune = amount * (0.010 + 0.030 * mode_position);
+        let primary_decay_tilt = 1.0 / (1.0 + amount * (0.04 + 0.08 * low_mode_weight));
+        let primary_gain_tilt = 1.0 + amount * (0.05 + 0.12 * mode_position);
+        let companion_gain =
+            (self.gain * amount * (0.16 + 0.20 * mode_position)).min(self.gain * primary_gain_tilt);
+        let companion_decay = self.decay_seconds * (0.28 + 0.18 * low_mode_weight);
 
         let primary = Self {
             frequency_hz: (self.frequency_hz * (1.0 + primary_detune * detune_direction))
@@ -292,7 +319,7 @@ impl ModalProfile {
             let sized = mode.scaled_for_size(size_scale, i, mode_count);
             let rusted = sized.corroded(rust_amount, i, mode_count);
             let thickened = rusted.thickened(thickness_amount, i);
-            let heated = thickened.heated(heat_amount);
+            let heated = thickened.heated(heat_amount, i, mode_count);
             let sludge_loaded = heated.sludge_loaded(sludge_amount);
             let damaged = sludge_loaded.damaged(damage_amount, i, mode_count);
             result.extend(damaged);

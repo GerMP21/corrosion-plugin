@@ -20,6 +20,18 @@ pub enum PostQualityMode {
     Render,
 }
 
+impl PostQualityMode {
+    /// The final clipper's oversampling factor in this mode.
+    pub fn clipper_oversample_factor(self) -> usize {
+        match self {
+            PostQualityMode::Eco => 1,
+            PostQualityMode::Normal => 4,
+            PostQualityMode::High => 8,
+            PostQualityMode::Render => 16,
+        }
+    }
+}
+
 /// Ordered post-processing pipeline for the plugin output.
 pub struct PostProcessingChain {
     filter_left: WdfLadderFilter,
@@ -84,12 +96,8 @@ impl PostProcessingChain {
     /// Sets the CPU/quality tradeoff mode for the post-processing chain.
     pub fn set_quality_mode(&mut self, mode: PostQualityMode) {
         self.quality_mode = mode;
-        match mode {
-            PostQualityMode::Eco => self.clipper.set_oversample_factor(1),
-            PostQualityMode::Normal => self.clipper.set_oversample_factor(4),
-            PostQualityMode::High => self.clipper.set_oversample_factor(8),
-            PostQualityMode::Render => self.clipper.set_oversample_factor(16),
-        }
+        self.clipper
+            .set_oversample_factor(mode.clipper_oversample_factor());
     }
 
     /// Updates the sample rate for every stage in the chain.
@@ -177,9 +185,21 @@ impl PostProcessingChain {
             .set_parameters(delay_time, machinery_movement, high_frequency_damping);
     }
 
-    /// Sets the final clipper ceiling and knee softness.
-    pub fn set_clipper_params(&mut self, ceiling: f32, softness: f32) {
-        self.clipper.set_parameters(ceiling, softness);
+    /// Test-only: turn the clipper's DC stage off, to measure what it
+    /// removes (`add-asymmetric-diode-stage`).
+    #[cfg(test)]
+    pub(crate) fn set_clipper_dc_stage_for_test(&mut self, enabled: bool) {
+        self.clipper.set_dc_stage_for_test(enabled);
+    }
+
+    /// Sets the final clipper's ceiling, knee softness and asymmetry.
+    pub fn set_clipper_params(&mut self, ceiling: f32, softness: f32, asymmetry: f32) {
+        self.clipper.set_parameters(ceiling, softness, asymmetry);
+    }
+
+    /// The diode stage's level reduction since the last call, in dB.
+    pub fn take_clipper_reduction_db(&mut self) -> f32 {
+        self.clipper.take_block_reduction_db()
     }
 
     /// Processes one stereo frame through the full stage order.
@@ -364,7 +384,6 @@ mod tests {
             d.set_parameters(0.0, 0.0, 0.0);
         }
         let mut clipper = OversampledClipper::new();
-        clipper.set_sample_rate(SR);
         for i in 0..4_800 {
             let (x_l, x_r) = (tone(i, 300.0, 0.2), tone(i, 450.0, 0.1));
             let expected = clipper.process_stereo(
@@ -382,12 +401,17 @@ mod tests {
     #[test]
     fn body_level_tracks_body_amount() {
         // Body contribution = output(amount) − output(0). Low amplitude and
-        // zero drive keep every other stage linear.
+        // zero drive keep every other stage linear: at amount 0.8 the body
+        // peaks near 37× the input, so 0.01 stays under the clipper's limit
+        // (0.9661 / 1.3 ≈ 0.743) with a hard, symmetric knee. The default
+        // soft knee starts lower (0.41 on the negative half) and would
+        // compress the body's transients (`add-asymmetric-diode-stage`).
         let render = |amount: f32| {
             let mut chain = routing_chain(amount, 0.5);
+            chain.set_clipper_params(0.9661, 0.0, 0.0);
             (0..9_600)
                 .map(|i| {
-                    let x = tone(i, 250.0, 0.02);
+                    let x = tone(i, 250.0, 0.01);
                     chain.process(x, x).0
                 })
                 .collect::<Vec<_>>()

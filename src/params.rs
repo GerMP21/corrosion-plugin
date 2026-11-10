@@ -186,9 +186,13 @@ pub struct CorrosionParams {
     pub env_release: FloatParam,
 
     // MSEG (Multistage Envelope) Parameters (for friction exciters)
-    /// MSEG onset time - initial transient stage (0.001 to 1.0s)
+    /// MSEG onset time - initial transient stage's length (0.001 to 1.0s)
     #[id = "mseg_onset"]
     pub mseg_onset: FloatParam,
+
+    /// MSEG onset level - the level the onset stage rises to (0.0 to 1.0)
+    #[id = "mseg_onset_level"]
+    pub mseg_onset_level: FloatParam,
 
     /// MSEG attack time - main rise stage (0.001 to 2.0s)
     #[id = "mseg_attack"]
@@ -786,10 +790,17 @@ pub struct CorrosionParams {
     #[id = "analog_ceiling"]
     pub analog_ceiling: FloatParam,
 
-    /// Diode softness (0.0 to 1.0)
-    /// Transition hardness in output clipper
+    /// Diode softness (0.0 to 1.0): the output clipper's knee width, from a
+    /// hard knee at 0 to a knee starting 14 dB under the curve's limit at 1
+    /// (`add-asymmetric-diode-stage`).
     #[id = "diode_softness"]
     pub diode_softness: FloatParam,
+
+    /// Diode asymmetry (0.0 to 1.0): lowers the clipper's negative limit, to
+    /// 6 dB under the positive one at 1, adding even harmonics
+    /// (`add-asymmetric-diode-stage`).
+    #[id = "diode_asymmetry"]
+    pub diode_asymmetry: FloatParam,
 
     // Macro Controls (PRD §12)
     //
@@ -1399,6 +1410,57 @@ pub fn float_param_for_test(name: &'static str, value: f32, min: f32, max: f32) 
     FloatParam::new(name, value, FloatRange::Linear { min, max })
 }
 
+/// Default Onset Level: the level the old shared Onset knob gave at its
+/// default (0.01 s, clamped to 0–1), so the default patch is unchanged
+/// (`m01-m04-m05-clarify-parameters`).
+pub const DEFAULT_MSEG_ONSET_LEVEL: f32 = 0.01;
+
+/// Build the friction MSEG's Onset Level `FloatParam` (0–1), shared by the
+/// live parameters and `Preset::into_params`.
+pub fn mseg_onset_level_param(value: f32) -> FloatParam {
+    FloatParam::new(
+        "Onset Level",
+        value.clamp(0.0, 1.0),
+        FloatRange::Linear { min: 0.0, max: 1.0 },
+    )
+}
+
+/// Build the Output `FloatParam`, shared by the live parameters and
+/// `Preset::into_params`. The stored value is the linear gain (0 to +40 dB),
+/// so presets and projects keep their level; it's shown and typed in dB, and
+/// the gain-skewed taper puts −10 dB at the middle of the travel, 0 dB at
+/// about 57 % and −20 to +6 dB across about 19 %
+/// (`m01-m04-m05-clarify-parameters`, M5).
+pub fn output_param(gain: f32) -> FloatParam {
+    let max = util::db_to_gain(40.0);
+    FloatParam::new(
+        "Output",
+        gain.clamp(0.0, max),
+        FloatRange::Skewed {
+            min: 0.0,
+            max,
+            factor: FloatRange::gain_skew_factor(-60.0, 40.0),
+        },
+    )
+    .with_unit(" dB")
+    .with_value_to_string(formatters::v2s_f32_gain_to_db(2))
+    .with_string_to_value(formatters::s2v_f32_gain_to_db())
+}
+
+/// Default Diode Asymmetry for new instances: the negative limit 1.5 dB
+/// under the positive one (`add-asymmetric-diode-stage`).
+pub const DEFAULT_DIODE_ASYMMETRY: f32 = 0.25;
+
+/// Build the Diode Asymmetry `FloatParam` (0–1), shared by the live
+/// parameters and `Preset::into_params`.
+pub fn diode_asymmetry_param(value: f32) -> FloatParam {
+    FloatParam::new(
+        "Diode Asymmetry",
+        value.clamp(0.0, 1.0),
+        FloatRange::Linear { min: 0.0, max: 1.0 },
+    )
+}
+
 /// Build the limiter-mode `IntParam` with mappings for Hard / Lookahead.
 pub fn limiter_mode_param(default: i32) -> IntParam {
     IntParam::new("Limiter Mode", default, IntRange::Linear { min: 0, max: 1 })
@@ -1499,14 +1561,7 @@ impl Default for CorrosionParams {
 
             // Master controls
             drive: FloatParam::new("Drive", 0.0, FloatRange::Linear { min: 0.0, max: 5.0 }),
-            output: FloatParam::new(
-                "Output",
-                util::db_to_gain(0.0),
-                FloatRange::Linear {
-                    min: 0.0,
-                    max: util::db_to_gain(40.0),
-                },
-            ),
+            output: output_param(util::db_to_gain(0.0)),
             width: FloatParam::new(
                 "Width",
                 0.5,
@@ -1567,13 +1622,14 @@ impl Default for CorrosionParams {
 
             // MSEG envelope defaults
             mseg_onset: FloatParam::new(
-                "Onset",
+                "Onset Time",
                 0.01,
                 FloatRange::Linear {
                     min: 0.001,
                     max: 1.0,
                 },
             ),
+            mseg_onset_level: mseg_onset_level_param(DEFAULT_MSEG_ONSET_LEVEL),
             mseg_attack: FloatParam::new(
                 "MSEG Attack",
                 0.05,
@@ -1677,7 +1733,7 @@ impl Default for CorrosionParams {
             micro_bounce_limit: display_float_param("Micro Bounce Limit", 4.0, 2.0, 8.0),
             wire_density: display_float_param("Wire Density", 46.0, 10.0, 130.0),
             spread_duration: display_float_param("Spread Duration", 130.0, 10.0, 250.0),
-            brush_wire_stiffness: display_float_param("Wire Stiffness", 0.3, 0.0, 1.0),
+            brush_wire_stiffness: display_float_param("Brush Wire Stiffness", 0.3, 0.0, 1.0),
             amplitude_randomization: display_float_param("Amplitude Randomization", 0.3, 0.0, 1.0),
             pipe_mass: display_float_param("Pipe Mass", 1.5, 0.4, 2.6),
             metal_stiffness: display_float_param("Metal Stiffness", 3.0, 0.5, 5.5),
@@ -1752,7 +1808,7 @@ impl Default for CorrosionParams {
             // Resonator control defaults
             res_damping: FloatParam::new("Damping", 0.5, FloatRange::Linear { min: 0.0, max: 1.0 }),
             res_brightness: FloatParam::new(
-                "Brightness",
+                "Resonator Brightness",
                 0.5,
                 FloatRange::Linear { min: 0.0, max: 1.0 },
             ),
@@ -1925,7 +1981,7 @@ impl Default for CorrosionParams {
                 FloatRange::Linear { min: 0.0, max: 1.0 },
             ),
             wire_stiffness: FloatParam::new(
-                "Wire Stiffness",
+                "Spring Wire Stiffness",
                 0.5,
                 FloatRange::Linear { min: 0.0, max: 1.0 },
             ),
@@ -1961,6 +2017,7 @@ impl Default for CorrosionParams {
                 0.5,
                 FloatRange::Linear { min: 0.0, max: 1.0 },
             ),
+            diode_asymmetry: diode_asymmetry_param(DEFAULT_DIODE_ASYMMETRY),
 
             // Macro defaults — 0.5 is the neutral midpoint so existing presets
             // sound unchanged until the user actively dials a macro.
@@ -1976,7 +2033,7 @@ impl Default for CorrosionParams {
                 FloatRange::Linear { min: 0.0, max: 1.0 },
             ),
             macro_brightness: FloatParam::new(
-                "Brightness",
+                "Macro Brightness",
                 0.5,
                 FloatRange::Linear { min: 0.0, max: 1.0 },
             ),
@@ -1988,6 +2045,63 @@ impl Default for CorrosionParams {
 mod tests {
     use super::{exciter_pressure_param, exciter_roughness_param, exciter_speed_param};
     use nih_plug::prelude::Param;
+
+    #[test]
+    fn parameter_names_are_unique() {
+        // `m01-m04-m05-clarify-parameters` (M4): hosts list parameters by
+        // display name, so no two may share one.
+        use nih_plug::prelude::Params;
+        let params = super::CorrosionParams::default();
+        let mut seen = std::collections::BTreeMap::new();
+        let mut duplicates = Vec::new();
+        for (id, ptr, _) in params.param_map() {
+            // SAFETY: the pointers come from `params`, alive for this loop.
+            let name = unsafe { ptr.name() }.to_string();
+            if let Some(other) = seen.insert(name.clone(), id.clone()) {
+                duplicates.push(format!("{name:?} ({other}, {id})"));
+            }
+        }
+        assert!(duplicates.is_empty(), "shared names: {duplicates:?}");
+    }
+
+    #[test]
+    fn output_is_shown_in_decibels() {
+        // M5: Output displays dB, and −inf at zero gain.
+        let output = super::CorrosionParams::default().output;
+        let shown =
+            |gain: f32| output.normalized_value_to_string(output.preview_normalized(gain), true);
+        let db = |text: String| -> f32 { text.trim_end_matches(" dB").parse().unwrap() };
+        assert!(shown(1.0).ends_with(" dB"), "{}", shown(1.0));
+        assert!(db(shown(1.0)).abs() < 0.01, "{}", shown(1.0));
+        assert!((db(shown(0.5)) + 6.02).abs() < 0.01, "{}", shown(0.5));
+        assert!(shown(0.0).to_lowercase().contains("inf"), "{}", shown(0.0));
+    }
+
+    #[test]
+    fn output_accepts_typed_decibels() {
+        let output = super::CorrosionParams::default().output;
+        let normalized = output.string_to_normalized_value("-6").expect("parses");
+        let gain = output.preview_plain(normalized);
+        assert!((gain - 0.501).abs() < 0.001, "gain {gain}");
+    }
+
+    #[test]
+    fn output_taper_reaches_the_useful_range() {
+        // M5: 0 dB between 50 % and 65 % of the travel, −20 to +6 dB over at
+        // least 15 %, and +40 dB still the maximum.
+        use nih_plug::util::db_to_gain;
+        let output = super::CorrosionParams::default().output;
+        let at = |db: f32| output.preview_normalized(db_to_gain(db));
+        let unity = at(0.0);
+        let span = at(6.0) - at(-20.0);
+        println!(
+            "0 dB at {unity:.3}, -20..+6 dB spans {span:.3}, -10 dB at {:.3}",
+            at(-10.0)
+        );
+        assert!((0.50..=0.65).contains(&unity), "0 dB at {unity}");
+        assert!(span >= 0.15, "-20..+6 dB spans {span}");
+        assert!((output.preview_plain(1.0) - db_to_gain(40.0)).abs() < 1e-3);
+    }
 
     #[test]
     fn global_exciter_controls_show_their_factor() {

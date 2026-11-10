@@ -638,6 +638,10 @@ pub struct ModalResonator {
     /// `1.0` is neutral; written by `set_pitch_bend_factor` from MIDI pitch bend
     /// or poly tuning events. Layered with object dynamics in `apply_dynamics`.
     pitch_bend_factor: f32,
+    /// Heat's thermal warble: its pitch depth (0 without heat) and the two
+    /// LFO phases (cycles, 0–1) (`fix-rust-damage-heat-response`).
+    heat_wander_depth: f32,
+    heat_wander_phase: [f32; 2],
     /// Whether `contact_prediction` already ran this sample's preparation
     /// (strike-position update and dynamic retune), so `process_sample`
     /// must not run it again.
@@ -675,6 +679,10 @@ pub struct ModalResonator {
     /// recomputed; the angles are still valid.
     retune_radii_stale: bool,
 }
+/// Heat's thermal warble at Heat 1: a pitch depth of about ±8 cents, from
+/// two LFOs at incommensurate rates (`fix-rust-damage-heat-response`).
+const HEAT_WANDER_DEPTH: f32 = 0.0046;
+const HEAT_WANDER_RATES_HZ: [f32; 2] = [0.37, 0.83];
 
 /// A mode at or above this frequency can't reach the audible band at any
 /// pitch a note can be tuned to: `BAND_TOP_HZ` at the lowest per-note
@@ -793,6 +801,8 @@ impl ModalResonator {
             dyn_lf_displacement: 0.0,
             dyn_rate: (48_000, 0.99, 0.95),
             pitch_bend_factor: 1.0,
+            heat_wander_depth: 0.0,
+            heat_wander_phase: [0.0; 2],
             prepared: false,
             ring: RingTracking::default(),
             raw_specs: Vec::with_capacity(MAX_MODES),
@@ -820,7 +830,7 @@ impl ModalResonator {
         for (index, &mode) in modes.iter().enumerate() {
             let rusted = mode.corroded(controls.rust_amount, index, mode_count);
             let thickened = rusted.thickened(controls.thickness_amount, index);
-            let heated = thickened.heated(controls.heat_amount);
+            let heated = thickened.heated(controls.heat_amount, index, mode_count);
             let sludge_loaded = heated.sludge_loaded(controls.sludge_amount);
             let damaged = sludge_loaded.damaged(controls.damage_amount, index, mode_count);
 
@@ -997,6 +1007,8 @@ impl ModalResonator {
             dyn_lf_displacement: 0.0,
             dyn_rate: (48_000, 0.99, 0.95),
             pitch_bend_factor: 1.0,
+            heat_wander_depth: 0.0,
+            heat_wander_phase: [0.0; 2],
             prepared: false,
             ring: RingTracking::default(),
             raw_specs: Vec::with_capacity(MAX_MODES),
@@ -1237,6 +1249,8 @@ impl ModalResonator {
         self.dyn_amplitude = 0.0;
         self.dyn_lf_displacement = 0.0;
         self.pitch_bend_factor = 1.0;
+        self.heat_wander_depth = heat_amount.amount() * HEAT_WANDER_DEPTH;
+        self.heat_wander_phase = [0.0; 2];
         // The fill built every mode at its base frequency, with new decays.
         self.applied_factor = 1.0;
         self.retune_cache_rate = 0;
@@ -1376,6 +1390,9 @@ impl ModalResonator {
     /// once per sample, from `contact_prediction` or `process_sample`.
     fn prepare_sample(&mut self, sample_rate: u32) {
         self.interaction_bus.update();
+        if self.heat_wander_depth > 0.0 {
+            self.advance_heat_wander(sample_rate);
+        }
         if self.has_dynamics() {
             self.apply_dynamics(sample_rate);
         }
@@ -1469,6 +1486,14 @@ impl ModalResonator {
         self.ring.bound
     }
 
+    /// Test-only: each mode's current spec (frequency, decay, gain).
+    #[cfg(test)]
+    pub(crate) fn mode_specs_for_test(
+        &self,
+    ) -> impl Iterator<Item = crate::dsp::ModalModeSpec> + '_ {
+        self.modes.iter().map(|mode| mode.spec)
+    }
+
     /// Test-only: each mode's current frequency and the angle of the pole
     /// it actually rings at (`m03-m20-start-at-host-rate-and-report-latency`).
     #[cfg(test)]
@@ -1490,7 +1515,19 @@ impl ModalResonator {
             Dynamics::TautCable(inst) => inst.dynamic_pitch_factor(self.dyn_amplitude),
             Dynamics::SheetMetal(inst) => inst.warp_factor(self.dyn_lf_displacement),
         };
-        dyn_factor * self.pitch_bend_factor
+        dyn_factor * self.pitch_bend_factor * self.heat_wander_factor()
+    }
+
+    /// Heat's thermal warble as a pitch factor: two slow sines at
+    /// incommensurate rates, so it doesn't sound periodic; exactly 1 without
+    /// heat (`fix-rust-damage-heat-response`).
+    fn heat_wander_factor(&self) -> f32 {
+        if self.heat_wander_depth <= 0.0 {
+            return 1.0;
+        }
+        let [a, b] = self.heat_wander_phase;
+        let tau = std::f32::consts::TAU;
+        1.0 + self.heat_wander_depth * (0.6 * (tau * a).sin() + 0.4 * (tau * b).sin())
     }
 
     /// Apply the object's per-sample dynamic pitch behavior, recomputing the
@@ -1529,12 +1566,27 @@ impl ModalResonator {
         self.applied_factor = factor;
     }
 
+    /// Advance the thermal warble's LFOs by one sample.
+    #[cold]
+    #[inline(never)]
+    fn advance_heat_wander(&mut self, sample_rate: u32) {
+        let dt = 1.0 / sample_rate.max(1) as f32;
+        for (phase, rate) in self.heat_wander_phase.iter_mut().zip(HEAT_WANDER_RATES_HZ) {
+            *phase += rate * dt;
+            if *phase >= 1.0 {
+                *phase -= 1.0;
+            }
+        }
+    }
+
     #[inline]
     fn has_dynamics(&self) -> bool {
         // The dynamics-aware sample path is hot enough that we only re-enter it
         // when there is a real-time pitch effect to apply: a cable/sheet hook,
         // or a non-unity pitch bend factor.
-        !matches!(self.dynamics, Dynamics::None) || (self.pitch_bend_factor - 1.0).abs() > 1e-6
+        !matches!(self.dynamics, Dynamics::None)
+            || (self.pitch_bend_factor - 1.0).abs() > 1e-6
+            || self.heat_wander_depth > 0.0
     }
 
     /// Apply a multiplicative pitch-bend factor to the modal bank and rebuild
@@ -1993,6 +2045,11 @@ mod tests {
     /// or above 80 kHz or with a decay under 0.1 ms. Only the three Pipe
     /// Render cases lose modes (24 → 18, 24 → 18, 12 → 9); the other 105
     /// cases are unchanged.
+    /// Re-captured for `fix-rust-damage-heat-response`: Rust divides decays
+    /// and high-mode gains instead of multiplying by factors that reached
+    /// zero, Damage saturates, and Heat tilts the spectrum. Every case
+    /// builds its bank with Rust 0.4 and Heat 0.2, so all 108 cases change;
+    /// the mode counts are unchanged.
     #[test]
     fn mode_banks_match_golden_fixture() {
         let current = current_fingerprints();

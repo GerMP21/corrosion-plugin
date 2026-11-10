@@ -10,8 +10,8 @@ use std::io;
 use std::path::Path;
 
 use crate::dsp::{
-    DamageAmount, ModalProfileId, ModalResonator, PostProcessingChain, PostQualityMode, RustAmount,
-    SizeScale, SpaceMode,
+    DamageAmount, ModalProfileId, ModalResonator, OversampledClipper, PostProcessingChain,
+    PostQualityMode, RustAmount, SizeScale, SpaceMode,
 };
 
 #[derive(Clone, Copy, Debug)]
@@ -431,19 +431,188 @@ fn path_display_string(path: &Path) -> String {
     path.display().to_string()
 }
 
-fn dft_magnitude_squared(samples: &[f32], bin: usize) -> f32 {
-    let sample_count = samples.len() as f32;
-    let angular_step = 2.0 * std::f32::consts::PI * bin as f32 / sample_count.max(1.0);
-    let mut real = 0.0f32;
-    let mut imag = 0.0f32;
-
+/// One DFT bin of `samples`, in f64 with the phase reduced exactly
+/// (`bin·index mod N`), so leakage from rounding stays far below the
+/// −60 dB the clipper's alias bound needs.
+fn dft_bin(samples: &[f32], bin: usize) -> (f64, f64) {
+    let n = samples.len().max(1);
+    let step = std::f64::consts::TAU / n as f64;
+    let mut real = 0.0f64;
+    let mut imag = 0.0f64;
     for (index, sample) in samples.iter().enumerate() {
-        let phase = angular_step * index as f32;
-        real += *sample * phase.cos();
-        imag -= *sample * phase.sin();
+        let phase = step * ((bin * index) % n) as f64;
+        real += *sample as f64 * phase.cos();
+        imag -= *sample as f64 * phase.sin();
+    }
+    (real, imag)
+}
+
+fn dft_magnitude_squared(samples: &[f32], bin: usize) -> f64 {
+    let (real, imag) = dft_bin(samples, bin);
+    real * real + imag * imag
+}
+
+/// Splits `output`'s spectrum into the harmonics of `input_bin` and the
+/// rest (excluding DC), the alias figure both analyzers report.
+fn aliasing_report(output: &[f32], input_bin: usize, sample_rate: u32) -> AliasingReport {
+    let frame_count = output.len();
+    let nyquist_bin = frame_count / 2;
+    let input_frequency_hz = input_bin as f32 * sample_rate as f32 / frame_count as f32;
+
+    let harmonic_bins = (1..)
+        .map(|harmonic| input_bin * harmonic)
+        .take_while(|bin| *bin <= nyquist_bin)
+        .collect::<Vec<_>>();
+
+    let dc_energy = dft_magnitude_squared(output, 0);
+    let harmonic_energy = harmonic_bins
+        .iter()
+        .map(|bin| dft_magnitude_squared(output, *bin))
+        .sum::<f64>();
+
+    let mut alias_energy = 0.0f64;
+    let mut strongest_alias_bin = 1usize;
+    let mut strongest_alias_energy = 0.0f64;
+    for bin in 1..=nyquist_bin {
+        if harmonic_bins.contains(&bin) {
+            continue;
+        }
+
+        let energy = dft_magnitude_squared(output, bin);
+        alias_energy += energy;
+        if energy > strongest_alias_energy {
+            strongest_alias_energy = energy;
+            strongest_alias_bin = bin;
+        }
     }
 
-    real * real + imag * imag
+    let strongest_alias_frequency_hz =
+        strongest_alias_bin as f32 * sample_rate as f32 / frame_count as f32;
+    let alias_ratio_db = 10.0
+        * (alias_energy / harmonic_energy.max(f64::MIN_POSITIVE))
+            .max(f64::MIN_POSITIVE)
+            .log10();
+
+    AliasingReport {
+        sample_rate,
+        frame_count,
+        input_frequency_hz,
+        harmonic_bins,
+        harmonic_energy: harmonic_energy as f32,
+        alias_energy: alias_energy as f32,
+        dc_energy: dc_energy as f32,
+        alias_ratio_db: alias_ratio_db as f32,
+        strongest_alias_frequency_hz,
+        strongest_alias_energy: strongest_alias_energy as f32,
+    }
+}
+
+/// The post chain's final clipper on its own, at `quality_mode`'s factor and
+/// the default ceiling (0.9661), Diode Softness (0.5) and Diode Asymmetry
+/// (0.25), at 48 kHz.
+fn output_clipper(quality_mode: PostQualityMode) -> OversampledClipper {
+    let mut clipper = OversampledClipper::new();
+    clipper.set_sample_rate(48_000.0);
+    clipper.set_parameters(0.9661, 0.5, 0.25);
+    clipper.set_oversample_factor(quality_mode.clipper_oversample_factor());
+    clipper
+}
+
+/// Runs a bin-centred sine through the clipper alone: about a second of
+/// warm-up (whole windows, so the phase runs on), then `frame_count` frames
+/// returned with the input. The warm-up lets the DC blocker settle (time
+/// constant 80 ms): a decaying offset would leak into the low bins and read
+/// as fold-back (`add-asymmetric-diode-stage`).
+fn clipper_sine(
+    frame_count: usize,
+    quality_mode: PostQualityMode,
+    input_bin: usize,
+    amplitude: f32,
+) -> (Vec<f32>, Vec<f32>) {
+    clipper_sine_through(
+        output_clipper(quality_mode),
+        frame_count,
+        input_bin,
+        amplitude,
+    )
+}
+
+/// [`clipper_sine`] through a given clipper.
+fn clipper_sine_through(
+    mut clipper: OversampledClipper,
+    frame_count: usize,
+    input_bin: usize,
+    amplitude: f32,
+) -> (Vec<f32>, Vec<f32>) {
+    let step = std::f64::consts::TAU * input_bin as f64 / frame_count as f64;
+    let sine =
+        |frame: usize| (amplitude as f64 * (step * (frame % frame_count) as f64).sin()) as f32;
+    let warm_up = frame_count * 48_000_usize.div_ceil(frame_count);
+    for frame in 0..warm_up {
+        clipper.process(sine(frame));
+    }
+    let input: Vec<f32> = (0..frame_count).map(sine).collect();
+    let output = input.iter().map(|x| clipper.process(*x)).collect();
+    (input, output)
+}
+
+/// Aliasing of the final clipper alone (no drive or other stages): a sine
+/// near 5 kHz at twice the ceiling, so the figure isolates the clipper.
+pub fn analyze_clipper_aliasing(
+    sample_rate: u32,
+    frame_count: usize,
+    quality_mode: PostQualityMode,
+) -> AliasingReport {
+    let sample_rate = sample_rate.max(1);
+    let frame_count = frame_count.max(256);
+    let input_bin = ((5_000.0 * frame_count as f64 / sample_rate as f64).round() as usize)
+        .clamp(1, frame_count / 2 - 1);
+    let (_, output) = clipper_sine(frame_count, quality_mode, input_bin, 2.0 * 0.9661);
+    aliasing_report(&output, input_bin, sample_rate)
+}
+
+/// Gain and delay of the final clipper alone for a sine below its ceiling.
+#[derive(Clone, Copy, Debug)]
+pub struct ClipperResponse {
+    /// The bin-centred frequency actually measured.
+    pub frequency_hz: f32,
+    /// Output level relative to input level.
+    pub gain_db: f32,
+    /// How far the output lags the input, in samples (from the phase).
+    pub lag_samples: f32,
+}
+
+/// Measures [`ClipperResponse`] for a sine near `frequency_hz` at
+/// `amplitude` (keep it below the 0.9661 ceiling).
+pub fn measure_clipper_response(
+    sample_rate: u32,
+    frame_count: usize,
+    quality_mode: PostQualityMode,
+    frequency_hz: f32,
+    amplitude: f32,
+) -> ClipperResponse {
+    let sample_rate = sample_rate.max(1);
+    let frame_count = frame_count.max(256);
+    let input_bin = ((frequency_hz as f64 * frame_count as f64 / sample_rate as f64).round()
+        as usize)
+        .clamp(1, frame_count / 2 - 1);
+    let (input, output) = clipper_sine(frame_count, quality_mode, input_bin, amplitude);
+    let (xr, xi) = dft_bin(&input, input_bin);
+    let (yr, yi) = dft_bin(&output, input_bin);
+    let gain = ((yr * yr + yi * yi) / (xr * xr + xi * xi)).sqrt();
+    let mut phase = yi.atan2(yr) - xi.atan2(xr);
+    while phase > std::f64::consts::PI {
+        phase -= std::f64::consts::TAU;
+    }
+    while phase <= -std::f64::consts::PI {
+        phase += std::f64::consts::TAU;
+    }
+    let omega = std::f64::consts::TAU * input_bin as f64 / frame_count as f64;
+    ClipperResponse {
+        frequency_hz: (input_bin as f64 * sample_rate as f64 / frame_count as f64) as f32,
+        gain_db: (20.0 * gain.log10()) as f32,
+        lag_samples: (-phase / omega) as f32,
+    }
 }
 
 pub fn analyze_post_chain_aliasing(sample_rate: u32, frame_count: usize) -> AliasingReport {
@@ -475,7 +644,7 @@ pub fn analyze_post_chain_aliasing_at_quality(
     chain.set_spread_params(0.0, 0.0);
     chain.set_space_mode(SpaceMode::Off);
     chain.set_space_amount(0.0);
-    chain.set_clipper_params(0.9661, 0.5);
+    chain.set_clipper_params(0.9661, 0.5, 0.25);
 
     let warmup_frames = frame_count / 2;
     for frame in 0..warmup_frames {
@@ -494,52 +663,7 @@ pub fn analyze_post_chain_aliasing_at_quality(
         output.push((left + right) * 0.5);
     }
 
-    let harmonic_bins = (1..)
-        .map(|harmonic| input_bin * harmonic)
-        .take_while(|bin| *bin <= nyquist_bin)
-        .collect::<Vec<_>>();
-
-    let dc_energy = dft_magnitude_squared(&output, 0);
-    let harmonic_energy = harmonic_bins
-        .iter()
-        .map(|bin| dft_magnitude_squared(&output, *bin))
-        .sum::<f32>();
-
-    let mut alias_energy = 0.0f32;
-    let mut strongest_alias_bin = 1usize;
-    let mut strongest_alias_energy = 0.0f32;
-    for bin in 1..=nyquist_bin {
-        if harmonic_bins.contains(&bin) {
-            continue;
-        }
-
-        let energy = dft_magnitude_squared(&output, bin);
-        alias_energy += energy;
-        if energy > strongest_alias_energy {
-            strongest_alias_energy = energy;
-            strongest_alias_bin = bin;
-        }
-    }
-
-    let strongest_alias_frequency_hz =
-        strongest_alias_bin as f32 * sample_rate as f32 / frame_count as f32;
-    let alias_ratio_db = 10.0
-        * (alias_energy / harmonic_energy.max(f32::EPSILON))
-            .max(f32::EPSILON)
-            .log10();
-
-    AliasingReport {
-        sample_rate,
-        frame_count,
-        input_frequency_hz,
-        harmonic_bins,
-        harmonic_energy,
-        alias_energy,
-        dc_energy,
-        alias_ratio_db,
-        strongest_alias_frequency_hz,
-        strongest_alias_energy,
-    }
+    aliasing_report(&output, input_bin, sample_rate)
 }
 
 pub struct OfflineRenderer {
@@ -808,8 +932,229 @@ impl OfflineRenderer {
 
 #[cfg(test)]
 mod tests {
-    use super::{analyze_post_chain_aliasing, analyze_post_chain_aliasing_at_quality};
+    use super::{
+        analyze_clipper_aliasing, analyze_post_chain_aliasing,
+        analyze_post_chain_aliasing_at_quality, measure_clipper_response,
+    };
     use crate::dsp::PostQualityMode;
+
+    const ALL_QUALITIES: [PostQualityMode; 4] = [
+        PostQualityMode::Eco,
+        PostQualityMode::Normal,
+        PostQualityMode::High,
+        PostQualityMode::Render,
+    ];
+    const OVERSAMPLED_QUALITIES: [PostQualityMode; 3] = [
+        PostQualityMode::Normal,
+        PostQualityMode::High,
+        PostQualityMode::Render,
+    ];
+    /// Frame count for the clipper measurements (bins 11.7 Hz apart at 48 kHz).
+    const CLIPPER_FRAMES: usize = 4_096;
+
+    /// `output-clipper`: sines at 0.3, under the knee at the default Diode
+    /// Softness and Asymmetry in every quality mode, come out within 0.1 dB
+    /// (`add-asymmetric-diode-stage`).
+    #[test]
+    fn clipper_is_transparent_below_its_threshold() {
+        let mut off = Vec::new();
+        for mode in ALL_QUALITIES {
+            for hz in [100.0, 1_000.0, 10_000.0, 18_000.0] {
+                let r = measure_clipper_response(48_000, CLIPPER_FRAMES, mode, hz, 0.3);
+                if r.gain_db.abs() > 0.1 {
+                    off.push((mode, r.frequency_hz, r.gain_db));
+                }
+            }
+        }
+        assert!(off.is_empty(), "gain off by more than 0.1 dB: {off:?}");
+    }
+
+    /// `output-clipper`: a ~5 kHz sine at twice the ceiling folds back at
+    /// least 40 dB below its harmonics in Normal and 60 dB in Render.
+    #[test]
+    fn clipper_alias_bounds_hold() {
+        let normal = analyze_clipper_aliasing(48_000, CLIPPER_FRAMES, PostQualityMode::Normal);
+        let render = analyze_clipper_aliasing(48_000, CLIPPER_FRAMES, PostQualityMode::Render);
+        assert!(
+            normal.alias_ratio_db <= -40.0 && render.alias_ratio_db <= -60.0,
+            "alias ratio Normal {:.1} dB (bound -40), Render {:.1} dB (bound -60)",
+            normal.alias_ratio_db,
+            render.alias_ratio_db
+        );
+    }
+
+    /// `output-clipper`: the same bounds through the default output path,
+    /// the clipper followed by the hard clamp at the same ceiling, at the
+    /// default Diode Softness and Asymmetry and at Softness 0 / Asymmetry 0,
+    /// the setting migrated state loads with (`add-asymmetric-diode-stage`).
+    #[test]
+    fn clipper_alias_bounds_hold_through_the_hard_clamp() {
+        let through_clamp = |mode: PostQualityMode, softness: f32, asymmetry: f32| {
+            let input_bin = 427; // 5004 Hz at 48 kHz, as in analyze_clipper_aliasing
+            let mut clipper = super::output_clipper(mode);
+            clipper.set_parameters(0.9661, softness, asymmetry);
+            clipper.reset();
+            let (_, out) =
+                super::clipper_sine_through(clipper, CLIPPER_FRAMES, input_bin, 2.0 * 0.9661);
+            let clamped: Vec<f32> = out
+                .iter()
+                .map(|y| crate::apply_output_limiter(*y, crate::LIMITER_THRESHOLD))
+                .collect();
+            super::aliasing_report(&clamped, input_bin, 48_000).alias_ratio_db
+        };
+        for (softness, asymmetry) in [(0.5, 0.25), (0.0, 0.0)] {
+            let (normal, render) = (
+                through_clamp(PostQualityMode::Normal, softness, asymmetry),
+                through_clamp(PostQualityMode::Render, softness, asymmetry),
+            );
+            assert!(
+                normal <= -40.0 && render <= -60.0,
+                "Softness {softness}, Asymmetry {asymmetry}, through the hard clamp: \
+                 Normal {normal:.1} dB (bound -40), Render {render:.1} dB (bound -60)"
+            );
+        }
+    }
+
+    #[test]
+    fn clipper_fold_back_falls_with_quality() {
+        let ratios: Vec<f32> = OVERSAMPLED_QUALITIES
+            .iter()
+            .map(|&mode| analyze_clipper_aliasing(48_000, CLIPPER_FRAMES, mode).alias_ratio_db)
+            .collect();
+        assert!(
+            ratios[0] > ratios[1] && ratios[1] > ratios[2],
+            "alias ratio must fall from Normal to High to Render: {ratios:?}"
+        );
+    }
+
+    /// `output-clipper`: a delay small enough not to report, under eight
+    /// samples at 1 kHz in every mode. The DC blocker's 2 Hz high-pass leads
+    /// by about 0.015 samples at 1 kHz, so Eco's "lag" can be a hair below 0
+    /// (`add-asymmetric-diode-stage`).
+    #[test]
+    fn clipper_delays_less_than_eight_samples() {
+        for mode in ALL_QUALITIES {
+            let r = measure_clipper_response(48_000, CLIPPER_FRAMES, mode, 1_000.0, 0.5);
+            assert!(
+                (-0.05..8.0).contains(&r.lag_samples),
+                "{mode:?} lag at {:.0} Hz is {:.3} samples",
+                r.frequency_hz,
+                r.lag_samples
+            );
+        }
+    }
+
+    /// Task 3.1: the headroom sweep that sets `CEILING_HEADROOM`. Per
+    /// headroom: the worst peak over the ceiling (5 kHz at twice the
+    /// ceiling, Softness 0.5, Asymmetry 0 / 0.25 / 1, every mode, after the
+    /// DC removal; a peak sweep over 50 Hz–19 kHz too), and the alias
+    /// through the hard clamp in Normal and Render at Softness 0 /
+    /// Asymmetry 0 (migrated state) and at the defaults.
+    #[test]
+    #[ignore = "measurement: headroom sweep for the diode stage"]
+    fn print_headroom_sweep() {
+        let ceiling = crate::LIMITER_THRESHOLD;
+        let clipper = |mode: PostQualityMode, headroom: f32, softness: f32, asymmetry: f32| {
+            let mut c = super::OversampledClipper::new();
+            c.set_sample_rate(48_000.0);
+            c.set_oversample_factor(mode.clipper_oversample_factor());
+            c.set_parameters(ceiling, softness, asymmetry);
+            c.set_headroom_for_test(headroom);
+            c.reset();
+            c
+        };
+        for headroom in [1.1f32, 1.15, 1.2, 1.25, 1.3] {
+            let mut worst_5k = 0.0f32;
+            let mut worst_any = (0.0f32, 0.0f32, 0.0f32);
+            for mode in ALL_QUALITIES {
+                for asymmetry in [0.0f32, 0.25, 1.0] {
+                    for hz in [
+                        50.0f32, 200.0, 1_000.0, 3_000.0, 5_000.0, 7_000.0, 10_000.0, 15_000.0,
+                        19_000.0,
+                    ] {
+                        let mut c = clipper(mode, headroom, 0.5, asymmetry);
+                        let step = std::f64::consts::TAU * f64::from(hz) / 48_000.0;
+                        let peak = (0..48_000)
+                            .map(|i| {
+                                let x = 2.0 * f64::from(ceiling) * (step * i as f64).sin();
+                                c.process(x as f32).abs()
+                            })
+                            .fold(0.0f32, f32::max)
+                            / ceiling;
+                        if hz == 5_000.0 {
+                            worst_5k = worst_5k.max(peak);
+                        }
+                        if peak > worst_any.0 {
+                            worst_any = (peak, hz, asymmetry);
+                        }
+                    }
+                }
+            }
+            let alias = |mode: PostQualityMode, softness: f32, asymmetry: f32| {
+                let (_, out) = super::clipper_sine_through(
+                    clipper(mode, headroom, softness, asymmetry),
+                    CLIPPER_FRAMES,
+                    427,
+                    2.0 * ceiling,
+                );
+                let clamped: Vec<f32> = out
+                    .iter()
+                    .map(|y| crate::apply_output_limiter(*y, ceiling))
+                    .collect();
+                super::aliasing_report(&clamped, 427, 48_000).alias_ratio_db
+            };
+            println!(
+                "H {headroom:.2}: 5 kHz worst peak {worst_5k:.4}x ceiling; any-frequency worst {:.4}x at {} Hz, asymmetry {}; \
+                 alias through clamp, Softness 0/Asym 0: Normal {:.1} Render {:.1}; defaults: Normal {:.1} Render {:.1} dB",
+                worst_any.0,
+                worst_any.1,
+                worst_any.2,
+                alias(PostQualityMode::Normal, 0.0, 0.0),
+                alias(PostQualityMode::Render, 0.0, 0.0),
+                alias(PostQualityMode::Normal, 0.5, 0.25),
+                alias(PostQualityMode::Render, 0.5, 0.25),
+            );
+        }
+    }
+
+    #[test]
+    #[ignore = "measurement: prints the clipper's gain, lag and alias ratio per quality"]
+    fn print_clipper_measurements() {
+        for mode in ALL_QUALITIES {
+            let alias = analyze_clipper_aliasing(48_000, CLIPPER_FRAMES, mode);
+            println!(
+                "{mode:?}: alias {:.2} dB (strongest at {:.0} Hz, input {:.1} Hz)",
+                alias.alias_ratio_db, alias.strongest_alias_frequency_hz, alias.input_frequency_hz
+            );
+            for hz in [100.0, 1_000.0, 10_000.0, 18_000.0, 20_000.0] {
+                let r = measure_clipper_response(48_000, CLIPPER_FRAMES, mode, hz, 0.5);
+                println!(
+                    "  {:>8.1} Hz: gain {:+.4} dB, lag {:.3} samples",
+                    r.frequency_hz, r.gain_db, r.lag_samples
+                );
+            }
+        }
+        for mode in ALL_QUALITIES {
+            // The plugin's default output path: clipper, then the hard clamp
+            // at the same ceiling (`apply_output_limiter`, Hard mode).
+            let input_bin = 427;
+            let (_, out) = super::clipper_sine(CLIPPER_FRAMES, mode, input_bin, 2.0 * 0.9661);
+            let clamped: Vec<f32> = out
+                .iter()
+                .map(|y| crate::apply_output_limiter(*y, crate::LIMITER_THRESHOLD))
+                .collect();
+            let r = super::aliasing_report(&clamped, input_bin, 48_000);
+            let peak = out.iter().fold(0.0f32, |m, y| m.max(y.abs()));
+            println!(
+                "clipper + hard clamp {mode:?}: alias {:.2} dB (strongest at {:.0} Hz), clipper peak {peak:.4}",
+                r.alias_ratio_db, r.strongest_alias_frequency_hz
+            );
+        }
+        for mode in ALL_QUALITIES {
+            let chain = analyze_post_chain_aliasing_at_quality(48_000, 4_096, mode);
+            println!("whole chain {mode:?}: alias {:.2} dB", chain.alias_ratio_db);
+        }
+    }
 
     #[test]
     fn aliasing_report_is_finite_and_populated() {
@@ -834,7 +1179,9 @@ mod tests {
     fn render_mode_alias_ratio_stays_within_budget() {
         // Empirically the Render-mode ratio sits well below -10 dB; the budget
         // is the regression line, not the current measured value.
-        const ALIAS_RATIO_BUDGET_DB: f32 = -10.0;
+        // Measured -22.8 dB after `m06-m09` (the clipper no longer low-passes
+        // the drive's own aliasing); the budget keeps a 5 dB margin.
+        const ALIAS_RATIO_BUDGET_DB: f32 = -18.0;
 
         let report = analyze_post_chain_aliasing_at_quality(48_000, 4_096, PostQualityMode::Render);
         assert!(

@@ -3,6 +3,7 @@
 //! This module exposes the real-time-safe post stage used after voice mixing:
 //! filtering, drive, body resonance, stereo spread, space, and final limiting.
 pub mod fem_body;
+pub mod half_band;
 pub mod hrtf_spread;
 pub mod lookahead_limiter;
 pub mod lorenz_drive;
@@ -20,7 +21,7 @@ pub use lookahead_limiter::LookaheadLimiter;
 /// Chaotic drive stage used before body and spatial processing.
 pub use lorenz_drive::LorenzDrive;
 /// Final oversampled clipper / limiter stage.
-pub use oversampled_clipper::OversampledClipper;
+pub use oversampled_clipper::{DiodeMeter, OversampledClipper};
 /// Full post-processing pipeline that wires the individual stages together.
 pub use post_chain::{PostProcessingChain, PostQualityMode};
 /// Space algorithms and mode selection used by the post chain.

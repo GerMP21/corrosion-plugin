@@ -24,8 +24,9 @@ pub use exciters::{
 pub use interaction::{mode_coefficient_1d, BidirectionalInteractionBus, InteractionState};
 pub use post_processing::lookahead_limiter::LOOKAHEAD_SAMPLES as LOOKAHEAD_LIMITER_SAMPLES;
 pub use post_processing::{
-    FactoryReverb, FemBodyResonator, HrtfSpread, LookaheadLimiter, LorenzDrive, OversampledClipper,
-    PostProcessingChain, PostQualityMode, SpaceMode, SpringReverb, WdfLadderFilter,
+    DiodeMeter, FactoryReverb, FemBodyResonator, HrtfSpread, LookaheadLimiter, LorenzDrive,
+    OversampledClipper, PostProcessingChain, PostQualityMode, SpaceMode, SpringReverb,
+    WdfLadderFilter,
 };
 pub use profile::{ModalModeSpec, ModalProfile, ModalProfileId};
 pub use resonators::{
@@ -39,6 +40,7 @@ pub use transforms::{
 pub use utils::{
     offline_peak_shared_mode_limit, realtime_mode_count_estimate, realtime_mode_count_estimates,
     safe_realtime_shared_mode_limit, BodyResonator, ExcitationInput, RealtimeModeCountEstimate,
+    StereoDcBlocker,
 };
 
 pub use crate::offline::{

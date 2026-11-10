@@ -205,7 +205,7 @@ fn bench_post_chain(c: &mut Criterion) {
             chain.set_space_mode(SpaceMode::Factory);
             chain.set_space_amount(0.25);
             chain.set_factory_params(0.5, 0.4, 0.5);
-            chain.set_clipper_params(0.9661, 0.5);
+            chain.set_clipper_params(0.9661, 0.5, 0.25);
 
             let mut last = (0.0_f32, 0.0_f32);
             for i in 0..4_096 {
@@ -232,7 +232,7 @@ fn bench_post_chain_eco(c: &mut Criterion) {
             chain.set_space_mode(SpaceMode::Factory);
             chain.set_space_amount(0.25);
             chain.set_factory_params(0.5, 0.4, 0.5);
-            chain.set_clipper_params(0.9661, 0.5);
+            chain.set_clipper_params(0.9661, 0.5, 0.25);
 
             let mut last = (0.0_f32, 0.0_f32);
             for i in 0..4_096 {
@@ -288,7 +288,7 @@ fn bench_idle_post_chain(c: &mut Criterion) {
             chain.set_spread_params(0.0, 0.0);
             chain.set_space_mode(SpaceMode::Off);
             chain.set_space_amount(0.0);
-            chain.set_clipper_params(0.9661, 0.5);
+            chain.set_clipper_params(0.9661, 0.5, 0.25);
 
             let mut last = (0.0_f32, 0.0_f32);
             for _ in 0..4_096 {
@@ -315,6 +315,16 @@ fn bench_plugin_output_path(c: &mut Criterion) {
     c.bench_function("plugin_output_path_sixteen_voices", |b| {
         b.iter_batched(
             || PresetRenderer::new(&preset),
+            |mut renderer| black_box(renderer.render(&notes, 48_000, 4_096)),
+            BatchSize::LargeInput,
+        )
+    });
+    // The same in Render quality (more modes per voice, 16× clipper).
+    let mut render = preset.clone();
+    render.quality_mode = 3;
+    c.bench_function("plugin_output_path_sixteen_voices_render", |b| {
+        b.iter_batched(
+            || PresetRenderer::new(&render),
             |mut renderer| black_box(renderer.render(&notes, 48_000, 4_096)),
             BatchSize::LargeInput,
         )

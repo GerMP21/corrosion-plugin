@@ -415,11 +415,11 @@ above the block. Minor, but the doc and tests promise symmetric behavior.
 
 ## MEDIUM
 
-- **M1. `mseg_onset` doubles as time and level.** `voice/mod.rs:561-575` passes
+- ~~**M1. `mseg_onset` doubles as time and level.** `voice/mod.rs:561-575` passes
   `controls.mseg_onset` (a 0.001–1.0 s *time*) to both `set_stage_times` *and*
   `set_stage_levels` (as the onset *level*, clamped 0..1). The VoiceControls doc
   even calls it "Onset stage *level*" while params.rs calls it "onset *time*". One
-  knob silently controls two unrelated things.
+  knob silently controls two unrelated things.~~ — FIXED (2026-11-09, [`m01-m04-m05-clarify-parameters`](openspec/changes/m01-m04-m05-clarify-parameters/proposal.md)): new parameter Onset Level (`mseg_onset_level`, default 0.01) sets the onset stage's level, and Onset (now "Onset Time") only its length. The default keeps the old level, so all 16 exciters' default 48 kHz renders hash identically before and after. Older presets (`migrate_preset_json`) and host state (`filter_state`) get `clamp(mseg_onset, 0, 1)`. Proven by `onset_time_and_level_are_separate`, `default_onset_level_is_the_old_shared_level`, `old_host_state_keeps_its_onset_level` and `preset_without_onset_level_keeps_its_onset`.
 - **M2. Hit-family envelope ignores `env_decay`/`env_sustain`.** Hits use a pure
   AR one-shot (voice/mod.rs:540-547) — attack then immediate release, even while
   the key is held. The GUI shows full ADSR knobs for hit exciters; Decay/Sustain
@@ -430,34 +430,34 @@ above the block. Minor, but the doc and tests promise symmetric behavior.
   other rates (self-heals on first `process` via the cached-rate check, but the
   live-controls path also caches `Some(48_000)`, masking the first rebuild).
   Similarly `Voice::set_pitch_bend_semitones` uses `self.sample_rate`, which is
-  48 kHz until the first sample renders.~~ — FIXED (2026-11-08, branch `claude/nice-mccarthy-9fm1p6`, [`m03-m20-start-at-host-rate-and-report-latency`](openspec/changes/m03-m20-start-at-host-rate-and-report-latency/proposal.md)): voices are rated for the host rate at initialization and on rate changes, and a note-on builds its coefficients once at that rate (96 kHz: 624 → 416 builds for 16 notes, as at 48 kHz). `first_note_does_not_depend_on_voice_history` also found four exciters carrying state between notes; each now restarts from rest on trigger.
-- **M4. Duplicate parameter display names.** Two params named "Wire Stiffness"
+  48 kHz until the first sample renders.~~ — FIXED (2026-11-08, branch `claude/nice-mccarthy-9fm1p6`, [`m03-m20-start-at-host-rate-and-report-latency`](openspec/changes/archive/2026-11-09-m03-m20-start-at-host-rate-and-report-latency/proposal.md)): voices are rated for the host rate at initialization and on rate changes, and a note-on builds its coefficients once at that rate (96 kHz: 624 → 416 builds for 16 notes, as at 48 kHz). `first_note_does_not_depend_on_voice_history` also found four exciters carrying state between notes; each now restarts from rest on trigger.
+- ~~**M4. Duplicate parameter display names.** Two params named "Wire Stiffness"
   (`brush_wire_stiffness`, `wire_stiffness`), two named "Brightness"
   (`res_brightness`, `macro_brightness`), plus "Mass" (macro) vs the many masses.
   IDs are unique so state is safe, but host automation lists show
-  indistinguishable duplicates.
-- **M5. `output` param is linear-in-gain 0..100 (0 → −∞, 100 → +40 dB), default
+  indistinguishable duplicates.~~ — FIXED (2026-11-09, [`m01-m04-m05-clarify-parameters`](openspec/changes/m01-m04-m05-clarify-parameters/proposal.md)): "Resonator Brightness" / "Macro Brightness" and "Brush Wire Stiffness" / "Spring Wire Stiffness", also in `into_params`. "Mass" was already unique (the other masses are "Pipe Mass", "Hand Mass", …), so it stays. Proven by `parameter_names_are_unique` and `into_params_uses_the_live_names_and_output_range`.
+- ~~**M5. `output` param is linear-in-gain 0..100 (0 → −∞, 100 → +40 dB), default
   1.0.** No dB display/units, and the linear taper means the useful −20..+6 dB
   region occupies ~1 % of the knob travel. Also +40 dB of clean digital gain into
-  a clipper is an odd ceiling.
-- **M6. `LorenzDrive` bias-starvation gate is a hard 1.0↔0.3 gain switch**
+  a clipper is an odd ceiling.~~ — FIXED (2026-11-09, [`m01-m04-m05-clarify-parameters`](openspec/changes/m01-m04-m05-clarify-parameters/proposal.md)): Output is shown and typed in dB with a gain-skewed taper; 0 dB moved from 1.0 % to 57.5 % of the travel and −20..+6 dB from 1.9 % to 18.9 %. The stored value is still the gain, so presets and projects keep their level; the +40 dB maximum stays (maintainer's choice). BREAKING for existing Output automation. Proven by `output_is_shown_in_decibels`, `output_accepts_typed_decibels`, `output_taper_reaches_the_useful_range` and `old_project_keeps_its_output_gain`.
+- ~~**M6. `LorenzDrive` bias-starvation gate is a hard 1.0↔0.3 gain switch**
   (lorenz_drive.rs:98-107) keyed off the chaotic z state — produces stepped gain
   discontinuities (clicks/crackle), which may be intended "circuit starvation" but
-  is undocumented and un-smoothed. `tube_state` field is dead.
+  is undocumented and un-smoothed. `tube_state` field is dead.~~ — FIXED (2026-11-09, [`m06-m09-smooth-starvation-and-oversample-clipper`](openspec/changes/archive/2026-11-09-m06-m09-smooth-starvation-and-oversample-clipper/proposal.md)): a 5 ms one-pole follower ramps the gain, so the largest output step is 0.99–1.005× the starvation-0 step at 44.1, 48 and 96 kHz (it was up to 28× at 48 kHz and 57× at 96 kHz); starvation 0 is bit-identical to the drive without the stage; `tube_state` is gone. Measuring it also showed the gate only switched for Bias Starvation of about 0.2–0.7 (a fixed −10.5 dB cut above 0.71); the threshold now spans the attractor's `z` range, starved 5 % of the time at 0.1 to 87 % at 1 (maintainer's choice). Proven by `starvation_does_not_click`, `starvation_does_not_click_at_other_rates`, `starvation_off_is_bit_identical`, `starvation_keeps_switching_across_its_range` and `more_starvation_starves_more_often` in `lorenz_drive.rs`.
 - ~~**M7. `FactoryEcho` modulated delay is un-interpolated** (space.rs:273) —
   integer-truncated read index with a moving modulation produces zipper noise as
   `machinery_movement` increases. `high_frequency_damping` is a broadband wet gain,
-  not a filter — the name promises air absorption; it just turns the echo down.~~ — FIXED (2026-11-09, branch `claude/nice-mccarthy-9fm1p6`, [`m07-m08-interpolate-echo-and-tidy-spread`](openspec/changes/m07-m08-interpolate-echo-and-tidy-spread/proposal.md)): modulated reads use Hermite interpolation (largest step of a swept 1 kHz sine 0.242 → 0.077, vs 0.066 for the dry sine), and High Frequency Damping is a low-pass in the feedback loop (at 1, 8 kHz repeats 14 dB below 200 Hz; 200 Hz level unchanged within 0.1 dB), proven by `echo_modulation_glides` and the HF Damping tests in `space.rs`.
+  not a filter — the name promises air absorption; it just turns the echo down.~~ — FIXED (2026-11-09, branch `claude/nice-mccarthy-9fm1p6`, [`m07-m08-interpolate-echo-and-tidy-spread`](openspec/changes/archive/2026-11-09-m07-m08-interpolate-echo-and-tidy-spread/proposal.md)): modulated reads use Hermite interpolation (largest step of a swept 1 kHz sine 0.242 → 0.077, vs 0.066 for the dry sine), and High Frequency Damping is a low-pass in the feedback loop (at 1, 8 kHz repeats 14 dB below 200 Hz; 200 Hz level unchanged within 0.1 dB), proven by `echo_modulation_glides` and the HF Damping tests in `space.rs`.
 - ~~**M8. `HrtfSpread` ITD is dead code.** Both delay buffers store the same mono
   signal and are read at the same index (hrtf_spread.rs:66-73): `delayed_left ==
   delayed_right` always, so there is no interaural time difference; width comes
   only from the side-signal gain and crossfeed. Two 64-float buffers where one
   would do; the "1 ms ITD" comment is not implemented.~~ — FIXED (2026-11-09, same change): the redundant buffer is gone and the comments describe a common mid delay, not an ITD. The output is bit-identical (render hashes at 44.1, 48 and 192 kHz match the previous code). Keeping the sound, rather than implementing a real ITD, was the maintainer's choice.
-- **M9. `OversampledClipper` isn't oversampling in the DSP sense.** It linearly
+- ~~**M9. `OversampledClipper` isn't oversampling in the DSP sense.** It linearly
   interpolates between two consecutive *input* samples (adds no bandwidth) and
   box-filter decimates (adds ~half-sample delay and HF droop). It's a "transient
   smoother", not the true-peak/anti-aliasing stage the docs describe. Its
-  `set_sample_rate` stores a value that is never used.
+  `set_sample_rate` stores a value that is never used.~~ — FIXED (2026-11-09, same change): the clipper up-samples through cascaded 2× half-band IIR stages, clips at the high rate and comes back down (Normal/High/Render use 2/3/4 stages); `set_sample_rate` is gone. Flat to 20 kHz (0.000 dB; the box filter lost 8 dB at 18 kHz in Render); a 5 kHz sine at twice the ceiling folds back at −51.0 dB in Normal and −75.8 dB in Render (−32.4 and −33.0 before), also through the default hard clamp, because the oversampled curve starts at the ceiling ÷ 1.3 (maintainer's choice). The half-bands delay 1 kHz by 4.2–5.0 samples, not reported (maintainer's choice). Proven by `clipper_is_transparent_below_its_threshold`, `clipper_alias_bounds_hold`, `clipper_alias_bounds_hold_through_the_hard_clamp`, `clipper_fold_back_falls_with_quality`, `clipper_delays_less_than_eight_samples` (`offline/mod.rs`), `eco_is_plain_clipping` and the half-band stage test in `half_band.rs`.
 - **M10. `InteractionState.exciter_force` is write-only** (`set_exciter_force`
   is called each sample; nothing reads the field). The "bidirectional" bus is
   feed-forward: exciters read displacement/velocity, but the force distribution
@@ -474,7 +474,7 @@ above the block. Minor, but the doc and tests promise symmetric behavior.
   mentioning it).
 - ~~**M13. No sustain pedal (CC64), no all-notes-off (CC123) handling** — CC1 is the
   only CC routed (lib.rs:636-638). For a physical-modeling instrument, missing
-  sustain-pedal handling is a real playability gap.~~ — FIXED (2026-11-09, branch `claude/nice-mccarthy-9fm1p6`, [`m13-sustain-pedal-and-panic`](openspec/changes/m13-sustain-pedal-and-panic/proposal.md)): CC64 sustain with a pedal-held stealing tier, CC123 All Notes Off, CC120 All Sound Off (5 ms fade, then voices and tails cleared) and CC121 Reset All Controllers, proven by `midi_control_tests` (11 tests, including an allocation check).
+  sustain-pedal handling is a real playability gap.~~ — FIXED (2026-11-09, branch `claude/nice-mccarthy-9fm1p6`, [`m13-sustain-pedal-and-panic`](openspec/changes/archive/2026-11-09-m13-sustain-pedal-and-panic/proposal.md)): CC64 sustain with a pedal-held stealing tier, CC123 All Notes Off, CC120 All Sound Off (5 ms fade, then voices and tails cleared) and CC121 Reset All Controllers, proven by `midi_control_tests` (11 tests, including an allocation check).
 - **M14. Quality mode affects voices only at note-on** (`mode_count_scale`
   captured into the bank), but the post chain switches instantly — flipping
   Eco↔Render mid-note changes the space topology immediately while held notes

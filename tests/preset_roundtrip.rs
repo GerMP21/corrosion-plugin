@@ -373,3 +373,141 @@ fn preset_with_wander_rate_keeps_both_fields() {
     assert_eq!(loaded.extra.position_wander_rate, 1.5);
     assert_eq!(loaded.extra.position_envelope, 0.5);
 }
+
+#[test]
+fn preset_without_onset_level_keeps_its_onset() {
+    // Before `mseg_onset_level`, Onset set both the onset stage's time and
+    // (clamped to 0–1) its level. Such a preset loads with Onset Level equal
+    // to that level (`m01-m04-m05-clarify-parameters`).
+    let json = r#"
+    {
+        "name": "Old Onset",
+        "version": "4",
+        "object": "Pipe",
+        "exciter": 1,
+        "size": 1.0,
+        "rust": 0.0,
+        "damage": 0.0,
+        "drive": 0.0,
+        "output": 1.0,
+        "width": 0.5,
+        "body": 1.0,
+        "extra": { "mseg_onset": 0.4 }
+    }
+    "#;
+    let loaded = Preset::from_json_str(json).unwrap();
+    assert_eq!(loaded.extra.mseg_onset, 0.4);
+    assert_eq!(loaded.extra.mseg_onset_level, 0.4);
+    let params = loaded.into_params();
+    assert_eq!(params.mseg_onset.value(), 0.4);
+    assert_eq!(params.mseg_onset_level.value(), 0.4);
+}
+
+#[test]
+fn preset_with_onset_level_keeps_both_fields() {
+    let json = r#"
+    {
+        "name": "New Onset",
+        "version": "4",
+        "object": "Pipe",
+        "exciter": 1,
+        "size": 1.0,
+        "rust": 0.0,
+        "damage": 0.0,
+        "drive": 0.0,
+        "output": 1.0,
+        "width": 0.5,
+        "body": 1.0,
+        "extra": { "mseg_onset": 0.4, "mseg_onset_level": 0.2 }
+    }
+    "#;
+    let loaded = Preset::from_json_str(json).unwrap();
+    assert_eq!(loaded.extra.mseg_onset, 0.4);
+    assert_eq!(loaded.extra.mseg_onset_level, 0.2);
+    let params = loaded.into_params();
+    assert_eq!(params.mseg_onset_level.value(), 0.2);
+}
+
+#[test]
+fn into_params_uses_the_live_names_and_output_range() {
+    // `m01-m04-m05-clarify-parameters`: a loaded preset's parameters carry
+    // the same display names as the live ones, and Output the same taper.
+    use nih_plug::prelude::{Param, Params};
+    let live = corrosion::CorrosionParams::default();
+    let loaded = Preset::from_params("Names", &live).into_params();
+    let names = |params: &corrosion::CorrosionParams| {
+        params
+            .param_map()
+            .into_iter()
+            // SAFETY: the pointers come from `params`, alive for this call.
+            .map(|(id, ptr, _)| (id, unsafe { ptr.name() }.to_string()))
+            .collect::<std::collections::BTreeMap<_, _>>()
+    };
+    assert_eq!(names(&loaded), names(&live));
+    for gain in [0.0f32, 0.1, 0.5, 1.0, 2.0, 50.0] {
+        assert_eq!(
+            loaded.output.preview_normalized(gain),
+            live.output.preview_normalized(gain),
+            "gain {gain}"
+        );
+    }
+}
+
+#[test]
+fn preset_without_diode_asymmetry_loads_the_old_clipper() {
+    // Before Diode Asymmetry, the clipper had a hard knee; Softness 0 and
+    // Asymmetry 0 are the closest setting, whatever the old Softness
+    // (`add-asymmetric-diode-stage`).
+    let json = r#"
+    {
+        "name": "Old Clipper",
+        "version": "4",
+        "object": "Pipe",
+        "exciter": 2,
+        "size": 1.0,
+        "rust": 0.0,
+        "damage": 0.0,
+        "drive": 0.0,
+        "output": 1.0,
+        "width": 0.5,
+        "body": 1.0,
+        "extra": { "diode_softness": 0.7 }
+    }
+    "#;
+    let loaded = Preset::from_json_str(json).unwrap();
+    assert_eq!(loaded.extra.diode_softness, 0.0);
+    assert_eq!(loaded.extra.diode_asymmetry, 0.0);
+    let params = loaded.into_params();
+    assert_eq!(params.diode_softness.value(), 0.0);
+    assert_eq!(params.diode_asymmetry.value(), 0.0);
+}
+
+#[test]
+fn preset_with_diode_asymmetry_keeps_both_fields() {
+    let json = r#"
+    {
+        "name": "New Clipper",
+        "version": "4",
+        "object": "Pipe",
+        "exciter": 2,
+        "size": 1.0,
+        "rust": 0.0,
+        "damage": 0.0,
+        "drive": 0.0,
+        "output": 1.0,
+        "width": 0.5,
+        "body": 1.0,
+        "extra": { "diode_softness": 0.7, "diode_asymmetry": 0.4 }
+    }
+    "#;
+    let loaded = Preset::from_json_str(json).unwrap();
+    assert_eq!(loaded.extra.diode_softness, 0.7);
+    assert_eq!(loaded.extra.diode_asymmetry, 0.4);
+}
+
+#[test]
+fn new_instances_use_the_new_diode_defaults() {
+    let params = corrosion::CorrosionParams::default();
+    assert_eq!(params.diode_softness.value(), 0.5);
+    assert_eq!(params.diode_asymmetry.value(), 0.25);
+}

@@ -83,8 +83,10 @@ pub struct VoiceControls {
     pub env_sustain: f32,
     /// Release time for hit and specialty envelopes, in seconds.
     pub env_release: f32,
-    /// Onset stage level for the friction MSEG.
+    /// Onset stage time for the friction MSEG, in seconds.
     pub mseg_onset: f32,
+    /// Onset stage level for the friction MSEG (0–1).
+    pub mseg_onset_level: f32,
     /// Attack stage time for the friction MSEG, in seconds.
     pub mseg_attack: f32,
     /// Hold stage time for the friction MSEG, in seconds.
@@ -280,6 +282,7 @@ impl Default for VoiceControls {
             env_sustain: 0.7,
             env_release: 0.5,
             mseg_onset: 0.01,
+            mseg_onset_level: crate::params::DEFAULT_MSEG_ONSET_LEVEL,
             mseg_attack: 0.05,
             mseg_hold: 0.02,
             mseg_decay: 0.3,
@@ -821,7 +824,7 @@ impl Voice {
                 let peak_level =
                     (0.5 + controls.velocity_to_peak.clamp(0.0, 1.0) * 0.5).clamp(0.0, 1.0);
                 mseg.set_stage_levels(
-                    controls.mseg_onset.clamp(0.0, 1.0),
+                    controls.mseg_onset_level,
                     peak_level,
                     controls.mseg_sustain,
                     0.0,
@@ -1912,6 +1915,72 @@ mod tests {
                 "{sample_rate}: area {area:.4e}, continuous {expected:.4e}"
             );
         }
+    }
+
+    /// Triggers a Bow note's friction MSEG at 48 kHz with `controls` and
+    /// returns the Onset stage's length in samples and the level it reached.
+    fn friction_onset(controls: VoiceControls) -> (usize, f32) {
+        use crate::dsp::Stage;
+        let mut voice = Voice::new();
+        voice.set_rate(48_000.0);
+        // No velocity-to-time scaling, so the stage lasts exactly its time.
+        let controls = VoiceControls {
+            velocity_to_time: 0.0,
+            ..controls
+        };
+        voice.configure_envelope(1, 0.8, controls);
+        let mut samples = 0;
+        let mut level = 0.0f32;
+        while samples < 200_000 {
+            let _ = voice.process_force_envelope();
+            if voice.mseg.stage() != Stage::Onset {
+                break;
+            }
+            level = voice.mseg.current_level();
+            samples += 1;
+        }
+        (samples, level)
+    }
+
+    #[test]
+    fn onset_time_and_level_are_separate() {
+        // `m01-m04-m05-clarify-parameters` (M1): Onset Time sets only the
+        // stage's length, Onset Level only its level.
+        let with_time = |time: f32| {
+            friction_onset(VoiceControls {
+                mseg_onset: time,
+                mseg_onset_level: 0.2,
+                ..VoiceControls::default()
+            })
+        };
+        let (short_len, short_level) = with_time(0.01);
+        let (long_len, long_level) = with_time(0.5);
+        assert!(
+            (short_level - 0.2).abs() < 1e-3 && (long_level - 0.2).abs() < 1e-3,
+            "onset levels {short_level} and {long_level}, want 0.2"
+        );
+        assert!(
+            (short_len as i64 - 480).abs() <= 1 && (long_len as i64 - 24_000).abs() <= 1,
+            "onset lengths {short_len} and {long_len} samples"
+        );
+    }
+
+    #[test]
+    fn default_onset_level_is_the_old_shared_level() {
+        // The old code took the onset level from Onset (time) clamped to
+        // 0–1. The new default keeps that level, so the default patch is
+        // bit-identical (verified by render hash, see the change's design).
+        let controls = VoiceControls::default();
+        assert_eq!(
+            controls.mseg_onset_level,
+            controls.mseg_onset.clamp(0.0, 1.0)
+        );
+        let params = crate::params::CorrosionParams::default();
+        assert_eq!(
+            params.mseg_onset_level.value(),
+            params.mseg_onset.value().clamp(0.0, 1.0)
+        );
+        assert_eq!(params.mseg_onset.value(), controls.mseg_onset);
     }
 
     #[test]
@@ -3783,5 +3852,198 @@ mod tests {
                 );
             }
         }
+    }
+}
+
+/// `fix-rust-damage-heat-response`: Rust, Damage and Heat across their whole
+/// ranges.
+#[cfg(test)]
+mod material_transform_tests {
+    use super::*;
+
+    const OBJECTS: [ModalProfileId; 9] = [
+        ModalProfileId::Pipe,
+        ModalProfileId::Plate,
+        ModalProfileId::Tank,
+        ModalProfileId::Chain,
+        ModalProfileId::IBeam,
+        ModalProfileId::TautCable,
+        ModalProfileId::CoilSpring,
+        ModalProfileId::SheetMetal,
+        ModalProfileId::IndustrialCog,
+    ];
+
+    /// A HandStrike C4 at velocity 100 on `object`.
+    fn struck(object: ModalProfileId, rust: f32, damage: f32, heat: f32) -> Voice {
+        let mut voice = Voice::new();
+        let controls = VoiceControls {
+            heat,
+            ..VoiceControls::default()
+        };
+        voice.note_on_with_controls(60, 100.0, object, 0, 1.0, rust, damage, 2, controls);
+        voice
+    }
+
+    /// 2 s RMS in dB, and the lowest mode's frequency at note-on.
+    fn level_and_fundamental(
+        object: ModalProfileId,
+        rust: f32,
+        damage: f32,
+        heat: f32,
+    ) -> (f32, f32) {
+        let mut voice = struck(object, rust, damage, heat);
+        let lowest = voice
+            .resonator_for_test()
+            .mode_specs_for_test()
+            .map(|m| m.frequency_hz)
+            .fold(f32::INFINITY, f32::min);
+        let mut sum = 0.0f64;
+        let n = 96_000;
+        for _ in 0..n {
+            let (l, r) = voice.process_sample_stereo(48_000, 1.0);
+            let x = 0.5 * (l + r);
+            sum += (x * x) as f64;
+        }
+        let rms = (sum / n as f64).sqrt();
+        (20.0 * rms.max(1e-15).log10() as f32, lowest)
+    }
+
+    fn semitones(a: f32, b: f32) -> f32 {
+        12.0 * (a / b).log2()
+    }
+
+    /// Sweep one control on every object; collect any render that is silent,
+    /// lost its fundamental or fell more than 6 dB below the control at 0.
+    fn sweep(name: &str, values: &[f32], at: impl Fn(f32) -> (f32, f32, f32)) -> Vec<String> {
+        let mut failures = Vec::new();
+        for object in OBJECTS {
+            let (r0, d0, h0) = at(0.0);
+            let (level0, f0) = level_and_fundamental(object, r0, d0, h0);
+            for &v in values {
+                let (r, d, h) = at(v);
+                let (level, f) = level_and_fundamental(object, r, d, h);
+                let silent = !f.is_finite() || level < -150.0;
+                let shift = if silent {
+                    f32::INFINITY
+                } else {
+                    semitones(f, f0).abs()
+                };
+                if silent || shift > 1.0 || level < level0 - 6.0 {
+                    failures.push(format!(
+                        "{object:?} {name} {v}: {level:.1} dB (vs {level0:.1}), lowest {f:.0} Hz (vs {f0:.0})"
+                    ));
+                }
+            }
+        }
+        failures
+    }
+
+    /// Spec "Rust sweep".
+    #[test]
+    fn rust_never_silences_or_loses_the_fundamental() {
+        let failures = sweep("Rust", &[1.0, 2.0, 3.0, 4.0, 5.0], |v| (v, 0.0, 0.0));
+        assert!(failures.is_empty(), "{}", failures.join("\n"));
+    }
+
+    /// Ratio of the top mode's decay to the fundamental's.
+    fn top_to_fundamental(voice: &Voice, field: impl Fn(crate::dsp::ModalModeSpec) -> f32) -> f32 {
+        let specs: Vec<_> = voice.resonator_for_test().mode_specs_for_test().collect();
+        let low = specs
+            .iter()
+            .min_by(|a, b| a.frequency_hz.total_cmp(&b.frequency_hz))
+            .unwrap();
+        let high = specs
+            .iter()
+            .max_by(|a, b| a.frequency_hz.total_cmp(&b.frequency_hz))
+            .unwrap();
+        field(*high) / field(*low)
+    }
+
+    /// Spec "Rust eats the highs first".
+    #[test]
+    fn rust_shortens_high_modes_more() {
+        for object in OBJECTS {
+            let clean = top_to_fundamental(&struck(object, 0.0, 0.0, 0.0), |m| m.decay_seconds);
+            let rusted = top_to_fundamental(&struck(object, 5.0, 0.0, 0.0), |m| m.decay_seconds);
+            assert!(
+                rusted < clean,
+                "{object:?}: top/fundamental decay {clean} -> {rusted}"
+            );
+        }
+    }
+
+    /// Spec "Damage sweep".
+    #[test]
+    fn damage_keeps_the_note() {
+        let failures = sweep("Damage", &[1.0, 2.0, 4.0, 6.0, 8.0, 10.0], |v| {
+            (0.0, v, 0.0)
+        });
+        assert!(failures.is_empty(), "{}", failures.join("\n"));
+    }
+
+    /// Spec "Damage splits modes".
+    #[test]
+    fn damage_splits_modes() {
+        for object in OBJECTS {
+            let clean = struck(object, 0.0, 0.0, 0.0)
+                .resonator_for_test()
+                .mode_specs_for_test()
+                .count();
+            let damaged = struck(object, 0.0, 5.0, 0.0)
+                .resonator_for_test()
+                .mode_specs_for_test()
+                .count();
+            assert!(damaged > clean, "{object:?}: {clean} -> {damaged} modes");
+        }
+    }
+
+    /// Spec "Darker": Heat tilts the spectrum, within 6 dB of Heat 0.
+    #[test]
+    fn heat_darkens_the_spectrum() {
+        let mut failures = Vec::new();
+        for object in OBJECTS {
+            let tilt = |heat: f32| {
+                20.0 * top_to_fundamental(&struck(object, 0.0, 0.0, heat), |m| m.gain).log10()
+            };
+            let (cold, hot) = (tilt(0.0), tilt(1.0));
+            let (level0, _) = level_and_fundamental(object, 0.0, 0.0, 0.0);
+            let (level1, _) = level_and_fundamental(object, 0.0, 0.0, 1.0);
+            if hot > cold - 6.0 || level1 < level0 - 6.0 {
+                failures.push(format!(
+                    "{object:?}: top/fundamental gain {cold:.1} -> {hot:.1} dB, level {level0:.1} -> {level1:.1} dB"
+                ));
+            }
+        }
+        assert!(failures.is_empty(), "{}", failures.join("\n"));
+    }
+
+    /// Peak-to-peak cents of the fundamental over 3 s of a held note.
+    fn fundamental_wander_cents(heat: f32) -> f32 {
+        let mut voice = struck(ModalProfileId::Pipe, 0.0, 0.0, heat);
+        let fundamental = |v: &Voice| {
+            v.resonator_for_test()
+                .mode_specs_for_test()
+                .map(|m| m.frequency_hz)
+                .fold(f32::INFINITY, f32::min)
+        };
+        let (mut lo, mut hi) = (f32::INFINITY, 0.0f32);
+        for i in 0..144_000 {
+            let _ = voice.process_sample_stereo(48_000, 1.0);
+            if i % 480 == 0 {
+                let f = fundamental(&voice);
+                lo = lo.min(f);
+                hi = hi.max(f);
+            }
+        }
+        1200.0 * (hi / lo).log2()
+    }
+
+    /// Spec "Warble".
+    #[test]
+    fn heat_makes_the_pitch_wander() {
+        let (cold, hot) = (fundamental_wander_cents(0.0), fundamental_wander_cents(1.0));
+        println!("WARBLE heat 0: {cold:.3} cents, heat 1: {hot:.3} cents");
+        assert_eq!(cold, 0.0, "the pitch wanders at Heat 0");
+        assert!(hot >= 4.0, "Heat 1 wanders only {hot:.2} cents");
     }
 }

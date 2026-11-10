@@ -25,10 +25,10 @@ fi
 cp "${SO_PATH}" "${BUNDLE_DIR}/Contents/x86_64-linux/${PLUGIN_NAME}.so"
 echo "VST3 bundle created at: ${BUNDLE_DIR}"
 
-CLAP_DIR="${PROJECT_DIR}/target/bundled/${PLUGIN_NAME}.clap"
-rm -rf "${CLAP_DIR}"
-mkdir -p "${CLAP_DIR}"
-cp "${SO_PATH}" "${CLAP_DIR}/${PLUGIN_NAME}.clap"
-echo "CLAP bundle created at: ${CLAP_DIR}"
+# A CLAP plugin is a single file (the shared library renamed), not a folder.
+CLAP_PATH="${PROJECT_DIR}/target/bundled/${PLUGIN_NAME}.clap"
+rm -rf "${CLAP_PATH}"
+cp "${SO_PATH}" "${CLAP_PATH}"
+echo "CLAP plugin created at: ${CLAP_PATH}"
 
 echo "Done."

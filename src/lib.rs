@@ -314,6 +314,12 @@ pub const LIMITER_THRESHOLD: f32 = 0.9661;
 /// (`m13-sustain-pedal-and-panic`).
 const PANIC_FADE_SECONDS: f32 = 0.005;
 
+/// Cutoff of the voice mix's DC blocker, a second-order Butterworth
+/// high-pass. 10 Hz removes the voices' static deflection under a
+/// one-signed force, including a felt mallet's ~60 ms thump, and costs
+/// 0.05 dB at 30 Hz (`block-voice-mix-dc`).
+const VOICE_MIX_DC_CUTOFF_HZ: f32 = 10.0;
+
 /// Applies the Hard output limiter to a single sample: clamps it to
 /// `[-ceiling, ceiling]`.
 ///
@@ -360,6 +366,41 @@ fn migrate_host_wander_rate(
         ParamValue::F32(presets::legacy_wander_rate(envelope)),
     );
     params.insert("position_envelope".into(), ParamValue::F32(0.0));
+}
+
+/// Host state saved before Onset Level existed has no `mseg_onset_level`;
+/// Onset set the friction MSEG's onset level too, so restore that level
+/// (`m01-m04-m05-clarify-parameters`).
+fn migrate_host_onset_level(
+    params: &mut std::collections::BTreeMap<String, nih_plug::wrapper::state::ParamValue>,
+) {
+    use nih_plug::wrapper::state::ParamValue;
+    if params.contains_key("mseg_onset_level") {
+        return;
+    }
+    let Some(&ParamValue::F32(onset)) = params.get("mseg_onset") else {
+        return;
+    };
+    params.insert(
+        "mseg_onset_level".into(),
+        ParamValue::F32(presets::legacy_onset_level(onset)),
+    );
+}
+
+/// Host state saved before Diode Asymmetry existed has no
+/// `diode_asymmetry`; its clipper had a hard, symmetric knee, so restore
+/// Diode Softness 0 and Diode Asymmetry 0, the closest setting
+/// (`add-asymmetric-diode-stage`). An empty state (nothing saved) is left to
+/// the defaults.
+fn migrate_host_diode_stage(
+    params: &mut std::collections::BTreeMap<String, nih_plug::wrapper::state::ParamValue>,
+) {
+    use nih_plug::wrapper::state::ParamValue;
+    if params.is_empty() || params.contains_key("diode_asymmetry") {
+        return;
+    }
+    params.insert("diode_softness".into(), ParamValue::F32(0.0));
+    params.insert("diode_asymmetry".into(), ParamValue::F32(0.0));
 }
 
 /// Maximum drive-amount-to-gain multiplier in `apply_drive`. A drive of `1.0`
@@ -530,6 +571,7 @@ fn handle_note_event(plugin: &mut Corrosion, event: NoteEvent<()>) {
                 env_sustain: plugin.params.env_sustain.value(),
                 env_release: plugin.params.env_release.value(),
                 mseg_onset: plugin.params.mseg_onset.value(),
+                mseg_onset_level: plugin.params.mseg_onset_level.value(),
                 mseg_attack: plugin.params.mseg_attack.value(),
                 mseg_hold: plugin.params.mseg_hold.value(),
                 mseg_decay: plugin.params.mseg_decay.value(),
@@ -818,6 +860,15 @@ pub struct Corrosion {
     /// (`m13-sustain-pedal-and-panic`).
     panic_gain: f32,
     panic_step: f32,
+    /// The diode stage's reduction, published once per block for the
+    /// editor's limiter dot (`add-asymmetric-diode-stage`).
+    diode_meter: Arc<dsp::DiodeMeter>,
+    /// Removes the voices' static deflection from their mix before the
+    /// master drive (`block-voice-mix-dc`).
+    mix_dc_blocker: dsp::StereoDcBlocker,
+    /// Test-only switch: `false` bypasses the voice mix's DC blocker, to
+    /// compare against the path without it (`block-voice-mix-dc`).
+    pub(crate) mix_dc_blocker_enabled: bool,
 }
 
 /// The per-block values `Corrosion::begin_block` resolves and each
@@ -850,6 +901,9 @@ impl Default for Corrosion {
             reported_latency_samples: 0,
             panic_gain: 1.0,
             panic_step: 0.0,
+            diode_meter: Arc::new(dsp::DiodeMeter::new()),
+            mix_dc_blocker: dsp::StereoDcBlocker::new(VOICE_MIX_DC_CUTOFF_HZ),
+            mix_dc_blocker_enabled: true,
         }
     }
 }
@@ -950,6 +1004,7 @@ impl Corrosion {
         self.post_chain.set_clipper_params(
             self.params.analog_ceiling.value(),
             self.params.diode_softness.value(),
+            self.params.diode_asymmetry.value(),
         );
     }
 
@@ -993,6 +1048,7 @@ impl Corrosion {
         // setters and per-buffer held-note automation see the same numbers.
         let bias = resolve_macro_bias(&self.params);
 
+        self.mix_dc_blocker.set_sample_rate(sample_rate as f32);
         self.drive_smoother.set_sample_rate(sample_rate as f32);
         self.drive_smoother
             .set_target((self.params.drive.value() + bias.drive_offset).clamp(0.0, 5.0));
@@ -1043,6 +1099,7 @@ impl Corrosion {
         let (left, right) = self
             .voice_manager
             .process_sample_stereo(block.sample_rate, block.width);
+        let (left, right) = self.block_mix_dc(left, right);
 
         // Apply drive/saturation with per-sample smoothed master drive.
         let drive_smoothed = self.drive_smoother.next();
@@ -1058,6 +1115,16 @@ impl Corrosion {
             return self.panic_frame(left, right);
         }
         (left, right)
+    }
+
+    /// The voice mix without its DC (`block-voice-mix-dc`).
+    #[inline]
+    fn block_mix_dc(&mut self, left: f32, right: f32) -> (f32, f32) {
+        if self.mix_dc_blocker_enabled {
+            self.mix_dc_blocker.process(left, right)
+        } else {
+            (left, right)
+        }
     }
 
     /// Start All Sound Off: fade the output to silence over
@@ -1078,6 +1145,7 @@ impl Corrosion {
             return (left * self.panic_gain, right * self.panic_gain);
         }
         self.voice_manager.silence();
+        self.mix_dc_blocker.reset();
         self.post_chain.reset();
         self.lookahead_left.reset();
         self.lookahead_right.reset();
@@ -1177,6 +1245,8 @@ impl Plugin for Corrosion {
     /// so this applies the preset migrations that would otherwise be skipped.
     fn filter_state(state: &mut PluginState) {
         migrate_host_wander_rate(&mut state.params);
+        migrate_host_onset_level(&mut state.params);
+        migrate_host_diode_stage(&mut state.params);
     }
 
     /// Called once when plugin is instantiated.
@@ -1193,6 +1263,8 @@ impl Plugin for Corrosion {
         // (`m03-m20-start-at-host-rate-and-report-latency`).
         self.voice_manager
             .set_sample_rate(buffer_config.sample_rate as u32);
+        self.mix_dc_blocker
+            .set_sample_rate(buffer_config.sample_rate);
         // Report the restored Limiter Mode's latency now, before the host's
         // delay compensation is settled; `process()` reports later changes.
         let limiter_mode = self.params.limiter_mode.value();
@@ -1212,6 +1284,7 @@ impl Plugin for Corrosion {
     /// on the audio thread, so it must not allocate (review C3).
     fn reset(&mut self) {
         self.voice_manager.reset();
+        self.mix_dc_blocker.reset();
         self.post_chain.reset();
         // Start the master drive where `begin_block` aims it (Drive plus the
         // Violence bias), so the first note after a reset isn't driven by a
@@ -1270,6 +1343,9 @@ impl Plugin for Corrosion {
             },
         );
 
+        self.diode_meter
+            .publish(self.post_chain.take_clipper_reduction_db());
+
         // Report plugin latency to the host. Only update when it changes —
         // hosts may re-negotiate buses on every set_latency_samples call.
         if let Some(latency) = self.latency_change(block.limiter_mode) {
@@ -1286,7 +1362,11 @@ impl Plugin for Corrosion {
     fn editor(&mut self, _async_executor: AsyncExecutor<Self>) -> Option<Box<dyn Editor>> {
         #[cfg(feature = "gui")]
         {
-            gui::create_editor(self.params.clone(), self.params.editor_state.clone())
+            gui::create_editor(
+                self.params.clone(),
+                self.params.editor_state.clone(),
+                self.diode_meter.clone(),
+            )
         }
         #[cfg(not(feature = "gui"))]
         {
@@ -2663,7 +2743,7 @@ mod output_ceiling_tests {
 #[cfg(test)]
 mod host_state_tests {
     use super::Corrosion;
-    use nih_plug::prelude::{Plugin, PluginState};
+    use nih_plug::prelude::{Param, Plugin, PluginState};
     use nih_plug::wrapper::state::ParamValue;
 
     fn state(params: &[(&str, f32)]) -> PluginState {
@@ -2699,6 +2779,55 @@ mod host_state_tests {
         Corrosion::filter_state(&mut saved);
         assert_eq!(f32_param(&saved, "position_wander_rate"), 1.5);
         assert_eq!(f32_param(&saved, "position_envelope"), 0.5);
+    }
+
+    #[test]
+    fn old_host_state_keeps_its_onset_level() {
+        // `m01-m04-m05-clarify-parameters` (M1): Onset used to set the onset
+        // stage's level too (clamped to 0–1).
+        let mut saved = state(&[("mseg_onset", 0.4)]);
+        Corrosion::filter_state(&mut saved);
+        assert_eq!(f32_param(&saved, "mseg_onset"), 0.4);
+        assert_eq!(f32_param(&saved, "mseg_onset_level"), 0.4);
+    }
+
+    #[test]
+    fn current_host_onset_level_is_left_alone() {
+        let mut saved = state(&[("mseg_onset", 0.4), ("mseg_onset_level", 0.2)]);
+        Corrosion::filter_state(&mut saved);
+        assert_eq!(f32_param(&saved, "mseg_onset_level"), 0.2);
+    }
+
+    #[test]
+    fn old_project_keeps_its_output_gain() {
+        // The host stores Output's plain value, the gain, so the taper change
+        // keeps a saved project's level (`m01-m04-m05-clarify-parameters`).
+        let mut saved = state(&[("output", 2.0)]);
+        Corrosion::filter_state(&mut saved);
+        assert_eq!(f32_param(&saved, "output"), 2.0);
+        let params = crate::params::CorrosionParams::default();
+        let restored = params
+            .output
+            .preview_plain(params.output.preview_normalized(2.0));
+        assert!((restored - 2.0).abs() < 1e-4, "restored gain {restored}");
+    }
+
+    #[test]
+    fn old_host_state_loads_the_old_clipper() {
+        // `add-asymmetric-diode-stage`: state saved before Diode Asymmetry
+        // gets the hard, symmetric knee closest to the old clipper.
+        let mut saved = state(&[("diode_softness", 0.7)]);
+        Corrosion::filter_state(&mut saved);
+        assert_eq!(f32_param(&saved, "diode_softness"), 0.0);
+        assert_eq!(f32_param(&saved, "diode_asymmetry"), 0.0);
+    }
+
+    #[test]
+    fn current_host_diode_state_is_left_alone() {
+        let mut saved = state(&[("diode_softness", 0.7), ("diode_asymmetry", 0.4)]);
+        Corrosion::filter_state(&mut saved);
+        assert_eq!(f32_param(&saved, "diode_softness"), 0.7);
+        assert_eq!(f32_param(&saved, "diode_asymmetry"), 0.4);
     }
 
     #[test]
@@ -3379,5 +3508,337 @@ mod midi_control_tests {
             "stole held key {} instead of a pedal-held note",
             missing[0]
         );
+    }
+}
+
+/// `block-voice-mix-dc`: the voice mix reaches the master drive without DC,
+/// keeps its audible low end, and behaves the same at every host rate.
+#[cfg(test)]
+mod voice_mix_dc_tests {
+    use super::Corrosion;
+    use crate::offline::{OfflineNote, PresetRenderer};
+    use crate::params::{
+        diode_asymmetry_param, exciter_param, float_param_for_test, object_param, play_mode_param,
+        CorrosionParams, ExciterType,
+    };
+    use nih_plug::prelude::*;
+
+    const PLATE: i32 = 1;
+    const NOTE: u8 = 48;
+
+    /// `exciter` on the Plate with BODY 0, Space off and no drive (both
+    /// drives default to 0). Diode Asymmetry 0 bypasses the clipper's own
+    /// DC blocker, which would otherwise hide the voices' offset.
+    fn dry_params(exciter: ExciterType) -> CorrosionParams {
+        CorrosionParams {
+            exciter: exciter_param(exciter.to_int()),
+            object: object_param(PLATE),
+            body: float_param_for_test("Body", 0.0, 0.0, 5.0),
+            diode_asymmetry: diode_asymmetry_param(0.0),
+            ..CorrosionParams::default()
+        }
+    }
+
+    /// The plugin's output for `notes` over `frames` frames at
+    /// `sample_rate`, with the voice mix's DC blocker on or bypassed.
+    fn render(
+        params: CorrosionParams,
+        notes: &[OfflineNote],
+        sample_rate: u32,
+        frames: usize,
+        blocker: bool,
+    ) -> Vec<(f32, f32)> {
+        let mut renderer = PresetRenderer::from_params(params);
+        renderer.plugin_mut().mix_dc_blocker_enabled = blocker;
+        renderer.render(notes, sample_rate, frames).output
+    }
+
+    fn channel(frames: &[(f32, f32)], right: bool) -> Vec<f32> {
+        frames
+            .iter()
+            .map(|&(l, r)| if right { r } else { l })
+            .collect()
+    }
+
+    fn mean(x: &[f32]) -> f64 {
+        x.iter().map(|&v| v as f64).sum::<f64>() / x.len() as f64
+    }
+
+    fn rms(x: &[f32]) -> f64 {
+        (x.iter().map(|&v| (v as f64).powi(2)).sum::<f64>() / x.len() as f64).sqrt()
+    }
+
+    /// Mean of a held bow's output (Drone) over the second half of a
+    /// two-second note, as a fraction of its RMS there, worst channel.
+    fn held_bow_dc_share(sample_rate: u32, blocker: bool) -> f64 {
+        let frames = 2 * sample_rate as usize;
+        // Drone keeps the bow sounding while held; in Tonal the envelope
+        // leaves it almost still (an AC level near -67 dBFS on the Plate).
+        let params = CorrosionParams {
+            play_mode: play_mode_param(2),
+            ..dry_params(ExciterType::Bow)
+        };
+        let out = render(
+            params,
+            &[OfflineNote::on(0, NOTE, 1.0)],
+            sample_rate,
+            frames,
+            blocker,
+        );
+        let held = &out[frames / 2..];
+        [false, true]
+            .into_iter()
+            .map(|right| {
+                let x = channel(held, right);
+                mean(&x).abs() / rms(&x)
+            })
+            .fold(0.0, f64::max)
+    }
+
+    /// Largest |mean| over 20 ms windows (5 ms hop) of the first 400 ms of
+    /// a felt mallet strike, worst channel.
+    fn strike_window_mean(sample_rate: u32, blocker: bool) -> f64 {
+        let frames = (0.4 * sample_rate as f64) as usize;
+        let out = render(
+            dry_params(ExciterType::FeltMallet),
+            &[OfflineNote::on(0, NOTE, 1.0)],
+            sample_rate,
+            frames,
+            blocker,
+        );
+        let window = (0.02 * sample_rate as f64) as usize;
+        let hop = window / 4;
+        let mut worst = 0.0f64;
+        for right in [false, true] {
+            let x = channel(&out, right);
+            let mut start = 0;
+            while start + window <= x.len() {
+                worst = worst.max(mean(&x[start..start + window]).abs());
+                start += hop;
+            }
+        }
+        worst
+    }
+
+    /// Level change, in dB, of a `frequency` sine through the voice mix's
+    /// DC blocker at `sample_rate`, measured over the last second of two.
+    fn sine_gain_db(frequency: f32, sample_rate: u32) -> f64 {
+        let mut plugin = Corrosion::default();
+        plugin.reset();
+        let _ = plugin.begin_block(sample_rate, None);
+        let frames = 2 * sample_rate as usize;
+        let (mut input, mut output) = (Vec::new(), Vec::new());
+        for n in 0..frames {
+            let x = 0.5
+                * (std::f64::consts::TAU * frequency as f64 * n as f64 / sample_rate as f64).sin()
+                    as f32;
+            let (l, _) = plugin.block_mix_dc(x, x);
+            if n >= frames / 2 {
+                input.push(x);
+                output.push(l);
+            }
+        }
+        20.0 * (rms(&output) / rms(&input)).log10()
+    }
+
+    /// Spec "Held bow".
+    #[test]
+    fn held_bow_has_no_dc() {
+        let share = held_bow_dc_share(48_000, true);
+        assert!(share < 0.02, "DC is {:.2} % of the RMS", share * 100.0);
+    }
+
+    /// Spec "Felt mallet strike".
+    #[test]
+    fn felt_mallet_strike_offset_is_removed() {
+        let with = strike_window_mean(48_000, true);
+        let without = strike_window_mean(48_000, false);
+        let drop_db = 20.0 * (without / with).log10();
+        assert!(
+            drop_db >= 12.0,
+            "largest 20 ms mean {with:.5} with vs {without:.5} without ({drop_db:.1} dB)"
+        );
+    }
+
+    /// Spec "Low sine".
+    #[test]
+    fn low_sines_keep_their_level() {
+        for frequency in [30.0, 100.0] {
+            let gain = sine_gain_db(frequency, 48_000);
+            assert!(gain.abs() <= 0.2, "{frequency} Hz: {gain:+.3} dB");
+        }
+    }
+
+    /// Spec "A note without an offset": a hand strike on the Pipe (the
+    /// default patch) keeps its RMS within 0.1 dB.
+    #[test]
+    fn note_without_offset_keeps_its_level() {
+        let change = hand_strike_change_db();
+        assert!(change.abs() <= 0.1, "RMS changes by {change:+.3} dB");
+    }
+
+    /// RMS change, in dB, the blocker makes to a one-second hand strike on
+    /// the Pipe (default settings) and its release.
+    fn hand_strike_change_db() -> f64 {
+        let notes = [OfflineNote::on(0, 60, 1.0), OfflineNote::off(48_000, 60)];
+        let level = |blocker: bool| {
+            let out = render(CorrosionParams::default(), &notes, 48_000, 96_000, blocker);
+            let x: Vec<f32> = out.iter().flat_map(|&(l, r)| [l, r]).collect();
+            rms(&x)
+        };
+        20.0 * (level(true) / level(false)).log10()
+    }
+
+    /// Spec "Other rates".
+    #[test]
+    fn bounds_hold_at_other_rates() {
+        for rate in [44_100, 96_000] {
+            for frequency in [30.0, 100.0] {
+                let gain = sine_gain_db(frequency, rate);
+                assert!(
+                    gain.abs() <= 0.2,
+                    "{rate} Hz, {frequency} Hz: {gain:+.3} dB"
+                );
+            }
+            let share = held_bow_dc_share(rate, true);
+            assert!(
+                share < 0.02,
+                "{rate} Hz: DC is {:.2} % of the RMS",
+                share * 100.0
+            );
+        }
+    }
+
+    /// Each factory preset as the level checks play it (C4 on, off at 1 s,
+    /// 2 s at 48 kHz), with the voice mix's blocker on or off and the
+    /// preset's Diode Asymmetry or 0: worst channel's share of output power
+    /// at DC (mean² / mean square) and largest |20 ms mean| (5 ms hop).
+    fn factory_output_dc(
+        path: &std::path::Path,
+        blocker: bool,
+        asymmetry_zero: bool,
+    ) -> (f64, f64) {
+        let preset = crate::presets::Preset::load(path).expect("load preset");
+        let mut params = preset.into_params();
+        if asymmetry_zero {
+            params.diode_asymmetry = diode_asymmetry_param(0.0);
+        }
+        let notes = [OfflineNote::on(0, 60, 1.0), OfflineNote::off(48_000, 60)];
+        let out = render(params, &notes, 48_000, 96_000, blocker);
+        let (mut share, mut window_mean) = (0.0f64, 0.0f64);
+        for right in [false, true] {
+            let x = channel(&out, right);
+            let power = rms(&x).powi(2);
+            if power > 0.0 {
+                share = share.max(mean(&x).powi(2) / power);
+            }
+            let mut start = 0;
+            while start + 960 <= x.len() {
+                window_mean = window_mean.max(mean(&x[start..start + 960]).abs());
+                start += 240;
+            }
+        }
+        (share, window_mean)
+    }
+
+    /// Each factory preset as stored: RMS and peak with the diode stage's
+    /// own DC blocker on and off (`add-asymmetric-diode-stage`, the open
+    /// question left by `block-voice-mix-dc`).
+    #[test]
+    #[ignore]
+    fn print_diode_dc_stage_level_change() {
+        println!("| Preset | RMS change | Peak off | Peak on |");
+        println!("|---|---|---|---|");
+        let mut worst = (0.0f64, String::new());
+        for path in crate::c5_measurements::factory_preset_paths() {
+            let measure = |dc_stage: bool| {
+                let preset = crate::presets::Preset::load(&path).expect("load preset");
+                let mut renderer = PresetRenderer::from_params(preset.into_params());
+                renderer
+                    .plugin_mut()
+                    .post_chain
+                    .set_clipper_dc_stage_for_test(dc_stage);
+                let notes = [OfflineNote::on(0, 60, 1.0), OfflineNote::off(48_000, 60)];
+                let out = renderer.render(&notes, 48_000, 96_000).pre_limiter;
+                let x: Vec<f32> = out.iter().flat_map(|&(l, r)| [l, r]).collect();
+                let peak = x.iter().fold(0.0f32, |m, v| m.max(v.abs()));
+                (rms(&x), peak)
+            };
+            let ((rms_off, peak_off), (rms_on, peak_on)) = (measure(false), measure(true));
+            let change = 20.0 * (rms_on / rms_off).log10();
+            let name = path.file_stem().unwrap().to_string_lossy().to_string();
+            if change.abs() > worst.0.abs() {
+                worst = (change, name.clone());
+            }
+            println!("| {name} | {change:+.3} dB | {peak_off:.4} | {peak_on:.4} |");
+        }
+        println!("worst {:+.3} dB ({})", worst.0, worst.1);
+    }
+
+    /// The factory bank's output DC before and after the blocker
+    /// (`block-voice-mix-dc` task 2.2).
+    #[test]
+    #[ignore]
+    fn print_factory_output_dc() {
+        for asymmetry_zero in [true, false] {
+            println!(
+                "\n{}",
+                if asymmetry_zero {
+                    "Diode Asymmetry 0"
+                } else {
+                    "Stored Diode Asymmetry"
+                }
+            );
+            println!(
+                "| Preset | DC share, off | DC share, on | 20 ms mean, off | 20 ms mean, on |"
+            );
+            println!("|---|---|---|---|---|");
+            let (mut off_1, mut off_20, mut on_1, mut on_20) = (0, 0, 0, 0);
+            let (mut worst_on, mut worst_window_on) = (0.0f64, 0.0f64);
+            for path in crate::c5_measurements::factory_preset_paths() {
+                let (s_off, w_off) = factory_output_dc(&path, false, asymmetry_zero);
+                let (s_on, w_on) = factory_output_dc(&path, true, asymmetry_zero);
+                off_1 += (s_off >= 0.01) as usize;
+                off_20 += (s_off >= 0.20) as usize;
+                on_1 += (s_on >= 0.01) as usize;
+                on_20 += (s_on >= 0.20) as usize;
+                worst_on = worst_on.max(s_on);
+                worst_window_on = worst_window_on.max(w_on);
+                println!(
+                    "| {} | {:.2} % | {:.3} % | {:.4} | {:.4} |",
+                    path.file_stem().unwrap().to_string_lossy(),
+                    s_off * 100.0,
+                    s_on * 100.0,
+                    w_off,
+                    w_on
+                );
+            }
+            println!(
+                "off: {off_1} presets >= 1 %, {off_20} >= 20 %; on: {on_1} >= 1 %, {on_20} >= 20 %; worst on {:.3} %, worst 20 ms mean on {:.4}",
+                worst_on * 100.0,
+                worst_window_on
+            );
+        }
+    }
+
+    /// Prints the measurements the bounds were set from.
+    #[test]
+    #[ignore]
+    fn print_voice_mix_dc() {
+        println!(
+            "hand strike on the Pipe: {:+.4} dB",
+            hand_strike_change_db()
+        );
+        for rate in [44_100, 48_000, 96_000] {
+            println!(
+                "{rate} Hz: held bow DC share {:.3} % (bypassed {:.3} %), strike 20 ms mean {:.5} (bypassed {:.5}), 30 Hz {:+.3} dB, 100 Hz {:+.3} dB",
+                held_bow_dc_share(rate, true) * 100.0,
+                held_bow_dc_share(rate, false) * 100.0,
+                strike_window_mean(rate, true),
+                strike_window_mean(rate, false),
+                sine_gain_db(30.0, rate),
+                sine_gain_db(100.0, rate),
+            );
+        }
     }
 }

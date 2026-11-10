@@ -24,13 +24,27 @@ Below the host API the path is one function, `Corrosion::process_block`:
 `begin_block` (per-buffer setup: drive and output-gain smoother targets,
 limiter configuration, post-chain parameters with macro biases, live controls
 of held voices), then for each sample the MIDI events due at it,
-`render_frame_unlimited` (voices → master drive → post chain → output gain) and
+`render_frame_unlimited` (voices → mix DC blocker → master drive → post chain → output gain) and
 `limit_frame`. `process()` calls it with the host's buffer and events, and
 `offline::PresetRenderer` / `offline::render_preset` with a real plugin
 instance holding a preset, in 512-sample blocks. So `render_presets`, the audition WAVs in `output/` and the
 preset level checks hear exactly what the plugin outputs
 (`h13-render-presets-through-post-chain`). `reset()` starts the master-drive
 smoother at Drive plus the Violence bias, where `begin_block` aims it.
+
+**The voice mix carries no DC** (`block-voice-mix-dc`). Each mode is a
+coupled-form resonator whose output has a non-zero gain at 0 Hz, so a
+one-signed force (a bow's pressure, a mallet's long contact) leaves a static
+deflection under the ringing: up to ~47 % of a bowed patch's output power,
+and a felt mallet's ~60 ms thump. `dsp::StereoDcBlocker`, a second-order
+Butterworth high-pass at 10 Hz (`VOICE_MIX_DC_CUTOFF_HZ`, bilinear with a
+prewarped cutoff, `f64` coefficients and state), removes it from the voices'
+stereo sum before the master drive, so the drives and the clipper see a
+centred signal. It costs 0.05 dB at 30 Hz; a held bow keeps under 2 % of its
+RMS as DC and a felt mallet's largest 20 ms mean drops 16.6 dB. It is rated
+in `initialize` and `begin_block` and cleared by `reset()` and the panic
+clear. DC that later stages create (the asymmetric drives and the diode
+curve) is theirs to handle.
 
 ```text
 MIDI Note Event
@@ -59,6 +73,9 @@ MIDI Note Event
                               Σ voices  ─────────────────────────┘
                                        │
                                        ▼
+                         StereoDcBlocker (10 Hz, 2nd-order Butterworth, L & R)
+                                       │
+                                       ▼
                          apply_drive() (master/exciter drive, L & R)
                                        │
                                        ▼
@@ -67,7 +84,7 @@ MIDI Note Event
 │  L/R: WDF filter → Lorenz drive (one pair per channel) ─┐             │
 │  FEM body on (L+R)/2, × BODY amount, added to both ─────┤             │
 │  → HRTF spread → Space(Factory|Spring|Echo) →            │             │
-│  OversampledClipper (per channel)      (all quality modes)             │
+│  OversampledClipper (per channel, half-band IIR 1/4/8/16×)            │
 └─────────────────────────────────────────────────────────────────────┘
                                        │
                                        ▼
@@ -127,7 +144,8 @@ src/
     post_processing/  wdf_filter, lorenz_drive, fem_body, hrtf_spread, space
                       (FactoryReverb/SpringReverb/FactoryEcho), oversampled_clipper,
                       post_chain (PostProcessingChain + PostQualityMode)
-    utils/            budget (mode-count estimates), body, deterministic_excitation
+    utils/            budget (mode-count estimates), body, dc_blocker (voice mix),
+                      deterministic_excitation
   gui/
     editor.rs         egui editor: knobs/faders, UI scale (50–150%, default 75%: 810×576;
                       a change asks the host to resize; the layout never exceeds the
@@ -346,6 +364,14 @@ force-envelope choice:
 | Friction | Bow, StiffPoint, HeavyGrinding, CorrugatedDrag, TensionRise | 6-stage MSEG (loopable) |
 | Specialty | PneumaticJet, ElectromagneticHum, TensionSnap, ParticleRain | ADSR |
 
+The friction MSEG's onset stage rises from 0 to **Onset Level**
+(`mseg_onset_level`, 0–1, default 0.01) over **Onset Time** (`mseg_onset`,
+0.001–1 s). Onset Time used to set the level too, clamped to 0–1; the new
+default keeps that level, so default notes are bit-identical
+(`m01-m04-m05-clarify-parameters`). Presets (`migrate_preset_json`) and saved
+host state (`Plugin::filter_state`) without Onset Level get
+`legacy_onset_level(mseg_onset)`, the level they had.
+
 The per-exciter DSP models implement the formulas in
 `docs/detailed-specs/exciter-algorithms.md` (Kelvin–Voigt, Hertzian contact,
 micro-bouncing, Poisson impulse clusters, Stribeck friction, etc.).
@@ -533,11 +559,11 @@ note.
 | Transform | Effect (implemented) |
 |---|---|
 | Size | `f /= scale`, `decay *= scale`, low-mode gain tilt |
-| Rust | high-mode-weighted brightness loss + decay loss |
+| Rust | damping increase: `decay /= 1 + rust·(0.2 + 0.54·w²)`, `gain /= 1 + rust·0.6·w^1.5` (`w` = mode position, 0 fundamental → 1 top); never reaches zero, highs die first, the fundamental always rings (`fix-rust-damage-heat-response`) |
 | Thickness | stiffness `√(1 + (t−0.5)·0.15·n²)` raises/inharmonicizes partials |
-| Heat | pitch drop (`·(1 − heat·0.05)`) + brightness loss |
+| Heat | pitch drop (`·(1 − heat·0.05)`), spectral darkening (`gain /= 1 + heat·2·w^1.5`, `decay /= 1 + heat·0.5·w`) and a thermal warble (pitch dynamic, up to about ±8 cents at Heat 1, two LFOs at 0.37 and 0.83 Hz) |
 | Sludge | mass loading `f·√(1/(1+sludge))` + broadband damping |
-| Damage | mode splitting into detuned pairs + amplitude-gated rattle (in the voice) |
+| Damage | mode splitting into detuned pairs, driven by a saturating amount `3·(1 − e^(−d/3))` so the fundamental keeps its note and no decay reaches zero, + amplitude-gated rattle (in the voice) |
 
 Velocity expressiveness (force `V^1.5`, brightness, decay) is applied in the
 exciters and envelope velocity response.
@@ -567,33 +593,59 @@ Stage summary (as implemented):
 | Stage | Reality |
 |---|---|
 | WDF ladder filter | 4-pole ladder, soft transistor clip, hash-noise "tolerance" — not a Newton-Raphson WDF circuit |
-| Lorenz drive | real Lorenz attractor state used as a mild gain modulator + soft tube curve |
+| Lorenz drive | real Lorenz attractor state used as a mild gain modulator + soft tube curve. Bias Starvation starves the input gain to 0.3 while the attractor's `z` is above `38 − 22·starvation` (starved about 5 % of the time at 0.1, 87 % at 1, switching at every value), through a 5 ms one-pole follower so it sags rather than clicks; at 0 the stage is bit-identical to no starvation (`m06-m09-smooth-starvation-and-oversample-clipper`) |
 | FEM body | 8 fixed modal resonators — not a finite-element mesh |
 | HRTF spread | mid (L+R) delayed ≤1 ms with Width, common to both channels (not an ITD), through 1-pole LP/HP proximity shaping, plus the undelayed side, then crossfeed — not HRIR convolution; one delay buffer (`m07-m08-interpolate-echo-and-tidy-spread`) |
 | Factory reverb | 4 comb + 2 allpass (Schroeder) — not 3D FDTD |
 | Spring reverb | one delay line + 1-pole dispersion per channel — not a helical PDE |
 | Factory echo | modulated stereo delay; Machinery Movement's depth is smoothed (τ 20 ms) so knob changes don't jump the delay; unmodulated reads are whole samples, modulated reads use 4-point Hermite interpolation (no zipper); High Frequency Damping is a one-pole low-pass in the feedback loop (20 kHz bypassed at 0 → 1.5 kHz at 1), so each repeat is darker; wet level fixed at 0.7 (`m07-m08-interpolate-echo-and-tidy-spread`) |
-| Oversampled clipper | soft diode clip; **the oversample factor is currently a no-op** (see code review) |
+| Oversampled clipper (diode stage) | per-polarity tanh-knee diode curve (see "Diode stage" below) run at 4/8/16× through cascaded 2× polyphase half-band IIR stages (`half_band.rs`: elliptic design, 9/5/4/4 all-pass coefficients, flat to 22/48 of the host rate, 93–107 dB stop band), up → curve → down → 2 Hz DC blocker; Eco runs the same curve at the host rate. The limit is the ceiling ÷ 1.3 in every mode, so the filters' overshoot stays under the output limiter. The half-bands delay low frequencies by 4–5 samples (not reported as latency) (`m06-m09-smooth-starvation-and-oversample-clipper`, `add-asymmetric-diode-stage`) |
 
 ### Quality modes (`QualityMode` → `PostQualityMode`)
 
-| Mode | Oversample factor requested | Chain behavior |
-|---|---|---|
-| Eco | 1× | full chain |
-| Normal (default) | 4× | full chain |
-| High | 8× | full chain |
-| Render | 16× | full chain |
+| Mode | Clipper | Clips from | Alias, 5 kHz at 2× ceiling | Delay at 1 kHz |
+|---|---|---|---|---|
+| Eco | 1× (curve at the host rate) | ceiling ÷ 1.3 | −19.7 dB | −0.015 samples (the DC blocker's lead) |
+| Normal (default) | 4× (2 half-band stages) | ceiling ÷ 1.3 | −67.0 dB | 4.2 samples |
+| High | 8× (3 stages) | ceiling ÷ 1.3 | −94.2 dB | 4.7 samples |
+| Render | 16× (4 stages) | ceiling ÷ 1.3 | −105.0 dB | 5.0 samples |
 
-The mapping is wired end-to-end (param → `set_quality_mode` → `set_oversample_factor`),
-and every mode runs the same stages. **However the clipper's
-oversampling math does not actually oversample** (it zero-order-holds a single
-input and averages identical copies), so Normal/High/Render are sonically
-identical at the clipper. This is the top defect in `docs/code-review.md`.
+Alias figures at the defaults (Softness 0.5, Asymmetry 0.25). At Softness 0
+(a hard knee, what migrated projects get) they are −50.7 dB Normal and
+−75.5 dB Render.
+
+The mapping is wired end-to-end (param → `set_quality_mode` →
+`PostQualityMode::clipper_oversample_factor` → `set_oversample_factor`), and
+every mode runs the same stages. Below its threshold the clipper is flat
+(0.000 dB to 20 kHz at 48 kHz in every mode). The alias figures hold through
+the default hard clamp too (`clipper_alias_bounds_hold`,
+`clipper_alias_bounds_hold_through_the_hard_clamp`; bounds −40 dB Normal,
+−60 dB Render). No fixed margin can keep every overshoot under the clamp: with
+extreme drive in the top octaves, peaks reach 1.7× the curve's threshold and
+the clamp clips them.
+
+### Output gain and parameter names
+
+**Output** (`output_param`, shared by the live parameters and
+`Preset::into_params`) stores the linear gain, 0 to +40 dB, so presets and
+host state keep their level. It's shown and typed in dB
+(`v2s_f32_gain_to_db` / `s2v_f32_gain_to_db`, −inf at gain 0), with a
+gain-skewed taper (`gain_skew_factor(−60, 40)`): −10 dB at the middle of the
+travel, 0 dB at 0.575, −20 to +6 dB across 0.189 (it was 0.010 and 0.019 with
+the linear range). Host automation of Output recorded before the change maps
+to different gains (BREAKING, not migratable).
+
+Every parameter's display name is unique (`parameter_names_are_unique`), and
+`into_params` builds them with the live names
+(`into_params_uses_the_live_names_and_output_range`): Resonator / Macro
+Brightness, Brush / Spring Wire Stiffness, Onset Time / Onset Level
+(`m01-m04-m05-clarify-parameters`).
 
 ### Output protection
 
 The **Analog Ceiling** parameter (0.5–1.0, default 0.9661 ≈ **−0.3 dBFS**) is
-the output ceiling. The post-chain clipper clips at it, and after output gain
+the output ceiling. The diode stage limits at it ÷ 1.3 in every quality
+mode (headroom for the half-bands' overshoot and the DC blocker's tilt), and after output gain
 the selected limiter stops at it: **Hard** (default) is
 `apply_output_limiter(sample, ceiling)`, a clamp to `±ceiling`; **Lookahead**
 uses it as its threshold (`h07-hard-limiter-honors-analog-ceiling`). The Lookahead limiter's delay (`LOOKAHEAD_LIMITER_SAMPLES`) is reported to the host as latency in `initialize`, from the restored Limiter Mode, and again whenever the mode changes (`Corrosion::latency_change`). So no
@@ -603,7 +655,50 @@ output sample exceeds the ceiling, whatever the gain or mode
 the ceiling's default, used by offline tools and tests that render without the
 parameter.
 
+### Diode stage (`add-asymmetric-diode-stage`)
+
+`OversampledClipper` is the diode stage. For each polarity with limit `L` and
+knee width `w`, the curve is linear below `K = L·(1 − w)` and
+`K + (L − K)·tanh((x − K)/(L − K))` above it: slope 1 at `K`, never past `L`.
+
+- **Limit:** `L = ceiling / 1.3` in every mode (`CEILING_HEADROOM`). 1.3 is
+  the smallest swept value that keeps a 5 kHz tone at twice the ceiling under
+  it (0.987×) and holds the alias bounds at Softness 0. At 7 kHz the
+  half-bands still overshoot to 1.21×, which the output limiter clamps.
+- **Diode Softness** sets `w = 0.8·softness` (`KNEE_WIDTH`): the knee starts
+  14 dB under `L` at 1, 4.4 dB at the default 0.5, and is a hard clip at 0.
+- **Diode Asymmetry** (`diode_asymmetry`, default 0.25) lowers the negative
+  limit to `L·2^(−a)` and firms its knee to `w·(1 − a/2)`.
+- **DC blocker:** a 2 Hz one-pole high-pass per channel after the
+  down-sampling, weighted by `min(1, a/0.05)`; bypassed and cleared at
+  `a = 0`, so a symmetric curve is unfiltered and bit-identical. It filters
+  the whole signal, so it also removes DC that the asymmetric drive curves
+  before it leave. With the voices' own offset gone
+  (`block-voice-mix-dc`), it changes factory presets' RMS by at most 0.4 dB.
+- **Smoothing:** Softness and Asymmetry glide with τ 20 ms. The per-polarity
+  constants are recomputed only while they move. Both snap before the first
+  sample and on `reset()`, so a preset loaded before playback doesn't glide.
+- **tanh:** a 513-point table on [0, 8] with linear interpolation, built in
+  `new()`: error 2.3e-5, monotonic, 0.63× libm's cost, and the same on gnu
+  and musl.
+- **Meter:** the clipper tracks its curve's input and output peaks per host
+  block. The plugin publishes the reduction in dB to `DiodeMeter` (an
+  `AtomicU32` holding the maximum since the editor last read it). The editor
+  takes it every frame and brightens the Brickwall Limiter panel's red dot
+  from 30 % to full `DANGER_RED` over 0.1–6 dB, releasing at 20 dB/s. It
+  repaints only while the dot is above rest.
+- **CPU:** the output path is 1.030× Normal and 1.003× Render against m06
+  (median of 5).
+- **Migration:** preset JSON and host state without `diode_asymmetry` get
+  Softness 0 and Asymmetry 0 (`migrate_diode_stage`,
+  `migrate_host_diode_stage`). That is a hard clip at `L`, about 0.15 dB under
+  the old curve's top. Host automation of Softness is BREAKING.
+
 ---
+
+### Editor inline help (`add-parameter-tooltips`)
+
+Every widget helper (`industrial_knob[_text]`, `industrial_fader[_text]`, `industrial_vfader`, `vfader_global`) paints its label with `paint_label_with_badge`: the label plus a painted ⓘ badge (1 physical px circle and "i" in `MUTED_GREY`; egui's fonts have no U+24D8). Only the badge's own hover area shows the tooltip. The text comes from `help_for(label)`, one table keyed by display label, so slot help follows the selected exciter or object. When a control's behaviour changes, update its entry. `industrial_combo` shows `selector_help(label, selected)` for the selected option: a **trial**, removable by deleting that function and the marked block. `every_drawn_control_has_help` and `every_slot_spec_has_help` check coverage; the hover tests check that the badge, not the knob, opens the tooltip.
 
 ## 10. Build, Test, and QA Infrastructure
 
@@ -627,7 +722,7 @@ bundle/validator flow uses `x86_64-unknown-linux-gnu`.
 | Feature | Status | Evidence |
 |---|---|---|
 | Quality modes (Eco/Normal/High/Render) | Implemented | `params.rs` `QualityMode`, `post_chain.rs` `set_quality_mode`, `lib.rs` mapping |
-| Configurable oversampling 1/4/8/16 | Wired but **ineffective** | `oversampled_clipper.rs` factor is a no-op (see code review) |
+| Configurable oversampling 1/4/8/16 | Implemented | `oversampled_clipper.rs` + `half_band.rs`: half-band IIR up/down (`m06-m09-smooth-starvation-and-oversample-clipper`) |
 | Idle rendering optimization | Implemented | `Voice::rendering` flag + `is_rendering()` gating in `manager.rs` |
 | Aliasing measurement | Implemented (DFT proxy) | `offline/mod.rs::analyze_post_chain_aliasing`, `render --suite aliasing` |
 | Output ceiling −0.3 dBFS | Implemented | `analog_ceiling` (default 0.9661 = `LIMITER_THRESHOLD`) is the ceiling in both limiter modes |
@@ -649,9 +744,11 @@ bundle/validator flow uses `x86_64-unknown-linux-gnu`.
 - **Approximate post DSP.** The post/space/output stages are intentionally
   cheaper than `detailed-specs/post-processing.md`. Treat that spec as a design
   target, not a description of shipped behavior.
-- **Oversampled clipper is effectively a soft clipper.** Until the no-op is fixed,
-  nonlinear-stage aliasing is unmitigated (and is exactly what the aliasing
-  harness measures).
+- **Only the clipper is oversampled.** The Lorenz drive and the WDF filter's
+  soft clip run at the host rate, so their aliasing is part of the sound: the
+  whole-chain aliasing harness (drive 2.5) measures about −23 dB in every
+  oversampled mode, the drive's own figure, while the clipper alone reaches
+  −51 to −76 dB.
 - **Single algorithmic resonator path.** The former dual path was retired
   (implemented 2026-05-27, see §5 and `docs/backlog.md`): `complex_algo` is gone,
   the per-object algorithmic generators are the sole engine, 14 per-object

@@ -6,6 +6,8 @@ on:
       - main
       - master
   pull_request:
+  # Run by hand (Actions → ci → Run workflow) to refresh the nightly pre-release.
+  workflow_dispatch:
 
 jobs:
   quality-and-build:
@@ -88,6 +90,105 @@ jobs:
       - name: Validate rendered WAV artifact
         run: python3 scripts/check_wav.py /tmp/corrosion-ci-render/pipe_comparison.wav
 
-      # Ensure the shipping Linux bundle script still works end to end.
-      - name: Build Linux bundles
-        run: ./bundle.sh release
+  # Build the shipping bundles (VST3 and CLAP) for Linux and Windows, once the
+  # quality job passes. Windows is cross-compiled with mingw-w64, the same
+  # `x86_64-pc-windows-gnu` target and linker as the maintainer's host
+  # (`.cargo/config.toml`).
+  bundle:
+    needs: quality-and-build
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux
+            target: x86_64-unknown-linux-gnu
+            script: ./bundle.sh
+            out: target/bundled
+          - platform: windows
+            target: x86_64-pc-windows-gnu
+            script: ./bundle-win.sh
+            out: target/bundled-win
+    env:
+      CARGO_BUILD_TARGET: ${{ matrix.target }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install Linux build dependencies
+        if: matrix.platform == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            pkg-config libx11-dev libx11-xcb-dev libxau-dev libxcb1-dev \
+            libxcursor-dev libxext-dev libxfixes-dev libxft-dev libxi-dev \
+            libxinerama-dev libxkbcommon-dev libxrandr-dev libxrender-dev \
+            libxtst-dev libxxf86vm-dev libgl-dev
+
+      - name: Install mingw-w64
+        if: matrix.platform == 'windows'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-mingw-w64-x86-64 g++-mingw-w64-x86-64
+
+      - name: Install stable Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Cache Cargo registry and target dir
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: bundle-${{ matrix.platform }}
+
+      - name: Build bundles
+        run: ${{ matrix.script }} release
+
+      # One zip per format, with the bundle at its root, ready to drop into
+      # the plugin folder.
+      - name: Package
+        run: |
+          mkdir -p dist
+          (cd "${{ matrix.out }}" && zip -r "$GITHUB_WORKSPACE/dist/Corrosion-${{ matrix.platform }}-x86_64-vst3.zip" Corrosion.vst3)
+          (cd "${{ matrix.out }}" && zip "$GITHUB_WORKSPACE/dist/Corrosion-${{ matrix.platform }}-x86_64-clap.zip" Corrosion.clap)
+          ls -l dist
+
+      - name: Upload bundles
+        uses: actions/upload-artifact@v4
+        with:
+          name: corrosion-${{ matrix.platform }}
+          path: dist/*.zip
+          if-no-files-found: error
+
+  # Replace the rolling `nightly` pre-release with the bundles of this commit,
+  # on pushes to main and manual runs (not on pull requests).
+  prerelease:
+    needs: bundle
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download bundles
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Publish the nightly pre-release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          ls -l dist
+          gh release delete nightly --yes --cleanup-tag || true
+          gh release create nightly dist/*.zip \
+            --prerelease \
+            --target "$GITHUB_SHA" \
+            --title "Nightly ($(echo "$GITHUB_SHA" | cut -c1-7))" \
+            --notes "Automatic build of ${GITHUB_REF_NAME} at ${GITHUB_SHA}. Not a stable release.
+
+          - VST3: unzip into your VST3 folder (Windows: C:\\Program Files\\Common Files\\VST3; Linux: ~/.vst3).
+          - CLAP: unzip into your CLAP folder (Windows: C:\\Program Files\\Common Files\\CLAP; Linux: ~/.clap).
+
+          Untested builds: no pluginval, clap-validator or DAW checks are run."
