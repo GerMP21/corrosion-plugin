@@ -844,27 +844,159 @@ pub fn sanitize_file_name(name: &str) -> String {
     file
 }
 
-/// The user presets in `dir`, sorted by display name (ignoring case), and
-/// how many preset files were skipped because they couldn't be read. A
-/// missing folder is simply empty.
-pub fn list_user_presets(dir: &Path) -> (Vec<(std::path::PathBuf, Preset)>, usize) {
+/// A user preset and the folder it is in.
+#[derive(Debug, Clone, PartialEq)]
+pub struct UserPreset {
+    pub path: std::path::PathBuf,
+    /// The folder relative to the user preset folder, `/`-separated; empty
+    /// for the folder's root.
+    pub folder: String,
+    pub preset: Preset,
+}
+
+/// How deep `list_user_presets` and `list_user_folders` look below the
+/// user preset folder.
+pub const USER_FOLDER_DEPTH: usize = 4;
+
+/// Whether a directory entry name is hidden (starts with a dot).
+fn is_hidden(name: &std::ffi::OsStr) -> bool {
+    name.to_string_lossy().starts_with('.')
+}
+
+/// Walk `dir` (`folder` relative to the user preset folder, `depth` levels
+/// down), collecting presets, unreadable preset files and folders.
+fn walk_user_folder(
+    dir: &Path,
+    folder: &str,
+    depth: usize,
+    presets: &mut Vec<UserPreset>,
+    skipped: &mut usize,
+    folders: &mut Vec<String>,
+) {
     let Ok(entries) = fs::read_dir(dir) else {
-        return (Vec::new(), 0);
+        return;
     };
-    let mut presets = Vec::new();
-    let mut skipped = 0;
+    folders.push(folder.to_string());
     for entry in entries.flatten() {
         let path = entry.path();
+        let name = entry.file_name();
+        if is_hidden(&name) {
+            continue;
+        }
+        if path.is_dir() {
+            if depth < USER_FOLDER_DEPTH {
+                let sub = if folder.is_empty() {
+                    name.to_string_lossy().into_owned()
+                } else {
+                    format!("{folder}/{}", name.to_string_lossy())
+                };
+                walk_user_folder(&path, &sub, depth + 1, presets, skipped, folders);
+            }
+            continue;
+        }
         if path.extension().is_none_or(|ext| ext != PRESET_EXTENSION) {
             continue;
         }
         match Preset::load(&path) {
-            Ok(preset) => presets.push((path, preset)),
-            Err(_) => skipped += 1,
+            Ok(preset) => presets.push(UserPreset {
+                path,
+                folder: folder.to_string(),
+                preset,
+            }),
+            Err(_) => *skipped += 1,
         }
     }
-    presets.sort_by_key(|(_, preset)| preset.name.to_lowercase());
+}
+
+/// Folder paths sort with the root first, then ignoring case.
+fn folder_key(folder: &str) -> (bool, String) {
+    (!folder.is_empty(), folder.to_lowercase())
+}
+
+/// The user presets in `dir` and its subfolders (up to
+/// [`USER_FOLDER_DEPTH`] levels; hidden folders and files are skipped),
+/// sorted by folder and then by display name (ignoring case), and how many
+/// preset files were skipped because they couldn't be read. A missing
+/// folder is simply empty.
+pub fn list_user_presets(dir: &Path) -> (Vec<UserPreset>, usize) {
+    let (mut presets, mut skipped, mut folders) = (Vec::new(), 0, Vec::new());
+    walk_user_folder(dir, "", 0, &mut presets, &mut skipped, &mut folders);
+    presets.sort_by_key(|p| (folder_key(&p.folder), p.preset.name.to_lowercase()));
     (presets, skipped)
+}
+
+/// The folders a preset can be saved into: the user preset folder (`""`)
+/// and its subfolders, as [`list_user_presets`] walks them, root first.
+/// Never anything outside `dir`, so never the factory bank.
+pub fn list_user_folders(dir: &Path) -> Vec<String> {
+    let (mut presets, mut skipped, mut folders) = (Vec::new(), 0, Vec::new());
+    walk_user_folder(dir, "", 0, &mut presets, &mut skipped, &mut folders);
+    if folders.is_empty() {
+        folders.push(String::new());
+    }
+    folders.sort_by_key(|f| folder_key(f));
+    folders
+}
+
+/// `folder` (relative, `/`-separated) under `dir`, or an error if it would
+/// leave `dir`: only plain, non-hidden names, at most
+/// [`USER_FOLDER_DEPTH`] deep.
+fn user_subfolder(dir: &Path, folder: &str) -> io::Result<std::path::PathBuf> {
+    let refuse = || {
+        io::Error::new(
+            io::ErrorKind::InvalidInput,
+            format!("\"{folder}\" is not a folder inside the user preset folder"),
+        )
+    };
+    let mut path = dir.to_path_buf();
+    if folder.is_empty() {
+        return Ok(path);
+    }
+    let parts: Vec<&str> = folder.split('/').collect();
+    if parts.len() > USER_FOLDER_DEPTH {
+        return Err(refuse());
+    }
+    for part in parts {
+        let plain = !part.is_empty()
+            && !part.starts_with('.')
+            && !part.contains(['\\', ':'])
+            && Path::new(part)
+                .components()
+                .all(|c| matches!(c, std::path::Component::Normal(_)));
+        if !plain {
+            return Err(refuse());
+        }
+        path.push(part);
+    }
+    Ok(path)
+}
+
+/// The program and arguments that show `path` in the file manager on `os`
+/// (`std::env::consts::OS`): `explorer` on Windows, `open` on macOS,
+/// `xdg-open` elsewhere.
+pub fn open_folder_command(os: &str, path: &Path) -> (String, Vec<std::ffi::OsString>) {
+    let program = match os {
+        "windows" => "explorer",
+        "macos" => "open",
+        _ => "xdg-open",
+    };
+    (program.to_string(), vec![path.as_os_str().to_owned()])
+}
+
+/// Create `path` if it is missing and show it in the file manager. The
+/// command runs detached (its exit status is not awaited), so a slow file
+/// manager can't block the editor. GUI thread only.
+pub fn open_folder(path: &Path) -> io::Result<()> {
+    fs::create_dir_all(path)?;
+    let (program, args) = open_folder_command(std::env::consts::OS, path);
+    std::process::Command::new(&program)
+        .args(args)
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .spawn()
+        .map(drop)
+        .map_err(|e| io::Error::new(e.kind(), format!("couldn't run {program}: {e}")))
 }
 
 /// What `save_user_preset` did.
@@ -877,12 +1009,14 @@ pub enum SaveOutcome {
     NeedsConfirmation(std::path::PathBuf),
 }
 
-/// Save `params` as a user preset called `name` in `dir`, under its
-/// sanitized file name. An existing file is replaced only with `overwrite`;
+/// Save `params` as a user preset called `name` in `folder` (relative,
+/// `/`-separated, `""` for the root) of the user preset folder `dir`, under
+/// its sanitized file name. A `folder` that would leave `dir` is refused. An existing file is replaced only with `overwrite`;
 /// otherwise nothing is written and the caller asks first. File I/O, so call
 /// it from the GUI thread, never the audio thread.
 pub fn save_user_preset(
     dir: &Path,
+    folder: &str,
     name: &str,
     params: &CorrosionParams,
     overwrite: bool,
@@ -894,7 +1028,8 @@ pub fn save_user_preset(
             "enter a preset name",
         ));
     }
-    let path = dir.join(format!("{}.{PRESET_EXTENSION}", sanitize_file_name(name)));
+    let path = user_subfolder(dir, folder)?
+        .join(format!("{}.{PRESET_EXTENSION}", sanitize_file_name(name)));
     if path.exists() && !overwrite {
         return Ok(SaveOutcome::NeedsConfirmation(path));
     }
@@ -997,7 +1132,7 @@ mod user_preset_tests {
         );
         let sound = Preset::load(path).unwrap().into_params();
         let dir = temp_dir("save");
-        let saved = save_user_preset(&dir, "My Grind", &sound, false).unwrap();
+        let saved = save_user_preset(&dir, "", "My Grind", &sound, false).unwrap();
         let SaveOutcome::Saved(file) = saved else {
             panic!("first save should write: {saved:?}");
         };
@@ -1031,7 +1166,7 @@ mod user_preset_tests {
     fn declined_overwrite_leaves_the_file_alone() {
         let dir = temp_dir("overwrite");
         let params = CorrosionParams::default();
-        let SaveOutcome::Saved(file) = save_user_preset(&dir, "Keep", &params, false).unwrap()
+        let SaveOutcome::Saved(file) = save_user_preset(&dir, "", "Keep", &params, false).unwrap()
         else {
             panic!("first save should write");
         };
@@ -1042,7 +1177,7 @@ mod user_preset_tests {
         }
         .into_params();
         assert_eq!(
-            save_user_preset(&dir, "Keep", &louder, false).unwrap(),
+            save_user_preset(&dir, "", "Keep", &louder, false).unwrap(),
             SaveOutcome::NeedsConfirmation(file.clone())
         );
         assert_eq!(
@@ -1051,7 +1186,7 @@ mod user_preset_tests {
             "declined overwrite changed the file"
         );
         assert_eq!(
-            save_user_preset(&dir, "Keep", &louder, true).unwrap(),
+            save_user_preset(&dir, "", "Keep", &louder, true).unwrap(),
             SaveOutcome::Saved(file.clone())
         );
         assert_ne!(
@@ -1059,7 +1194,7 @@ mod user_preset_tests {
             before,
             "confirmed overwrite should write"
         );
-        assert!(save_user_preset(&dir, "   ", &params, false).is_err());
+        assert!(save_user_preset(&dir, "", "   ", &params, false).is_err());
         fs::remove_dir_all(dir).unwrap();
     }
 
@@ -1075,10 +1210,124 @@ mod user_preset_tests {
         fs::write(dir.join(format!("broken.{PRESET_EXTENSION}")), "{ not json").unwrap();
         fs::write(dir.join("notes.txt"), "not a preset").unwrap();
         let (presets, skipped) = list_user_presets(&dir);
-        let names: Vec<&str> = presets.iter().map(|(_, p)| p.name.as_str()).collect();
+        let names: Vec<&str> = presets.iter().map(|p| p.preset.name.as_str()).collect();
         assert_eq!(names, ["anvil", "Zinc Hit"]);
         assert_eq!(skipped, 1);
         assert_eq!(list_user_presets(&dir.join("missing")), (Vec::new(), 0));
         fs::remove_dir_all(dir).unwrap();
+    }
+
+    /// Write a default preset called `name` at `relative` under `dir`.
+    fn write_preset(dir: &Path, relative: &str, name: &str) {
+        let path = dir.join(relative);
+        Preset::from_params(name, &CorrosionParams::default())
+            .save(path)
+            .unwrap();
+    }
+
+    #[test]
+    fn listing_walks_subfolders() {
+        let dir = temp_dir("tree");
+        write_preset(&dir, &format!("root.{PRESET_EXTENSION}"), "Root Hit");
+        write_preset(&dir, &format!("Basses/deep.{PRESET_EXTENSION}"), "Deep Sub");
+        write_preset(&dir, &format!("Basses/Old/worn.{PRESET_EXTENSION}"), "Worn");
+        // Hidden folders and folders deeper than USER_FOLDER_DEPTH are skipped.
+        write_preset(&dir, &format!(".trash/gone.{PRESET_EXTENSION}"), "Gone");
+        write_preset(
+            &dir,
+            &format!("a/b/c/d/e/deep.{PRESET_EXTENSION}"),
+            "Too Deep",
+        );
+        write_preset(&dir, &format!("a/b/c/d/ok.{PRESET_EXTENSION}"), "Four Down");
+        fs::write(dir.join(format!("Basses/broken.{PRESET_EXTENSION}")), "{").unwrap();
+        let (presets, skipped) = list_user_presets(&dir);
+        let listed: Vec<(&str, &str)> = presets
+            .iter()
+            .map(|p| (p.folder.as_str(), p.preset.name.as_str()))
+            .collect();
+        assert_eq!(
+            listed,
+            [
+                ("", "Root Hit"),
+                ("a/b/c/d", "Four Down"),
+                ("Basses", "Deep Sub"),
+                ("Basses/Old", "Worn"),
+            ]
+        );
+        assert_eq!(skipped, 1);
+        assert_eq!(
+            list_user_folders(&dir),
+            ["", "a", "a/b", "a/b/c", "a/b/c/d", "Basses", "Basses/Old"]
+        );
+        fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn saving_into_a_subfolder() {
+        let dir = temp_dir("subfolder");
+        fs::create_dir_all(dir.join("Basses")).unwrap();
+        let params = CorrosionParams::default();
+        let saved = save_user_preset(&dir, "Basses", "Deep Sub", &params, false).unwrap();
+        let file = dir
+            .join("Basses")
+            .join(format!("Deep Sub.{PRESET_EXTENSION}"));
+        assert_eq!(saved, SaveOutcome::Saved(file.clone()));
+        assert!(file.exists());
+        let (presets, _) = list_user_presets(&dir);
+        assert_eq!(presets.len(), 1);
+        assert_eq!(presets[0].folder, "Basses");
+        assert_eq!(presets[0].preset.name, "Deep Sub");
+        fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn saving_never_leaves_the_user_folder() {
+        // The folder selector only offers user folders; a folder that would
+        // leave the user preset folder (or a hidden one) is refused anyway,
+        // so the factory bank can never be a target.
+        let dir = temp_dir("escape");
+        let params = CorrosionParams::default();
+        for folder in [
+            "..",
+            "../factory",
+            "/tmp",
+            "Basses/../..",
+            ".hidden",
+            "a\\..\\..",
+        ] {
+            assert!(
+                save_user_preset(&dir, folder, "Escape", &params, false).is_err(),
+                "saving into {folder:?} should be refused"
+            );
+        }
+        assert!(list_user_presets(&dir).0.is_empty());
+        assert!(!dir
+            .parent()
+            .unwrap()
+            .join(format!("Escape.{PRESET_EXTENSION}"))
+            .exists());
+        fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn open_folder_command_per_platform() {
+        let path = Path::new("/home/me/presets");
+        let command = |os| {
+            let (program, args) = open_folder_command(os, path);
+            (program, args)
+        };
+        assert_eq!(
+            command("windows"),
+            ("explorer".to_string(), vec![path.into()])
+        );
+        assert_eq!(command("macos"), ("open".to_string(), vec![path.into()]));
+        assert_eq!(
+            command("linux"),
+            ("xdg-open".to_string(), vec![path.into()])
+        );
+        assert_eq!(
+            command("freebsd"),
+            ("xdg-open".to_string(), vec![path.into()])
+        );
     }
 }

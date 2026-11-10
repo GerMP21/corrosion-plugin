@@ -119,16 +119,20 @@ const BASE_EDITOR_HEIGHT: u32 =
 struct EditorUiState {
     last_ui_scale: i32,
     last_requested_size: (u32, u32),
-    factory_presets: Vec<FactoryPresetEntry>,
+    factory_presets: Vec<PresetEntry>,
     /// Index into the factory presets followed by the user presets.
     selected_factory_preset: usize,
     /// The user preset folder (`None` when the platform's variables are
-    /// unset), its presets, and how many of its files couldn't be read.
+    /// unset), its presets, its folders (relative, `""` for the root), and
+    /// how many of its files couldn't be read.
     user_preset_dir: Option<std::path::PathBuf>,
-    user_presets: Vec<(std::path::PathBuf, Preset)>,
+    user_presets: Vec<PresetEntry>,
+    user_folders: Vec<String>,
     unreadable_user_presets: usize,
-    /// The Save row: the typed name, whether it is waiting on an overwrite
-    /// confirmation, and the last save message (`true` for an error).
+    /// The Save row: the folder to save into (one of `user_folders`), the
+    /// typed name, whether it is waiting on an overwrite confirmation, and
+    /// the last save or Open folder message (`true` for an error).
+    save_folder: String,
     save_name: String,
     confirm_overwrite: bool,
     save_message: Option<(String, bool)>,
@@ -193,7 +197,9 @@ impl EditorUiState {
             selected_factory_preset: 0,
             user_preset_dir: crate::presets::user_preset_dir(),
             user_presets: Vec::new(),
+            user_folders: vec![String::new()],
             unreadable_user_presets: 0,
+            save_folder: String::new(),
             save_name: String::new(),
             confirm_overwrite: false,
             save_message: None,
@@ -219,7 +225,21 @@ impl EditorUiState {
             Some(dir) => crate::presets::list_user_presets(dir),
             None => (Vec::new(), 0),
         };
-        self.user_presets = presets;
+        self.user_presets = presets
+            .into_iter()
+            .map(|user| PresetEntry {
+                name: user.preset.name.clone(),
+                folder: user_display_folder(&user.folder),
+                source: PresetSource::User(Box::new(user.preset)),
+            })
+            .collect();
+        self.user_folders = match &self.user_preset_dir {
+            Some(dir) => crate::presets::list_user_folders(dir),
+            None => vec![String::new()],
+        };
+        if !self.user_folders.contains(&self.save_folder) {
+            self.save_folder = String::new();
+        }
         self.unreadable_user_presets = unreadable;
     }
 
@@ -228,25 +248,53 @@ impl EditorUiState {
         self.factory_presets.len() + self.user_presets.len()
     }
 
-    fn preset_name(&self, index: usize) -> &str {
+    fn entry(&self, index: usize) -> &PresetEntry {
         match index.checked_sub(self.factory_presets.len()) {
-            None => &self.factory_presets[index].name,
-            Some(user) => &self.user_presets[user].1.name,
+            None => &self.factory_presets[index],
+            Some(user) => &self.user_presets[user],
         }
+    }
+
+    fn preset_name(&self, index: usize) -> &str {
+        &self.entry(index).name
     }
 
     fn preset(&self, index: usize) -> Option<Preset> {
-        match index.checked_sub(self.factory_presets.len()) {
-            None => Preset::from_json_str(self.factory_presets[index].json).ok(),
-            Some(user) => self
-                .user_presets
-                .get(user)
-                .map(|(_, preset)| preset.clone()),
+        if index >= self.preset_count() {
+            return None;
+        }
+        match &self.entry(index).source {
+            PresetSource::Factory(json) => Preset::from_json_str(json).ok(),
+            PresetSource::User(preset) => Some((**preset).clone()),
         }
     }
 
-    /// Save the current sound under the typed name, asking before replacing
-    /// a user preset (`h05-expose-missing-gui-controls`).
+    /// The preset `step` places after (or, negative, before) `index` within
+    /// its own folder, wrapping around (spec "Arrows stay in the folder").
+    fn step_in_folder(&self, index: usize, step: isize) -> usize {
+        let folder = &self.entry(index).folder;
+        let same: Vec<usize> = (0..self.preset_count())
+            .filter(|&i| &self.entry(i).folder == folder)
+            .collect();
+        let at = same.iter().position(|&i| i == index).unwrap_or(0) as isize;
+        same[(at + step).rem_euclid(same.len() as isize) as usize]
+    }
+
+    /// The browser's menu: factory folders, then User.
+    fn menu(&self) -> Vec<MenuNode> {
+        let mut folders: Vec<(Vec<String>, usize)> = (0..self.preset_count())
+            .map(|i| (self.entry(i).folder.clone(), i))
+            .collect();
+        // User is always there, even empty, so its folder can be reached.
+        if self.user_presets.is_empty() {
+            folders.push((vec![USER_MENU.to_string()], usize::MAX));
+        }
+        menu_tree(&folders)
+    }
+
+    /// Save the current sound under the typed name into the chosen user
+    /// folder, asking before replacing a user preset
+    /// (`h05-expose-missing-gui-controls`).
     fn save(&mut self, params: &CorrosionParams, overwrite: bool) {
         use crate::presets::{save_user_preset, SaveOutcome};
         self.confirm_overwrite = false;
@@ -254,11 +302,16 @@ impl EditorUiState {
             self.save_message = Some(("No user preset folder on this system".to_string(), true));
             return;
         };
-        match save_user_preset(&dir, &self.save_name, params, overwrite) {
+        match save_user_preset(&dir, &self.save_folder, &self.save_name, params, overwrite) {
             Ok(SaveOutcome::Saved(_)) => {
                 let name = self.save_name.trim().to_string();
                 self.refresh_user_presets();
-                if let Some(user) = self.user_presets.iter().position(|(_, p)| p.name == name) {
+                let folder = user_display_folder(&self.save_folder);
+                if let Some(user) = self
+                    .user_presets
+                    .iter()
+                    .position(|p| p.name == name && p.folder == folder)
+                {
                     self.selected_factory_preset = self.factory_presets.len() + user;
                 }
                 self.save_message = Some((format!("Saved \"{name}\""), false));
@@ -267,12 +320,107 @@ impl EditorUiState {
             Err(error) => self.save_message = Some((format!("Couldn't save: {error}"), true)),
         }
     }
+
+    /// Show the user preset folder in the file manager (creating it first);
+    /// a failure goes to the message line.
+    fn open_user_folder(&mut self) {
+        let Some(dir) = self.user_preset_dir.clone() else {
+            return;
+        };
+        if let Err(error) = crate::presets::open_folder(&dir) {
+            self.save_message = Some((format!("Couldn't open the folder: {error}"), true));
+        }
+    }
+}
+
+/// The top-level menu name of the user presets.
+const USER_MENU: &str = "User";
+
+/// Whether Open folder is enabled, and its tooltip.
+fn open_folder_button(dir: Option<&std::path::Path>) -> (bool, String) {
+    match dir {
+        Some(dir) => (true, format!("Show {} in the file manager", dir.display())),
+        None => (
+            false,
+            "No user preset folder: this system doesn't set the variables it lives under \
+             (APPDATA on Windows, HOME elsewhere)"
+                .to_string(),
+        ),
+    }
+}
+
+/// A user folder (`"Basses/Old"`) as the browser shows it:
+/// `["User", "Basses", "Old"]`.
+fn user_display_folder(folder: &str) -> Vec<String> {
+    std::iter::once(USER_MENU.to_string())
+        .chain(
+            folder
+                .split('/')
+                .filter(|p| !p.is_empty())
+                .map(str::to_string),
+        )
+        .collect()
+}
+
+/// A user folder as the Save selector shows it: `User / Basses`.
+fn user_folder_label(folder: &str) -> String {
+    user_display_folder(folder).join(" / ")
+}
+
+/// A preset index with its display folder.
+type FolderedPreset = (Vec<String>, usize);
+
+/// One node of the preset menu: a submenu, or a preset by index.
+#[derive(Clone, Debug, PartialEq)]
+enum MenuNode {
+    Folder(String, Vec<MenuNode>),
+    Preset(usize),
+}
+
+/// The menu for presets given as (display folder, index), in order: each
+/// folder becomes a submenu at its first appearance, and presets at a level
+/// follow its submenus. An index of `usize::MAX` makes a folder without
+/// adding a preset.
+fn menu_tree(presets: &[FolderedPreset]) -> Vec<MenuNode> {
+    let mut folders: Vec<(String, Vec<FolderedPreset>)> = Vec::new();
+    let mut leaves = Vec::new();
+    for (folder, index) in presets {
+        match folder.split_first() {
+            None => {
+                if *index != usize::MAX {
+                    leaves.push(MenuNode::Preset(*index));
+                }
+            }
+            Some((head, rest)) => {
+                let child = (rest.to_vec(), *index);
+                match folders.iter_mut().find(|(name, _)| name == head) {
+                    Some((_, children)) => children.push(child),
+                    None => folders.push((head.clone(), vec![child])),
+                }
+            }
+        }
+    }
+    folders
+        .into_iter()
+        .map(|(name, children)| MenuNode::Folder(name, menu_tree(&children)))
+        .chain(leaves)
+        .collect()
+}
+
+/// One preset of the browser: its name, its display folder (`["Bass"]`,
+/// `["Experimental", "Bow"]`, `["User", "Basses"]`), and where it comes from.
+#[derive(Clone)]
+struct PresetEntry {
+    name: String,
+    folder: Vec<String>,
+    source: PresetSource,
 }
 
 #[derive(Clone)]
-struct FactoryPresetEntry {
-    name: String,
-    json: &'static str,
+enum PresetSource {
+    /// An embedded factory file's JSON.
+    Factory(&'static str),
+    User(Box<Preset>),
 }
 
 #[derive(Clone, Copy)]
@@ -2576,6 +2724,46 @@ fn vfader_global(
     }
 }
 
+/// The preset menu's entries: a submenu per folder, a selectable label per
+/// preset (setting `load` when clicked), and a note in an empty folder.
+fn render_preset_menu(
+    ui: &mut egui::Ui,
+    state: &EditorUiState,
+    nodes: &[MenuNode],
+    text_size: f32,
+    load: &mut Option<usize>,
+) {
+    if nodes.is_empty() {
+        ui.label(
+            egui::RichText::new("No presets yet")
+                .size(text_size)
+                .color(MUTED_GREY),
+        );
+    }
+    for node in nodes {
+        match node {
+            MenuNode::Folder(name, children) => {
+                ui.menu_button(egui::RichText::new(name).size(text_size), |ui| {
+                    render_preset_menu(ui, state, children, text_size, load);
+                });
+            }
+            MenuNode::Preset(index) => {
+                let selected = *index == state.selected_factory_preset;
+                if ui
+                    .selectable_label(
+                        selected,
+                        egui::RichText::new(state.preset_name(*index)).size(text_size),
+                    )
+                    .clicked()
+                {
+                    *load = Some(*index);
+                    ui.close_menu();
+                }
+            }
+        }
+    }
+}
+
 fn render_preset_loader(
     ui: &mut egui::Ui,
     params: &CorrosionParams,
@@ -2602,67 +2790,50 @@ fn render_preset_loader(
                 }
 
                 state.selected_factory_preset = state.selected_factory_preset.min(count - 1);
-                let selected_name = state.preset_name(state.selected_factory_preset).to_string();
+                let current = state.selected_factory_preset;
+                let selected_text = {
+                    let entry = state.entry(current);
+                    let mut parts = entry.folder.clone();
+                    parts.push(entry.name.clone());
+                    parts.join(" / ")
+                };
                 let mut load = None;
+                let text_size = width_pct(scale, 0.012962963);
 
                 let arrow_size =
                     egui::vec2(width_pct(scale, 0.016666668), height_pct(scale, 0.0234375));
                 if ui
                     .add_sized(
                         arrow_size,
-                        egui::Button::new(
-                            egui::RichText::new("‹").size(width_pct(scale, 0.012962963)),
-                        ),
+                        egui::Button::new(egui::RichText::new("‹").size(text_size)),
                     )
                     .clicked()
                 {
-                    load = Some((state.selected_factory_preset + count - 1) % count);
+                    load = Some(state.step_in_folder(current, -1));
                 }
 
                 let spacing = ui.spacing().item_spacing.x;
-                let combo_width = (ui.available_width() - arrow_size.x - spacing).max(0.0);
-                let factory_count = state.factory_presets.len();
-                egui::ComboBox::from_id_salt("factory-preset-loader")
-                    .width(combo_width)
-                    .selected_text(
-                        egui::RichText::new(selected_name)
-                            .size(width_pct(scale, 0.012962963))
-                            .color(OFF_WHITE),
-                    )
-                    .show_ui(ui, |ui| {
-                        for index in 0..count {
-                            if index == factory_count {
-                                // User presets follow the factory bank.
-                                ui.separator();
-                                ui.label(
-                                    egui::RichText::new("USER")
-                                        .size(width_pct(scale, 0.0069444445))
-                                        .color(MUTED_GREY),
-                                );
-                            }
-                            if ui
-                                .selectable_label(
-                                    index == state.selected_factory_preset,
-                                    egui::RichText::new(state.preset_name(index))
-                                        .size(width_pct(scale, 0.012962963)),
-                                )
-                                .clicked()
-                            {
-                                load = Some(index);
-                            }
-                        }
-                    });
+                let menu_width = (ui.available_width() - arrow_size.x - spacing).max(0.0);
+                let button = egui::Button::new(
+                    egui::RichText::new(selected_text)
+                        .size(text_size)
+                        .color(OFF_WHITE),
+                )
+                .min_size(egui::vec2(menu_width, arrow_size.y))
+                .truncate();
+                let menu = state.menu();
+                egui::menu::menu_custom_button(ui, button, |ui| {
+                    render_preset_menu(ui, state, &menu, text_size, &mut load);
+                });
 
                 if ui
                     .add_sized(
                         arrow_size,
-                        egui::Button::new(
-                            egui::RichText::new("›").size(width_pct(scale, 0.012962963)),
-                        ),
+                        egui::Button::new(egui::RichText::new("›").size(text_size)),
                     )
                     .clicked()
                 {
-                    load = Some((state.selected_factory_preset + 1) % count);
+                    load = Some(state.step_in_folder(current, 1));
                 }
 
                 if let Some(index) = load {
@@ -2693,6 +2864,24 @@ fn render_preset_loader(
                         state.confirm_overwrite = false;
                     }
                 } else {
+                    // The folder to save into: only user folders, never the
+                    // factory bank (spec "Saving targets a user folder").
+                    egui::ComboBox::from_id_salt("save-folder")
+                        .width(width_pct(scale, 0.06))
+                        .selected_text(
+                            egui::RichText::new(user_folder_label(&state.save_folder))
+                                .size(text_size),
+                        )
+                        .show_ui(ui, |ui| {
+                            for folder in state.user_folders.clone() {
+                                let label = user_folder_label(&folder);
+                                ui.selectable_value(
+                                    &mut state.save_folder,
+                                    folder,
+                                    egui::RichText::new(label).size(text_size),
+                                );
+                            }
+                        });
                     let field_width = (ui.available_width() - width_pct(scale, 0.05)).max(0.0);
                     ui.add_sized(
                         egui::vec2(field_width, height_pct(scale, 0.0234375)),
@@ -2703,6 +2892,20 @@ fn render_preset_loader(
                     if ui.add_enabled(can_save, save).clicked() {
                         state.save(params, false);
                     }
+                }
+            });
+            ui.horizontal(|ui| {
+                let text_size = width_pct(scale, 0.011111112);
+                let (enabled, tooltip) = open_folder_button(state.user_preset_dir.as_deref());
+                let open = ui
+                    .add_enabled(
+                        enabled,
+                        egui::Button::new(egui::RichText::new("Open folder").size(text_size)),
+                    )
+                    .on_hover_text(&tooltip)
+                    .on_disabled_hover_text(&tooltip);
+                if open.clicked() {
+                    state.open_user_folder();
                 }
             });
             let notice = match (&state.save_message, state.unreadable_user_presets) {
@@ -2796,27 +2999,103 @@ fn apply_preset(params: &CorrosionParams, setter: &ParamSetter, preset: &Preset)
     }
 }
 
-fn load_factory_presets() -> Vec<FactoryPresetEntry> {
-    let mut presets: Vec<_> = FACTORY_PRESETS_DIR
-        .files()
-        .filter(|file| {
-            file.path()
-                .extension()
-                .and_then(|extension| extension.to_str())
-                .is_some_and(|extension| extension == "corrosion-preset")
+/// A factory folder's display name and its rank in the browser: the curated
+/// folders in their fixed order, then Experimental, then any other folder.
+fn factory_folder(slug: &str) -> (usize, String) {
+    use crate::presets::factory::{CURATED_FOLDERS, EXPERIMENTAL_FOLDER};
+    if let Some(rank) = CURATED_FOLDERS.iter().position(|f| *f == slug) {
+        return (rank, title_case(slug));
+    }
+    if slug == EXPERIMENTAL_FOLDER {
+        return (CURATED_FOLDERS.len(), title_case(slug));
+    }
+    (CURATED_FOLDERS.len() + 1, title_case(slug))
+}
+
+/// An experimental exciter folder's display name (the exciter's name) and
+/// rank (its number).
+fn exciter_folder(slug: &str) -> (usize, String) {
+    use crate::presets::factory::{exciter_name, slug as slug_of, EXCITER_COUNT};
+    (1..=EXCITER_COUNT)
+        .find(|&e| slug_of(exciter_name(e)) == slug)
+        .map_or((usize::MAX, title_case(slug)), |e| {
+            (e as usize, exciter_name(e).to_string())
         })
-        .filter_map(|file| {
-            let json = file.contents_utf8()?;
-            let preset = Preset::from_json_str(json).ok()?;
-            Some(FactoryPresetEntry {
-                name: preset.name,
-                json,
+}
+
+fn title_case(slug: &str) -> String {
+    slug.split('_')
+        .map(|word| {
+            let mut chars = word.chars();
+            chars.next().map_or(String::new(), |first| {
+                first.to_uppercase().chain(chars).collect()
             })
         })
-        .collect();
+        .collect::<Vec<_>>()
+        .join(" ")
+}
 
-    presets.sort_by(|left, right| left.name.cmp(&right.name));
-    presets
+/// Every embedded factory preset with its display folder, in browser order:
+/// folders by rank (experimental exciters by number), presets by name.
+fn load_factory_presets() -> Vec<PresetEntry> {
+    fn walk(
+        dir: &'static Dir<'static>,
+        out: &mut Vec<(&'static include_dir::File<'static>, Vec<String>)>,
+    ) {
+        for file in dir.files() {
+            let slugs = file
+                .path()
+                .parent()
+                .map(|p| {
+                    p.components()
+                        .map(|c| c.as_os_str().to_string_lossy().into_owned())
+                        .collect()
+                })
+                .unwrap_or_default();
+            out.push((file, slugs));
+        }
+        for sub in dir.dirs() {
+            walk(sub, out);
+        }
+    }
+    let mut files = Vec::new();
+    walk(&FACTORY_PRESETS_DIR, &mut files);
+    let mut presets: Vec<((Vec<usize>, String), PresetEntry)> = files
+        .into_iter()
+        .filter(|(file, _)| {
+            file.path()
+                .extension()
+                .is_some_and(|extension| extension == crate::presets::PRESET_EXTENSION)
+        })
+        .filter_map(|(file, slugs)| {
+            let json = file.contents_utf8()?;
+            let preset = Preset::from_json_str(json).ok()?;
+            let (ranks, folder): (Vec<usize>, Vec<String>) = slugs
+                .iter()
+                .enumerate()
+                .map(|(depth, slug)| match depth {
+                    0 => factory_folder(slug),
+                    _ if slugs[0] == crate::presets::factory::EXPERIMENTAL_FOLDER => {
+                        exciter_folder(slug)
+                    }
+                    _ => (0, title_case(slug)),
+                })
+                .unzip();
+            let key = (ranks, preset.name.to_lowercase());
+            Some((
+                key,
+                PresetEntry {
+                    name: preset.name,
+                    folder,
+                    source: PresetSource::Factory(json),
+                },
+            ))
+        })
+        .collect();
+    // Within a folder by rank path (and then the folder's own name, for
+    // unranked folders), then by preset name.
+    presets.sort_by(|(a, ea), (b, eb)| (&a.0, &ea.folder, &a.1).cmp(&(&b.0, &eb.folder, &b.1)));
+    presets.into_iter().map(|(_, entry)| entry).collect()
 }
 
 // ---------------------------------------------------------------------------
@@ -5559,20 +5838,187 @@ mod tests {
 
     #[test]
     fn factory_preset_loader_finds_factory_bank() {
+        // Every embedded preset file loads, in all its folders. The bank
+        // itself (counts, grid) is checked by `presets::factory`'s tests.
+        fn count(dir: &include_dir::Dir<'_>) -> usize {
+            dir.files()
+                .filter(|f| {
+                    f.path()
+                        .extension()
+                        .is_some_and(|e| e == "corrosion-preset")
+                })
+                .count()
+                + dir.dirs().map(count).sum::<usize>()
+        }
         let presets = load_factory_presets();
+        assert_eq!(presets.len(), count(&super::FACTORY_PRESETS_DIR));
+        assert_eq!(presets.len(), 204);
+    }
 
-        // Every embedded preset file loads, sorted by name. The bank itself
-        // (its folders and counts) is checked by `presets::factory`'s tests.
-        let on_disk = super::FACTORY_PRESETS_DIR
-            .files()
-            .filter(|f| {
-                f.path()
-                    .extension()
-                    .is_some_and(|e| e == "corrosion-preset")
+    /// An editor state whose user preset folder is a fresh temporary folder.
+    fn state_with_user_dir(tag: &str) -> (super::EditorUiState, std::path::PathBuf) {
+        let dir = std::env::temp_dir().join(format!(
+            "corrosion-editor-{tag}-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+        let mut state =
+            super::EditorUiState::new(2, (super::BASE_EDITOR_WIDTH, super::BASE_EDITOR_HEIGHT));
+        state.user_preset_dir = Some(dir.clone());
+        state.refresh_user_presets();
+        (state, dir)
+    }
+
+    fn folder_names(nodes: &[super::MenuNode]) -> Vec<&str> {
+        nodes
+            .iter()
+            .filter_map(|n| match n {
+                super::MenuNode::Folder(name, _) => Some(name.as_str()),
+                super::MenuNode::Preset(_) => None,
             })
-            .count();
-        assert_eq!(presets.len(), on_disk);
-        assert!(presets.windows(2).all(|w| w[0].name <= w[1].name));
+            .collect()
+    }
+
+    fn submenu<'a>(nodes: &'a [super::MenuNode], name: &str) -> &'a [super::MenuNode] {
+        nodes
+            .iter()
+            .find_map(|n| match n {
+                super::MenuNode::Folder(n, children) if n == name => Some(children.as_slice()),
+                _ => None,
+            })
+            .unwrap_or_else(|| panic!("no {name} submenu"))
+    }
+
+    #[test]
+    fn factory_folders_are_submenus() {
+        let (state, dir) = state_with_user_dir("menu");
+        let menu = state.menu();
+        assert_eq!(
+            folder_names(&menu),
+            [
+                "Bass",
+                "Lead",
+                "Chords",
+                "Drones",
+                "Percussion",
+                "Experimental",
+                "User"
+            ]
+        );
+        assert!(menu
+            .iter()
+            .all(|n| matches!(n, super::MenuNode::Folder(..))));
+        let experimental = submenu(&menu, "Experimental");
+        let exciters: Vec<&str> = (1..=16)
+            .map(crate::presets::factory::exciter_name)
+            .collect();
+        assert_eq!(folder_names(experimental), exciters);
+        for exciter in exciters {
+            let presets = submenu(experimental, exciter);
+            assert_eq!(presets.len(), 9, "{exciter}");
+            assert!(presets
+                .iter()
+                .all(|n| matches!(n, super::MenuNode::Preset(_))));
+        }
+        assert_eq!(submenu(&menu, "Bass").len(), 12);
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn user_subfolders_are_submenus() {
+        let (mut state, dir) = state_with_user_dir("subfolders");
+        let params = crate::params::CorrosionParams::default();
+        let preset = |name: &str| crate::presets::Preset::from_params(name, &params);
+        preset("Root Hit")
+            .save(dir.join("root.corrosion-preset"))
+            .unwrap();
+        preset("Deep Sub")
+            .save(dir.join("Basses").join("deep.corrosion-preset"))
+            .unwrap();
+        state.refresh_user_presets();
+        let menu = state.menu();
+        let user = submenu(&menu, "User");
+        assert_eq!(folder_names(user), ["Basses"]);
+        let basses = submenu(user, "Basses");
+        let name_of = |node: &super::MenuNode| match node {
+            super::MenuNode::Preset(i) => state.preset_name(*i).to_string(),
+            super::MenuNode::Folder(n, _) => panic!("unexpected folder {n}"),
+        };
+        assert_eq!(basses.iter().map(name_of).collect::<Vec<_>>(), ["Deep Sub"]);
+        // The root preset sits directly in User, after its submenus.
+        assert_eq!(name_of(&user[1]), "Root Hit");
+        assert_eq!(user.len(), 2);
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn arrows_stay_in_the_folder() {
+        let (state, dir) = state_with_user_dir("arrows");
+        let in_folder = |folder: &[&str]| -> Vec<usize> {
+            (0..state.preset_count())
+                .filter(|&i| state.entry(i).folder == folder)
+                .collect()
+        };
+        let bass = in_folder(&["Bass"]);
+        assert_eq!(bass.len(), 12);
+        let (first, last) = (bass[0], *bass.last().unwrap());
+        assert_eq!(
+            state.step_in_folder(last, 1),
+            first,
+            "next wraps to the first Bass"
+        );
+        assert_eq!(
+            state.step_in_folder(first, -1),
+            last,
+            "previous wraps to the last"
+        );
+        assert_eq!(state.step_in_folder(first, 1), bass[1]);
+        let bow = in_folder(&["Experimental", "Bow"]);
+        assert_eq!(bow.len(), 9);
+        assert_eq!(state.step_in_folder(*bow.last().unwrap(), 1), bow[0]);
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn save_into_a_user_subfolder() {
+        let (mut state, dir) = state_with_user_dir("save-folder");
+        std::fs::create_dir_all(dir.join("Basses")).unwrap();
+        state.refresh_user_presets();
+        // The folder selector offers only the user folder and its subfolders.
+        assert_eq!(state.user_folders, ["", "Basses"]);
+        let labels: Vec<String> = state
+            .user_folders
+            .iter()
+            .map(|f| super::user_folder_label(f))
+            .collect();
+        assert_eq!(labels, ["User", "User / Basses"]);
+
+        state.save_folder = "Basses".to_string();
+        state.save_name = "Deep Sub".to_string();
+        state.save(&crate::params::CorrosionParams::default(), false);
+        assert!(dir
+            .join("Basses")
+            .join("Deep Sub.corrosion-preset")
+            .exists());
+        let selected = state.entry(state.selected_factory_preset);
+        assert_eq!(selected.name, "Deep Sub");
+        assert_eq!(selected.folder, ["User", "Basses"]);
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn open_folder_is_disabled_without_a_user_folder() {
+        let (enabled, tooltip) = super::open_folder_button(None);
+        assert!(!enabled);
+        assert!(tooltip.contains("No user preset folder"), "{tooltip}");
+        let (enabled, tooltip) =
+            super::open_folder_button(Some(std::path::Path::new("/home/me/presets")));
+        assert!(enabled);
+        assert!(tooltip.contains("/home/me/presets"), "{tooltip}");
     }
 
     #[test]
