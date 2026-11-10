@@ -3,11 +3,15 @@
 ## ADDED Requirements
 
 ### Requirement: When the CI runs
-The CI SHALL run on every push to `dev` and `main`, on every pull request, and when started by hand. A newer push to the same branch SHALL cancel that branch's run in progress, except a run that is publishing the nightly release.
+The CI SHALL run on every push to `dev` and `main`, on every pull request from a fork, and when started by hand. A pull request from a branch of this repository SHALL NOT run it a second time: that branch's push run covers it. A newer push to the same branch SHALL cancel that branch's run in progress, except a run that is publishing the nightly release.
 
 #### Scenario: A push to dev runs the CI
 - **WHEN** a commit is pushed to `dev`
 - **THEN** the checks and bundle jobs run on Linux, Windows and macOS, and nothing is published
+
+#### Scenario: A push with an open pull request runs once
+- **WHEN** a commit is pushed to `dev` while a pull request from `dev` to `main` is open
+- **THEN** the checks run once, for the push; the pull request's run skips them
 
 #### Scenario: A newer push cancels the older run
 - **WHEN** two commits are pushed to `dev` in quick succession

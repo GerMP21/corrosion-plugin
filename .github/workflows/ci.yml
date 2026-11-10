@@ -41,6 +41,9 @@ jobs:
   # Every lane of the local close-out that applies to the platform.
   checks:
     name: checks (${{ matrix.platform }})
+    # A pull request from a branch of this repository is already tested by
+    # that branch's push run; only pull requests from forks run here.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
