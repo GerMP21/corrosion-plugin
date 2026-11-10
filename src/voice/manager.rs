@@ -202,10 +202,73 @@ impl VoiceManager {
         exciter_type: i32,
         controls: VoiceControls,
     ) {
+        self.start_voice(
+            address,
+            note,
+            note,
+            velocity,
+            profile_id,
+            size,
+            rust,
+            damage,
+            exciter_type,
+            controls,
+        );
+    }
+
+    /// Start a kit pad on `key`, sounding at `pitch_note`, with output gain
+    /// `gain` (`per-key-kits`). The voice answers note-offs and expression
+    /// on `key` and ignores live control updates.
+    #[allow(clippy::too_many_arguments)]
+    pub fn note_on_pad(
+        &mut self,
+        address: NoteAddress,
+        key: u8,
+        pitch_note: u8,
+        velocity: f32,
+        profile_id: crate::dsp::ModalProfileId,
+        size: f32,
+        rust: f32,
+        damage: f32,
+        exciter_type: i32,
+        controls: VoiceControls,
+        gain: f32,
+    ) {
+        if let Some(idx) = self.start_voice(
+            address,
+            key,
+            pitch_note,
+            velocity,
+            profile_id,
+            size,
+            rust,
+            damage,
+            exciter_type,
+            controls,
+        ) {
+            self.voices[idx].mark_pad(key, gain);
+        }
+    }
+
+    /// Start a voice for `key` sounding at `pitch_note`; returns its slot.
+    #[allow(clippy::too_many_arguments)]
+    fn start_voice(
+        &mut self,
+        address: NoteAddress,
+        key: u8,
+        pitch_note: u8,
+        velocity: f32,
+        profile_id: crate::dsp::ModalProfileId,
+        size: f32,
+        rust: f32,
+        damage: f32,
+        exciter_type: i32,
+        controls: VoiceControls,
+    ) -> Option<usize> {
         // Re-striking a note the pedal is holding releases the older
         // instance, so repeated notes under the pedal don't pile up.
         for voice in &mut self.voices {
-            if voice.is_pedal_held() && voice.note() == note {
+            if voice.is_pedal_held() && voice.note() == key {
                 voice.note_off();
             }
         }
@@ -221,7 +284,7 @@ impl VoiceManager {
         if let Some(idx) = slot {
             self.apply_channel_expression_to(idx);
             self.voices[idx].note_on_with_controls(
-                note,
+                pitch_note,
                 velocity,
                 profile_id,
                 self.frame_counter,
@@ -233,6 +296,7 @@ impl VoiceManager {
             );
             self.voices[idx].set_address(address.voice_id, address.channel);
         }
+        slot
     }
 
     /// The voice the host's voice ID names, among voices that pass `filter`

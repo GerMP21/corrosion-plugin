@@ -398,3 +398,50 @@ fn editor_note_drain_is_alloc_free() {
     });
     assert!(shared.held().is_empty());
 }
+
+/// Spec "Pad note-ons in a checked zone" (`per-key-kits`): the audio side
+/// reads pads from the table and starts voices from them, and renders them,
+/// inside the checked zone, while another thread assigns and clears pads.
+#[test]
+fn pad_note_ons_are_alloc_free_while_pads_are_assigned() {
+    use corrosion::kit::{KitPad, KitTable};
+    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::sync::Arc;
+
+    let pad = KitPad::from_params(36, &corrosion::CorrosionParams::default(), 0, 0.0).build();
+    let table = Arc::new(KitTable::new());
+    for key in [36u8, 38, 42] {
+        table.set(key, Some(pad));
+    }
+    let stop = Arc::new(AtomicBool::new(false));
+    let writer = {
+        let (table, stop) = (Arc::clone(&table), Arc::clone(&stop));
+        std::thread::spawn(move || {
+            let mut on = false;
+            while !stop.load(Ordering::Relaxed) {
+                table.set(38, on.then_some(pad));
+                on = !on;
+            }
+        })
+    };
+    let mut manager = VoiceManager::new();
+    let address = NoteAddress {
+        voice_id: None,
+        channel: 0,
+    };
+    assert_no_alloc(|| {
+        for _ in 0..200 {
+            for key in [36u8, 38, 42, 40] {
+                if let Some(pad) = table.get(key) {
+                    pad.play(&mut manager, address, key, 100.0, 1.0);
+                }
+            }
+            run(&mut manager, 32);
+            for key in [36u8, 38, 42] {
+                manager.note_off(key);
+            }
+        }
+    });
+    stop.store(true, Ordering::Relaxed);
+    writer.join().unwrap();
+}

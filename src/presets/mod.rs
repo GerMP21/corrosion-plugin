@@ -70,7 +70,21 @@ pub fn migrate_preset_json(mut value: serde_json::Value) -> serde_json::Value {
     migrate_wander_rate(&mut value);
     migrate_onset_level(&mut value);
     migrate_diode_stage(&mut value);
+    migrate_old_kit_mode(&mut value);
     value
+}
+
+/// Before `per-key-kits`, Kit mode mapped keys to objects in 10-note slots.
+/// A preset in Kit mode without a `kit` field is from then: it loads as
+/// Tonal, so it keeps sounding (an empty kit would be silent). The field is
+/// optional, so the schema version stays at 4.
+fn migrate_old_kit_mode(value: &mut serde_json::Value) {
+    let kit_mode = crate::params::PlayMode::Kit.to_int() as i64;
+    if value.get("kit").is_none()
+        && value.get("play_mode").and_then(serde_json::Value::as_i64) == Some(kit_mode)
+    {
+        value["play_mode"] = serde_json::json!(crate::params::PlayMode::Tonal.to_int());
+    }
 }
 
 /// Before `diode_asymmetry` existed, the clipper had a hard, symmetric knee
@@ -651,6 +665,9 @@ pub struct Preset {
     pub play_mode: i32,
     #[serde(default)]
     pub extra: PresetParameters,
+    /// Kit mode's pads (`per-key-kits`); absent when the kit is empty.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub kit: Option<crate::kit::KitState>,
 }
 
 fn default_quality_mode() -> i32 {
@@ -682,6 +699,10 @@ impl Preset {
             quality_mode: params.quality_mode.value(),
             play_mode: params.play_mode.value(),
             extra: PresetParameters::from_params(params),
+            kit: {
+                let kit = params.kit.read().unwrap_or_else(|e| e.into_inner());
+                (!kit.is_empty()).then(|| kit.clone())
+            },
         }
     }
 
@@ -699,6 +720,12 @@ impl Preset {
         params.quality_mode = crate::params::quality_mode_param(self.quality_mode);
         params.play_mode = crate::params::play_mode_param(self.play_mode);
         self.extra.apply_to(&mut params);
+        // The kit, and the audio thread's table built from it, so a preset's
+        // parameters are ready to play (`per-key-kits`). No `kit` field
+        // leaves no pads.
+        let kit = self.kit.unwrap_or_default();
+        params.kit_table.load(&kit);
+        *params.kit.write().unwrap_or_else(|e| e.into_inner()) = kit;
         params
     }
 

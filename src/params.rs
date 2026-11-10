@@ -90,6 +90,16 @@ pub struct CorrosionParams {
     #[persist = "editor-state"]
     pub editor_state: Arc<EguiState>,
 
+    /// The kit (`per-key-kits`): Kit mode's pads, saved with the host's
+    /// project state. Touched only off the audio thread; `kit_table` is the
+    /// audio thread's copy, rebuilt from it after a restore
+    /// (`Plugin::initialize`) and written with it by the editor.
+    #[persist = "kit"]
+    pub kit: Arc<std::sync::RwLock<crate::kit::KitState>>,
+
+    /// The pads as the audio thread reads them at note-on (not a parameter).
+    pub kit_table: Arc<crate::kit::KitTable>,
+
     /// Exciter type selection, 1–16 (`ExciterType::to_int`); see
     /// `ExciterType::from_int` for out-of-range values.
     /// Controls the type of physical excitation (mallets, scrapes, specialty)
@@ -2727,6 +2737,8 @@ impl Default for CorrosionParams {
             #[cfg(feature = "gui")]
             // 75 % of the 1080 x 840 base: fits a host window on a 1080p screen.
             editor_state: EguiState::from_size(810, 630),
+            kit: Arc::default(),
+            kit_table: Arc::default(),
 
             // Sound generation defaults
             exciter: exciter_param(ExciterType::HandStrike.to_int()),

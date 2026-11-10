@@ -28,6 +28,7 @@ fn preset_roundtrip_save_and_load() {
         quality_mode: 1,
         play_mode: 0,
         extra: PresetParameters::default(),
+        kit: None,
     };
 
     let path = unique_temp_path("roundtrip");
@@ -77,6 +78,7 @@ fn expanded_parameters_roundtrip() {
         quality_mode: 3,
         play_mode: 0,
         extra: PresetParameters::default(),
+        kit: None,
     };
     preset.extra.drive_amount = 3.2;
     preset.extra.space_mode = 2;
@@ -182,6 +184,7 @@ fn quality_mode_preset_roundtrip() {
         quality_mode: 0,
         play_mode: 0,
         extra: PresetParameters::default(),
+        kit: None,
     };
 
     let path = unique_temp_path("quality_roundtrip");

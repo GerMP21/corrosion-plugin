@@ -548,6 +548,10 @@ pub struct Voice {
     /// Always on in use; tests turn it off to render a note as it was before
     /// the controls were connected (`h06-wire-global-exciter-controls`).
     pub(crate) global_controls_enabled: bool,
+    /// The voice plays a kit pad (`per-key-kits`): live control updates
+    /// skip it, and `pad_gain` scales its output.
+    pad_voice: bool,
+    pad_gain: f32,
     /// The force factor Pressure asks for (see `pressure_factor`).
     pressure_target: f32,
     /// The smoothed Pressure force factor, following `pressure_target`.
@@ -762,6 +766,8 @@ impl Voice {
             governor_level: 0.0,
             governor_gain: 1.0,
             global_controls_enabled: true,
+            pad_voice: false,
+            pad_gain: 1.0,
             pressure_target: 1.0,
             pressure_gain: 1.0,
             position_envelope_amount: 0.0,
@@ -1055,6 +1061,8 @@ impl Voice {
         self.pedal_held = false;
         self.rendering = true;
         self.note = note;
+        self.pad_voice = false;
+        self.pad_gain = 1.0;
         self.velocity = velocity;
         let exciter_type = ExciterType::from_int(exciter_type).to_int();
         self.exciter_type = exciter_type;
@@ -1316,7 +1324,7 @@ impl Voice {
         exciter_pressure: f32,
         sample_rate: u32,
     ) {
-        if !self.active {
+        if !self.active || self.pad_voice {
             return;
         }
         self.set_position_envelope_amount(position_envelope);
@@ -1480,6 +1488,21 @@ impl Voice {
         self.particle_rain.release();
     }
 
+    /// Make the voice just started a kit pad on `key` (`per-key-kits`): it
+    /// answers note-offs and expression on `key` while sounding at the
+    /// note it was started with, keeps its stored controls, and plays at
+    /// `gain`.
+    pub(crate) fn mark_pad(&mut self, key: u8, gain: f32) {
+        self.note = key;
+        self.pad_voice = true;
+        self.pad_gain = gain;
+    }
+
+    /// Whether the voice plays a kit pad.
+    pub fn is_pad_voice(&self) -> bool {
+        self.pad_voice
+    }
+
     /// Test-only access to the voice's resonator.
     #[cfg(test)]
     pub(crate) fn resonator_for_test(&self) -> &ModalResonator {
@@ -1571,13 +1594,6 @@ impl Voice {
     /// The frame counter snapshot captured at note-on time.
     pub fn start_frame(&self) -> u64 {
         self.start_frame
-    }
-
-    /// Test-only accessor for the resonator's modal profile, so lib-level
-    /// integration tests can confirm which family the voice picked.
-    #[cfg(test)]
-    pub(crate) fn resonator_profile_for_test(&self) -> ModalProfileId {
-        self.resonator.profile
     }
 
     /// Test-only accessor for whether the MSEG loop is engaged on this voice.
@@ -1850,7 +1866,7 @@ impl Voice {
         // it can swell past unity without distorting the resonator path. The
         // global limiter at the plugin boundary handles any per-voice over-1.0
         // peaks the expression curve produces.
-        let gained = clamped * self.expression_gain();
+        let gained = clamped * self.expression_gain() * self.pad_gain;
         const DENORMAL_FLUSH: f32 = 1e-20;
         let flushed = gained + DENORMAL_FLUSH - DENORMAL_FLUSH;
 
