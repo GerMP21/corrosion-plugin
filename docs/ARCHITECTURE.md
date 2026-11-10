@@ -244,6 +244,9 @@ Idle ──note_on──▶ Active(rendering) ──note_off──▶ Tail(rende
   rule: the voice with the event's voice ID, or, when the event has none or no
   voice has it, key and channel (note-off: the oldest held voice; pressure: the
   first sounding voice; tuning and choke: every sounding voice on that key).
+  The plugin sends no voice-terminated event, so a host may reuse an ID while
+  the old note's tail still sounds: among voices with the same ID, the held
+  note wins over a tail, then the newest.
   Per-note tuning is stored on the voice and added to the channel bend before
   `pitch_bend_semitones_to_factor` (±24 semitones together), so it retunes
   through the same exact path and a held value is skipped like a held bend.
@@ -660,6 +663,17 @@ Every parameter's display name is unique (`parameter_names_are_unique`), and
 (`into_params_uses_the_live_names_and_output_range`): Resonator / Macro
 Brightness, Brush / Spring Wire Stiffness, Onset Time / Onset Level
 (`m01-m04-m05-clarify-parameters`).
+
+**One constructor per parameter** (`m10-m18-tidy-dead-code-and-docs`, M15):
+each parameter is built by a `params.rs` function taking its value
+(`<id>_param(value)`, e.g. `ui_scale_param`, `filter_cutoff_param`, plus the
+older shared builders such as `exciter_param` and `output_param`), which sets
+its name, range, clamp and formatters. `CorrosionParams::default()` calls it
+with the default and `Preset::into_params` with the preset's value, so a
+preset-built parameter displays exactly like the live one
+(`preset_built_parameters_display_like_the_live_ones` checks every parameter
+of every factory preset). A new parameter needs one such function, used in
+both places.
 
 ### Output protection
 

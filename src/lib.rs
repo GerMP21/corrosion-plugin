@@ -4176,4 +4176,96 @@ mod note_expression_tests {
         assert!(voices_on(plugin, 60).is_empty(), "key 60 still sounds");
         assert!(voices_on(plugin, 64)[0].is_active(), "key 64 was choked");
     }
+
+    /// Mode frequencies of each sounding voice on `note`, oldest first.
+    fn frequencies_by_age(plugin: &crate::Corrosion, note: u8) -> Vec<Vec<f32>> {
+        voices_on(plugin, note)
+            .iter()
+            .map(|v| {
+                v.resonator_for_test()
+                    .mode_specs_for_test()
+                    .map(|spec| spec.frequency_hz)
+                    .collect()
+            })
+            .collect()
+    }
+
+    /// Spec "One note of a chord bent", addressed by ID alone: two notes on
+    /// one key, a tuning for ID 2 (the newer) moves only that voice. A
+    /// key-and-channel match would move both.
+    #[test]
+    fn tuning_by_id_moves_one_of_two_same_key_notes() {
+        let mut renderer = plugin();
+        overlapping(&mut renderer, (Some(1), Some(2)));
+        let plugin = renderer.plugin_mut();
+        let before = frequencies_by_age(plugin, 60);
+        tuning(plugin, 60, Some(2), 1.0);
+        let after = frequencies_by_age(plugin, 60);
+        assert_ratio(&before[0], &after[0], 1.0, "ID 1");
+        assert_ratio(&before[1], &after[1], 2.0_f32.powf(1.0 / 12.0), "ID 2");
+    }
+
+    /// Spec "Choked ringing note", addressed by ID alone: of two notes on one
+    /// key, a choke for ID 2 stops only that voice.
+    #[test]
+    fn choke_by_id_stops_one_of_two_same_key_notes() {
+        let mut renderer = plugin();
+        overlapping(&mut renderer, (Some(1), Some(2)));
+        let plugin = renderer.plugin_mut();
+        let first_start = voices_on(plugin, 60)[0].start_frame();
+        super::handle_note_event(
+            plugin,
+            NoteEvent::Choke {
+                timing: 0,
+                voice_id: Some(2),
+                channel: 0,
+                note: 60,
+            },
+        );
+        run(plugin, 192);
+        let voices = voices_on(plugin, 60);
+        assert_eq!(voices.len(), 1, "both or neither voice was choked");
+        assert_eq!(voices[0].start_frame(), first_start, "ID 1 was choked");
+        assert!(voices[0].is_active(), "ID 1 should still be held");
+    }
+
+    /// A host that reuses a voice ID while the old note's tail still sounds
+    /// (the plugin sends no voice-terminated event): expression for that ID
+    /// reaches the new, held note, not the tail.
+    #[test]
+    fn reused_id_addresses_the_held_note_not_the_tail() {
+        let mut renderer = plugin();
+        let plugin = renderer.plugin_mut();
+        on(plugin, 60, Some(5));
+        run(plugin, 480);
+        off(plugin, 60, Some(5));
+        run(plugin, 64);
+        on(plugin, 60, Some(5));
+        run(plugin, 64);
+        let voices = voices_on(plugin, 60);
+        assert_eq!(voices.len(), 2, "the first note's tail should still sound");
+        assert!(!voices[0].is_active() && voices[1].is_active());
+        let before = frequencies_by_age(plugin, 60);
+        tuning(plugin, 60, Some(5), 1.0);
+        super::handle_note_event(
+            plugin,
+            NoteEvent::PolyPressure {
+                timing: 0,
+                voice_id: Some(5),
+                channel: 0,
+                note: 60,
+                pressure: 0.6,
+            },
+        );
+        let after = frequencies_by_age(plugin, 60);
+        assert_ratio(&before[0], &after[0], 1.0, "tail");
+        assert_ratio(&before[1], &after[1], 2.0_f32.powf(1.0 / 12.0), "held note");
+        let voices = voices_on(plugin, 60);
+        assert_eq!(
+            voices[0].poly_pressure_for_test(),
+            0.0,
+            "the tail got pressure"
+        );
+        assert!((voices[1].poly_pressure_for_test() - 0.6).abs() < 1e-6);
+    }
 }

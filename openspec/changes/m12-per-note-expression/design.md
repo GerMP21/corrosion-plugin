@@ -63,3 +63,15 @@ All seven pass, and `note_expression_is_alloc_free` passes in debug (allocation 
 ### CPU
 
 `voice_manager_sixteen_voices` group, this change against a clean worktree of the previous commit, five alternating runs of both frozen binaries, median of per-run ratios: plain 1.001×, render 1.010×, bent 1.021×, cable dynamics 1.025×, cable static 0.992× (per-run ratios 0.955–1.051): noise. The choke check is one well-predicted branch per voice sample; the fade itself is `#[cold] #[inline(never)]`.
+
+### Verification follow-up (2026-11-10)
+
+`/opsx:verify` found that disabling the ID lookup for tuning and chokes left all seven tests green: their events also carried the right key, so the key-and-channel fallback gave the same result. Three tests were added and run red against that mutation (ID lookup removed from `for_addressed_voices`):
+
+| Test | Mutation result |
+|---|---|
+| `tuning_by_id_moves_one_of_two_same_key_notes` | fails: "ID 1: mode 0 moved ×1.05946, expected ×1.00000" |
+| `choke_by_id_stops_one_of_two_same_key_notes` | fails: "both or neither voice was choked" |
+| `reused_id_addresses_the_held_note_not_the_tail` | fails |
+
+*As built (reused IDs):* the plugin sends no voice-terminated event, so a host may reuse an ID while the old note's tail sounds. `voice_with_id` used to take the first matching slot; it now prefers a held note over a tail, then the newest (`max_by_key((is_active, start_frame))`). `reused_id_addresses_the_held_note_not_the_tail` failed on the previous code (the tuning reached the tail) and passes now. All ten tests and `no_alloc` pass.

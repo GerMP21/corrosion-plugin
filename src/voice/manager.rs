@@ -238,6 +238,10 @@ impl VoiceManager {
     /// The voice the host's voice ID names, among voices that pass `filter`
     /// (`m12-per-note-expression`). `None` when the event has no ID or no
     /// such voice exists, so the caller falls back to key and channel.
+    ///
+    /// The plugin sends no voice-terminated event, so a host may reuse an ID
+    /// while the old note's tail still sounds. Among voices with the same
+    /// ID, a held note wins over a tail, and the newest wins after that.
     fn voice_with_id(
         &self,
         voice_id: Option<i32>,
@@ -246,7 +250,10 @@ impl VoiceManager {
         let id = voice_id?;
         self.voices
             .iter()
-            .position(|v| filter(v) && v.voice_id() == Some(id))
+            .enumerate()
+            .filter(|(_, v)| filter(v) && v.voice_id() == Some(id))
+            .max_by_key(|(_, v)| (v.is_active(), v.start_frame()))
+            .map(|(idx, _)| idx)
     }
 
     /// Choose the voice to steal when every slot is sounding.
