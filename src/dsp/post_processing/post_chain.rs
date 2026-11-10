@@ -395,10 +395,13 @@ mod tests {
     fn body_level_tracks_body_amount() {
         // Body contribution = output(amount) − output(0). Low amplitude and
         // zero drive keep every other stage linear: at amount 0.8 the body
-        // peaks near 37× the input, so 0.01 stays under the oversampled
-        // clipper's threshold (0.9661 / 1.3 ≈ 0.743).
+        // peaks near 37× the input, so 0.01 stays under the clipper's limit
+        // (0.9661 / 1.3 ≈ 0.743) with a hard, symmetric knee. The default
+        // soft knee starts lower (0.41 on the negative half) and would
+        // compress the body's transients (`add-asymmetric-diode-stage`).
         let render = |amount: f32| {
             let mut chain = routing_chain(amount, 0.5);
+            chain.set_clipper_params(0.9661, 0.0, 0.0);
             (0..9_600)
                 .map(|i| {
                     let x = tone(i, 250.0, 0.01);

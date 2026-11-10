@@ -384,8 +384,8 @@ impl OversampledClipper {
             std::mem::swap(&mut a, &mut b);
         }
 
-        for i in 0..len {
-            a[i] = self.clip_and_meter(a[i], table);
+        for sample in a.iter_mut().take(len) {
+            *sample = self.clip_and_meter(*sample, table);
         }
 
         for stage in (0..self.stages).rev() {

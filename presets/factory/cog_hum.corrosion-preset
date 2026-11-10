@@ -145,6 +145,7 @@
     "high_frequency_damping": 0.5,
     "analog_ceiling": 0.9661,
     "diode_softness": 0.5,
+    "diode_asymmetry": 0.25,
     "macro_mass": 0.5,
     "macro_corrosion": 0.55,
     "macro_violence": 0.5,

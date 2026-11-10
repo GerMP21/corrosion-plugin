@@ -14,7 +14,7 @@
 ## 3. Headroom and cost
 
 - [x] 3.1 Sweep the headroom `H` (decision 4) and set it. Verify the peak test in every mode at Asymmetry 0, 0.25 and 1, and the `output-clipper` alias bounds (alone and through the hard clamp) at Softness 0 and at the defaults. Record the sweep. Stop and ask if `H` must exceed 1.3 or one constant can't satisfy both.
-- [ ] 3.2 Measure `plugin_output_path_sixteen_voices` and its Render twin against a clean worktree (median of 5 within-run ratios). Record them; stop and ask if Render is more than 20 % slower.
+- [x] 3.2 Measure `plugin_output_path_sixteen_voices` and its Render twin against a clean worktree (median of 5 within-run ratios). Record them; stop and ask if Render is more than 20 % slower.
 
 ## 4. Parameter, migration and editor
 

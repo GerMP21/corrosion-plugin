@@ -126,7 +126,8 @@ fn diode_dot_colour(reduction_db: f32) -> egui::Color32 {
         DANGER_RED
     } else {
         let t = (reduction_db - DIODE_DOT_REST_DB) / (DIODE_DOT_FULL_DB - DIODE_DOT_REST_DB);
-        DANGER_RED.linear_multiply(DIODE_DOT_REST_BRIGHTNESS + (1.0 - DIODE_DOT_REST_BRIGHTNESS) * t)
+        DANGER_RED
+            .linear_multiply(DIODE_DOT_REST_BRIGHTNESS + (1.0 - DIODE_DOT_REST_BRIGHTNESS) * t)
     }
 }
 

@@ -112,4 +112,14 @@ Chosen: the table (decision 7). It is the cheaper, its error is a quarter of the
 
 `H` stays at 1.3: it's the smallest swept value that keeps the 5 kHz test tone under the ceiling, and it holds the alias bounds (−40 / −60 dB) at Softness 0 as well as at the defaults. It can't drop for the soft default (Open Question 1): at 1.25 the test tone peaks 1.9 % over the ceiling. As with m06, no headroom covers every frequency: at 7 kHz the half-bands' overshoot still reaches 1.21× the ceiling, which the output limiter clamps; the spec only bounds the 5 kHz test tone. `clipper_alias_bounds_hold_through_the_hard_clamp` now checks Softness 0 / Asymmetry 0 too.
 
+### CPU (task 3.2)
+
+`plugin_output_path_sixteen_voices` and its Render twin, this change against a clean worktree of the previous commit (`d06272a`), five alternating runs of both frozen binaries, median of the per-run ratios: Normal **1.030×**, Render **1.003×** (ratios 0.93–1.06 and 0.92–1.04: noise). Far under the 20 % bound.
+
+### Open issue: the output's own DC (paused, 2026-11-10)
+
+With the factory presets regenerated (Softness 0.5, Asymmetry 0.25), `preset_levels_are_sane` fails: Cable Bow −13.2, Chain Bell Tower −12.7, Workshop Plate Scrape −14.7 dB under the median (bound −12). The cause isn't the curve: several presets already carry a large infrasonic offset at the output, before this change. Rusted Plate Strike's left channel spans −0.016 to +0.421 (mean +0.097 over 2 s, +0.37 over the first 100 ms). The DC blocker (decision 5) filters the whole signal whenever Asymmetry > 0, so it removes that offset even when the signal never reaches the knee: RMS −9.1 dB (Industrial Plate Bow), −8.6 (Rusted Plate Strike, Pipe Bell Cluster), −4 to −5 dB (others); Softness alone changes nothing (−0.0 to −0.3 dB). The waveform becomes bipolar, and some negative peaks grow (Industrial Plate Bow 0.312 → 0.627, at the negative limit).
+
+The maintainer chose to pause this change and investigate where the output's offset comes from first. Options recorded for when it resumes: remove only the DC the curve creates (`y − LP(y − x)`), or keep filtering the whole signal and re-level the factory presets.
+
 *As built (test):* "Limits per polarity" is measured in Eco; in the oversampled modes the half-bands ring on the clipped edges and add several percent to the peak-to-peak span.
