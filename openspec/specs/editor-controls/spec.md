@@ -6,7 +6,7 @@ Defines which plugin parameters the editor must let the user see and change, so 
 ## Requirements
 
 ### Requirement: Sound-shaping parameters have editor controls
-The editor SHALL show a control for each of: resonator Brightness, Thickness, Sync, Play Mode, Limiter Mode, and the Mass, Corrosion, Violence and Brightness macros. Changing a control SHALL change its parameter, and automating the parameter SHALL move the control.
+The editor SHALL show a control for each of: resonator Brightness, Thickness, Sync, Note Mode, Limiter Mode, and the Mass, Corrosion, Violence and Brightness macros. Changing a control SHALL change its parameter, and automating the parameter SHALL move the control.
 
 #### Scenario: Control changes the parameter
 - **WHEN** the user drags or selects each of these controls in the editor

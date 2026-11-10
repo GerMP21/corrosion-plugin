@@ -285,7 +285,7 @@ Idle ──note_on──▶ Active(rendering) ──note_off──▶ Tail(rende
   `CHOKE_FADE_FRAMES` (96 at 48 kHz, 2 ms at any rate), then resets it to idle;
   the fade is an out-of-line branch in the per-sample voice loop. Channel MPE
   is out of scope: channel bend, pressure and CC1 stay global.
-- **Object per note** (`handle_note_event`): in Tonal and Drone play modes the
+- **Object per note** (`handle_note_event`): in Tonal and Drone note modes the
   Object parameter picks the object, through `note_setup` (profile, size, rust,
   damage, exciter and `VoiceControls` from the live parameters). In **Kit** mode
   the key's pad does (see "Kit mode" below); a key without a pad is silent.
@@ -811,7 +811,7 @@ Every widget helper (`industrial_knob[_text]`, `industrial_fader[_text]`, `indus
 - Assign stores `KitPad::from_params` with tune = `last_auditioned − key` (0 if none). `last_auditioned` is set by any editor note outside Kit mode and by selecting a pad (key + its tune); empty keys in Kit mode play nothing and don't set it.
 - Keys outside `KIT_ZONE` (36–59) are painted `KIT_LOCKED_*` and filtered out of the mouse and computer keys unless Full keyboard is on; pads get a `KIT_PAD_BAND` band, the selected key an outline.
 
-**Migration.** A preset (`migrate_old_kit_mode`) or project (`migrate_host_old_kit_mode` in `filter_state`) with Play Mode Kit and no `kit` field loads as Tonal. Host automation can't be migrated (BREAKING).
+**Migration.** A preset (`migrate_old_kit_mode`) or project (`migrate_host_old_kit_mode` in `filter_state`) with Note Mode (formerly Play Mode) Kit and no `kit` field loads as Tonal. Host automation can't be migrated (BREAKING).
 
 **Factory kits.** `src/presets/factory/drums.rs`: ten kits, 12 GM pads each, role-tuned (kicks −12, snares and claps +12, side sticks +24, hats +48, cymbals +36, toms 0). The seeder levels each pad alone with `level_pad` (to the bank's floor, capped for headroom at velocity 127) and stores the levels in `levels.rs` (`PAD_LEVELS`, range `PAD_LEVEL_RANGE_DB` −40…+60 dB: one-shot hats put little energy in the floor's 2 s window). `every_drum_pad_meets_the_quality_floor` and `drum_kits_have_drum_character` check them.
 

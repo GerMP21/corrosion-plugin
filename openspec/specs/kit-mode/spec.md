@@ -62,15 +62,15 @@ A kit SHALL be saved with a preset (an optional `kit` field, absent when there a
 - **THEN** the kit is restored exactly
 
 ### Requirement: Old Kit state loads as Tonal
-A preset file or host state with Play Mode Kit and no kit SHALL load with Play Mode Tonal and its other values unchanged.
+A preset file or host state with Note Mode Kit and no kit SHALL load with Note Mode Tonal and its other values unchanged.
 
 #### Scenario: Old Kit preset
-- **WHEN** a preset saved before this change with Play Mode Kit is loaded
-- **THEN** Play Mode is Tonal and every other parameter keeps its value
+- **WHEN** a preset saved before this change with Note Mode Kit is loaded
+- **THEN** Note Mode is Tonal and every other parameter keeps its value
 
 #### Scenario: Old Kit project
-- **WHEN** the host restores state saved before this change with Play Mode Kit
-- **THEN** Play Mode is Tonal
+- **WHEN** the host restores state saved before this change with Note Mode Kit
+- **THEN** Note Mode is Tonal
 
 ### Requirement: Pads are real-time safe
 Starting a voice from a pad, and assigning or clearing pads while notes play, SHALL NOT allocate, free or lock on the audio thread.

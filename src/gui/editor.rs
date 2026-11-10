@@ -2282,9 +2282,15 @@ fn selector_help(label: &str, selected: &str) -> &'static str {
         ("mode", "Normal") => "The default balance of detail and CPU.",
         ("mode", "High") => "More modes per voice and more clipper oversampling.",
         ("mode", "Render") => "Most detail and least aliasing, for bouncing. Uses the most CPU.",
-        ("play", "Tonal") => "Notes play at their pitch and decay naturally.",
-        ("play", "Kit") => "Each key plays its own pad, set up on the keyboard below; keys without a pad are silent.",
-        ("play", "Drone") => "Notes sustain while held, for bowed and continuous sounds.",
+        ("note mode", "Tonal") => {
+            "Each key plays the patch at its own pitch. Bowed and scraped exciters follow the envelope, so they fade out even while the key is held."
+        }
+        ("note mode", "Kit") => {
+            "Each key plays its own pad, with its own sound and tuning, set up with the kit bar above the keyboard. Keys without a pad are silent."
+        }
+        ("note mode", "Drone") => {
+            "Like Tonal, but bowed and scraped exciters keep sounding while the key is held (the envelope loops Decay and Sustain). Struck exciters still decay."
+        }
         ("limiter", "Hard") => "Clamps peaks at the ceiling with no added latency.",
         ("limiter", "Lookahead") => {
             "Turns peaks down smoothly ahead of time. Adds about 1 ms of latency."
@@ -2575,7 +2581,7 @@ fn render_header(
                                                     industrial_combo(
                                                         ui,
                                                         "play-mode-header",
-                                                        "PLAY",
+                                                        "NOTE MODE",
                                                         &params.play_mode,
                                                         &[(0, "Tonal"), (1, "Kit"), (2, "Drone")],
                                                         setter,
@@ -5734,7 +5740,7 @@ mod tests {
                 |p| p.quality_mode.as_ptr(),
             ),
             (
-                "PLAY",
+                "NOTE MODE",
                 0..=2,
                 |p, v| p.play_mode = play_mode_param(v),
                 |p| p.play_mode.as_ptr(),
@@ -6962,6 +6968,34 @@ mod tests {
 
             fn pad(harness: &Harness, key: u8) -> Option<KitPad> {
                 harness.params.kit.read().unwrap().pad(key).cloned()
+            }
+
+            /// The Tonal / Kit / Drone selector is named for what it sets:
+            /// what a note does.
+            #[test]
+            fn the_note_mode_selector_is_named_note_mode() {
+                let mut harness = Harness::new();
+                assert!(
+                    text_pos(&mut harness, "NOTE MODE").is_some(),
+                    "no NOTE MODE label"
+                );
+                assert!(
+                    text_pos(&mut harness, "PLAY").is_none(),
+                    "old PLAY label drawn"
+                );
+                assert_eq!(
+                    nih_plug::prelude::Param::name(&harness.params.play_mode),
+                    "Note Mode"
+                );
+                // Each option's tooltip says what it does.
+                for (mode, says) in [
+                    ("Tonal", "fade out even while the key is held"),
+                    ("Kit", "its own pad"),
+                    ("Drone", "Struck exciters still decay"),
+                ] {
+                    let help = crate::gui::editor::selector_help("NOTE MODE", mode);
+                    assert!(help.contains(says), "{mode}: {help:?}");
+                }
             }
 
             /// Spec "Pads are assigned from the editor": the kit bar is
