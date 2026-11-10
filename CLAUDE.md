@@ -67,6 +67,11 @@ Apply them one at a time, in this order, each closed out (tests, docs, review st
 | 9 ✅ | `m12-per-note-expression` | M12 | Voice-ID addressing (`NoteAddress`; ID first, else key and channel; a reused ID picks the held note, then the newest), PolyTuning on top of the channel bend, Choke as a 2 ms linear fade. Plain-MIDI renders bit-identical (16 exciters); CPU within noise (0.99–1.03×). Plain-MIDI note-offs now also match the channel. Channel MPE out of scope. |
 | 10 ✅ | `m10-m18-tidy-dead-code-and-docs` | M10, M11, M14, M15, M17, M18 | One constructor per parameter (136 generated in `params.rs`, shared with `Preset::into_params`; preset-built parameters display like the live ones); `exciter_force` removed (the bus stays bidirectional: displacement and velocity feed back); redundant `active = false` removed; rattle naming; exciter range 1–16 and the Hand Strike fallback documented and tested; quality-mode timings documented; `dsp` re-export dropped; old review archived. Render hashes unchanged. Also marks M2 and M19. |
 | 11 ✅ | `add-editor-keyboard` | (maintainer request) | Done. A piano strip (C3–C6) pinned under the panels' scroll view (`render_window_body`; window 810×630 at 75 %, panel layout unchanged via `BASE_LAYOUT_HEIGHT`): mouse with velocity by height, drag glissando; computer keys `A W S E D F T G Y H U J K` for C4–C5. **As built (maintainer's choices):**
+- Keys match **by letter**, because egui-baseview reports no physical key.
+- Keys play only while the window is focused **and the pointer is over the editor**, and not while the preset name is being typed. baseview reports focus loss only on macOS; the pointer leaving releases held notes and clears egui's `keys_down`.
+- X11 auto-repeat key-up/key-down pairs are coalesced into one repeat (`key_actions`).
+
+Notes go through a lock-free SPSC ring (`src/gui_notes.rs`) drained after `begin_block` into `handle_note_event` as channel-0 notes. A close is seen by the audio thread on `editor_state.is_open()`'s falling edge. The held-key mask is published per block. Checked in REAPER (Linux): the stuck note is fixed, held keys don't retrigger, and closing the window with a note held releases it. 18 + 5 + 16 tests plus no_alloc, each red against its mutation. |
 | 12 | `reorganize-factory-presets` | (maintainer request) | Proposed.
 - Factory bank in folders: `bass`, `lead`, `chords`, `drones`, `percussion` (12 each, designed by hand and measured), plus `experimental`, one preset per exciter × object (16 × 9 = 144), deterministic and varying every parameter.
 - The seeder levels every preset by offline render, against a quality floor. Curated folders have character tests: bass low, pitched, chords harmonic, sustaining and clean, drones sustain, percussion decays.
@@ -77,11 +82,6 @@ Apply them one at a time, in this order, each closed out (tests, docs, review st
 - Pads are assigned on the strip (kit bar: Assign, Clear, Tune, Full keyboard). The zone is MIDI 36–59, the rest greyed until the toggle. The strip widens to 36–84; in Kit mode the computer keys play 36–48.
 - Seqlock pad table (lock-free on audio); kit persisted in presets and projects; old Kit → Tonal; shared post chain.
 - 10 factory drum kits in `drums/`. |
-- Keys match **by letter**, because egui-baseview reports no physical key.
-- Keys play only while the window is focused **and the pointer is over the editor**, and not while the preset name is being typed. baseview reports focus loss only on macOS; the pointer leaving releases held notes and clears egui's `keys_down`.
-- X11 auto-repeat key-up/key-down pairs are coalesced into one repeat (`key_actions`).
-
-Notes go through a lock-free SPSC ring (`src/gui_notes.rs`) drained after `begin_block` into `handle_note_event` as channel-0 notes. A close is seen by the audio thread on `editor_state.is_open()`'s falling edge. The held-key mask is published per block. Checked in REAPER (Linux): the stuck note is fixed, held keys don't retrigger, and closing the window with a note held releases it. 18 + 5 + 16 tests plus no_alloc, each red against its mutation. |
 
 ## OpenSpec workflow
 
