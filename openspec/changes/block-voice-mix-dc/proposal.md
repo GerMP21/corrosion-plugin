@@ -13,8 +13,8 @@ The maintainer chose to remove it once, on the voice mix, before the rest of the
 
 ## What Changes
 
-- **A DC blocker on the voice mix:** a one-pole high-pass per channel at about 5 Hz, at the host rate, between the voice manager's stereo sum and the master drive. Everything after it (master drive, post chain, body, Space, clipper, limiter) sees a centred signal.
-- The audible low end is kept: the lowest notes' fundamentals lose under 0.2 dB.
+- **A DC blocker on the voice mix:** a high-pass per channel, at the host rate, between the voice manager's stereo sum and the master drive. Everything after it (master drive, post chain, body, Space, clipper, limiter) sees a centred signal. *As built:* a second-order Butterworth at 10 Hz, not a one-pole at 5 Hz (design, decisions 2–3).
+- The audible low end is kept: the lowest notes' fundamentals lose under 0.2 dB (0.05 dB at 30 Hz as built).
 - It applies to every patch, in the plugin and in the offline renderer (they share `render_frame_unlimited`).
 - **Sound change** for patches with one-signed forces: no DC at the output, and the drives and clipper bite symmetrically where the offset used to push one half into them. Patches without the offset change by a negligible amount (the high-pass's effect above ~20 Hz). No migration: there's no setting to restore.
 

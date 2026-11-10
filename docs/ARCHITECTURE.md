@@ -24,13 +24,27 @@ Below the host API the path is one function, `Corrosion::process_block`:
 `begin_block` (per-buffer setup: drive and output-gain smoother targets,
 limiter configuration, post-chain parameters with macro biases, live controls
 of held voices), then for each sample the MIDI events due at it,
-`render_frame_unlimited` (voices → master drive → post chain → output gain) and
+`render_frame_unlimited` (voices → mix DC blocker → master drive → post chain → output gain) and
 `limit_frame`. `process()` calls it with the host's buffer and events, and
 `offline::PresetRenderer` / `offline::render_preset` with a real plugin
 instance holding a preset, in 512-sample blocks. So `render_presets`, the audition WAVs in `output/` and the
 preset level checks hear exactly what the plugin outputs
 (`h13-render-presets-through-post-chain`). `reset()` starts the master-drive
 smoother at Drive plus the Violence bias, where `begin_block` aims it.
+
+**The voice mix carries no DC** (`block-voice-mix-dc`). Each mode is a
+coupled-form resonator whose output has a non-zero gain at 0 Hz, so a
+one-signed force (a bow's pressure, a mallet's long contact) leaves a static
+deflection under the ringing: up to ~47 % of a bowed patch's output power,
+and a felt mallet's ~60 ms thump. `dsp::StereoDcBlocker`, a second-order
+Butterworth high-pass at 10 Hz (`VOICE_MIX_DC_CUTOFF_HZ`, bilinear with a
+prewarped cutoff, `f64` coefficients and state), removes it from the voices'
+stereo sum before the master drive, so the drives and the clipper see a
+centred signal. It costs 0.05 dB at 30 Hz; a held bow keeps under 2 % of its
+RMS as DC and a felt mallet's largest 20 ms mean drops 16.6 dB. It is rated
+in `initialize` and `begin_block` and cleared by `reset()` and the panic
+clear. DC that later stages create (the asymmetric drives and the diode
+curve) is theirs to handle.
 
 ```text
 MIDI Note Event
@@ -57,6 +71,9 @@ MIDI Note Event
                           rattle (damage) + velocity highpass boost + clamp/denormal
                                                                 │
                               Σ voices  ─────────────────────────┘
+                                       │
+                                       ▼
+                         StereoDcBlocker (10 Hz, 2nd-order Butterworth, L & R)
                                        │
                                        ▼
                          apply_drive() (master/exciter drive, L & R)
@@ -127,7 +144,8 @@ src/
     post_processing/  wdf_filter, lorenz_drive, fem_body, hrtf_spread, space
                       (FactoryReverb/SpringReverb/FactoryEcho), oversampled_clipper,
                       post_chain (PostProcessingChain + PostQualityMode)
-    utils/            budget (mode-count estimates), body, deterministic_excitation
+    utils/            budget (mode-count estimates), body, dc_blocker (voice mix),
+                      deterministic_excitation
   gui/
     editor.rs         egui editor: knobs/faders, UI scale (50–150%, default 75%: 810×576;
                       a change asks the host to resize; the layout never exceeds the

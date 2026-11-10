@@ -40,6 +40,7 @@ pub use transforms::{
 pub use utils::{
     offline_peak_shared_mode_limit, realtime_mode_count_estimate, realtime_mode_count_estimates,
     safe_realtime_shared_mode_limit, BodyResonator, ExcitationInput, RealtimeModeCountEstimate,
+    StereoDcBlocker,
 };
 
 pub use crate::offline::{

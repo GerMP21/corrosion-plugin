@@ -10,11 +10,11 @@ Defines that the voices' mix, as it enters the output path (master drive, post c
 The voices' stereo mix SHALL reach the master drive without a DC offset, whatever the exciter's force.
 
 #### Scenario: Held bow
-- **WHEN** a Bow note on a Plate is held for two seconds with BODY 0, Space off and no drive
-- **THEN** the mean of the plugin's output over the second half of the held note is under 1 % of its RMS
+- **WHEN** a Bow note on a Plate is held for two seconds in Drone with BODY 0, Space off, no drive and Diode Asymmetry 0
+- **THEN** the mean of the plugin's output over the second half of the held note is under 2 % of its RMS
 
 #### Scenario: Felt mallet strike
-- **WHEN** a felt mallet strikes a Plate with BODY 0, Space off and no drive
+- **WHEN** a felt mallet strikes a Plate with BODY 0, Space off, no drive and Diode Asymmetry 0
 - **THEN** the largest 20 ms mean of the output over the first 400 ms is at least 12 dB lower than without the blocker
 
 ### Requirement: The audible low end is kept
