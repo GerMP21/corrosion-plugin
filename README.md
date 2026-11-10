@@ -339,3 +339,9 @@ When you post, please distinguish between:
 - **DSP theory concerns**: references to specs, papers, or competitive plugins where they apply.
 - **Implementation cleanup**: refactor or readability proposals, ideally with a sketch of the change.
 - **Experimental ideas**: speculative directions worth chewing over before anyone commits to building them.
+
+## License
+
+Corrosion's source code is released under the [MIT License](LICENSE).
+
+The VST3 build links the [vst3-sys](https://github.com/RustAudio/vst3-sys) bindings that NIH-plug uses, which are licensed under the GPLv3, so a distributed VST3 binary also has to comply with the GPLv3 (NIH-plug's README explains this). The full source is public in this repository, and MIT code can be combined with GPLv3 code. The CLAP build doesn't use those bindings.
