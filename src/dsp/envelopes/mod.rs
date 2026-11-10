@@ -473,7 +473,15 @@ mod tests {
     /// instead of the sustain level: only the looping cases changed, since
     /// they release mid-Decay; loop Off releases from Sustain and kept its
     /// hash.
+    ///
+    /// Linux only: `powf` comes from the platform's libm, and Windows and
+    /// macOS round it differently (`extend-ci-windows-linux-macos`, CI
+    /// 2026-11-10). gnu and musl agree.
     #[test]
+    #[cfg_attr(
+        not(target_os = "linux"),
+        ignore = "output hash depends on the platform libm; checked on Linux"
+    )]
     fn loop_output_matches_golden() {
         let cases = [
             ("off", configured(LoopMode::Off, 3, 4), 0.8),

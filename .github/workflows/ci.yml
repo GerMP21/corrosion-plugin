@@ -100,6 +100,12 @@ jobs:
       - name: Clippy (workspace, no default features)
         run: cargo clippy --workspace --all-targets --no-default-features -- -D warnings
 
+      # TEMPORARY diagnostic (felt_mallet/tank at -8 dB on Windows); removed
+      # once the preset is re-drawn.
+      - name: Diagnose felt_mallet/tank (temporary)
+        if: runner.os != 'Linux'
+        run: cargo test --release --no-default-features --lib print_felt_mallet_tank_divergence -- --ignored --nocapture
+
       - name: Test workspace (no default features)
         run: cargo test --workspace --no-default-features
 
