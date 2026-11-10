@@ -5561,8 +5561,12 @@ mod tests {
 
         const SCALE: f32 = 0.75;
 
-        /// The editor window at 75 %, driven frame by frame.
+        /// The editor window at a UI scale (75 % unless a test picks
+        /// another), driven frame by frame.
         struct Harness {
+            scale: f32,
+            /// Filled rectangles the last frame painted, in paint order.
+            rects: Vec<(egui::Rect, egui::Color32)>,
             ctx: egui::Context,
             state: super::super::EditorUiState,
             shared: Arc<EditorNotes>,
@@ -5572,14 +5576,20 @@ mod tests {
 
         impl Harness {
             fn new() -> Self {
+                Self::at_scale(SCALE)
+            }
+
+            fn at_scale(scale: f32) -> Self {
                 let shared = Arc::new(EditorNotes::new());
                 let state = super::super::EditorUiState {
                     keyboard: super::super::KeyboardStrip::new(shared.clone()),
-                    ..super::super::EditorUiState::new(1, super::super::scaled_editor_size(SCALE))
+                    ..super::super::EditorUiState::new(1, super::super::scaled_editor_size(scale))
                 };
                 let ctx = egui::Context::default();
-                super::super::apply_editor_style(&ctx, SCALE);
+                super::super::apply_editor_style(&ctx, scale);
                 let mut harness = Self {
+                    scale,
+                    rects: Vec::new(),
                     ctx,
                     state,
                     shared,
@@ -5596,7 +5606,8 @@ mod tests {
                 events: Vec<egui::Event>,
                 focused: bool,
             ) -> Vec<(String, egui::Pos2)> {
-                let (w, h) = super::super::scaled_editor_size(SCALE);
+                let scale = self.scale;
+                let (w, h) = super::super::scaled_editor_size(scale);
                 let input = egui::RawInput {
                     screen_rect: Some(egui::Rect::from_min_size(
                         egui::Pos2::ZERO,
@@ -5615,9 +5626,17 @@ mod tests {
                     egui::CentralPanel::default()
                         .frame(egui::Frame::NONE)
                         .show(ctx, |ui| {
-                            super::super::render_window_body(ui, params, &setter, state, SCALE);
+                            super::super::render_window_body(ui, params, &setter, state, scale);
                         });
                 });
+                self.rects = output
+                    .shapes
+                    .iter()
+                    .filter_map(|clipped| match &clipped.shape {
+                        egui::Shape::Rect(rect) => Some((rect.rect, rect.fill)),
+                        _ => None,
+                    })
+                    .collect();
                 output
                     .shapes
                     .iter()
@@ -5705,6 +5724,68 @@ mod tests {
                     * SCALE;
             assert!(rect.min.y >= strip_top - 0.5);
             assert!((rect.width() - w as f32).abs() < 1.0);
+        }
+
+        /// Spec "On-screen keyboard strip": at every UI scale the strip is
+        /// pinned to the window's bottom edge, inside it, and as wide as it.
+        #[test]
+        fn the_strip_fits_at_every_ui_scale() {
+            for ui_scale in 0..=4 {
+                let scale = super::super::ui_scale_factor(ui_scale);
+                let harness = Harness::at_scale(scale);
+                let (rect, keys) = harness.keys();
+                let (w, h) = super::super::scaled_editor_size(scale);
+                assert!(
+                    rect.max.y <= h as f32 + 0.5 && rect.max.y >= h as f32 - 1.0,
+                    "UI Scale {ui_scale}: strip ends at {} in a {h}-tall window",
+                    rect.max.y
+                );
+                assert!(
+                    (rect.height() - super::super::KEYBOARD_STRIP_BASE_HEIGHT * scale).abs() < 0.5,
+                    "UI Scale {ui_scale}: strip is {} tall",
+                    rect.height()
+                );
+                assert!(
+                    rect.min.x >= -0.5 && rect.max.x <= w as f32 + 0.5,
+                    "UI Scale {ui_scale}: strip spans {:?} in a {w}-wide window",
+                    rect.x_range()
+                );
+                assert!((rect.width() - w as f32).abs() < 1.0);
+                assert_eq!(keys.len(), 37);
+            }
+        }
+
+        /// The fill painted last under `pos`, among the strip's shapes.
+        fn fill_at(harness: &Harness, pos: egui::Pos2) -> egui::Color32 {
+            harness
+                .rects
+                .iter()
+                .rev()
+                // Outlines are rects with a transparent fill: skip them.
+                .find(|(rect, fill)| rect.contains(pos) && *fill != egui::Color32::TRANSPARENT)
+                .map(|&(_, fill)| fill)
+                .expect("something is painted there")
+        }
+
+        /// Spec "Held notes light up": a note the audio thread publishes as
+        /// held (host MIDI) is drawn in the highlight colour, and drawn plain
+        /// again once it is no longer held; the same for a black key.
+        #[test]
+        fn held_notes_are_drawn_lit() {
+            let mut harness = Harness::new();
+            let white = harness.key_rect(64).center_bottom() - egui::vec2(0.0, 3.0);
+            let black = harness.key_rect(66).center();
+            harness.run(Vec::new(), true);
+            let (white_plain, black_plain) = (fill_at(&harness, white), fill_at(&harness, black));
+            harness.shared.publish_held([64u8, 66].into_iter());
+            harness.run(Vec::new(), true);
+            assert_ne!(fill_at(&harness, white), white_plain, "E4 is not lit");
+            assert_ne!(fill_at(&harness, black), black_plain, "F#4 is not lit");
+            assert_eq!(fill_at(&harness, black), super::super::DANGER_RED);
+            harness.shared.publish_held(std::iter::empty());
+            harness.run(Vec::new(), true);
+            assert_eq!(fill_at(&harness, white), white_plain);
+            assert_eq!(fill_at(&harness, black), black_plain);
         }
 
         /// Spec "The strip covers C3 to C6".

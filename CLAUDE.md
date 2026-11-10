@@ -67,7 +67,7 @@ Apply them one at a time, in this order, each closed out (tests, docs, review st
 - Keys play only while the window is focused **and the pointer is over the editor**, and not while the preset name is being typed. baseview reports focus loss only on macOS; the pointer leaving releases held notes and clears egui's `keys_down`.
 - X11 auto-repeat key-up/key-down pairs are coalesced into one repeat (`key_actions`).
 
-Notes go through a lock-free SPSC ring (`src/gui_notes.rs`) drained after `begin_block` into `handle_note_event` as channel-0 notes. A close is seen by the audio thread on `editor_state.is_open()`'s falling edge. The held-key mask is published per block. Checked in REAPER (Linux): the stuck note is fixed, and held keys don't retrigger. 18 + 5 + 14 tests plus no_alloc, each red against its mutation. |
+Notes go through a lock-free SPSC ring (`src/gui_notes.rs`) drained after `begin_block` into `handle_note_event` as channel-0 notes. A close is seen by the audio thread on `editor_state.is_open()`'s falling edge. The held-key mask is published per block. Checked in REAPER (Linux): the stuck note is fixed, held keys don't retrigger, and closing the window with a note held releases it. 18 + 5 + 16 tests plus no_alloc, each red against its mutation. |
 
 ## OpenSpec workflow
 

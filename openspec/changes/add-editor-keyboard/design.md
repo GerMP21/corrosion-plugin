@@ -58,6 +58,8 @@ A new module `src/gui_notes.rs` (no GUI dependency) holds `EditorNotes`:
 - `held: [AtomicU64; 2]`, the 128-bit held-note mask that the audio thread publishes.
 
 The GUI side wraps the producer in a `NoteSender` with a `VecDeque` backlog. The GUI may allocate, so when the ring is full, events wait there and are retried each frame. That way nothing is lost and order is kept. The audio side `drain(|event| ...)` reads without allocating.
+> *As built:* producers take a `Mutex` inside `EditorNotes::try_push`, so a host that briefly holds two editor instances can't corrupt the ring. Only the GUI takes it; the audio thread's `drain` never does, so the consumer stays lock-free and allocation-free.
+
 - *Alternative:* a held-state bitmask diffed per block. Rejected: a press and release within one block would be lost.
 - *Alternative:* a queue crate. Rejected: a few dozen lines of atomics don't justify a dependency.
 
@@ -70,6 +72,8 @@ The audio thread keeps its own 128-bit "editor has it on" mask, so the release-a
 
 ### 7. Highlight from the voices
 After each block, the audio thread ORs the keys of the held voices into `held` and stores it (relaxed). The strip reads it each frame and also asks egui for a repaint while any bit is set, so the highlight follows the release. The GUI's own pressed keys are drawn pressed at once, without waiting for the audio round trip.
+
+> *As built:* with nothing lit, the strip still asks for a repaint every 50 ms (`request_repaint_after`), so a note the host starts lights up within 50 ms even with no mouse movement. egui runs a frame only when asked or on input. That is up to 20 idle frames per second while the editor is open, and none while it is closed. The cost was not measured.
 
 ## Risks / Trade-offs
 
@@ -106,4 +110,9 @@ After each block, the audio thread ORs the keys of the held voices into `held` a
   - A focused panel control does not block the keys: in this egui version only the preset-name field takes focus on click (probed on the SCALE, PLAY, LIMITER and MODE combos and the Save button: no focus).
   - Keys typed while REAPER's main window had focus went to REAPER's shortcuts (D opened its split dialog). That is the host's behaviour, not the plugin's.
   - Capture: the whole editor at 75 % with F♯4 held by the mouse.
-- **Strip tests.** 14 in the GUI lane (pointer gate, pointer leave, X11 pairs), each red against its mutation. In all: 18 `gui_notes` tests, 5 engine tests, 14 strip tests and `editor_note_drain_is_alloc_free`.
+- **Verification follow-up (2026-11-10).**
+  - `the_strip_fits_at_every_ui_scale`: at all five UI scales (50–150 %) the strip ends at the window's bottom edge, is `64 × scale` tall, and spans the window's width.
+  - `held_notes_are_drawn_lit`: a note published as held is painted in the highlight colour (white and black key) and plain again afterwards. It is red if the highlight ignores the audio mask.
+  - Closing the editor, in REAPER (logging build, not committed). With the mouse held on F♯4, a REAPER script closed the FX window, so the pointer never left the plugin. The audio thread saw `is_open()` fall and sent the release-all for note 66, and the published held notes went empty. No other path released it first.
+  - Reopened by script: the strip started clean; the same key and D played and stopped normally.
+- **Strip tests.** 16 in the GUI lane. Each behaviour test is red against its mutation: pointer gate, pointer leave, X11 pairs, lit keys, and the earlier gate, velocity and hit-test ones. The all-scales layout test was not run against a mutation; at 75 % its check caught the real 2.25-point overflow. In all: 18 `gui_notes` tests, 5 engine tests, 16 strip tests and `editor_note_drain_is_alloc_free`.
