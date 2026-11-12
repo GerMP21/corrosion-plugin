@@ -8,7 +8,7 @@ Package version: `0.2.0`. Preset schema version: `4`; files from schemas 1–3 a
 
 ### Try it in the browser
 
-The whole plugin, the same engine and editor, also runs in a web page: no download, no DAW. The web app is built from this repository and redeployed from `main` on Cloudflare, at **<https://corrosion.synaptech-solutions.com>**. Click **Start audio**, then play the piano strip, the computer keys or a MIDI keyboard.
+The whole plugin, the same engine and editor, also runs in a web page: no download, no DAW. The web app is built from this repository and redeployed from `main` on Cloudflare, at **<https://preview.corrosion-vst.org>**. Click **Start audio**, then play the piano strip, the computer keys or a MIDI keyboard.
 
 - **Browsers:** tested in Chromium. It needs AudioWorklet, WebAssembly SIMD and WebGL 2, which current Chrome, Edge, Firefox and Safari have, but only Chromium has been checked so far. Web MIDI is in Chrome and Edge, and in Firefox after a permission prompt; Safari has none. Without it the on-screen and computer keyboards still play.
 - **Your sound and presets stay in your browser:** the session is restored on your next visit, Save keeps presets in the browser, **Download preset** gives a `.corrosion-preset` file the plugin opens, and **Open preset…** loads one made with the plugin.
