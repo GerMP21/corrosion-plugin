@@ -1,0 +1,16 @@
+[package]
+name = "corrosion-web-engine"
+version = "0.2.0"
+edition = "2021"
+license = "GPL-3.0-or-later"
+publish = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+corrosion = { path = "../..", default-features = false, features = ["web-host"] }
+
+[dev-dependencies]
+nih-plug = { package = "nih_plug", git = "https://github.com/robbert-vdh/nih-plug" }
+assert_no_alloc = { git = "https://github.com/robbert-vdh/rust-assert-no-alloc.git", branch = "feature/nested-permit-forbid" }

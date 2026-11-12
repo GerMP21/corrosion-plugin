@@ -1,0 +1,17 @@
+# The browser build of Corrosion (`add-web-app`). A workspace of its own so
+# its NIH-plug patch never reaches the plugin builds.
+[workspace]
+members = ["engine", "editor"]
+resolver = "2"
+
+# NIH-plug at the plugin's pinned revision, with the parameter setters made
+# public (`nih-plug-public-setters.patch`). `scripts/fetch-nih-plug.sh` puts
+# the patched copy in `vendor/nih-plug`.
+[patch."https://github.com/robbert-vdh/nih-plug"]
+nih_plug = { path = "vendor/nih-plug" }
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"

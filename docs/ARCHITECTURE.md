@@ -815,11 +815,36 @@ Every widget helper (`industrial_knob[_text]`, `industrial_fader[_text]`, `indus
 
 **Factory kits.** `src/presets/factory/drums.rs`: ten kits, 12 GM pads each, role-tuned (kicks −12, snares and claps +12, side sticks +24, hats +48, cymbals +36, toms 0). The seeder levels each pad alone with `level_pad` (to the bank's floor, capped for headroom at velocity 127) and stores the levels in `levels.rs` (`PAD_LEVELS`, range `PAD_LEVEL_RANGE_DB` −40…+60 dB: one-shot hats put little energy in the floor's 2 s window). `every_drum_pad_meets_the_quality_floor` and `drum_kits_have_drum_character` check them.
 
+### Web app (`add-web-app`)
+
+The plugin also runs in a browser, with the same engine and editor, as two WebAssembly instances that share nothing:
+
+```
+ Main thread                                   AudioWorklet thread
+┌───────────────────────────────┐ command     ┌──────────────────────────────┐
+│ web/editor (eframe, canvas)   │ batches     │ web/engine (no JS glue)      │
+│  WebEditor + EditorBridge     │────────────▶│  WebEngine: process_block    │
+│  (own CorrosionParams mirror) │◀────────────│  per 128-frame quantum       │
+│ web/www/app.js: MIDI, BPM,    │ reports     │                              │
+│  session, IndexedDB, files    │ (32 ms)     │                              │
+└───────────────────────────────┘             └──────────────────────────────┘
+```
+
+- **Workspace.** `web/` is a Cargo workspace of its own. Its `[patch]` points NIH-plug at `web/vendor/nih-plug` (fetched at the revision `Cargo.lock` pins by `web/scripts/fetch-nih-plug.sh`, plus `nih-plug-public-setters.patch`, which makes `ParamPtr::set_normalized_value` and `update_smoother` public). The plugin's builds never see the patch. Corrosion's `web-host` (engine) and `web-gui` (editor) features need it, so they build only there.
+- **wasm32 in the plugin crate.** NIH-plug's default features (VST3) are off on `wasm32`, and the VST3 and CLAP exports are `cfg(not(target_arch = "wasm32"))`. `Corrosion::prepare` is what `initialize` does without a host context; the web engine calls it too.
+- **Engine.** `src/web/mod.rs::WebEngine` plays the host: `prepare` at the page's rate, parameters by index in `param_map()` order, MIDI through `NoteEvent::from_midi` into a 512-event queue played at the next block's first sample, `process_block` into preallocated 1024-frame buffers, `load_preset`. `web/engine` exports it as C-ABI functions over a `Handle` (inbox, report buffer). The worklet (`web/www/engine-worklet.js`) gets the wasm bytes and compiles them itself: Chromium drops a `WebAssembly.Module` posted to a worklet.
+- **Protocol.** `src/web/protocol.rs`: `[tag u8][len u32 LE][payload]` frames (`Param`, `Midi`, `EditorNoteOn/Off`, `ReleaseEditorNotes`, `Tempo`, `Kit` JSON) and a 24-byte `Report` (diode meter peak, voices, held-note mask). `WebEngine::apply` decodes without allocating; a kit rebuilds the pad table.
+- **Editor side.** `src/web/editor_side.rs`: `WebGuiContext` is NIH-plug's `GuiContext` over the editor's own parameters, queuing what each parameter took; `EditorBridge` batches a frame (parameters, the keyboard's notes from its `EditorNotes` ring, a release-all, the kit when `KitTable::generation()` moves) and applies reports. With `web-gui`, `src/gui/editor.rs` compiles on plain `egui` without baseview, and `WebEditor` draws `render_window_body` in a `CentralPanel`. The randomizer's seed comes from the page (`SystemTime::now` panics on `wasm32-unknown-unknown`).
+- **Presets and session.** On wasm the editor keeps user presets in `presets::browser` (an in-memory store with the folder rules and overwrite confirmation of the user preset folder) instead of a folder; the page loads it from IndexedDB and stores what the editor saves. "Open folder" isn't drawn. The session is the current sound as preset JSON, autosaved to `localStorage`.
+- **Cost.** wasm runs 1.3–2.1× slower than native; the heaviest factory preset with 16 voices takes about 61 % of a 128-frame block in V8 with `simd128` (design.md of `add-web-app`). The worklet reports its load (from `Date.now()`: worklets have no `performance.now()`).
+- **Tests.** `web/engine/tests/`: `engine.rs` (notes, parameters, the offline renderer on seven presets), `bridge.rs` (each command, the report, the synced echo following the page tempo), `no_alloc.rs`. `web/scripts/smoke.cjs` and `features.cjs` drive the built page in headless Chromium.
+- **Deploy.** Cloudflare Workers Builds runs `web/scripts/cloudflare-build.sh` (installs Rust, the wasm32 target and the pinned prebuilt wasm-bindgen when missing) and `npx wrangler deploy` (`web/wrangler.toml`, static assets from `web/dist`).
+
 ## 10. Build, Test, and QA Infrastructure
 
 | Component | Purpose |
 |---|---|
-| `.github/workflows/ci.yml` | Runs on `dev`, `main`, fork pull requests and by hand (`extend-ci-windows-linux-macos`). `checks` on Linux (fmt, clippy `-D warnings`, musl tests, gnu GUI lane, `no_alloc`, docs with warnings denied, benchmarks compiled, renderer smoke and WAV check), Windows MSVC and macOS (clippy, tests, GUI lane, renderer smoke; `no_alloc` on macOS). `bundle`: native VST3 and CLAP per platform with `scripts/bundle.sh` (macOS universal, ad-hoc signed), `scripts/check_bundle.sh`, clap-validator and pluginval. `nightly`: replaces the rolling `nightly` pre-release after a fully green run on main |
+| `.github/workflows/ci.yml` | Runs on `dev`, `main`, `web`, fork pull requests and by hand (`extend-ci-windows-linux-macos`). `checks` on Linux (fmt, clippy `-D warnings`, musl tests, gnu GUI lane, `no_alloc`, docs with warnings denied, benchmarks compiled, renderer smoke and WAV check), Windows MSVC and macOS (clippy, tests, GUI lane, renderer smoke; `no_alloc` on macOS). `bundle`: native VST3 and CLAP per platform with `scripts/bundle.sh` (macOS universal, ad-hoc signed), `scripts/check_bundle.sh`, clap-validator and pluginval. `nightly`: replaces the rolling `nightly` pre-release after a fully green run on main. `web`: the web workspace's fmt, clippy (native and wasm), engine/bridge/no_alloc tests, the Cloudflare build script, and the page in headless Chromium |
 | `scripts/verify-local.sh` | local mirror of CI |
 | `scripts/validate-plugins.sh` | optional `pluginval` + `clap-validator` wrapper |
 | `scripts/check_wav.py` / `analyze_wav.py` / `check_clicks.py` | offline artifact validation |

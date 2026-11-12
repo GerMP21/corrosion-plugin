@@ -541,6 +541,7 @@ dependencies = [
  "assert_no_alloc",
  "clap",
  "criterion",
+ "egui",
  "include_dir",
  "nih_plug",
  "nih_plug_egui",
