@@ -17,17 +17,17 @@
 ## 3. Editor on a canvas
 
 - [x] 3.1 eframe on a `<canvas>` calling `render_ui`; every panel, help badge, kit bar and piano strip shown
-- [ ] 3.2 `cfg(wasm32)`: hide "Open folder"; user presets through the host shell; Save also downloads
+- [x] 3.2 `cfg(wasm32)`: hide "Open folder"; user presets through the host shell; Save also downloads
 - [x] 3.3 Computer keyboard and piano strip play through the bridge (same key map as the plugin)
 
 ## 4. Host features
 
-- [ ] 4.1 Start-audio button and state (AudioContext gesture rule)
-- [ ] 4.2 Web MIDI: device selection, notes, velocity, bend, mod wheel, sustain; message when unavailable
-- [ ] 4.3 BPM field feeding the transport (Echo sync)
-- [ ] 4.4 Session autosave to `localStorage` and restore; export and import of the session
-- [ ] 4.5 User presets in IndexedDB; upload and download of `.corrosion-preset` files (plugin presets migrate)
-- [ ] 4.6 CPU meter and overload warning; version (commit), source link and GPLv3 notice
+- [x] 4.1 Start-audio button and state (AudioContext gesture rule)
+- [x] 4.2 Web MIDI: device selection, notes, velocity, bend, mod wheel, sustain; message when unavailable
+- [x] 4.3 BPM field feeding the transport (Echo sync)
+- [x] 4.4 Session autosave to `localStorage` and restore; export and import of the session
+- [x] 4.5 User presets in IndexedDB; upload and download of `.corrosion-preset` files (plugin presets migrate)
+- [x] 4.6 CPU meter and overload warning; version (commit), source link and GPLv3 notice
 
 ## 5. Build, CI and deploy
 

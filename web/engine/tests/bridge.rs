@@ -173,3 +173,56 @@ fn the_report_carries_the_diode_meter() {
     assert_eq!(page.bridge.voices(), 4);
     assert_eq!(Report::decode(&report.encode()), Some(report));
 }
+
+/// The normalized value of plain `value` for parameter `id`.
+fn normalized(id: &str, value: f32) -> f32 {
+    use nih_plug::prelude::Params;
+    let params = CorrosionParams::default();
+    let (_, ptr, _) = params
+        .param_map()
+        .into_iter()
+        .find(|(param_id, _, _)| param_id == id)
+        .unwrap();
+    // SAFETY: `ptr` points into `params`, alive here.
+    unsafe { ptr.preview_normalized(value) }
+}
+
+/// A note through a tempo-synced echo (1/4) at `bpm` (`None`: no tempo).
+fn echo_render(bpm: Option<f32>) -> Vec<f32> {
+    let mut engine = WebEngine::new(48_000.0);
+    let mut batch = Vec::new();
+    for (id, value) in [
+        ("space_mode", 3.0),
+        ("space_amount", 1.0),
+        ("sync_rate", 0.5),
+        ("delay_time", 0.1),
+    ] {
+        let index = engine.param_index(id).unwrap() as u32;
+        Command::Param {
+            index,
+            normalized: normalized(id, value),
+        }
+        .encode(&mut batch);
+    }
+    if let Some(bpm) = bpm {
+        Command::Tempo(bpm).encode(&mut batch);
+    }
+    engine.apply(&batch);
+    render(&mut engine, 50);
+    engine.midi(0x90, 60, 127);
+    render(&mut engine, 375)
+}
+
+#[test]
+fn the_page_tempo_drives_the_synced_echo() {
+    // Synced to 1/4: 0.5 s at 120 BPM, 0.25 s at 240; with no tempo the
+    // echo free-runs on Delay Time. Each gives a different output.
+    let at_120 = echo_render(Some(120.0));
+    let at_240 = echo_render(Some(240.0));
+    let free = echo_render(None);
+    let differ = |a: &[f32], b: &[f32]| a.iter().zip(b).any(|(x, y)| (x - y).abs() > 1e-4);
+    assert!(differ(&at_120, &at_240), "120 and 240 BPM render the same");
+    assert!(differ(&at_120, &free), "the tempo is ignored");
+    // Same tempo, same output: the difference is the tempo's.
+    assert!(!differ(&at_120, &echo_render(Some(120.0))));
+}
