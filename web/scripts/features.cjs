@@ -46,11 +46,13 @@ const sameSound = (a, b) => {
   await page.goto(url);
   await ready();
   const canvas = await page.locator("#editor").boundingBox();
-  const at = (fx, fy) => [canvas.x + canvas.width * fx, canvas.y + canvas.height * fy];
+  // The editor fills the canvas's width and scales with it: positions are
+  // fractions of the width from the canvas's top edge.
+  const at = (fx, fy) => [canvas.x + canvas.width * fx, canvas.y + canvas.width * fy];
   const fresh = await sound(page);
 
   // Session: pick the next factory preset, let the autosave run, reload.
-  await page.mouse.click(...at(0.527, 0.042));
+  await page.mouse.click(...at(0.565, 0.0355));
   await wait(page, 2000);
   const changed = await sound(page);
   check("the editor changes the sound", !sameSound(changed, fresh));
@@ -60,14 +62,14 @@ const sameSound = (a, b) => {
   check("a reload restores the session", sameSound(await sound(page), changed));
 
   // Save in the editor: type a name in the bank's field and press Save.
-  await page.mouse.click(...at(0.38, 0.0665));
+  await page.mouse.click(...at(0.382, 0.0545));
   // At a typing pace: egui's web text input drops characters that arrive
   // in the same instant.
   await page.keyboard.type("Web Test", { delay: 80 });
   // Let the editor draw the last character before Save is clicked (slow
   // software WebGL on CI runners takes several frames).
   await wait(page, 800);
-  await page.mouse.click(...at(0.519, 0.0665));
+  await page.mouse.click(...at(0.538, 0.0545));
   await wait(page, 2000);
   const stored = await page.evaluate(() => new Promise((resolve) => {
     const request = indexedDB.open("corrosion", 1);

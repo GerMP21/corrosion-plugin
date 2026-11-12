@@ -171,6 +171,13 @@ SIMD (`+simd128`, autovectorized only) saves 5–10 % on the heavy presets; the 
 - `wasm-bindgen-cli` must match `wasm-bindgen` in `web/Cargo.lock` (0.2.130).
 - Bundle (uncompressed, no `wasm-opt`): editor wasm 4.95 MB (it embeds the factory bank and egui's fonts), editor glue 73 KB, engine 611 KB.
 - `web/scripts/smoke.cjs` (headless Chromium, SwiftShader WebGL): the editor starts, silence before a note (RMS 0), a strip key (RMS 0.35) and the "A" computer key (0.31) sound with one voice, the bank's "›" changes the sound (0.31 → 0.50), no console errors.
+- **Page layout (maintainer request, 2026-11-12):** the first version had two scroll bars, the page's and the editor's own scroll view. Now only the page scrolls, and the editor fills the page's width:
+  - `WebEditor::frame` lays out `render_page_body`: the panels, the kit bar and the strip, one under the other, with no `ScrollArea`. Its scale is `page_scale(width) = width / 1080` (at least 0.25), so the UI Scale setting has no effect on the web.
+  - `content_height()` is the layout cursor's bottom plus the margin. It is not `min_rect`: the header's columns reserve the whole available height without using it, which made the height follow the canvas (1190 vs 2392 points at 600 and 2400 points tall). `web_page_body_height_is_independent_of_the_canvas` guards this, in both Tonal and Kit mode.
+  - Each frame `web/editor` sets the canvas's CSS height to that value. The canvas is 1200 px tall in a 1100 px wide window.
+  - **Wheel:** eframe calls `preventDefault` on every wheel event over the canvas. A capturing listener on its parent stops the event before eframe sees it, unless `wants_wheel()` reports the pointer over a popup or menu (a layer above `Order::Background`). The page then scrolls natively.
+  - **Found here:** eframe calls `focus()` on the canvas and on its hidden text input on every click. On a canvas taller than the window, that scrolled the page on each click, so the next click missed (the feature check's Save). `app.js` makes `focus()` default to `preventScroll: true`.
+  - `smoke.cjs` checks that the canvas is taller than 90 % of the window, that the page is taller than the window, that the wheel over the canvas scrolls the page, and that a click doesn't scroll it. Click positions in both checks are now fractions of the canvas width.
 - The plugin's GUI lane is unchanged: 505 tests pass and the same 15 known warnings (13 `falling back to f32`, 2 unused `painter`) remain.
 
 ### 3.2 and 4. Host features (As built)
