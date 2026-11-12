@@ -63,7 +63,10 @@ const sameSound = (a, b) => {
   await page.mouse.click(...at(0.38, 0.0665));
   // At a typing pace: egui's web text input drops characters that arrive
   // in the same instant.
-  await page.keyboard.type("Web Test", { delay: 40 });
+  await page.keyboard.type("Web Test", { delay: 80 });
+  // Let the editor draw the last character before Save is clicked (slow
+  // software WebGL on CI runners takes several frames).
+  await wait(page, 800);
   await page.mouse.click(...at(0.519, 0.0665));
   await wait(page, 2000);
   const stored = await page.evaluate(() => new Promise((resolve) => {
