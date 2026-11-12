@@ -1,11 +1,24 @@
-// Corrosion's web host (`add-web-app`): starts the AudioContext on a click,
-// loads the engine into the AudioWorklet and sends it notes.
+// Corrosion's web host (`add-web-app`): the editor (eframe in a canvas) on
+// the main thread, the engine in an AudioWorklet, and the page between
+// them. The editor's command batches are posted to the worklet; the
+// worklet's reports go back to the editor.
+
+import initEditor, * as editor from "./corrosion_web_editor.js";
 
 const status = document.getElementById("status");
-const noteButton = document.getElementById("note");
+const startButton = document.getElementById("start");
 let node = null;
+/** Batches the editor sent before audio started, in order. */
+const pending = [];
 
-export async function start() {
+function postBatch(bytes) {
+  // Copy: the view points into the editor's wasm memory.
+  const copy = bytes.slice();
+  if (node) node.port.postMessage({ type: "batch", bytes: copy.buffer }, [copy.buffer]);
+  else pending.push(copy);
+}
+
+export async function startAudio() {
   const context = new AudioContext({ latencyHint: "interactive" });
   // The worklet gets the wasm bytes and compiles them itself: Chromium
   // silently drops a `WebAssembly.Module` posted to a worklet port.
@@ -13,40 +26,50 @@ export async function start() {
     fetch("corrosion_web_engine.wasm").then((response) => response.arrayBuffer()),
     context.audioWorklet.addModule("engine-worklet.js"),
   ]);
-  node = new AudioWorkletNode(context, "corrosion", { numberOfInputs: 0, outputChannelCount: [2] });
-  node.connect(context.destination);
+  const worklet = new AudioWorkletNode(context, "corrosion", { numberOfInputs: 0, outputChannelCount: [2] });
+  worklet.connect(context.destination);
   const ready = new Promise((resolve) => {
-    node.port.onmessage = (event) => {
+    worklet.port.onmessage = (event) => {
       const msg = event.data;
       if (msg.type === "ready") resolve(msg);
       if (msg.type === "meter") {
         window.corrosionMeter = msg;
-        status.textContent = `${context.sampleRate} Hz · ${msg.voices} voices · level ${msg.rms.toFixed(4)}`;
+        editor.push_report(new Uint8Array(msg.report));
+        status.textContent = `Audio on · ${context.sampleRate} Hz · ${msg.voices} ${msg.voices === 1 ? "voice" : "voices"}`;
       }
     };
   });
   // The worklet thread only runs once the context does.
   await context.resume();
-  node.port.postMessage({ type: "init", bytes }, [bytes]);
+  worklet.port.postMessage({ type: "init", bytes }, [bytes]);
   await ready;
-  noteButton.disabled = false;
-  status.textContent = `Audio on at ${context.sampleRate} Hz.`;
+  node = worklet;
+  // Everything the editor changed so far (its state is the engine's
+  // default plus these batches).
+  for (const batch of pending.splice(0)) {
+    node.port.postMessage({ type: "batch", bytes: batch.buffer }, [batch.buffer]);
+  }
+  status.textContent = `Audio on · ${context.sampleRate} Hz`;
   return context;
 }
 
-export function midi(data) {
-  node?.port.postMessage({ type: "midi", data });
-}
-
-document.getElementById("start").addEventListener("click", async (event) => {
-  event.target.disabled = true;
+startButton.addEventListener("click", async () => {
+  startButton.disabled = true;
   try {
-    await start();
+    await startAudio();
+    startButton.textContent = "Audio on";
+    document.getElementById("editor").focus();
   } catch (error) {
     status.textContent = `Could not start audio: ${error.message}`;
-    event.target.disabled = false;
+    startButton.disabled = false;
   }
 });
-noteButton.addEventListener("pointerdown", () => midi([0x90, 60, 100]));
-noteButton.addEventListener("pointerup", () => midi([0x80, 60, 0]));
-noteButton.addEventListener("pointerleave", () => midi([0x80, 60, 0]));
+
+// Held keys would hang when the page loses focus or is hidden.
+window.addEventListener("blur", () => editor.release_keys());
+document.addEventListener("visibilitychange", () => document.hidden && editor.release_keys());
+
+await initEditor();
+const seed = (crypto.getRandomValues(new Uint32Array(1))[0] | 1) >>> 0;
+await editor.start(document.getElementById("editor"), postBatch, seed);
+window.corrosionEditorReady = true;

@@ -21,6 +21,9 @@ path = "src/bin/seed_presets.rs"
 
 [dependencies]
 nih_plug_egui = { git = "https://github.com/robbert-vdh/nih-plug", optional = true }
+# The editor's egui without baseview, for the web build (`web-gui`). The same
+# version nih_plug_egui uses.
+egui = { version = "=0.31.1", optional = true }
 clap = { version = "4", features = ["derive"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
@@ -44,6 +47,9 @@ gui = ["nih_plug_egui"]
 # The browser build's engine (`src/web.rs`). Builds only in the `web/`
 # workspace, whose patched NIH-plug makes the parameter setters public.
 web-host = []
+# The browser build's editor (`src/gui/editor.rs` on plain egui, no window
+# of its own). Builds only in the `web/` workspace, as `web-host`.
+web-gui = ["web-host", "dep:egui"]
 
 [dev-dependencies]
 assert_no_alloc = { git = "https://github.com/robbert-vdh/rust-assert-no-alloc.git", branch = "feature/nested-permit-forbid" }

@@ -163,4 +163,14 @@ SIMD (`+simd128`, autovectorized only) saves 5–10 % on the heavy presets; the 
 - Tests: `web/engine/tests/bridge.rs` (6: round trip and truncation; an editor parameter, an editor note and its release, a kit and a preset each reach the engine; the report reaches the editor). They were red on no-op stubs (5 of 6; the round trip tests the protocol itself) before the implementation. `web/engine/tests/no_alloc.rs`: 50 blocks of parameter, MIDI, editor-note, release and tempo commands with blocks and reports don't allocate. The checker was confirmed live in this workspace with a probe that allocates (aborts); it is installed only when the test links Corrosion.
 - Engine cost after the bridge: `bow/sheet_metal` with 16 voices 1676 µs (63 %), within noise of 1630 µs.
 
+### 3. The editor on a canvas (As built)
+
+- Corrosion's new `web-gui` feature compiles `src/gui/editor.rs` on plain `egui` (`=0.31.1`, the version nih_plug_egui uses) without baseview: `create_editor`, `request_window_size`, `persist_editor_size` and the `PersistentField` import are `cfg(feature = "gui")`. `WebEditor` (`new`, `frame`, `size`, `release_keys`) draws `render_window_body` in a `CentralPanel` with the plugin's style and layout scale.
+- **Found here:** `SystemTime::now()` panics on `wasm32-unknown-unknown`. The randomizer's seed comes from `clock_seed()` natively and from the page (`crypto.getRandomValues`) on the web.
+- `web/editor`: eframe 0.31.1 (glow, WebGL) in the `<canvas>`, with `EditorBridge` as host. Each frame posts its batch through a JS callback; reports come back through `push_report`; `release_keys` on blur and hidden page. Batches made before audio starts are kept and sent, in order, once the worklet is ready.
+- `wasm-bindgen-cli` must match `wasm-bindgen` in `web/Cargo.lock` (0.2.130).
+- Bundle (uncompressed, no `wasm-opt`): editor wasm 4.95 MB (it embeds the factory bank and egui's fonts), editor glue 73 KB, engine 611 KB.
+- `web/scripts/smoke.cjs` (headless Chromium, SwiftShader WebGL): the editor starts, silence before a note (RMS 0), a strip key (RMS 0.35) and the "A" computer key (0.31) sound with one voice, the bank's "›" changes the sound (0.31 → 0.50), no console errors.
+- The plugin's GUI lane is unchanged: 505 tests pass and the same 15 known warnings (13 `falling back to f32`, 2 unused `painter`) remain.
+
 **Decision (maintainer, 2026-11-12, task 1.4): the web keeps 16 voices and each preset's own quality.** The load warning (task 4.6) covers the heavy end.

@@ -16,9 +16,9 @@
 
 ## 3. Editor on a canvas
 
-- [ ] 3.1 eframe on a `<canvas>` calling `render_ui`; every panel, help badge, kit bar and piano strip shown
+- [x] 3.1 eframe on a `<canvas>` calling `render_ui`; every panel, help badge, kit bar and piano strip shown
 - [ ] 3.2 `cfg(wasm32)`: hide "Open folder"; user presets through the host shell; Save also downloads
-- [ ] 3.3 Computer keyboard and piano strip play through the bridge (same key map as the plugin)
+- [x] 3.3 Computer keyboard and piano strip play through the bridge (same key map as the plugin)
 
 ## 4. Host features
 

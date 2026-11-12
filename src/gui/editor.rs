@@ -1,6 +1,8 @@
 use include_dir::{include_dir, Dir};
+#[cfg(feature = "gui")]
 use nih_plug::params::persist::PersistentField;
 use nih_plug::prelude::*;
+#[cfg(feature = "gui")]
 use nih_plug_egui::{create_egui_editor, egui, resizable_window::ResizableWindow, EguiState};
 use std::sync::Arc;
 
@@ -119,7 +121,10 @@ const BASE_EDITOR_HEIGHT: u32 =
 // ---------------------------------------------------------------------------
 
 struct EditorUiState {
+    // Read by the plugin window's resize request only (not the web editor).
+    #[cfg_attr(not(feature = "gui"), allow(dead_code))]
     last_ui_scale: i32,
+    #[cfg_attr(not(feature = "gui"), allow(dead_code))]
     last_requested_size: (u32, u32),
     factory_presets: Vec<PresetEntry>,
     /// Index into the factory presets followed by the user presets.
@@ -210,12 +215,7 @@ impl EditorUiState {
             diode_dot_time: None,
             keyboard: KeyboardStrip::new(Arc::new(crate::gui_notes::EditorNotes::new())),
             randomizer_mode: crate::randomizer::RandomizerMode::Safe,
-            randomizer_noise: crate::dsp::utils::noise::Noise::new(
-                std::time::SystemTime::now()
-                    .duration_since(std::time::UNIX_EPOCH)
-                    .map(|elapsed| elapsed.subsec_nanos() ^ elapsed.as_secs() as u32)
-                    .unwrap_or(1),
-            ),
+            randomizer_noise: crate::dsp::utils::noise::Noise::new(clock_seed()),
         };
         state.refresh_user_presets();
         state
@@ -1156,10 +1156,87 @@ const INDUSTRIAL_COG_RESONATOR_CONTROLS: &[ResonatorControlSpec] = &[
     },
 ];
 
+/// A seed for the randomizer from the clock. The web build has no clock in
+/// `std` (`SystemTime::now` panics on `wasm32-unknown-unknown`): there the
+/// page seeds it ([`WebEditor::new`]).
+fn clock_seed() -> u32 {
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|elapsed| elapsed.subsec_nanos() ^ elapsed.as_secs() as u32)
+            .unwrap_or(1)
+    }
+    #[cfg(target_arch = "wasm32")]
+    {
+        1
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Editor creation
 // ---------------------------------------------------------------------------
 
+/// The editor in a web page (`add-web-app`): the plugin's editor, drawn
+/// into the page's canvas each frame, with the page as its host.
+#[cfg(feature = "web-gui")]
+pub struct WebEditor {
+    params: Arc<CorrosionParams>,
+    state: EditorUiState,
+}
+
+#[cfg(feature = "web-gui")]
+impl WebEditor {
+    /// An editor for `params`, reading the engine's diode meter and sending
+    /// its keyboard's notes through `editor_notes` (both bridged by
+    /// `crate::web::EditorBridge`). `seed` seeds the randomizer.
+    pub fn new(
+        params: Arc<CorrosionParams>,
+        diode_meter: Arc<crate::dsp::DiodeMeter>,
+        editor_notes: Arc<crate::gui_notes::EditorNotes>,
+        seed: u32,
+    ) -> Self {
+        let scale = params.ui_scale.value();
+        let mut state = EditorUiState {
+            diode_meter,
+            keyboard: KeyboardStrip::new(editor_notes),
+            randomizer_noise: crate::dsp::utils::noise::Noise::new(seed.max(1)),
+            ..EditorUiState::new(scale, scaled_editor_size(ui_scale_factor(scale)))
+        };
+        state.keyboard.reopened();
+        Self { params, state }
+    }
+
+    /// The editor's size in points at its UI Scale, for the page to size
+    /// the canvas.
+    pub fn size(&self) -> (u32, u32) {
+        scaled_editor_size(ui_scale_factor(self.params.ui_scale.value()))
+    }
+
+    /// Draw one frame. The layout fits the page's width, never wider than
+    /// the UI Scale asks for.
+    pub fn frame(&mut self, ctx: &egui::Context, setter: &ParamSetter) {
+        let requested = ui_scale_factor(self.params.ui_scale.value());
+        let scale = layout_scale(requested, ctx.screen_rect().width());
+        apply_editor_style(ctx, scale);
+        egui::CentralPanel::default()
+            .frame(
+                egui::Frame::new()
+                    .fill(DARK_STEEL)
+                    .inner_margin(egui::Margin::same((width_pct(scale, 0.0074074073)) as i8)),
+            )
+            .show(ctx, |ui| {
+                render_window_body(ui, &self.params, setter, &mut self.state, scale);
+            });
+    }
+
+    /// Stop the keyboard's held notes (the page lost focus or was hidden).
+    pub fn release_keys(&mut self) {
+        self.state.keyboard.release_all();
+    }
+}
+
+#[cfg(feature = "gui")]
 pub fn create_editor(
     params: Arc<CorrosionParams>,
     editor_state: Arc<EguiState>,
@@ -1320,6 +1397,7 @@ fn ui_scale_factor(value: i32) -> f32 {
     }
 }
 
+#[cfg(feature = "gui")]
 /// Ask the host to resize the editor when the UI Scale setting changes.
 ///
 /// The host reads the new size from the editor state (`Editor::size`), then
@@ -1380,6 +1458,7 @@ fn height_pct(scale: f32, pct: f32) -> f32 {
     editor_height(scale) * pct
 }
 
+#[cfg(feature = "gui")]
 fn persist_editor_size(editor_state: &Arc<EguiState>, size: (u32, u32)) {
     let serialized = serde_json::json!({ "size": size });
     if let Ok(state) = serde_json::from_value::<EguiState>(serialized) {

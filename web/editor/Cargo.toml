@@ -1,0 +1,19 @@
+[package]
+name = "corrosion-web-editor"
+version = "0.2.0"
+edition = "2021"
+license = "GPL-3.0-or-later"
+publish = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+corrosion = { path = "../..", default-features = false, features = ["web-gui"] }
+nih-plug = { package = "nih_plug", git = "https://github.com/robbert-vdh/nih-plug", default-features = false }
+egui = "=0.31.1"
+eframe = { version = "=0.31.1", default-features = false, features = ["glow", "default_fonts"] }
+wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4"
+js-sys = "0.3"
+web-sys = { version = "0.3", features = ["HtmlCanvasElement"] }
