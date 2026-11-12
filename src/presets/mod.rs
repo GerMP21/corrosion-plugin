@@ -1,3 +1,5 @@
+pub mod browser;
+
 use std::fs;
 use std::io;
 use std::path::Path;
@@ -963,6 +965,12 @@ pub fn list_user_folders(dir: &Path) -> Vec<String> {
     }
     folders.sort_by_key(|f| folder_key(f));
     folders
+}
+
+/// `folder` checked as [`user_subfolder`] checks it, returned as is: the
+/// browser store's folder names follow the same rules (`add-web-app`).
+pub(crate) fn user_subfolder_name(folder: &str) -> io::Result<String> {
+    user_subfolder(Path::new(""), folder).map(|_| folder.to_string())
 }
 
 /// `folder` (relative, `/`-separated) under `dir`, or an error if it would

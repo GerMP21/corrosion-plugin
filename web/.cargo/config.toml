@@ -1,0 +1,4 @@
+# The plugin's config (one level up) defaults to a Windows target and a
+# shared target dir; the web workspace builds into its own `target/`.
+[build]
+target-dir = "target"

@@ -1,0 +1,6 @@
+target/
+vendor/
+dist/
+node_modules/
+target-simd/
+.tools/

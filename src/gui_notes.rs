@@ -422,8 +422,8 @@ impl EditorNoteState {
             handle(event);
         });
         if shared.take_release_all() {
-            for word in 0..2 {
-                let mut bits = self.on.0[word];
+            for (word, &held) in self.on.0.iter().enumerate() {
+                let mut bits = held;
                 while bits != 0 {
                     let note = (word * 64) as u8 + bits.trailing_zeros() as u8;
                     bits &= bits - 1;

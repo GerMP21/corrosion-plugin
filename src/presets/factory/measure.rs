@@ -195,9 +195,9 @@ impl Spectrum {
     pub fn centroid(&self) -> f32 {
         let (lo, hi) = (self.bin(20.0), self.bin(20_000.0));
         let (mut weighted, mut total) = (0.0f64, 0.0f64);
-        for k in lo..hi {
-            weighted += k as f64 * self.power[k];
-            total += self.power[k];
+        for (k, &power) in self.power.iter().enumerate().take(hi).skip(lo) {
+            weighted += k as f64 * power;
+            total += power;
         }
         if total > 0.0 {
             (weighted / total) as f32 * self.bin_hz

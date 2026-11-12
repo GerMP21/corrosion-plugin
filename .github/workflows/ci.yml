@@ -9,6 +9,7 @@ on:
     branches:
       - dev
       - main
+      - web
   pull_request:
   # Run by hand (Actions → ci → Run workflow). On main it also refreshes the
   # nightly pre-release.
@@ -129,6 +130,65 @@ jobs:
         run: |
           PY="$(command -v python3 || command -v python)"
           "$PY" scripts/check_wav.py "${{ runner.temp }}/corrosion-ci-render/pipe_comparison.wav"
+
+  # The browser build (`add-web-app`): its own workspace in web/, with a
+  # NIH-plug patched for it alone. Lint, the engine and bridge tests, the
+  # wasm build, then headless Chromium drives the page.
+  web:
+    name: web
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository
+    runs-on: ubuntu-latest
+    env:
+      CARGO_BUILD_TARGET: x86_64-unknown-linux-gnu
+      CARGO_TARGET_DIR: ${{ github.workspace }}/web/target
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install stable Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown, x86_64-unknown-linux-gnu
+          components: clippy, rustfmt
+
+      - name: Cache Cargo registry and target dir
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: web
+          workspaces: web
+
+      - name: Patched NIH-plug
+        run: ./scripts/fetch-nih-plug.sh
+
+      - name: Check formatting
+        run: cargo fmt --check
+
+      - name: Clippy (native and wasm)
+        run: |
+          cargo clippy -p corrosion-web-engine --all-targets -- -D warnings
+          cargo clippy -p corrosion-web-engine -p corrosion-web-editor --target wasm32-unknown-unknown -- -D warnings
+
+      - name: Engine and bridge tests (with the real-time check)
+        run: cargo test -p corrosion-web-engine
+
+      # The same script Cloudflare runs: it fetches the pinned wasm-bindgen.
+      - name: Build the web app
+        run: bash scripts/cloudflare-build.sh
+
+      - name: Install headless Chromium
+        run: |
+          npm install --no-save playwright@1.63.0
+          npx playwright install --with-deps chromium
+
+      - name: Browser checks
+        run: |
+          python3 -m http.server 8787 --directory dist >/dev/null 2>&1 &
+          sleep 1
+          node scripts/smoke.cjs http://localhost:8787/
+          node scripts/features.cjs http://localhost:8787/ ../presets/factory/bass/tank_boom_bass.corrosion-preset
 
   # VST3 and CLAP built on each platform's own runner, checked, validated and
   # zipped. Needs every platform's checks, so a release never mixes a tested
