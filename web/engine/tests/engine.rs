@@ -117,26 +117,79 @@ fn factory_preset_files() -> Vec<std::path::PathBuf> {
     out
 }
 
+/// A preset loaded into the web engine plays as the offline renderer
+/// renders it (`add-web-app` task 5.4): one preset from each folder, within
+/// 1 dB RMS and with matching spectral centroids (within 2 %).
 #[test]
-fn a_loaded_preset_sounds_like_its_offline_render() {
-    let path = &factory_preset_files()[0];
-    let preset = Preset::load(path).expect("preset");
-    let mut engine = WebEngine::new(48_000.0);
-    engine.load_preset(&preset);
-    // Let the parameter smoothers reach the preset.
-    render(&mut engine, 100);
-    engine.midi(0x90, 60, 127);
-    let web = rms(&render(&mut engine, 375));
-    let offline: Vec<f32> = render_preset(&preset, &[OfflineNote::on(0, 60, 1.0)], 48_000, 1.0)
-        .into_iter()
-        .map(|(left, _)| left)
-        .collect();
-    let offline = rms(&offline);
-    assert!(
-        (20.0 * (web / offline).log10()).abs() < 1.0,
-        "{}: web {web}, offline {offline}",
-        path.display()
-    );
+fn loaded_presets_sound_like_their_offline_render() {
+    let files = factory_preset_files();
+    let mut checked = 0;
+    for folder in [
+        "bass",
+        "lead",
+        "chords",
+        "drones",
+        "percussion",
+        "experimental",
+        "drums",
+    ] {
+        let Some(path) = files
+            .iter()
+            .find(|p| p.components().any(|c| c.as_os_str() == folder))
+        else {
+            continue;
+        };
+        let preset = Preset::load(path).expect("preset");
+        let mut engine = WebEngine::new(48_000.0);
+        engine.load_preset(&preset);
+        // Let the parameter smoothers reach the preset.
+        render(&mut engine, 100);
+        // Kits play on their pads (36 and up); tonal presets on middle C.
+        let key = if folder == "drums" { 36 } else { 60 };
+        engine.midi(0x90, key, 127);
+        let web = render(&mut engine, 375);
+        let offline: Vec<f32> =
+            render_preset(&preset, &[OfflineNote::on(0, key, 1.0)], 48_000, 1.0)
+                .into_iter()
+                .map(|(left, _)| left)
+                .collect();
+        let (web_rms, offline_rms) = (rms(&web), rms(&offline));
+        assert!(offline_rms > 1e-4, "{}: silent offline", path.display());
+        let db = 20.0 * (web_rms / offline_rms).log10();
+        assert!(db.abs() < 1.0, "{}: {db:.2} dB", path.display());
+        let (a, b) = (centroid(&web), centroid(&offline));
+        assert!(
+            ((a - b) / b).abs() < 0.02,
+            "{}: centroid {a:.0} vs {b:.0} Hz",
+            path.display()
+        );
+        checked += 1;
+    }
+    assert_eq!(checked, 7);
+}
+
+/// A rough spectral centroid (Hz) of `samples` at 48 kHz: a DFT of four
+/// 4096-sample frames, each taken every 4th sample with no filter (so the
+/// top of the spectrum folds). Coarse, but the same for both renders, which
+/// is all the comparison needs.
+fn centroid(samples: &[f32]) -> f32 {
+    const N: usize = 4096;
+    let (mut weighted, mut total) = (0.0f64, 0.0f64);
+    for frame in samples.chunks_exact(N).take(4) {
+        for bin in 1..N / 2 {
+            let (mut re, mut im) = (0.0f64, 0.0f64);
+            let step = std::f64::consts::TAU * bin as f64 / N as f64;
+            for (i, &x) in frame.iter().enumerate().step_by(4) {
+                let phase = step * i as f64;
+                re += x as f64 * phase.cos();
+                im -= x as f64 * phase.sin();
+            }
+            let magnitude = (re * re + im * im).sqrt();
+            weighted += magnitude * bin as f64 * 48_000.0 / N as f64;
+            total += magnitude;
+        }
+    }
+    (weighted / total.max(1e-12)) as f32
 }
 
 /// The factory presets' native cost with a held 16-note chord at their own
