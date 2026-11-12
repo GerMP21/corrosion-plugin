@@ -481,6 +481,7 @@ dependencies = [
  "egui",
  "js-sys",
  "nih_plug",
+ "serde_json",
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "web-sys",

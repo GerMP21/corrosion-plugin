@@ -6,15 +6,21 @@
 <title>Corrosion</title>
 <meta name="description" content="Corrosion, a physical-modelling synthesizer, running in your browser.">
 <style>
-  :root { color-scheme: dark; --bg: #121212; --bar: #1b1b1b; --fg: #e6e1d8; --muted: #8f8a80; --accent: #e8b400; --line: #2c2c2c; }
+  :root { color-scheme: dark; --bg: #121212; --bar: #1b1b1b; --fg: #e6e1d8; --muted: #8f8a80; --accent: #e8b400; --warn: #e0533d; --line: #2c2c2c; }
   html, body { margin: 0; height: 100%; background: var(--bg); color: var(--fg); font: 14px/1.4 system-ui, sans-serif; }
   body { display: flex; flex-direction: column; }
-  header { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; padding: 8px 16px; background: var(--bar); border-bottom: 1px solid var(--line); }
+  header { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; padding: 8px 16px; background: var(--bar); border-bottom: 1px solid var(--line); }
   header h1 { margin: 0; font-size: 15px; letter-spacing: 0.12em; font-weight: 700; }
   header .grow { flex: 1; }
-  button { background: var(--accent); color: #111; border: 0; border-radius: 4px; padding: 6px 14px; font: inherit; font-weight: 600; cursor: pointer; }
-  button:disabled { opacity: 0.4; cursor: default; }
-  #status { color: var(--muted); font-variant-numeric: tabular-nums; }
+  header label { color: var(--muted); display: inline-flex; align-items: center; gap: 6px; }
+  button, select, input { font: inherit; }
+  button { background: #2a2a2a; color: var(--fg); border: 1px solid #3a3a3a; border-radius: 4px; padding: 5px 12px; cursor: pointer; }
+  button.primary { background: var(--accent); color: #111; border-color: var(--accent); font-weight: 600; }
+  button:disabled { opacity: 0.45; cursor: default; }
+  select, input[type=number] { background: #222; color: var(--fg); border: 1px solid #3a3a3a; border-radius: 4px; padding: 4px 6px; }
+  input[type=number] { width: 4.5em; }
+  #status, #load { color: var(--muted); font-variant-numeric: tabular-nums; }
+  #load.warn { color: var(--warn); }
   #stage { flex: 1; display: flex; justify-content: center; align-items: flex-start; overflow: auto; }
   #editor { display: block; width: min(100vw, 1080px); aspect-ratio: 1080 / 840; outline: none; }
   footer { padding: 6px 16px; color: var(--muted); font-size: 12px; border-top: 1px solid var(--line); background: var(--bar); }
@@ -24,15 +30,22 @@
 <body>
 <header>
   <h1>CORROSION</h1>
-  <button id="start">Start audio</button>
+  <button id="start" class="primary">Start audio</button>
   <span id="status">Audio is off: browsers start audio only after a click.</span>
+  <span id="load"></span>
   <span class="grow"></span>
+  <label>MIDI <select id="midi" disabled><option>Start audio first</option></select></label>
+  <label>BPM <input id="bpm" type="number" min="20" max="300" step="1" value="120"></label>
+  <button id="open">Open preset…</button>
+  <button id="download">Download preset</button>
+  <input id="file" type="file" accept=".corrosion-preset,application/json" hidden>
 </header>
 <div id="stage"><canvas id="editor" tabindex="0"></canvas></div>
 <footer>
-  Free software under the <a href="https://www.gnu.org/licenses/gpl-3.0.html">GPLv3</a> ·
+  Corrosion is free software under the <a href="https://www.gnu.org/licenses/gpl-3.0.html">GPLv3</a> ·
   <a href="https://github.com/Synaptech-Solutions-SAS/Corrosion-VST">Source code</a> ·
-  Build <span id="build">dev</span>
+  Build <span id="build">dev</span> ·
+  Your sound and presets are kept in this browser only.
 </footer>
 <script type="module" src="app.js"></script>
 </body>

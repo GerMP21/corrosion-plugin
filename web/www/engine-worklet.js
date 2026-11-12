@@ -12,6 +12,12 @@ class CorrosionProcessor extends AudioWorkletProcessor {
     this.queue = [];
     this.blocks = 0;
     this.sumSquares = 0;
+    // Load: time spent in process() over wall time, about once a second.
+    // Worklets have no performance.now(); Date.now() differences are
+    // millisecond steps, but their sum over ~375 quanta is unbiased.
+    this.busyMs = 0;
+    this.windowStart = Date.now();
+    this.load = 0;
     this.port.onmessage = (event) => this.onMessage(event.data);
   }
 
@@ -72,7 +78,15 @@ class CorrosionProcessor extends AudioWorkletProcessor {
     const out = outputs[0];
     if (!this.e || out.length < 2) return true;
     const frames = out[0].length;
+    const started = Date.now();
     this.e.engine_process(this.engine, frames);
+    this.busyMs += Date.now() - started;
+    const elapsed = started - this.windowStart;
+    if (elapsed >= 1000) {
+      this.load = this.busyMs / elapsed;
+      this.busyMs = 0;
+      this.windowStart = started;
+    }
     const memory = this.e.memory.buffer;
     const left = new Float32Array(memory, this.e.engine_left(this.engine), frames);
     const right = new Float32Array(memory, this.e.engine_right(this.engine), frames);
@@ -88,6 +102,7 @@ class CorrosionProcessor extends AudioWorkletProcessor {
         type: "meter",
         rms: Math.sqrt(this.sumSquares / (12 * frames)),
         voices: this.e.engine_active_voices(this.engine),
+        load: this.load,
         report: report.buffer,
       }, [report.buffer]);
       this.sumSquares = 0;

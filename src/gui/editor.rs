@@ -132,6 +132,8 @@ struct EditorUiState {
     /// The user preset folder (`None` when the platform's variables are
     /// unset), its presets, its folders (relative, `""` for the root), and
     /// how many of its files couldn't be read.
+    // The web build keeps user presets in the page instead.
+    #[cfg_attr(target_arch = "wasm32", allow(dead_code))]
     user_preset_dir: Option<std::path::PathBuf>,
     user_presets: Vec<PresetEntry>,
     user_folders: Vec<String>,
@@ -223,10 +225,14 @@ impl EditorUiState {
 
     /// Re-read the user preset folder (on editor open and after a save).
     fn refresh_user_presets(&mut self) {
+        #[cfg(not(target_arch = "wasm32"))]
         let (presets, unreadable) = match &self.user_preset_dir {
             Some(dir) => crate::presets::list_user_presets(dir),
             None => (Vec::new(), 0),
         };
+        // The web build keeps user presets in the page (`add-web-app`).
+        #[cfg(target_arch = "wasm32")]
+        let (presets, unreadable) = crate::presets::browser::list();
         self.user_presets = presets
             .into_iter()
             .map(|user| PresetEntry {
@@ -235,10 +241,17 @@ impl EditorUiState {
                 source: PresetSource::User(Box::new(user.preset)),
             })
             .collect();
-        self.user_folders = match &self.user_preset_dir {
-            Some(dir) => crate::presets::list_user_folders(dir),
-            None => vec![String::new()],
-        };
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            self.user_folders = match &self.user_preset_dir {
+                Some(dir) => crate::presets::list_user_folders(dir),
+                None => vec![String::new()],
+            };
+        }
+        #[cfg(target_arch = "wasm32")]
+        {
+            self.user_folders = crate::presets::browser::folders();
+        }
         if !self.user_folders.contains(&self.save_folder) {
             self.save_folder = String::new();
         }
@@ -316,13 +329,24 @@ impl EditorUiState {
     /// folder, asking before replacing a user preset
     /// (`h05-expose-missing-gui-controls`).
     fn save(&mut self, params: &CorrosionParams, overwrite: bool) {
-        use crate::presets::{save_user_preset, SaveOutcome};
+        #[cfg(not(target_arch = "wasm32"))]
+        use crate::presets::save_user_preset;
+        use crate::presets::SaveOutcome;
         self.confirm_overwrite = false;
-        let Some(dir) = self.user_preset_dir.clone() else {
-            self.save_message = Some(("No user preset folder on this system".to_string(), true));
-            return;
+        #[cfg(not(target_arch = "wasm32"))]
+        let outcome = {
+            let Some(dir) = self.user_preset_dir.clone() else {
+                self.save_message =
+                    Some(("No user preset folder on this system".to_string(), true));
+                return;
+            };
+            save_user_preset(&dir, &self.save_folder, &self.save_name, params, overwrite)
         };
-        match save_user_preset(&dir, &self.save_folder, &self.save_name, params, overwrite) {
+        // The web build saves into the page's store (`add-web-app`).
+        #[cfg(target_arch = "wasm32")]
+        let outcome =
+            crate::presets::browser::save(&self.save_folder, &self.save_name, params, overwrite);
+        match outcome {
             Ok(SaveOutcome::Saved(_)) => {
                 let name = self.save_name.trim().to_string();
                 self.refresh_user_presets();
@@ -343,6 +367,7 @@ impl EditorUiState {
 
     /// Show the user preset folder in the file manager (creating it first);
     /// a failure goes to the message line.
+    #[cfg(not(target_arch = "wasm32"))]
     fn open_user_folder(&mut self) {
         let Some(dir) = self.user_preset_dir.clone() else {
             return;
@@ -357,6 +382,7 @@ impl EditorUiState {
 const USER_MENU: &str = "User";
 
 /// Whether Open folder is enabled, and its tooltip.
+#[cfg(not(target_arch = "wasm32"))]
 fn open_folder_button(dir: Option<&std::path::Path>) -> (bool, String) {
     match dir {
         Some(dir) => (true, format!("Show {} in the file manager", dir.display())),
@@ -1233,6 +1259,16 @@ impl WebEditor {
     /// Stop the keyboard's held notes (the page lost focus or was hidden).
     pub fn release_keys(&mut self) {
         self.state.keyboard.release_all();
+    }
+
+    /// Re-read the user presets (the page changed its store).
+    pub fn refresh_user_presets(&mut self) {
+        self.state.refresh_user_presets_keeping_selection();
+    }
+
+    /// Show `message` on the preset bank's message line.
+    pub fn set_message(&mut self, message: impl Into<String>, is_error: bool) {
+        self.state.save_message = Some((message.into(), is_error));
     }
 }
 
@@ -3085,6 +3121,9 @@ fn render_preset_loader(
                     }
                 }
             });
+            // The web build has no folder to show: its user presets live in
+            // the browser (`add-web-app`).
+            #[cfg(not(target_arch = "wasm32"))]
             ui.horizontal(|ui| {
                 let text_size = width_pct(scale, 0.011111112);
                 let (enabled, tooltip) = open_folder_button(state.user_preset_dir.as_deref());
