@@ -1,0 +1,7 @@
+# Cloudflare Workers: serves the built web app (web/dist) as static assets
+# (`add-web-app`). No server code: the whole app runs in the browser.
+name = "corrosion"
+compatibility_date = "2026-11-01"
+
+[assets]
+directory = "./dist"
