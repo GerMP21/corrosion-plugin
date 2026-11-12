@@ -95,9 +95,9 @@ B is the likely choice: the toolchain is already in CI, and the headless check r
 
 ## Open Questions
 
-- Build in Cloudflare (A) or GitHub Actions (B)? Decided with the maintainer in task 5.1.
+- ~~Build in Cloudflare (A) or GitHub Actions (B)?~~ A, Cloudflare Workers Builds (task 5.1).
 - ~~Web voice cap and default quality~~: 16 voices, each preset's quality (task 1.4).
-- The public URL: a `*.workers.dev` subdomain or a custom domain?
+- The public URL: a domain of the maintainer's own (task 5.1); which hostname is still open.
 
 ## Measurements
 
@@ -185,5 +185,14 @@ SIMD (`+simd128`, autovectorized only) saves 5–10 % on the heavy presets; the 
 - The footer shows the build's commit, the source link and the GPLv3, and says the sound and presets stay in this browser.
 - **Found here:** egui's web text input drops characters that arrive in the same instant (Playwright typing with no delay lost a space); at typing pace nothing is lost.
 - `web/scripts/features.cjs` (headless Chromium), all passing: the editor changes the sound; a reload restores the session; Save lands in IndexedDB; the MIDI menu is set up ("Not allowed" headless); a MIDI note sounds; the load meter reports and shows; the BPM is kept; opening a file loads its sound; Download gives a named preset file; no console errors. Not checked headless: a real MIDI device, a user preset reappearing in the bank's menu after a reload (the IndexedDB → store path runs without error).
+
+### 5.1 Build and hosting (decision and As built)
+
+**Decision (maintainer, 2026-11-12):** Cloudflare Workers Builds compiles the app (option A, not GitHub Actions), and the site gets a domain of the maintainer's own.
+- `web/scripts/cloudflare-build.sh` is the build command. Cloudflare's image has no Rust: it installs a minimal rustup toolchain and the wasm32 target when missing, and the prebuilt `wasm-bindgen` CLI at the version `web/Cargo.lock` pins (a GitHub release download, not `cargo install`), into `web/.tools`. Then `scripts/build.sh`. Checked here with `wasm-bindgen` removed: it downloaded 0.2.130 and built; smoke and feature checks pass on the result. Not run on Cloudflare's own image yet.
+- Workers Builds settings: root directory `web`, build command `bash scripts/cloudflare-build.sh`, deploy command `npx wrangler deploy`.
+- `web/wrangler.toml` serves `dist` as static assets; `www/_headers` sets a one-hour revalidating cache (file names aren't hashed) and `nosniff`. The custom domain line waits for the hostname.
+- Trade-off accepted with this choice: Cloudflare deploys without our browser checks; CI runs them (task 5.3).
+- Bundle sizes (gzip, no `wasm-opt`): editor wasm 1.58 MB (5.0 MB raw), engine 197 KB (611 KB raw), JS 17 KB.
 
 **Decision (maintainer, 2026-11-12, task 1.4): the web keeps 16 voices and each preset's own quality.** The load warning (task 4.6) covers the heavy end.

@@ -5,3 +5,7 @@ compatibility_date = "2026-11-01"
 
 [assets]
 directory = "./dist"
+
+# The public URL (maintainer's choice: a domain of their own, which must be
+# a zone in the same Cloudflare account). Uncomment with the real hostname:
+# routes = [{ pattern = "corrosion.example.com", custom_domain = true }]

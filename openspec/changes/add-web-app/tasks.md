@@ -31,7 +31,7 @@
 
 ## 5. Build, CI and deploy
 
-- [ ] 5.1 Decide the build location with the maintainer (Cloudflare build or GitHub Actions + wrangler)
+- [x] 5.1 Decide the build location with the maintainer (Cloudflare build or GitHub Actions + wrangler)
 - [ ] 5.2 Web build script (`wasm-pack`/`wasm-bindgen`, `wasm-opt`), static assets, `wrangler.toml`; record bundle sizes
 - [ ] 5.3 CI job: build the web app and run a headless Chromium check (page loads, start, note, RMS > 0, no console errors)
 - [ ] 5.4 Sound check: web engine vs offline renderer on a few presets within a level and spectrum tolerance
