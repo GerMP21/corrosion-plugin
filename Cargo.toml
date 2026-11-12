@@ -41,6 +41,9 @@ nih-plug = { package = "nih_plug", git = "https://github.com/robbert-vdh/nih-plu
 [features]
 default = ["gui"]
 gui = ["nih_plug_egui"]
+# The browser build's engine (`src/web.rs`). Builds only in the `web/`
+# workspace, whose patched NIH-plug makes the parameter setters public.
+web-host = []
 
 [dev-dependencies]
 assert_no_alloc = { git = "https://github.com/robbert-vdh/rust-assert-no-alloc.git", branch = "feature/nested-permit-forbid" }

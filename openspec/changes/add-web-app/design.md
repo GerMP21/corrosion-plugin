@@ -110,4 +110,41 @@ B is the likely choice: the toolchain is already in CI, and the headless check r
 - `src/lib.rs`: `impl Vst3Plugin`, `nih_export_clap!` and the VST3 export module are `cfg(not(target_arch = "wasm32"))`.
 - The event-loop stub of Decision 2 is not needed: without the `vst3` feature nothing uses `OsEventLoop`.
 
-**Found here:** NIH-plug keeps parameter setters crate-private (`ParamMut`, `ParamPtr::set_normalized_value`, `update_smoother`, `wrapper::state`). Only its wrappers can change a parameter, so the web engine has no public way to apply the editor's changes. See the open question below.
+**Found here:** NIH-plug keeps parameter setters crate-private (`ParamMut`, `ParamPtr::set_normalized_value`, `update_smoother`, `wrapper::state`). Only its wrappers can change a parameter, so the web engine had no public way to apply the editor's changes.
+
+**Decision (maintainer, 2026-11-12): patch NIH-plug for the web build only.** `web/` is a Cargo workspace of its own, with `[patch."https://github.com/robbert-vdh/nih-plug"]` pointing at `web/vendor/nih-plug`. `web/scripts/fetch-nih-plug.sh` clones NIH-plug at the revision `Cargo.lock` pins and applies `web/nih-plug-public-setters.patch` (two lines: `set_normalized_value` and `update_smoother` on `ParamPtr` become `pub`). The plugin's workspace never sees the patch. The code that calls the setters, `src/web.rs` (`WebEngine`), sits behind Corrosion's `web-host` feature, which only the web workspace enables.
+
+### 1.2 Engine in an AudioWorklet (As built)
+
+- `src/web.rs::WebEngine`: what a host does for the plugin. `Corrosion::prepare` (factored out of `initialize`, which now calls it: same steps, same order) at the page's rate, every smoother reset to its value, `reset()`. Parameters are set by index in `param_map()` order (the editor's `CorrosionParams` has the same order), MIDI goes through `NoteEvent::from_midi` into a 512-event queue played at the next block's first sample, and `process()` runs `Corrosion::process_block` into two preallocated 1024-frame buffers. `load_preset` moves every parameter to the preset's value (smoothed) and replaces the kit and its pad table.
+- `web/engine`: C-ABI exports over a handle (`engine_new`, `engine_process`, `engine_left`/`engine_right`, `engine_midi`, `engine_set_param`, `engine_param_index`, `engine_load_preset`, `engine_set_tempo`, …). No wasm-bindgen: the worklet instantiates the module with no imports (the module has none).
+- **Found here:** Chromium silently drops a `WebAssembly.Module` posted to an AudioWorklet port (the next message arrives, that one never does). The page posts the wasm bytes and the worklet compiles them.
+- The worklet's message handlers only run once the `AudioContext` runs, so the page resumes the context before sending `init`.
+- `web/scripts/build.sh` builds `web/dist` (wasm with `+simd128`, ~607 KB uncompressed, no `wasm-opt` yet). `web/scripts/smoke.cjs` checks it in headless Chromium: silence before the note (RMS 0), RMS 0.31 with one voice after it, no console errors.
+- Tests (`web/engine/tests/engine.rs`, native): a note sounds and silence is silent; a parameter change reaches the engine (Output to 0 drops the level > 40 dB); the default patch matches the offline renderer within 0.5 dB RMS; a loaded factory preset matches its offline render within 1 dB. The engine API is new, so these weren't red first on old code: each fails if its step is removed (no `midi`, no `set_param`, no `load_preset`).
+
+### 1.3 Cost per 128-frame block (budget 2667 µs at 48 kHz)
+
+Measured in this container. V8 in Node 22 (`web/scripts/bench-engine.mjs`, `bench-presets.mjs`; V8 is Chrome's engine) against the native engine (`print_native_block_cost`, `print_preset_block_cost`, release). Firefox is not installed here: **not measured**. Single runs; this container's noise is ±10–15 %.
+
+Default patch, held notes (µs per block):
+
+| Quality | Voices | Native | wasm | wasm + SIMD |
+|---|---|---|---|---|
+| Eco | 16 | 87 | 184 | 129 |
+| Normal | 1 / 4 / 8 / 16 | 34 / 53 / 79 / 133 | 46 / 69 / 107 / 186 | 46 / 120 / 195 / 188 |
+| High | 16 | 171 | 280 | 235 |
+| Render | 1 / 4 / 8 / 16 | 73 / 94 / 145 / 194 | 115 / 122 / 186 / 311 | 93 / 135 / 186 / 293 |
+
+wasm costs 1.3–2.1× native. The default patch is light (12 % of the budget at Render with 16 voices).
+
+The costliest factory presets (native, 16-note chord at each preset's own quality): `bow/sheet_metal` 1344 µs, `tension_snap/sheet_metal` 1189, `felt_mallet/sheet_metal` 1040, `particle_rain/sheet_metal` 1007, `metal_pipe/industrial_cog` 1006; median of the bank 406 µs. In wasm:
+
+| Preset | 1 voice | 4 | 8 | 16 | 16, SIMD |
+|---|---|---|---|---|---|
+| `bow/sheet_metal` | 141 (5 %) | 516 (19 %) | 925 (35 %) | 1777 (67 %) | 1630 (61 %) |
+| `tension_snap/sheet_metal` | 122 | 426 | 936 | 1714 (64 %) | 1628 (61 %) |
+| `metal_pipe/industrial_cog` | 132 | 391 | 739 | 1543 (58 %) | 1412 (53 %) |
+| `felt_mallet/chain` | 135 | 451 | 907 | 1661 (62 %) | 1605 (60 %) |
+
+SIMD (`+simd128`, autovectorized only) saves 5–10 % on the heavy presets; the build uses it. The worst preset with all 16 voices takes 61 % of the block on this machine's core, so a laptop core about 1.6× slower than this container's would start dropping out there.

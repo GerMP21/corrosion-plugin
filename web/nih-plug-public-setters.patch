@@ -1,0 +1,16 @@
+diff --git a/src/params/internals.rs b/src/params/internals.rs
+index 9ba92069..e2cc4a9f 100644
+--- a/src/params/internals.rs
++++ b/src/params/internals.rs
+@@ -74,9 +74,9 @@ impl ParamPtr {
+     param_ptr_forward!(pub unsafe fn string_to_normalized_value(&self, string: &str) -> Option<f32>);
+     param_ptr_forward!(pub unsafe fn flags(&self) -> ParamFlags);
+ 
+-    param_ptr_forward!(pub(crate) unsafe fn set_normalized_value(&self, normalized: f32) -> bool);
++    param_ptr_forward!(pub unsafe fn set_normalized_value(&self, normalized: f32) -> bool);
+     param_ptr_forward!(pub(crate) unsafe fn modulate_value(&self, modulation_offset: f32) -> bool);
+-    param_ptr_forward!(pub(crate) unsafe fn update_smoother(&self, sample_rate: f32, reset: bool));
++    param_ptr_forward!(pub unsafe fn update_smoother(&self, sample_rate: f32, reset: bool));
+ 
+     // These functions involve casts since the plugin formats only do floating point types, so we
+     // can't generate them with the macro:

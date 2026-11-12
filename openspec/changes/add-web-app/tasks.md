@@ -3,8 +3,8 @@
 ## 1. Spike: engine in an AudioWorklet
 
 - [x] 1.1 Build the engine for `wasm32-unknown-unknown` without NIH-plug's `vst3` feature, with the event-loop stub (Decision 2), and record what had to change
-- [ ] 1.2 Minimal page: AudioWorklet running `process_block` on the default patch, one note on a button
-- [ ] 1.3 Measure the cost per 128-frame block in Chrome and Firefox (Eco, Normal, Render × 1, 4, 8, 16 voices), with and without `simd128`; record in design.md
+- [x] 1.2 Minimal page: AudioWorklet running `process_block` on the default patch, one note on a button
+- [x] 1.3 Measure the cost per 128-frame block in Chrome and Firefox (Eco, Normal, Render × 1, 4, 8, 16 voices), with and without `simd128`; record in design.md (V8 only: no Firefox in this container)
 - [ ] 1.4 Stop and ask the maintainer with the numbers: web voice cap and default quality
 
 ## 2. Bridge

@@ -79,6 +79,11 @@ pub mod randomizer;
 /// Voice management - polyphony, voice allocation, per-note processing
 pub mod voice;
 
+/// The browser build's engine (`add-web-app`). Needs NIH-plug's parameter
+/// setters, which only the web workspace's patched copy makes public.
+#[cfg(feature = "web-host")]
+pub mod web;
+
 // External dependencies
 use std::num::NonZeroU32;
 use std::sync::Arc;
@@ -1282,6 +1287,27 @@ impl Corrosion {
         }
     }
 
+    /// What `initialize` does without a host context: voices learn the rate
+    /// before they play (`m03-m20-start-at-host-rate-and-report-latency`),
+    /// the restored Limiter Mode's latency is recorded, and the pad table is
+    /// rebuilt from the restored kit (nih-plug calls `initialize` again after
+    /// restoring state, holding the plugin lock, so not while `process`
+    /// runs; `per-key-kits`). Returns the latency to report. The web host
+    /// calls it too (`add-web-app`).
+    fn prepare(&mut self, sample_rate: f32) -> u32 {
+        self.voice_manager.set_sample_rate(sample_rate as u32);
+        self.mix_dc_blocker.set_sample_rate(sample_rate);
+        let latency = if self.params.limiter_mode.value() == 1 {
+            dsp::LOOKAHEAD_LIMITER_SAMPLES as u32
+        } else {
+            0
+        };
+        self.reported_latency_samples = latency;
+        let kit = self.params.kit.read().unwrap_or_else(|e| e.into_inner());
+        self.params.kit_table.load(&kit);
+        latency
+    }
+
     /// One host block: `begin_block`, then for each sample the MIDI events
     /// due at it and one output frame. `write` receives each sample's index
     /// in the block, its output frame (`render_frame_unlimited`, then
@@ -1401,27 +1427,10 @@ impl Plugin for Corrosion {
         buffer_config: &BufferConfig,
         context: &mut impl InitContext<Self>,
     ) -> bool {
-        // Voices learn the host rate before they play
-        // (`m03-m20-start-at-host-rate-and-report-latency`).
-        self.voice_manager
-            .set_sample_rate(buffer_config.sample_rate as u32);
-        self.mix_dc_blocker
-            .set_sample_rate(buffer_config.sample_rate);
+        let latency = self.prepare(buffer_config.sample_rate);
         // Report the restored Limiter Mode's latency now, before the host's
         // delay compensation is settled; `process()` reports later changes.
-        let limiter_mode = self.params.limiter_mode.value();
-        let latency = if limiter_mode == 1 {
-            dsp::LOOKAHEAD_LIMITER_SAMPLES as u32
-        } else {
-            0
-        };
         context.set_latency_samples(latency);
-        self.reported_latency_samples = latency;
-        // nih-plug calls `initialize` again after restoring state, holding
-        // the plugin lock (so not while `process` runs): rebuild the pad
-        // table from the restored kit here (`per-key-kits`).
-        let kit = self.params.kit.read().unwrap_or_else(|e| e.into_inner());
-        self.params.kit_table.load(&kit);
         true
     }
 
