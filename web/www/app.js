@@ -8,6 +8,14 @@
 
 import initEditor, * as editor from "./corrosion_web_editor.js";
 
+// eframe focuses the canvas (and its hidden text input) on every click and
+// frame. The canvas is taller than the window, so a plain focus() would
+// scroll the page to it each time: focus without scrolling instead.
+const focusElement = HTMLElement.prototype.focus;
+HTMLElement.prototype.focus = function (options) {
+  focusElement.call(this, { ...options, preventScroll: true });
+};
+
 const $ = (id) => document.getElementById(id);
 const status = $("status");
 const loadLabel = $("load");
@@ -225,6 +233,12 @@ $("download").addEventListener("click", () => {
 });
 
 // Held keys would hang when the page loses focus or is hidden.
+// The page scrolls with the mouse wheel over the editor, except over an
+// open popup or menu: eframe would otherwise take every wheel event. A
+// capturing listener on the canvas's parent runs before eframe's own.
+$("stage").addEventListener("wheel", (event) => {
+  if (!editor.wants_wheel()) event.stopPropagation();
+}, { capture: true });
 window.addEventListener("blur", () => editor.release_keys());
 document.addEventListener("visibilitychange", () => {
   if (document.hidden) {

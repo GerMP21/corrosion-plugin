@@ -1209,6 +1209,8 @@ fn clock_seed() -> u32 {
 pub struct WebEditor {
     params: Arc<CorrosionParams>,
     state: EditorUiState,
+    /// The last frame's height in points, for the page to size the canvas.
+    content_height: f32,
 }
 
 #[cfg(feature = "web-gui")]
@@ -1230,7 +1232,12 @@ impl WebEditor {
             ..EditorUiState::new(scale, scaled_editor_size(ui_scale_factor(scale)))
         };
         state.keyboard.reopened();
-        Self { params, state }
+        let content_height = scaled_editor_size(ui_scale_factor(scale)).1 as f32;
+        Self {
+            params,
+            state,
+            content_height,
+        }
     }
 
     /// The editor's size in points at its UI Scale, for the page to size
@@ -1239,21 +1246,44 @@ impl WebEditor {
         scaled_editor_size(ui_scale_factor(self.params.ui_scale.value()))
     }
 
-    /// Draw one frame. The layout fits the page's width, never wider than
-    /// the UI Scale asks for.
+    /// Draw one frame. The layout fills the page's width (the UI Scale
+    /// setting sizes the plugin's window and has no effect here). The panels
+    /// and the keyboard strip are laid out one under the other with no
+    /// scroll view: the page sizes the canvas to [`Self::content_height`]
+    /// and scrolls itself.
     pub fn frame(&mut self, ctx: &egui::Context, setter: &ParamSetter) {
-        let requested = ui_scale_factor(self.params.ui_scale.value());
-        let scale = layout_scale(requested, ctx.screen_rect().width());
+        let scale = page_scale(ctx.screen_rect().width());
         apply_editor_style(ctx, scale);
+        let margin = (width_pct(scale, 0.0074074073)) as i8;
+        let mut bottom = 0.0;
         egui::CentralPanel::default()
             .frame(
                 egui::Frame::new()
                     .fill(DARK_STEEL)
-                    .inner_margin(egui::Margin::same((width_pct(scale, 0.0074074073)) as i8)),
+                    .inner_margin(egui::Margin::same(margin)),
             )
             .show(ctx, |ui| {
-                render_window_body(ui, &self.params, setter, &mut self.state, scale);
+                render_page_body(ui, &self.params, setter, &mut self.state, scale);
+                // The cursor, not `min_rect`: the header's columns reserve
+                // the whole available height without using it.
+                bottom = ui.cursor().top();
             });
+        self.content_height = (bottom + f32::from(margin)).ceil();
+    }
+
+    /// The editor's whole height in points at the last frame's width: the
+    /// canvas height that shows everything without scrolling inside it.
+    pub fn content_height(&self) -> f32 {
+        self.content_height
+    }
+
+    /// Whether the pointer is over a popup or menu (a layer above the
+    /// panels), which scrolls with the mouse wheel; elsewhere the wheel
+    /// scrolls the page.
+    pub fn wants_wheel(ctx: &egui::Context) -> bool {
+        ctx.input(|input| input.pointer.hover_pos())
+            .and_then(|pos| ctx.layer_id_at(pos))
+            .is_some_and(|layer| layer.order != egui::Order::Background)
     }
 
     /// Stop the keyboard's held notes (the page lost focus or was hidden).
@@ -1354,6 +1384,27 @@ fn render_window_body(
             render_ui(ui, params, setter, state, scale);
         });
     if kit_mode {
+        render_kit_bar(ui, params, setter, &mut state.keyboard, scale);
+    }
+    render_keyboard_strip(ui, &mut state.keyboard, params, setter, scale);
+}
+
+/// The web page's contents (`add-web-app`): the panels, then the kit bar
+/// and the keyboard strip under them, at their full height. The page
+/// scrolls instead of a scroll view inside the canvas.
+#[cfg(any(feature = "web-gui", test))]
+fn render_page_body(
+    ui: &mut egui::Ui,
+    params: &CorrosionParams,
+    setter: &ParamSetter,
+    state: &mut EditorUiState,
+    scale: f32,
+) {
+    let content_width = ui.available_width();
+    ui.set_width(content_width);
+    ui.set_max_width(content_width);
+    render_ui(ui, params, setter, state, scale);
+    if PlayMode::from_int(params.play_mode.value()) == PlayMode::Kit {
         render_kit_bar(ui, params, setter, &mut state.keyboard, scale);
     }
     render_keyboard_strip(ui, &mut state.keyboard, params, setter, scale);
@@ -1466,6 +1517,17 @@ fn layout_scale(requested: f32, window_width: f32) -> f32 {
         fits.max(0.25)
     } else {
         requested
+    }
+}
+
+/// The web page's layout scale for a canvas `width` points wide: the
+/// editor fills the width (`add-web-app`).
+#[cfg(any(feature = "web-gui", test))]
+fn page_scale(width: f32) -> f32 {
+    if width.is_finite() && width > 0.0 {
+        (width / BASE_EDITOR_WIDTH as f32).max(0.25)
+    } else {
+        1.0
     }
 }
 
@@ -6214,6 +6276,75 @@ mod tests {
             });
         });
         height
+    }
+
+    /// Bottom of the web page body (`render_page_body`) for `params` in a
+    /// screen `screen_height` points tall, at 100 % scale.
+    fn page_body_bottom(params: &crate::params::CorrosionParams, screen_height: f32) -> f32 {
+        let gui = NullGui;
+        let setter = nih_plug::prelude::ParamSetter::new(&gui);
+        let mut state =
+            super::EditorUiState::new(2, (super::BASE_EDITOR_WIDTH, super::BASE_EDITOR_HEIGHT));
+        let ctx = nih_plug_egui::egui::Context::default();
+        super::apply_editor_style(&ctx, 1.0);
+        let mut bottom = 0.0;
+        // Two frames: egui settles some sizes on the second.
+        for _ in 0..2 {
+            let input = nih_plug_egui::egui::RawInput {
+                screen_rect: Some(nih_plug_egui::egui::Rect::from_min_size(
+                    nih_plug_egui::egui::Pos2::ZERO,
+                    nih_plug_egui::egui::vec2(super::editor_width(1.0), screen_height),
+                )),
+                ..Default::default()
+            };
+            let _ = ctx.run(input, |ctx| {
+                nih_plug_egui::egui::CentralPanel::default().show(ctx, |ui| {
+                    super::render_page_body(ui, params, &setter, &mut state, 1.0);
+                    bottom = ui.cursor().top();
+                });
+            });
+        }
+        bottom
+    }
+
+    /// The web editor fills the page's width at any UI Scale.
+    #[test]
+    fn web_page_fills_the_width() {
+        assert_eq!(super::page_scale(1080.0), 1.0);
+        assert_eq!(super::page_scale(1920.0), 1920.0 / 1080.0);
+        assert_eq!(super::page_scale(540.0), 0.5);
+        assert_eq!(super::page_scale(100.0), 0.25);
+        assert_eq!(super::page_scale(0.0), 1.0);
+    }
+
+    /// The web page sizes the canvas to the editor's content, so the
+    /// content's height must not depend on the canvas height (no feedback
+    /// loop), and it must hold every panel and the keyboard strip.
+    #[test]
+    fn web_page_body_height_is_independent_of_the_canvas() {
+        let tonal = crate::params::CorrosionParams::default();
+        let kit = crate::params::CorrosionParams {
+            play_mode: nih_plug::prelude::IntParam::new(
+                "Note Mode",
+                super::PlayMode::Kit as i32,
+                nih_plug::prelude::IntRange::Linear { min: 0, max: 2 },
+            ),
+            ..Default::default()
+        };
+        for params in [&tonal, &kit] {
+            let short = page_body_bottom(params, 600.0);
+            let tall = page_body_bottom(params, 2400.0);
+            assert!(
+                (short - tall).abs() < 0.5,
+                "page height follows the canvas: {short} vs {tall}"
+            );
+            let strip = super::KEYBOARD_STRIP_BASE_HEIGHT + super::KEYBOARD_STRIP_BASE_GAP;
+            assert!(
+                short >= rendered_content_height(params) + strip,
+                "page {short} is shorter than its panels and strip"
+            );
+        }
+        assert!(page_body_bottom(&kit, 900.0) > page_body_bottom(&tonal, 900.0));
     }
 
     #[test]

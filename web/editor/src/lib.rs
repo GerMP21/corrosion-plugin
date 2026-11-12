@@ -30,6 +30,9 @@ thread_local! {
     static INBOX: RefCell<Inbox> = RefCell::new(Inbox::default());
     /// The editor's parameters, for `current_preset_json`.
     static PARAMS: RefCell<Option<Arc<CorrosionParams>>> = const { RefCell::new(None) };
+    /// Whether the last frame had the pointer over a popup or menu, for
+    /// [`wants_wheel`].
+    static WANTS_WHEEL: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
 }
 
 fn with_inbox<T>(f: impl FnOnce(&mut Inbox) -> T) -> T {
@@ -40,10 +43,20 @@ struct CorrosionApp {
     bridge: EditorBridge,
     editor: WebEditor,
     post: js_sys::Function,
+    /// The canvas, sized to the editor's height so the page scrolls rather
+    /// than the editor.
+    canvas: web_sys::HtmlCanvasElement,
+    /// The canvas height last set, in CSS pixels.
+    canvas_height: f32,
 }
 
 impl CorrosionApp {
-    fn new(post: js_sys::Function, seed: u32, session: Option<Preset>) -> Self {
+    fn new(
+        canvas: web_sys::HtmlCanvasElement,
+        post: js_sys::Function,
+        seed: u32,
+        session: Option<Preset>,
+    ) -> Self {
         let params = Arc::new(CorrosionParams::default());
         let notes = Arc::new(EditorNotes::new());
         let diode_meter = Arc::new(DiodeMeter::new());
@@ -59,6 +72,8 @@ impl CorrosionApp {
             bridge,
             editor,
             post,
+            canvas,
+            canvas_height: 0.0,
         }
     }
 }
@@ -82,6 +97,16 @@ impl eframe::App for CorrosionApp {
             self.editor.set_message(message, is_error);
         }
         self.editor.frame(ctx, &self.bridge.setter());
+        WANTS_WHEEL.with(|wants| wants.set(WebEditor::wants_wheel(ctx)));
+        // Points are CSS pixels times the zoom factor.
+        let height = (self.editor.content_height() * ctx.zoom_factor()).ceil();
+        if height > 0.0 && height != self.canvas_height {
+            self.canvas_height = height;
+            let _ = self
+                .canvas
+                .style()
+                .set_property("height", &format!("{height}px"));
+        }
         let batch = self.bridge.take_batch();
         if !batch.is_empty() {
             let bytes = js_sys::Uint8Array::from(batch.as_slice());
@@ -104,13 +129,22 @@ pub async fn start(
 ) -> Result<(), JsValue> {
     let session = session.and_then(|json| Preset::from_json_str(&json).ok());
     let options = eframe::WebOptions::default();
+    let app_canvas = canvas.clone();
     eframe::WebRunner::new()
         .start(
             canvas,
             options,
-            Box::new(move |_cc| Ok(Box::new(CorrosionApp::new(post, seed, session)))),
+            Box::new(move |_cc| Ok(Box::new(CorrosionApp::new(app_canvas, post, seed, session)))),
         )
         .await
+}
+
+/// Whether a mouse-wheel event over the canvas belongs to the editor (the
+/// pointer is over an open popup or menu). Otherwise the page keeps it and
+/// scrolls.
+#[wasm_bindgen]
+pub fn wants_wheel() -> bool {
+    WANTS_WHEEL.with(|wants| wants.get())
 }
 
 /// An engine report (the bytes the worklet posted).
