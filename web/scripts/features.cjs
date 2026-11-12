@@ -18,8 +18,18 @@ const sound = (page) =>
     const editor = await import("./corrosion_web_editor.js");
     const preset = JSON.parse(editor.current_preset_json("x"));
     delete preset.name;
-    return JSON.stringify(preset);
+    return preset;
   });
+/** Whether two sounds match: numbers within float noise (a restore goes
+ * through normalized values, as a preset load in the plugin does). */
+const sameSound = (a, b) => {
+  if (typeof a === "number" && typeof b === "number") return Math.abs(a - b) <= 1e-5 * Math.max(1, Math.abs(a));
+  if (a && b && typeof a === "object" && typeof b === "object") {
+    const keys = new Set([...Object.keys(a), ...Object.keys(b)]);
+    return [...keys].every((key) => sameSound(a[key], b[key]));
+  }
+  return a === b;
+};
 
 (async () => {
   const [url = "http://localhost:8787/", presetFile] = process.argv.slice(2);
@@ -43,15 +53,17 @@ const sound = (page) =>
   await page.mouse.click(...at(0.527, 0.042));
   await wait(page, 2000);
   const changed = await sound(page);
-  check("the editor changes the sound", changed !== fresh);
+  check("the editor changes the sound", !sameSound(changed, fresh));
   await page.reload();
   await ready();
   await wait(page, 300);
-  check("a reload restores the session", (await sound(page)) === changed);
+  check("a reload restores the session", sameSound(await sound(page), changed));
 
   // Save in the editor: type a name in the bank's field and press Save.
   await page.mouse.click(...at(0.38, 0.0665));
-  await page.keyboard.type("Web Test");
+  // At a typing pace: egui's web text input drops characters that arrive
+  // in the same instant.
+  await page.keyboard.type("Web Test", { delay: 40 });
   await page.mouse.click(...at(0.519, 0.0665));
   await wait(page, 2000);
   const stored = await page.evaluate(() => new Promise((resolve) => {
