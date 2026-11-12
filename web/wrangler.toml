@@ -1,12 +1,12 @@
 # Cloudflare Workers: serves the built web app (web/dist) as static assets
 # (`add-web-app`). No server code: the whole app runs in the browser.
-name = "corrosion"
+name = "corrosion-vst"
 compatibility_date = "2026-11-01"
 
 [assets]
 directory = "./dist"
 
 # The public URL (maintainer's choice: a domain of their own). The zone
-# synaptech-solutions.com must be in the same Cloudflare account; wrangler
+# corrosion-vst.org must be in the same Cloudflare account; wrangler
 # creates the DNS record and certificate on deploy.
-routes = [{ pattern = "corrosion.synaptech-solutions.com", custom_domain = true }]
+routes = [{ pattern = "preview.corrosion-vst.org", custom_domain = true }]
