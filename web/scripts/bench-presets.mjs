@@ -8,10 +8,9 @@ const wasm = new WebAssembly.Module(readFileSync(wasmPath));
 const BLOCK = 128, RATE = 48000, BLOCKS = 400;
 const budgetUs = (BLOCK / RATE) * 1e6;
 
-function write(e, bytes) {
-  const ptr = e.engine_alloc(bytes.length);
-  new Uint8Array(e.memory.buffer, ptr, bytes.length).set(bytes);
-  return ptr;
+function write(e, engine, bytes) {
+  new Uint8Array(e.memory.buffer, e.engine_inbox(engine, bytes.length), bytes.length).set(bytes);
+  return bytes.length;
 }
 
 console.log("voices: 1 / 4 / 8 / 16, us per block (% of the 2667 us budget)");
@@ -21,7 +20,7 @@ for (const path of presets) {
   for (const voices of [1, 4, 8, 16]) {
     const e = new WebAssembly.Instance(wasm, {}).exports;
     const engine = e.engine_new(RATE);
-    if (!e.engine_load_preset(engine, write(e, json), json.length)) throw new Error(`bad preset ${path}`);
+    if (!e.engine_load_preset(engine, write(e, engine, json))) throw new Error(`bad preset ${path}`);
     for (let v = 0; v < voices; v++) e.engine_midi(engine, 0x90, 36 + v * 3, 100);
     for (let i = 0; i < 20; i++) e.engine_process(engine, BLOCK);
     const t0 = performance.now();

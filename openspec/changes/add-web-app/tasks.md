@@ -5,14 +5,14 @@
 - [x] 1.1 Build the engine for `wasm32-unknown-unknown` without NIH-plug's `vst3` feature, with the event-loop stub (Decision 2), and record what had to change
 - [x] 1.2 Minimal page: AudioWorklet running `process_block` on the default patch, one note on a button
 - [x] 1.3 Measure the cost per 128-frame block in Chrome and Firefox (Eco, Normal, Render × 1, 4, 8, 16 voices), with and without `simd128`; record in design.md (V8 only: no Firefox in this container)
-- [ ] 1.4 Stop and ask the maintainer with the numbers: web voice cap and default quality
+- [x] 1.4 Stop and ask the maintainer with the numbers: web voice cap and default quality
 
 ## 2. Bridge
 
-- [ ] 2.1 Test first: a param change, note on/off, kit table and state message each reach the engine and change its output (native test of the message decoder)
-- [ ] 2.2 Message protocol and engine bindings (Decision 3), no allocation per block (extend `no_alloc` to the decoder)
-- [ ] 2.3 `WebGuiContext` implementing `GuiContext`, posting changes and keeping the mirror
-- [ ] 2.4 Engine → editor: diode meter, voice count and load, every ~30 ms
+- [x] 2.1 Test first: a param change, note on/off, kit table and state message each reach the engine and change its output (native test of the message decoder)
+- [x] 2.2 Message protocol and engine bindings (Decision 3), no allocation per block (extend `no_alloc` to the decoder)
+- [x] 2.3 `WebGuiContext` implementing `GuiContext`, posting changes and keeping the mirror
+- [x] 2.4 Engine → editor: diode meter, voice count and load, every ~30 ms
 
 ## 3. Editor on a canvas
 

@@ -13,8 +13,16 @@
 //! workspace patches NIH-plug to make them public; that is why this module
 //! is behind the `web-host` feature.
 
+pub mod editor_side;
+pub mod protocol;
+
 use nih_plug::prelude::{NoteEvent, ParamPtr, Params, Plugin};
 
+pub use editor_side::{EditorBridge, WebGuiContext};
+pub use protocol::{Command, Report};
+
+use crate::gui_notes::{EditorNoteEvent, NoteMask};
+use crate::kit::KitState;
 use crate::{Corrosion, Preset};
 
 /// The most frames one [`WebEngine::process`] call renders. An AudioWorklet
@@ -105,13 +113,7 @@ impl WebEngine {
             self.set_param(index, normalized);
         }
         let kit = loaded.kit.read().unwrap_or_else(|e| e.into_inner()).clone();
-        self.plugin.params.kit_table.load(&kit);
-        *self
-            .plugin
-            .params
-            .kit
-            .write()
-            .unwrap_or_else(|e| e.into_inner()) = kit;
+        self.set_kit(kit);
     }
 
     /// The normalized value of parameter `index`, or `None` out of range.
@@ -174,6 +176,58 @@ impl WebEngine {
     /// linear memory.
     pub fn output_ptrs(&mut self) -> (*mut f32, *mut f32) {
         (self.left.as_mut_ptr(), self.right.as_mut_ptr())
+    }
+
+    /// Apply a batch of editor [`Command`]s before the next block.
+    /// Allocation-free except for a kit, which rebuilds the pad table.
+    pub fn apply(&mut self, batch: &[u8]) {
+        for command in protocol::decode(batch) {
+            match command {
+                Command::Param { index, normalized } => self.set_param(index as usize, normalized),
+                Command::Midi([status, data1, data2]) => self.midi(status, data1, data2),
+                Command::EditorNoteOn { note, velocity } => {
+                    self.plugin
+                        .editor_notes
+                        .try_push(EditorNoteEvent::On { note, velocity });
+                }
+                Command::EditorNoteOff { note } => {
+                    self.plugin
+                        .editor_notes
+                        .try_push(EditorNoteEvent::Off { note });
+                }
+                Command::ReleaseEditorNotes => self.plugin.editor_notes.request_release_all(),
+                Command::Tempo(bpm) => self.set_tempo(Some(bpm)),
+                Command::Kit(json) => {
+                    if let Ok(kit) = serde_json::from_str::<KitState>(json) {
+                        self.set_kit(kit);
+                    }
+                }
+            }
+        }
+    }
+
+    /// The [`Report`] for the editor; takes the diode meter's peak.
+    pub fn report(&mut self) -> Report {
+        let mut held = NoteMask::default();
+        for note in self.plugin.voice_manager.active_notes() {
+            held.set(note, true);
+        }
+        Report {
+            diode_reduction_db: self.plugin.diode_meter.take(),
+            voices: self.active_voices() as u32,
+            held,
+        }
+    }
+
+    /// Replace the kit and rebuild its pad table. Allocates.
+    fn set_kit(&mut self, kit: KitState) {
+        self.plugin.params.kit_table.load(&kit);
+        *self
+            .plugin
+            .params
+            .kit
+            .write()
+            .unwrap_or_else(|e| e.into_inner()) = kit;
     }
 
     /// How many voices are sounding.

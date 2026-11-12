@@ -226,6 +226,7 @@ dependencies = [
 name = "corrosion-web-engine"
 version = "0.2.0"
 dependencies = [
+ "assert_no_alloc",
  "corrosion",
  "nih_plug",
 ]

@@ -13,3 +13,4 @@ corrosion = { path = "../..", default-features = false, features = ["web-host"] 
 
 [dev-dependencies]
 nih-plug = { package = "nih_plug", git = "https://github.com/robbert-vdh/nih-plug" }
+assert_no_alloc = { git = "https://github.com/robbert-vdh/rust-assert-no-alloc.git", branch = "feature/nested-permit-forbid" }

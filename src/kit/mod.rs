@@ -346,6 +346,14 @@ impl KitTable {
         }
     }
 
+    /// A number that changes whenever a slot is written: the web editor
+    /// sends the kit to its engine when it moves (`add-web-app`).
+    pub fn generation(&self) -> u32 {
+        self.slots.iter().fold(0u32, |sum, slot| {
+            sum.wrapping_add(slot.seq.load(Ordering::Acquire))
+        })
+    }
+
     /// Keys that have a pad.
     pub fn keys(&self) -> impl Iterator<Item = u8> + '_ {
         (0..128u8).filter(|&k| self.get(k).is_some())

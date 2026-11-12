@@ -96,7 +96,7 @@ B is the likely choice: the toolchain is already in CI, and the headless check r
 ## Open Questions
 
 - Build in Cloudflare (A) or GitHub Actions (B)? Decided with the maintainer in task 5.1.
-- Web voice cap and default quality: set from task 1's numbers.
+- ~~Web voice cap and default quality~~: 16 voices, each preset's quality (task 1.4).
 - The public URL: a `*.workers.dev` subdomain or a custom domain?
 
 ## Measurements
@@ -148,3 +148,19 @@ The costliest factory presets (native, 16-note chord at each preset's own qualit
 | `felt_mallet/chain` | 135 | 451 | 907 | 1661 (62 %) | 1605 (60 %) |
 
 SIMD (`+simd128`, autovectorized only) saves 5–10 % on the heavy presets; the build uses it. The worst preset with all 16 voices takes 61 % of the block on this machine's core, so a laptop core about 1.6× slower than this container's would start dropping out there.
+
+### 2. The bridge (As built)
+
+- `src/web/protocol.rs`: one binary protocol, used by both wasm instances. A batch is `[tag u8][len u32 LE][payload]` frames: `Param {index, normalized}`, `Midi([u8; 3])`, `EditorNoteOn/Off`, `ReleaseEditorNotes`, `Tempo`, `Kit(json)`. The engine answers with a 24-byte `Report`: the diode meter's peak (dB), voices, held-note mask. Decoding is allocation-free and stops at the first malformed frame.
+- `src/web/editor_side.rs`:
+  - `WebGuiContext` implements NIH-plug's `GuiContext`: it sets the editor's own parameter (the patched `set_normalized_value`) and queues a `Param` with the value the parameter took (stepped parameters snap).
+  - `EditorBridge` gathers the editor's frame into one batch: queued parameters, the keyboard's notes (drained from the editor's own `EditorNotes` ring, then played by the engine through its ring, so editor notes behave as in the plugin), a release-all, and the kit as JSON when `KitTable::generation()` moved.
+  - `KitTable::generation()` is new: the sum of the slots' seqlock counters (128 relaxed loads), unchanged by reads.
+  - A report publishes the diode meter and the held notes on the editor's side, which the strip and the limiter dot already read.
+  - `load_preset` sets every parameter through the context and loads the kit, so the engine follows with no command of its own.
+- `WebEngine::apply` decodes a batch; a kit rebuilds the pad table (allocates, as a state restore does in the plugin).
+- `web/engine` keeps an inbox (64 KB, grows only for a larger batch) and a report buffer on a `Handle`; the worklet copies each posted batch into the inbox and posts a report every 12 quanta (32 ms at 48 kHz).
+- Tests: `web/engine/tests/bridge.rs` (6: round trip and truncation; an editor parameter, an editor note and its release, a kit and a preset each reach the engine; the report reaches the editor). They were red on no-op stubs (5 of 6; the round trip tests the protocol itself) before the implementation. `web/engine/tests/no_alloc.rs`: 50 blocks of parameter, MIDI, editor-note, release and tempo commands with blocks and reports don't allocate. The checker was confirmed live in this workspace with a probe that allocates (aborts); it is installed only when the test links Corrosion.
+- Engine cost after the bridge: `bow/sheet_metal` with 16 voices 1676 µs (63 %), within noise of 1630 µs.
+
+**Decision (maintainer, 2026-11-12, task 1.4): the web keeps 16 voices and each preset's own quality.** The load warning (task 4.6) covers the heavy end.

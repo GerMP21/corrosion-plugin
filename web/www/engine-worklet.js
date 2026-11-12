@@ -31,10 +31,11 @@ class CorrosionProcessor extends AudioWorkletProcessor {
     }
   }
 
-  writeBytes(bytes) {
-    const ptr = this.e.engine_alloc(bytes.length);
+  /// Copy `bytes` into the engine's inbox; returns their length.
+  writeInbox(bytes) {
+    const ptr = this.e.engine_inbox(this.engine, bytes.length);
     new Uint8Array(this.e.memory.buffer, ptr, bytes.length).set(bytes);
-    return ptr;
+    return bytes.length;
   }
 
   apply(msg) {
@@ -43,12 +44,15 @@ class CorrosionProcessor extends AudioWorkletProcessor {
       case "midi":
         e.engine_midi(engine, msg.data[0], msg.data[1] ?? 0, msg.data[2] ?? 0);
         break;
+      case "batch":
+        e.engine_apply(engine, this.writeInbox(new Uint8Array(msg.bytes)));
+        break;
       case "param":
         e.engine_set_param(engine, msg.index, msg.value);
         break;
       case "paramById": {
         const id = new TextEncoder().encode(msg.id);
-        const index = e.engine_param_index(engine, this.writeBytes(id), id.length);
+        const index = e.engine_param_index(engine, this.writeInbox(id));
         if (index >= 0) e.engine_set_param(engine, index, msg.value);
         break;
       }
@@ -57,7 +61,7 @@ class CorrosionProcessor extends AudioWorkletProcessor {
         break;
       case "preset": {
         const json = new TextEncoder().encode(msg.json);
-        const ok = e.engine_load_preset(engine, this.writeBytes(json), json.length);
+        const ok = e.engine_load_preset(engine, this.writeInbox(json));
         this.port.postMessage({ type: "presetLoaded", ok: ok === 1 });
         break;
       }
@@ -75,12 +79,17 @@ class CorrosionProcessor extends AudioWorkletProcessor {
     out[0].set(left);
     out[1].set(right);
     for (let i = 0; i < frames; i++) this.sumSquares += left[i] * left[i];
-    if (++this.blocks % 64 === 0) {
+    // About every 32 ms at 48 kHz: the level for the page and the report
+    // (diode meter, voices, held notes) for the editor.
+    if (++this.blocks % 12 === 0) {
+      const ptr = this.e.engine_report(this.engine);
+      const report = new Uint8Array(memory, ptr, this.e.engine_report_len()).slice();
       this.port.postMessage({
         type: "meter",
-        rms: Math.sqrt(this.sumSquares / (64 * frames)),
+        rms: Math.sqrt(this.sumSquares / (12 * frames)),
         voices: this.e.engine_active_voices(this.engine),
-      });
+        report: report.buffer,
+      }, [report.buffer]);
       this.sumSquares = 0;
     }
     return true;

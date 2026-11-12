@@ -10,9 +10,8 @@ const qualities = ["Eco", "Normal", "High", "Render"];
 
 function paramIndex(e, engine, id) {
   const bytes = new TextEncoder().encode(id);
-  const ptr = e.engine_alloc(bytes.length);
-  new Uint8Array(e.memory.buffer, ptr, bytes.length).set(bytes);
-  return e.engine_param_index(engine, ptr, bytes.length);
+  new Uint8Array(e.memory.buffer, e.engine_inbox(engine, bytes.length), bytes.length).set(bytes);
+  return e.engine_param_index(engine, bytes.length);
 }
 
 console.log(`budget ${budgetUs.toFixed(0)} us per block`);
