@@ -175,7 +175,7 @@ fn loaded_presets_sound_like_their_offline_render() {
 fn centroid(samples: &[f32]) -> f32 {
     const N: usize = 4096;
     let (mut weighted, mut total) = (0.0f64, 0.0f64);
-    for frame in samples.chunks_exact(N).take(4) {
+    for frame in samples.as_chunks::<N>().0.iter().take(4) {
         for bin in 1..N / 2 {
             let (mut re, mut im) = (0.0f64, 0.0f64);
             let step = std::f64::consts::TAU * bin as f64 / N as f64;

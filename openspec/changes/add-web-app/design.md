@@ -195,4 +195,11 @@ SIMD (`+simd128`, autovectorized only) saves 5–10 % on the heavy presets; the 
 - Trade-off accepted with this choice: Cloudflare deploys without our browser checks; CI runs them (task 5.3).
 - Bundle sizes (gzip, no `wasm-opt`): editor wasm 1.58 MB (5.0 MB raw), engine 197 KB (611 KB raw), JS 17 KB.
 
+### 5.3, 5.4, 5.6 CI, sound check, native unchanged (As built)
+
+- CI's `web` job (also on pushes to `web`): fmt, clippy native and wasm, the engine, bridge and real-time tests, `cloudflare-build.sh`, then the smoke and feature checks in headless Chromium.
+- **Found here:** CI runs Rust 1.100, whose clippy adds `needless_range_loop` cases in old plugin code (`presets/factory/measure.rs`, `gui_notes.rs`) and `chunks_exact_to_as_chunks`. Fixed with the same summation order (bit-identical). The CLAUDE.md minimum stays 1.99.
+- 5.4: `loaded_presets_sound_like_their_offline_render`: one preset per factory folder, drum kits included, within 1 dB RMS and 2 % of a rough spectral centroid.
+- 5.6: every factory preset (214) rendered with `render_presets` (folder by folder, gnu) on `f131388` (before the web work) and on this branch: all 214 WAVs are byte-identical. The plugin's suite passes (515 tests).
+
 **Decision (maintainer, 2026-11-12, task 1.4): the web keeps 16 voices and each preset's own quality.** The load warning (task 4.6) covers the heavy end.
