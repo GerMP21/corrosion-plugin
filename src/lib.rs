@@ -2252,13 +2252,16 @@ impl ClapPlugin for Corrosion {
 }
 
 /// VST3 plugin format implementation
+#[cfg(not(target_arch = "wasm32"))]
 impl Vst3Plugin for Corrosion {
     const VST3_CLASS_ID: [u8; 16] = *b"CorrosionAudio01";
     const VST3_SUBCATEGORIES: &'static [Vst3SubCategory] =
         &[Vst3SubCategory::Instrument, Vst3SubCategory::Synth];
 }
 
-// Export plugin entry points for CLAP and VST3 hosts.
+// Export plugin entry points for CLAP and VST3 hosts. The web build (wasm32)
+// has no plugin host, so it exports neither.
+#[cfg(not(target_arch = "wasm32"))]
 nih_export_clap!(Corrosion);
 // nih-plug's VST3 export expands `vst3_com::vtable`, which trips the
 // `semicolon_in_expressions_from_non_local_macros` future-incompat lint on
@@ -2266,6 +2269,7 @@ nih_export_clap!(Corrosion);
 // allowed on a wrapper module (a lint attribute on the macro call itself is
 // ignored). The exported entry point is `#[no_mangle]`, so the module path
 // doesn't change the symbol hosts load.
+#[cfg(not(target_arch = "wasm32"))]
 #[allow(semicolon_in_expressions_from_non_local_macros)]
 mod vst3_export {
     use super::Corrosion;

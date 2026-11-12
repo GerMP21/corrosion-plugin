@@ -102,3 +102,12 @@ B is the likely choice: the toolchain is already in CI, and the headless check r
 ## Measurements
 
 <!-- Filled during implementation: wasm cost per block, bundle sizes, sound comparison. -->
+
+### 1.1 The engine on wasm32 (As built)
+
+`cargo check --lib --no-default-features --target wasm32-unknown-unknown` passes with three changes and no NIH-plug patch:
+- `Cargo.toml`: NIH-plug keeps its default features (VST3) on every target except `wasm32`, which gets `default-features = false`; `assert_process_allocs` is left off wasm too. Resolver 2 keeps the features per target, so native builds are unchanged (`cargo tree -e features` shows `default` and `assert_process_allocs` on native, neither on wasm).
+- `src/lib.rs`: `impl Vst3Plugin`, `nih_export_clap!` and the VST3 export module are `cfg(not(target_arch = "wasm32"))`.
+- The event-loop stub of Decision 2 is not needed: without the `vst3` feature nothing uses `OsEventLoop`.
+
+**Found here:** NIH-plug keeps parameter setters crate-private (`ParamMut`, `ParamPtr::set_normalized_value`, `update_smoother`, `wrapper::state`). Only its wrappers can change a parameter, so the web engine has no public way to apply the editor's changes. See the open question below.

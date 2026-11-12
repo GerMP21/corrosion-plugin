@@ -20,14 +20,22 @@ name = "seed_presets"
 path = "src/bin/seed_presets.rs"
 
 [dependencies]
-nih-plug = { package = "nih_plug", git = "https://github.com/robbert-vdh/nih-plug" }
 nih_plug_egui = { git = "https://github.com/robbert-vdh/nih-plug", optional = true }
 clap = { version = "4", features = ["derive"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 include_dir = "0.7"
 
-[target.'cfg(not(target_os = "windows"))'.dependencies]
+# Native builds keep NIH-plug's default features (the VST3 wrapper). The web
+# build (wasm32, add-web-app) leaves VST3 out: it has no plugin host and no OS
+# event loop.
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+nih-plug = { package = "nih_plug", git = "https://github.com/robbert-vdh/nih-plug" }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+nih-plug = { package = "nih_plug", git = "https://github.com/robbert-vdh/nih-plug", default-features = false }
+
+[target.'cfg(not(any(target_os = "windows", target_arch = "wasm32")))'.dependencies]
 nih-plug = { package = "nih_plug", git = "https://github.com/robbert-vdh/nih-plug", features = ["assert_process_allocs"] }
 
 [features]
