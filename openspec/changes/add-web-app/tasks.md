@@ -32,14 +32,14 @@
 ## 5. Build, CI and deploy
 
 - [x] 5.1 Decide the build location with the maintainer (Cloudflare build or GitHub Actions + wrangler)
-- [ ] 5.2 Web build script (`wasm-pack`/`wasm-bindgen`, `wasm-opt`), static assets, `wrangler.toml`; record bundle sizes
-- [ ] 5.3 CI job: build the web app and run a headless Chromium check (page loads, start, note, RMS > 0, no console errors)
+- [x] 5.2 Web build script (`wasm-pack`/`wasm-bindgen`, `wasm-opt`), static assets, `wrangler.toml`; record bundle sizes
+- [x] 5.3 CI job: build the web app and run a headless Chromium check (page loads, start, note, RMS > 0, no console errors)
 - [x] 5.4 Sound check: web engine vs offline renderer on a few presets within a level and spectrum tolerance
 - [ ] 5.5 Cloudflare Workers project connected to the repository, deployed from `main`
 - [x] 5.6 Native plugins unchanged: render hashes of the 16 exciters and the bank tests match before and after
 
 ## 6. Close-out
 
-- [ ] 6.1 README (link, browser support, limits) and `docs/ARCHITECTURE.md` (web host, bridge, patch)
+- [x] 6.1 README (link, browser support, limits) and `docs/ARCHITECTURE.md` (web host, bridge, patch)
 - [ ] 6.2 fmt, clippy `-D warnings`, full test suite, GUI lane, no_alloc, cargo doc
 - [ ] 6.3 Update "Current state" in CLAUDE.md
