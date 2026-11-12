@@ -6,6 +6,14 @@ Package version: `0.2.0`. Preset schema version: `4`; files from schemas 1–3 a
 
 ## How to Use
 
+### Try it in the browser
+
+The whole plugin, the same engine and editor, also runs in a web page: no download, no DAW. The web app is built from this repository and redeployed from `main` on Cloudflare (its address will be linked here once its domain is set up). Click **Start audio**, then play the piano strip, the computer keys or a MIDI keyboard.
+
+- **Browsers:** current Chrome, Edge and Firefox. Web MIDI works in Chrome and Edge (Firefox asks for permission; Safari has none: the on-screen and computer keyboards still play). WebGL 2 is required.
+- **Your sound and presets stay in your browser:** the session is restored on your next visit, Save keeps presets in the browser, **Download preset** gives a `.corrosion-preset` file the plugin opens, and **Open preset…** loads one made with the plugin.
+- **Limits:** the web engine runs on one core in the browser's audio thread. The heaviest presets with all 16 voices can be too much for a slower computer: the CPU figure in the header turns red when it gets close. A BPM field stands in for the host tempo.
+
 ### Install
 
 1. Download the zip for your platform and format from the [`nightly` pre-release](../../releases/tag/nightly). It is rebuilt by every green CI run on `main`: tested on its platform and checked with clap-validator and pluginval.
@@ -239,6 +247,8 @@ cargo run --release --bin seed_presets
 # Run the benchmark harness on the supported native no-GUI lane
 cargo bench --no-default-features --target x86_64-unknown-linux-gnu --bench performance
 ```
+
+The web app (`web/`, its own Cargo workspace) builds with `web/scripts/build.sh` into `web/dist`, which needs the `wasm32-unknown-unknown` target and `wasm-bindgen-cli` at the version in `web/Cargo.lock`; `web/scripts/cloudflare-build.sh` installs both when missing (it is Cloudflare's build command). Serve `web/dist` with any static server, for example `python3 -m http.server --directory web/dist`.
 
 The repository's `.cargo/config.toml` defaults unqualified `cargo` commands to `x86_64-pc-windows-gnu` and builds into `../corrosion-target`, so the maintainer's Windows host doesn't need `--target` on every command. On Linux or macOS, pass `--target` per command or set `CARGO_BUILD_TARGET=<your-host-triple>`. `scripts/bundle.sh` passes each platform's target itself and honours `CARGO_TARGET_DIR`. The old `bundle.sh` and `bundle-win.sh` are kept in `scripts/archive/` as wrappers around it. The Linux GUI build needs the X11 and GL development packages listed in `.github/workflows/ci.yml`.
 
