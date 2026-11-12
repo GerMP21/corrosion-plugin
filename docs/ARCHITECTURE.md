@@ -838,7 +838,7 @@ The plugin also runs in a browser, with the same engine and editor, as two WebAs
 - **Presets and session.** On wasm the editor keeps user presets in `presets::browser` (an in-memory store with the folder rules and overwrite confirmation of the user preset folder) instead of a folder; the page loads it from IndexedDB and stores what the editor saves. "Open folder" isn't drawn. The session is the current sound as preset JSON, autosaved to `localStorage`.
 - **Cost.** wasm runs 1.3–2.1× slower than native; the heaviest factory preset with 16 voices takes about 61 % of a 128-frame block in V8 with `simd128` (design.md of `add-web-app`). The worklet reports its load (from `Date.now()`: worklets have no `performance.now()`).
 - **Tests.** `web/engine/tests/`: `engine.rs` (notes, parameters, the offline renderer on seven presets), `bridge.rs` (each command, the report, the synced echo following the page tempo), `no_alloc.rs`. `web/scripts/smoke.cjs` and `features.cjs` drive the built page in headless Chromium.
-- **Deploy.** Cloudflare Workers Builds runs `web/scripts/cloudflare-build.sh` (installs Rust, the wasm32 target and the pinned prebuilt wasm-bindgen when missing) and `npx wrangler deploy` (`web/wrangler.toml`, static assets from `web/dist`).
+- **Deploy.** Cloudflare Workers Builds runs `web/scripts/cloudflare-build.sh` (installs Rust, the wasm32 target and the pinned prebuilt wasm-bindgen when missing) and `npx wrangler deploy` (`web/wrangler.toml`, static assets from `web/dist`), served at `https://corrosion.synaptech-solutions.com`.
 
 ## 10. Build, Test, and QA Infrastructure
 
