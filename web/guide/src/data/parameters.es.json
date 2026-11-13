@@ -510,7 +510,7 @@
     }
   },
   "rust": {
-    "help": "Corroe el objeto: acorta el decaimiento y apaga los modos agudos. Más alto suena más apagado y más seco."
+    "help": "Cubre el objeto de óxido: acorta el decaimiento y apaga los modos agudos. Más alto suena más apagado y más seco."
   },
   "scrape_speed": {
     "slots": {

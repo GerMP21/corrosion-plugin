@@ -16,9 +16,9 @@
 - [x] 3.2 Dark-only theme from `web/theme/tokens.css` (`guide.css` mapping, empty `ThemeSelect`, `data-theme="dark"`), header links to `/` and `/play/`, `wiki/404.html`
 - [x] 3.3 `check.mjs` first (twins and heading sequence, coverage via `covers:`, ES IDs, clip references, `--complete` stub rule); run red against an empty content folder
 - [x] 3.4 Every sitemap page in EN and ES with title, headings, `covers:` front matter and `<Stub />` body; translated sidebar labels; `npm run check` green
-- [ ] 3.5 `ParamReference` component and the six reference pages per panel (EN and ES)
+- [x] 3.5 `ParamReference` component and the six reference pages per panel (EN and ES)
 - [x] 3.6 `parameters.es.json`: Spanish help for every parameter ID (translation of the ⓘ texts, maintainer to review in `write-user-guide-content`)
-- [ ] 3.7 Mutation checks: delete one ES page, add a heading to one EN page, remove one ES ID, break one link; each fails with a clear message
+- [x] 3.7 Mutation checks: delete one ES page, add a heading to one EN page, remove one ES ID, break one link; each fails with a clear message
 
 ## 4. Audio clips (tests first)
 

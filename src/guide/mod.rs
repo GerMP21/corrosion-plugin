@@ -325,7 +325,25 @@ pub fn models_json() -> String {
         "limiter_modes": items_json(&LIMITER_MODE_ITEMS),
         "randomizer_modes": items_json(&randomizer),
         "factory": { "folders": folders, "drum_kits": kits },
+        "kit": kit_json(),
     }))
+}
+
+/// Kit mode's facts: the drum zone, the largest pad tune, and which
+/// parameters a pad stores (every voice-level one) and which stay global.
+fn kit_json() -> Value {
+    let params = CorrosionParams::default();
+    let (global, pad): (Vec<String>, Vec<String>) = params
+        .param_map()
+        .into_iter()
+        .map(|(id, _, _)| id)
+        .partition(|id| crate::kit::NON_PAD_PARAMS.contains(&id.as_str()));
+    json!({
+        "zone": [crate::kit::KIT_ZONE.start(), crate::kit::KIT_ZONE.end()],
+        "max_tune": crate::kit::MAX_TUNE,
+        "pad_params": pad,
+        "global_params": global,
+    })
 }
 
 /// Pretty-printed with sorted keys (`serde_json`'s map is a `BTreeMap`

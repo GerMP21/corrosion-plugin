@@ -188,3 +188,17 @@ No user-facing migration. The deploy adds `/wiki/`. Rollback is reverting the me
 - **`check.mjs`** (`npm run check`, `--complete`, and `--docs=<dir>` for testing): twins and heading levels, coverage (unknown `covers` entries also fail), Spanish IDs and texts (`help`, and `slots.<model>` / `options.<name>` wherever the English has a text), clip references against `public/clips/clips.json`, and `<Stub />` with `--complete`. Against an empty content folder it failed with 65 problems; it passes on the skeleton (149 pages, 149 parameters).
 - **`parameters.es.json`:** 149 entries, translated from the 189 distinct English ⓘ texts (`help`, per-model `slots`, per-option `options`). First pass, for the maintainer's review in `write-user-guide-content`.
 - **Build:** 150 pages in about 3.5 s (12.8 s on one later run), all internal links valid.
+
+### Tasks 3.5 and 3.7: reference pages and the checks' mutations (2026-11-13)
+
+- **`ParamReference`** renders one card per parameter of a panel, grouped under the editor's section headings, in editor order. Each card shows the name (an anchor to the card), the ID, the help text (EN from `parameters.json`, ES from `parameters.es.json`), range or options, default, unit, when it's shown (envelope family or Space mode), each option's help, and a per-model table for slots (model, label, range, help). Card ids are the parameter IDs (`/wiki/reference/resonator/#rust`). Labels are in the `i18n` collection.
+- **Kit page:** kit pads aren't host parameters, so `reference/kit` renders Kit mode's facts from **`models.json`'s new `kit` block** (exported from `crate::kit`): the drum zone (MIDI 36–59), the largest tune (±48 st), the pad level, and the lists of parameters stored in each pad (116) and shared by every pad (33, `NON_PAD_PARAMS`), each linked to its card. This adds `kit_json()` to the exporter (not in Decision 3).
+- **Search scenario:** on `/wiki/es/`, searching "óxido" first found only the Macros reference (the CORROSION text says "más óxido"), because the first-pass Spanish Rust text said "Corroe". It now reads "Cubre el objeto de óxido: …", and the search returns `/wiki/es/reference/resonator/` too (Playwright). The card headings come from the component, so Starlight's per-page table of contents lists only the overview; search and anchors reach the cards.
+- **Width:** at 375 px the reference page doesn't scroll sideways (`scrollWidth` 375).
+- **Mutations (3.7):**
+  - Deleting `es/exciters/bow.mdx` fails with "src/content/docs/exciters/bow.mdx has no ES twin (expected …)" and "exciter `Bow` has no page in: ES".
+  - Adding `## Extra` to `objects/pipe.mdx` fails, naming both files and listing both heading sequences.
+  - Removing `heat` from `parameters.es.json` fails with "no entry for `heat`".
+  - A link to `/wiki/exciters/bowed/` in the glossary fails the build (exit 1), with starlight-links-validator naming the file and the link.
+  
+  Each was restored, and the check and the build pass again.
