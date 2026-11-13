@@ -1864,7 +1864,11 @@ fn industrial_fader_text(
     let thumb_width = width_pct(scale, 0.014814815);
     let thumb_height = height_pct(scale, 0.026041667);
     let value_width = width_pct(scale, 0.040740743);
-    let label_width = width_pct(scale, 0.074074075);
+    // Room for the label and its help badge right of the track; widened
+    // from 0.0741 with the larger fonts, which put long labels (ENV AMOUNT,
+    // VEL TO LEVEL) against a thumb at the track's end (maintainer,
+    // 2026-11-13).
+    let label_width = width_pct(scale, 0.085185185);
     let track_inset = width_pct(scale, 0.0074074073);
     let row_height = thumb_height.max(track_height + height_pct(scale, 0.0052083335));
 
