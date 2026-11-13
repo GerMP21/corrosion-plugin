@@ -116,3 +116,4 @@ It ends with requirements (VST3 and CLAP; Windows, macOS, Linux) and a footer (s
 - `smoke.cjs` at `/play/`: strip RMS 0.31, key 0.35, next preset 0.51, no console errors. `features.cjs`: all pass.
 - Palette test: green; with `--safety-yellow` changed to `#FACC16` it fails with `SAFETY_YELLOW: palette #FACC15, tokens.css #FACC16`.
 - Lanes: fmt clean; clippy `-D warnings` (CI lane) clean; CI test lane 516 passed, 0 failed; GUI lane 510 passed, 0 failed (30 ignored). GUI-lane clippy shows 27 warnings, the same count as before the change.
+- **Domains (maintainer, 2026-11-13).** The Worker's only domain is `corrosion-vst.org`. `preview.` was removed from `routes` (wrangler would re-add it on each deploy otherwise). It stays reachable for the redirect through a proxied placeholder record, `AAAA preview 100::`, which replaces Decision 3's "keep preview as a Worker domain". The Redirect Rule is unchanged: 301 to `/play/`.

@@ -11,7 +11,7 @@
 
 - [x] 2.1 `web/theme/tokens.css`: the 13 palette colours, semantic aliases, font stack, spacing scale; 1.1 goes green
 - [x] 2.2 `web/scripts/build.sh`: `site/*` to the dist root, `www/*` and the wasm builds to `dist/play/`, `theme/` to `dist/theme/`, build commit stamped in both pages
-- [x] 2.3 `wrangler.toml`: custom domain `corrosion-vst.org` (keep `preview.`), `html_handling = "auto-trailing-slash"`, `not_found_handling = "404-page"`
+- [x] 2.3 `wrangler.toml`: custom domain `corrosion-vst.org` (as built: the only one; `preview.` moves to a placeholder DNS record), `html_handling = "auto-trailing-slash"`, `not_found_handling = "404-page"`
 - [x] 2.4 Move `_headers` to `web/site/` covering the whole site (wasm, js, css, html)
 
 ## 3. Pages
@@ -26,5 +26,5 @@
 
 - [x] 4.1 Docs: README links to `https://corrosion-vst.org` and `/play/`; `docs/ARCHITECTURE.md` web section (layout, domains, Redirect Rule settings, tokens test); `add-web-app` design note on the move
 - [x] 4.2 Close-out lanes: fmt, clippy `-D warnings`, CI test lane, the web scripts; commit and push to `dev`
-- [ ] 4.3 After the maintainer merges: `site.cjs` and `smoke.cjs` against `https://corrosion-vst.org/`; the maintainer adds the Redirect Rule; `curl -sI` on preview shows the 301; record both in design.md `## Measurements`
+- [ ] 4.3 After the maintainer merges: `site.cjs` and `smoke.cjs` against `https://corrosion-vst.org/`; the maintainer removes `preview.` from the Worker's domains, adds the placeholder record `AAAA preview 100::` (proxied) and the Redirect Rule; `curl -sI` on preview shows the 301; record both in design.md `## Measurements`
 - [ ] 4.4 Update CLAUDE.md Current state

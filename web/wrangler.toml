@@ -4,15 +4,13 @@
 name = "corrosion-vst"
 compatibility_date = "2026-11-01"
 
-# The public URLs (maintainer's choice: a domain of their own). The zone
+# The public URL (maintainer's choice: a domain of their own). The zone
 # corrosion-vst.org must be in the same Cloudflare account; wrangler creates
-# the DNS records and certificates on deploy. preview. stays so its record
-# stays proxied: a Redirect Rule in the dashboard sends it to
-# https://corrosion-vst.org/play/ (docs/ARCHITECTURE.md).
-routes = [
-  { pattern = "corrosion-vst.org", custom_domain = true },
-  { pattern = "preview.corrosion-vst.org", custom_domain = true },
-]
+# the DNS record and certificate on deploy. The old preview.corrosion-vst.org
+# is not a Worker domain any more: a proxied placeholder DNS record and a
+# Redirect Rule in the dashboard send it to https://corrosion-vst.org/play/
+# (docs/ARCHITECTURE.md).
+routes = [{ pattern = "corrosion-vst.org", custom_domain = true }]
 
 [assets]
 directory = "./dist"
