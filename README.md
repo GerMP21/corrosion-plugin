@@ -2,7 +2,7 @@
 
 Corrosion is an industrial physical-modeling instrument built as a VST3 and CLAP plugin. MIDI notes strike, bow, scrape or blow modal models of metal objects (pipes, plates, tanks, chains, beams, cables, springs, sheets, cogs), and a post chain shapes them. It is tuned for damaged metal, friction, weight and mechanical tension, not for synth-style oscillators.
 
-**Try it in your browser, no install: <https://corrosion-vst.org/play/>** (see [Try it in the browser](#try-it-in-the-browser)). The project's site is <https://corrosion-vst.org>.
+**Try it in your browser, no install: <https://corrosion-vst.org/play/>** (see [Try it in the browser](#try-it-in-the-browser)). The project's site is <https://corrosion-vst.org>, and the user guide, in English and Spanish, is at <https://corrosion-vst.org/wiki/> (being written: every page, the parameter reference and audio examples of each control are up; the prose comes next).
 
 Package version: `0.2.0`. Preset schema version: `4`; files from schemas 1–3 are migrated on load (`src/presets/mod.rs::migrate_preset_json`).
 

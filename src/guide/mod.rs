@@ -1,6 +1,6 @@
 //! The user guide's data, exported from the plugin (`add-user-guide`).
 //!
-//! `export_guide_data` writes [`guide_files`] into `web/guide/src/data/`,
+//! `export_guide_data` writes [`guide_files`](crate::guide::guide_files) into `web/guide/src/data/`,
 //! and `guide_data_equals_the_files_on_disk` fails when the committed files
 //! drift from what the plugin would write.
 

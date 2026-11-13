@@ -33,6 +33,6 @@
 
 - [x] 5.1 `web/scripts/build.sh` builds the guide into `dist/wiki/`; `cloudflare-build.sh` unchanged or extended if Node needs setup; full local build and `site.cjs` against it
 - [x] 5.2 `ci.yml` `guide` job (Node 22: `npm ci`, `npm run check`, `npm run build`)
-- [ ] 5.3 Docs: `docs/ARCHITECTURE.md` (guide layout, exporter, clip generator, checks); CLAUDE.md rules (regenerate guide data after a parameter change, clips after an engine-wide sound change, like the preset bank); README link to the guide
-- [ ] 5.4 Record in design.md `## Measurements`: clip count and total size, generator run time, guide build time, page count
-- [ ] 5.5 Close-out lanes (fmt, clippy `-D warnings`, CI test lane, GUI lane, guide check and build); commit and push to `dev`; update CLAUDE.md Current state
+- [x] 5.3 Docs: `docs/ARCHITECTURE.md` (guide layout, exporter, clip generator, checks); CLAUDE.md rules (regenerate guide data after a parameter change, clips after an engine-wide sound change, like the preset bank); README link to the guide
+- [x] 5.4 Record in design.md `## Measurements`: clip count and total size, generator run time, guide build time, page count
+- [x] 5.5 Close-out lanes (fmt, clippy `-D warnings`, CI test lane, GUI lane, guide check and build); commit and push to `dev`; update CLAUDE.md Current state

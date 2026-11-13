@@ -255,3 +255,24 @@ Each mutation was restored, and the guide tests pass.
 - **Local full build:** `bash web/scripts/build.sh` passes (10.5 s with Rust cached; the guide's part is about 6 s). `dist/` has 833 files; `dist/wiki/` is 26 MB, `dist/play/` 5.5 MB; no file over 5 MB (Workers limit 25 MiB per file, 20,000 files).
 - `site.cjs` gains guide checks: `/wiki/` and `/wiki/es/` return 200 with the guide's titles, are dark and have search; an unknown `/wiki/` path returns 404 with the guide's page. `site.cjs`, `smoke.cjs` and `features.cjs` pass against the full build.
 - **`ci.yml` `guide` job:** `actions/setup-node@v4` with Node 22.23.4 and the npm cache keyed on `web/guide/package-lock.json`, then `npm ci`, `npm run check`, `npm run build` (the build fails on a broken internal link). No Rust; the drift and clip tests run in `checks`.
+
+## Measurements
+
+| What | Value |
+|---|---|
+| Guide pages | 74 per language (148) plus the 404; Astro builds 150 routes |
+| Guide build (`npm run build`, 150 pages, Pagefind, link validation) | 4.1 s (3.4–4.3 s across runs); 4.9 s wall |
+| `npm run check` | under 1 s; 149 pages, 149 parameters |
+| Guide data | `parameters.json` 88 KB, `models.json` 31 KB (with the `kit` block), `parameters.es.json` 47 KB |
+| Clips | 491 (426 parameter clips over 142 parameters, 16 exciters on Tank, 9 objects with Felt Mallet, 16 + 9 representative presets, 10 kits, 5 demos) |
+| Clip size | 16.1 MB of Opus at 64 kbps (design estimate about 11 MB) |
+| Clip render | 13.2 s for 491 clips on 4 cores (release); `build-guide-clips.sh` 44 s with encoding |
+| Full site build (`web/scripts/build.sh`, Rust cached) | 10.5 s; `dist/` 833 files, `dist/wiki/` 26 MB |
+
+### Task 5.5: close-out (2026-11-13)
+
+- fmt clean; CI-lane clippy `-D warnings` clean; CI test lane 521 passed; GUI lane 516 passed (30 ignored); GUI-lane clippy the same 27 warnings as before.
+- `cargo doc --no-deps --no-default-features` had one new warning, an unresolved intra-doc link to `guide_files` in `src/guide/mod.rs` (since task 2.2); fixed, 0 warnings.
+- Guide check and build pass; `site.cjs`, `smoke.cjs` and `features.cjs` pass against the full local build.
+- **Not tested:** the Cloudflare deploy itself (the Node install path was run by hand, not in Workers Builds); the guide's look on Safari and Firefox (Chromium only).
+- **Open for the maintainer:** the home demos (provisional); whether Metal Chain with Internal Rattle 0 should be almost silent (−62 dBFS, declared quiet meanwhile); 64 kbps vs 48 kbps for the clips (16.1 MB vs about 12 MB); the review of `parameters.es.json` in `write-user-guide-content`.
