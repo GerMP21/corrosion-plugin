@@ -1431,6 +1431,10 @@ fn apply_editor_style(ctx: &egui::Context, scale: f32) {
     style.spacing.menu_margin =
         egui::Margin::same((defaults.menu_margin.left as f32 * scale).round() as i8);
     style.spacing.scroll.bar_width = defaults.scroll.bar_width * scale;
+    // egui sizes a popup on its first frame within this, then keeps that
+    // size; the default (600 × 400 points) cut the UI Scale menu's 21
+    // items at 110 % and above. egui still keeps areas inside the window.
+    style.spacing.default_area_size = egui::vec2(editor_width(scale), 4.0 * editor_height(scale));
     style.spacing.item_spacing = egui::vec2(
         height_pct(scale, 0.0052083335),
         width_pct(scale, 0.0027777778),
@@ -1474,11 +1478,11 @@ fn apply_editor_style(ctx: &egui::Context, scale: f32) {
 // ---------------------------------------------------------------------------
 
 /// The UI Scale menu's items, in size order.
-const UI_SCALE_ITEMS: [(i32, &str); 9] = {
+const UI_SCALE_ITEMS: [(i32, &str); crate::params::UI_SCALE_CHOICES.len()] = {
     let choices = crate::params::UI_SCALE_CHOICES;
-    let mut items = [(0, ""); 9];
+    let mut items = [(0, ""); crate::params::UI_SCALE_CHOICES.len()];
     let mut i = 0;
-    while i < 9 {
+    while i < choices.len() {
         items[i] = (choices[i].0, choices[i].1);
         i += 1;
     }
@@ -6511,27 +6515,54 @@ mod tests {
         assert_eq!(scaled_editor_size(ui_scale_factor(4)), (1620, 1260));
     }
 
-    /// UI Scale offers 80–95 % in 5 % steps between 75 and 100 %
-    /// (maintainer, 2026-11-13). They take the new indices 5–8, so saved
-    /// projects and presets with 0–4 keep their scale; the menu lists every
-    /// choice in size order, and the host shows each one's percentage.
+    /// UI Scale steps by 5 % from 50 to 150 % (maintainer, 2026-11-13).
+    /// The original five sizes keep indices 0–4, 80–95 % keep 5–8, and the
+    /// rest take 9–20, so saved projects and presets keep their scale; the
+    /// menu lists every choice in size order, and the host shows each one's
+    /// percentage.
     #[test]
-    fn ui_scale_offers_80_to_95_percent() {
+    fn ui_scale_steps_by_five_percent() {
         use nih_plug::prelude::Param;
         assert_eq!(scaled_editor_size(ui_scale_factor(5)), (864, 672));
-        assert_eq!(scaled_editor_size(ui_scale_factor(6)), (918, 714));
-        assert_eq!(scaled_editor_size(ui_scale_factor(7)), (972, 756));
         assert_eq!(scaled_editor_size(ui_scale_factor(8)), (1026, 798));
 
-        let names: Vec<&str> = crate::params::UI_SCALE_CHOICES
+        let percents: Vec<u32> = crate::params::UI_SCALE_CHOICES
             .iter()
-            .map(|(_, name, _)| *name)
+            .map(|(_, _, factor)| (factor * 100.0).round() as u32)
             .collect();
+        assert_eq!(percents, (50..=150).step_by(5).collect::<Vec<_>>());
+
+        // Indices stored by earlier versions keep their size.
+        for (index, percent) in [
+            (0, 50),
+            (1, 75),
+            (2, 100),
+            (3, 125),
+            (4, 150),
+            (5, 80),
+            (6, 85),
+            (7, 90),
+            (8, 95),
+        ] {
+            assert_eq!(
+                (ui_scale_factor(index) * 100.0).round() as u32,
+                percent,
+                "index {index}"
+            );
+        }
+        let mut indices: Vec<i32> = crate::params::UI_SCALE_CHOICES
+            .iter()
+            .map(|c| c.0)
+            .collect();
+        indices.sort();
         assert_eq!(
-            names,
-            ["50%", "75%", "80%", "85%", "90%", "95%", "100%", "125%", "150%"]
+            indices,
+            (0..=20).collect::<Vec<_>>(),
+            "each index once, no gaps"
         );
+
         for (index, name, factor) in crate::params::UI_SCALE_CHOICES {
+            assert_eq!(name, format!("{}%", (factor * 100.0).round() as u32));
             assert_eq!(ui_scale_factor(index), factor, "{name}");
             let param = crate::params::ui_scale_param(index);
             assert_eq!(param.value(), index, "{name} is kept, not clamped");
