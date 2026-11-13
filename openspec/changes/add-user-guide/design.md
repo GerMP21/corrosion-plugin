@@ -135,3 +135,28 @@ No user-facing migration. The deploy adds `/wiki/`. Rollback is reverting the me
 ## Open Questions
 
 - The exact base patch and the shared object and exciter for the comparison sets: chosen by ear at implementation (task 4.2) and recorded in Decision 7's As built note. This doesn't change the specs or tasks.
+
+## As built
+
+### Task 1.1: control tables out of the editor (2026-11-13)
+
+- **Moved to `src/gui/controls.rs`** (no egui; built in every configuration):
+  - `ExciterControlId` and `ResonatorControlId`;
+  - the control and panel specs, and the 16 exciter and 9 object tables;
+  - `exciter_panel` and `resonator_panel`;
+  - `exciter_param_ref` and `resonator_param_ref`;
+  - `help_for` and the trial `selector_help`.
+  
+  `editor.rs` imports them, and nothing else changed in it.
+- **Added for the exporter:**
+  - `FIXED_CONTROLS`: every control that isn't a model slot, in drawing order, with parameter ID, label as drawn, `Panel`, group (the section heading) and `Shown`. `Shown` is `Always`, an exciter family for the AD, MSEG and ADSR envelopes, or a Space mode for its controls. A parameter on several panels (`env_attack`, `env_release`) has one entry per panel.
+  - The selectors' option lists (`UI_SCALE_ITEMS`, `QUALITY_MODE_ITEMS`, `PLAY_MODE_ITEMS`, `LIMITER_MODE_ITEMS`, `LOOP_MODE_ITEMS`, `LOOP_STAGE_ITEMS`, `SPACE_MODE_ITEMS`) and `selector_items(id)`, also used by the editor's combos.
+  - Coverage: all 149 parameters are covered, 74 in `FIXED_CONTROLS` and 75 in the slot tables.
+- **Guard test `fixed_controls_match_the_editor`** (GUI lane). It renders every exciter, object and Space mode, and checks three things:
+  - every drawn non-slot control has an entry shown in that configuration;
+  - every entry shown there is drawn;
+  - the drawn help is `help_for(label)`, or for a selector, `selector_help(label, option)` for one of its options.
+  
+  Mutation: relabelling Rust as "Rusty" fails it on all 27 configurations.
+- **Temporary `allow(dead_code)`** without the GUI features, until the exporter (2.2) uses the tables.
+- **Lanes:** fmt; CI-lane clippy `-D warnings`; CI test lane 516 passed; GUI lane 511 passed (one new test); GUI-lane clippy the same 27 warnings as before; web workspace clippy (native and wasm) passes.

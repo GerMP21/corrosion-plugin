@@ -2,12 +2,12 @@
 
 ## 1. Move the help and control tables (no behaviour change)
 
-- [ ] 1.1 Move `help_for` and the control tables from `src/gui/editor.rs` to a feature-free `src/gui/controls.rs`; the editor imports them. GUI lane (`cargo test --lib`) and CI lane green, help coverage tests unchanged
+- [x] 1.1 Move `help_for` and the control tables from `src/gui/editor.rs` to a feature-free `src/gui/controls.rs`; the editor imports them. GUI lane (`cargo test --lib`) and CI lane green, help coverage tests unchanged (as built: also `FIXED_CONTROLS`, the selector option lists and `selector_items`, guarded by `fixed_controls_match_the_editor`; see design.md)
 
 ## 2. Guide data (tests first)
 
 - [ ] 2.1 Test first: `guide_data_equals_the_files_on_disk` (CI lane) and a test that every parameter of `param_map()` is in the export; run red (no files)
-- [ ] 2.2 `export_guide_data` binary: `parameters.json` and `models.json` (Decision 3); run it, tests green
+- [ ] 2.2 `export_guide_data` binary: `parameters.json` and `models.json` (Decision 3); run it, tests green; remove the temporary `allow(dead_code)` at the top of `src/gui/controls.rs`
 - [ ] 2.3 Mutation checks: change one parameter's default and one model name and see the drift test fail, naming them
 
 ## 3. Guide site skeleton
