@@ -72,7 +72,7 @@ Each item notes the relevant file(s) and an acceptance check.
   (mingw-w64) but runs no tests on Windows and never loads the
   bundle.
 - [ ] **[MISSING] DAW smoke automation** (REAPER / Bitwig / Ardour / Live / FL).
-  Manual today: REAPER on Linux, in the development sessions.
+  Manual today: REAPER on Linux, in the development sessions (`docs/REAPER_TESTING.md`).
 - [ ] **[MISSING] Visual regression tests for the GUI.** The GUI lane drives
   the editor headlessly (interaction, hover, layout and a few pixel checks),
   but nothing compares rendered screenshots against references.
