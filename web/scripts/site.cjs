@@ -76,6 +76,19 @@ const check = (ok, what) => {
   const bg404 = await page.evaluate(() => getComputedStyle(document.body).backgroundColor);
   check(bg404 === "rgb(13, 13, 13)", `404 background is CHARCOAL (${bg404})`);
 
+  // The guide (`add-user-guide`): both languages, dark, with search, and
+  // its own 404 under /wiki/.
+  for (const [path, title] of [["/wiki/", "Corrosion guide"], ["/wiki/es/", "Guía de Corrosion"]]) {
+    const guide = await page.goto(at(path));
+    check(guide && guide.status() === 200, `${path} returns 200 (${guide && guide.status()})`);
+    check((await page.title()).includes(title), `${path} is the guide (${await page.title()})`);
+    check(await page.evaluate(() => document.documentElement.dataset.theme === "dark"), `${path} is dark`);
+    check((await page.locator("site-search, button[data-open-modal]").count()) >= 1, `${path} has search`);
+  }
+  const guideMissing = await page.goto(at("/wiki/no-such-page/"));
+  check(guideMissing && guideMissing.status() === 404, `unknown guide path returns 404 (${guideMissing && guideMissing.status()})`);
+  check(/not found/i.test(await page.title()), `unknown guide path shows the guide's 404 (${await page.title()})`);
+
   // Phone width.
   const phone = await browser.newPage({ viewport: { width: 375, height: 740 } });
   await phone.goto(at("/"));

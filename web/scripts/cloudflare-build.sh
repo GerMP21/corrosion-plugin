@@ -3,7 +3,8 @@
 # build image has no Rust, so this installs what the web build needs when it
 # is missing (a minimal rustup toolchain with the wasm32 target, and the
 # prebuilt wasm-bindgen CLI at the version web/Cargo.lock pins), then runs
-# scripts/build.sh. Workers Builds settings: root directory `web`, build
+# scripts/build.sh. It also installs Node when the image's is older than the
+# guide needs. Workers Builds settings: root directory `web`, build
 # command `bash scripts/cloudflare-build.sh`, deploy command
 # `npx wrangler deploy`.
 set -euo pipefail
@@ -27,6 +28,16 @@ if [ "$(wasm-bindgen --version 2>/dev/null | awk '{print $2}')" != "$bindgen_ver
   curl -sSfL "https://github.com/wasm-bindgen/wasm-bindgen/releases/download/$bindgen_version/$name.tar.gz" \
     | tar -xz -C "$tools"
   cp "$tools/$name/wasm-bindgen" "$tools/bin/"
+fi
+
+# The guide's Astro needs a newer Node than some build images carry
+# (web/guide/package.json `engines`); install the official build if so.
+node_version=22.23.4
+if ! node -e "const [a,b,c]=process.versions.node.split('.').map(Number);process.exit(a>22||(a===22&&(b>23||(b===23&&c>=4)))?0:1)" 2>/dev/null; then
+  echo "Installing Node $node_version"
+  curl -sSfL "https://nodejs.org/dist/v$node_version/node-v$node_version-linux-x64.tar.xz" \
+    | tar -xJ -C "$tools"
+  export PATH="$tools/node-v$node_version-linux-x64/bin:$PATH"
 fi
 
 "$web/scripts/build.sh"

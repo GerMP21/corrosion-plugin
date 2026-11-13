@@ -246,3 +246,12 @@ No user-facing migration. The deploy adds `/wiki/`. Rollback is reverting the me
 - The silent-clip path was exercised for real: with base patch D, Air Pressure's minimum fell to −61.3 dBFS and the test named it until it was declared quiet (task 4.3).
 
 Each mutation was restored, and the guide tests pass.
+
+### Tasks 5.1 and 5.2: build and CI (2026-11-13)
+
+- `web/scripts/build.sh` runs `npm ci && npm run check && npm run build` in `web/guide/` after the app, so the guide lands in `dist/wiki/`. The `add-site-shell` placeholder (`web/site/wiki/index.html`) is gone: the guide replaces it.
+- **Fixed on the way:** the script ended with `ls -lR dist | head -40`, which under `set -o pipefail` exits 141 (SIGPIPE) once `dist` lists more than 40 lines, as it does with the guide. It now prints `du -sh dist/* | sort -h`.
+- `cloudflare-build.sh` installs the official Node 22.23.4 build into `web/.tools` when the image's Node is older than Astro 7.4.4 requires (comparator checked against 22.23.4, 22.23.3, 22.12.0, 23.1.0, 20.19.0 and 24.0.0; the download and extraction checked by hand). CI's `web` job runs the same script, so it covers this path whenever the runner's Node is older.
+- **Local full build:** `bash web/scripts/build.sh` passes (10.5 s with Rust cached; the guide's part is about 6 s). `dist/` has 833 files; `dist/wiki/` is 26 MB, `dist/play/` 5.5 MB; no file over 5 MB (Workers limit 25 MiB per file, 20,000 files).
+- `site.cjs` gains guide checks: `/wiki/` and `/wiki/es/` return 200 with the guide's titles, are dark and have search; an unknown `/wiki/` path returns 404 with the guide's page. `site.cjs`, `smoke.cjs` and `features.cjs` pass against the full build.
+- **`ci.yml` `guide` job:** `actions/setup-node@v4` with Node 22.23.4 and the npm cache keyed on `web/guide/package-lock.json`, then `npm ci`, `npm run check`, `npm run build` (the build fails on a broken internal link). No Rust; the drift and clip tests run in `checks`.
