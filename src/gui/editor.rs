@@ -4563,7 +4563,7 @@ fn render_footer(ui: &mut egui::Ui, scale: f32) {
             footer_rect.center().y,
         ),
         egui::Align2::LEFT_CENTER,
-        "CORROSION ENGINE v0.1.0",
+        concat!("CORROSION ENGINE v", env!("CARGO_PKG_VERSION")),
         egui::FontId::proportional(font_size(scale, 0.0074074073)),
         MUTED_GREY,
     );
