@@ -1,0 +1,1222 @@
+{
+  "exciters": [
+    {
+      "family": "hit",
+      "name": "Hand Strike",
+      "value": 2
+    },
+    {
+      "family": "hit",
+      "name": "Felt Mallet",
+      "value": 3
+    },
+    {
+      "family": "hit",
+      "name": "Hard Mallet",
+      "value": 4
+    },
+    {
+      "family": "hit",
+      "name": "Drumstick",
+      "value": 5
+    },
+    {
+      "family": "hit",
+      "name": "Wire Brush",
+      "value": 6
+    },
+    {
+      "family": "hit",
+      "name": "Metal Pipe",
+      "value": 7
+    },
+    {
+      "family": "hit",
+      "name": "Metal Chain",
+      "value": 8
+    },
+    {
+      "family": "friction",
+      "name": "Bow",
+      "value": 1
+    },
+    {
+      "family": "friction",
+      "name": "Stiff Point Scrape",
+      "value": 9
+    },
+    {
+      "family": "friction",
+      "name": "Heavy Grinding",
+      "value": 10
+    },
+    {
+      "family": "friction",
+      "name": "Corrugated Drag",
+      "value": 11
+    },
+    {
+      "family": "friction",
+      "name": "Tension Rise",
+      "value": 12
+    },
+    {
+      "family": "specialty",
+      "name": "Pneumatic Jet",
+      "value": 13
+    },
+    {
+      "family": "specialty",
+      "name": "Electromagnetic Hum",
+      "value": 14
+    },
+    {
+      "family": "specialty",
+      "name": "Tension Snap",
+      "value": 15
+    },
+    {
+      "family": "specialty",
+      "name": "Particle Rain",
+      "value": 16
+    }
+  ],
+  "factory": {
+    "drum_kits": [
+      {
+        "name": "Foundry Kit",
+        "pads": 12,
+        "slug": "foundry_kit"
+      },
+      {
+        "name": "Scrapyard Kit",
+        "pads": 12,
+        "slug": "scrapyard_kit"
+      },
+      {
+        "name": "Pipe Kit",
+        "pads": 12,
+        "slug": "pipe_kit"
+      },
+      {
+        "name": "Rust Belt Kit",
+        "pads": 12,
+        "slug": "rust_belt_kit"
+      },
+      {
+        "name": "Boiler Room Kit",
+        "pads": 12,
+        "slug": "boiler_room_kit"
+      },
+      {
+        "name": "Rail Yard Kit",
+        "pads": 12,
+        "slug": "rail_yard_kit"
+      },
+      {
+        "name": "Wire Kit",
+        "pads": 12,
+        "slug": "wire_kit"
+      },
+      {
+        "name": "Sheet Storm Kit",
+        "pads": 12,
+        "slug": "sheet_storm_kit"
+      },
+      {
+        "name": "Clockwork Kit",
+        "pads": 12,
+        "slug": "clockwork_kit"
+      },
+      {
+        "name": "Junk Percussion Kit",
+        "pads": 12,
+        "slug": "junk_percussion_kit"
+      }
+    ],
+    "folders": [
+      {
+        "folder": "bass",
+        "presets": [
+          {
+            "name": "Felt Cable Upright",
+            "slug": "felt_cable_upright"
+          },
+          {
+            "name": "Palm Pipe Thump",
+            "slug": "palm_pipe_thump"
+          },
+          {
+            "name": "Bowed Cable Sub",
+            "slug": "bowed_cable_sub"
+          },
+          {
+            "name": "Coil Spring Bass",
+            "slug": "coil_spring_bass"
+          },
+          {
+            "name": "Snapped Cable Bass",
+            "slug": "snapped_cable_bass"
+          },
+          {
+            "name": "Tank Boom Bass",
+            "slug": "tank_boom_bass"
+          },
+          {
+            "name": "Plate Sub Mallet",
+            "slug": "plate_sub_mallet"
+          },
+          {
+            "name": "Driven Beam Bass",
+            "slug": "driven_beam_bass"
+          },
+          {
+            "name": "Hollow Pipe Sub",
+            "slug": "hollow_pipe_sub"
+          },
+          {
+            "name": "Hand Slap Cable",
+            "slug": "hand_slap_cable"
+          },
+          {
+            "name": "Low Sheet Bow",
+            "slug": "low_sheet_bow"
+          },
+          {
+            "name": "Heavy Felt Beam",
+            "slug": "heavy_felt_beam"
+          }
+        ]
+      },
+      {
+        "folder": "lead",
+        "presets": [
+          {
+            "name": "Bowed Cable Lead",
+            "slug": "bowed_cable_lead"
+          },
+          {
+            "name": "Hard Cable Pluck",
+            "slug": "hard_cable_pluck"
+          },
+          {
+            "name": "Pipe Bow Lead",
+            "slug": "pipe_bow_lead"
+          },
+          {
+            "name": "Glass Sheet Lead",
+            "slug": "glass_sheet_lead"
+          },
+          {
+            "name": "Plate Strike Lead",
+            "slug": "plate_strike_lead"
+          },
+          {
+            "name": "Driven Pipe Lead",
+            "slug": "driven_pipe_lead"
+          },
+          {
+            "name": "Echo Cable Pluck",
+            "slug": "echo_cable_pluck"
+          },
+          {
+            "name": "Felt Plate Bell",
+            "slug": "felt_plate_bell"
+          },
+          {
+            "name": "Jet Pipe Flute",
+            "slug": "jet_pipe_flute"
+          },
+          {
+            "name": "Bowed Spring Lead",
+            "slug": "bowed_spring_lead"
+          },
+          {
+            "name": "Metal Pipe Pluck",
+            "slug": "metal_pipe_pluck"
+          },
+          {
+            "name": "Bowed Beam Lead",
+            "slug": "bowed_beam_lead"
+          }
+        ]
+      },
+      {
+        "folder": "chords",
+        "presets": [
+          {
+            "name": "Bowed Cable Pad",
+            "slug": "bowed_cable_pad"
+          },
+          {
+            "name": "Glass Cable Choir",
+            "slug": "glass_cable_choir"
+          },
+          {
+            "name": "Plate Bow Pad",
+            "slug": "plate_bow_pad"
+          },
+          {
+            "name": "Sheet Bow Organ",
+            "slug": "sheet_bow_organ"
+          },
+          {
+            "name": "Warm Cable Strings",
+            "slug": "warm_cable_strings"
+          },
+          {
+            "name": "Soft Plate Strings",
+            "slug": "soft_plate_strings"
+          },
+          {
+            "name": "Sheet Bow Shimmer",
+            "slug": "sheet_bow_shimmer"
+          },
+          {
+            "name": "Cable Echo Pad",
+            "slug": "cable_echo_pad"
+          },
+          {
+            "name": "Rosin Cable Ensemble",
+            "slug": "rosin_cable_ensemble"
+          },
+          {
+            "name": "Beam Bow Chorale",
+            "slug": "beam_bow_chorale"
+          },
+          {
+            "name": "Cable Spring Pad",
+            "slug": "cable_spring_pad"
+          },
+          {
+            "name": "Sheet Spring Organ",
+            "slug": "sheet_spring_organ"
+          }
+        ]
+      },
+      {
+        "folder": "drones",
+        "presets": [
+          {
+            "name": "Smokestack Hum",
+            "slug": "smokestack_hum"
+          },
+          {
+            "name": "Grinding Beam",
+            "slug": "grinding_beam"
+          },
+          {
+            "name": "Tank Breath",
+            "slug": "tank_breath"
+          },
+          {
+            "name": "Bowed Beam Drone",
+            "slug": "bowed_beam_drone"
+          },
+          {
+            "name": "Spring Bow Drone",
+            "slug": "spring_bow_drone"
+          },
+          {
+            "name": "Cog Hum Drone",
+            "slug": "cog_hum_drone"
+          },
+          {
+            "name": "Chain Drag Drone",
+            "slug": "chain_drag_drone"
+          },
+          {
+            "name": "Plate Tension Swell",
+            "slug": "plate_tension_swell"
+          },
+          {
+            "name": "Sheet Bow Drone",
+            "slug": "sheet_bow_drone"
+          },
+          {
+            "name": "Cable Scrape Drone",
+            "slug": "cable_scrape_drone"
+          },
+          {
+            "name": "Particle Rain Tank",
+            "slug": "particle_rain_tank"
+          },
+          {
+            "name": "Pipe Wind Drone",
+            "slug": "pipe_wind_drone"
+          }
+        ]
+      },
+      {
+        "folder": "percussion",
+        "presets": [
+          {
+            "name": "Plate Snare Crack",
+            "slug": "plate_snare_crack"
+          },
+          {
+            "name": "Beam Kick Thud",
+            "slug": "beam_kick_thud"
+          },
+          {
+            "name": "Chain Rattle Hit",
+            "slug": "chain_rattle_hit"
+          },
+          {
+            "name": "Rusted Sheet Clang",
+            "slug": "rusted_sheet_clang"
+          },
+          {
+            "name": "Cog Tick",
+            "slug": "cog_tick"
+          },
+          {
+            "name": "Brush Plate Swish",
+            "slug": "brush_plate_swish"
+          },
+          {
+            "name": "Beam Anvil",
+            "slug": "beam_anvil"
+          },
+          {
+            "name": "Chain Snap",
+            "slug": "chain_snap"
+          },
+          {
+            "name": "Cog Gong Hit",
+            "slug": "cog_gong_hit"
+          },
+          {
+            "name": "Sheet Tick Hat",
+            "slug": "sheet_tick_hat"
+          },
+          {
+            "name": "Chain Mallet Clank",
+            "slug": "chain_mallet_clank"
+          },
+          {
+            "name": "Rusted Beam Knock",
+            "slug": "rusted_beam_knock"
+          }
+        ]
+      },
+      {
+        "folder": "drums",
+        "presets": [
+          {
+            "name": "Foundry Kit",
+            "slug": "foundry_kit"
+          },
+          {
+            "name": "Scrapyard Kit",
+            "slug": "scrapyard_kit"
+          },
+          {
+            "name": "Pipe Kit",
+            "slug": "pipe_kit"
+          },
+          {
+            "name": "Rust Belt Kit",
+            "slug": "rust_belt_kit"
+          },
+          {
+            "name": "Boiler Room Kit",
+            "slug": "boiler_room_kit"
+          },
+          {
+            "name": "Rail Yard Kit",
+            "slug": "rail_yard_kit"
+          },
+          {
+            "name": "Wire Kit",
+            "slug": "wire_kit"
+          },
+          {
+            "name": "Sheet Storm Kit",
+            "slug": "sheet_storm_kit"
+          },
+          {
+            "name": "Clockwork Kit",
+            "slug": "clockwork_kit"
+          },
+          {
+            "name": "Junk Percussion Kit",
+            "slug": "junk_percussion_kit"
+          }
+        ]
+      },
+      {
+        "folder": "experimental/bow",
+        "presets": [
+          {
+            "name": "Bow · Pipe",
+            "slug": "pipe"
+          },
+          {
+            "name": "Bow · Plate",
+            "slug": "plate"
+          },
+          {
+            "name": "Bow · Tank",
+            "slug": "tank"
+          },
+          {
+            "name": "Bow · Chain",
+            "slug": "chain"
+          },
+          {
+            "name": "Bow · I-Beam",
+            "slug": "i_beam"
+          },
+          {
+            "name": "Bow · Taut Cable",
+            "slug": "taut_cable"
+          },
+          {
+            "name": "Bow · Coil Spring",
+            "slug": "coil_spring"
+          },
+          {
+            "name": "Bow · Sheet Metal",
+            "slug": "sheet_metal"
+          },
+          {
+            "name": "Bow · Industrial Cog",
+            "slug": "industrial_cog"
+          }
+        ]
+      },
+      {
+        "folder": "experimental/hand_strike",
+        "presets": [
+          {
+            "name": "Hand Strike · Pipe",
+            "slug": "pipe"
+          },
+          {
+            "name": "Hand Strike · Plate",
+            "slug": "plate"
+          },
+          {
+            "name": "Hand Strike · Tank",
+            "slug": "tank"
+          },
+          {
+            "name": "Hand Strike · Chain",
+            "slug": "chain"
+          },
+          {
+            "name": "Hand Strike · I-Beam",
+            "slug": "i_beam"
+          },
+          {
+            "name": "Hand Strike · Taut Cable",
+            "slug": "taut_cable"
+          },
+          {
+            "name": "Hand Strike · Coil Spring",
+            "slug": "coil_spring"
+          },
+          {
+            "name": "Hand Strike · Sheet Metal",
+            "slug": "sheet_metal"
+          },
+          {
+            "name": "Hand Strike · Industrial Cog",
+            "slug": "industrial_cog"
+          }
+        ]
+      },
+      {
+        "folder": "experimental/felt_mallet",
+        "presets": [
+          {
+            "name": "Felt Mallet · Pipe",
+            "slug": "pipe"
+          },
+          {
+            "name": "Felt Mallet · Plate",
+            "slug": "plate"
+          },
+          {
+            "name": "Felt Mallet · Tank",
+            "slug": "tank"
+          },
+          {
+            "name": "Felt Mallet · Chain",
+            "slug": "chain"
+          },
+          {
+            "name": "Felt Mallet · I-Beam",
+            "slug": "i_beam"
+          },
+          {
+            "name": "Felt Mallet · Taut Cable",
+            "slug": "taut_cable"
+          },
+          {
+            "name": "Felt Mallet · Coil Spring",
+            "slug": "coil_spring"
+          },
+          {
+            "name": "Felt Mallet · Sheet Metal",
+            "slug": "sheet_metal"
+          },
+          {
+            "name": "Felt Mallet · Industrial Cog",
+            "slug": "industrial_cog"
+          }
+        ]
+      },
+      {
+        "folder": "experimental/hard_mallet",
+        "presets": [
+          {
+            "name": "Hard Mallet · Pipe",
+            "slug": "pipe"
+          },
+          {
+            "name": "Hard Mallet · Plate",
+            "slug": "plate"
+          },
+          {
+            "name": "Hard Mallet · Tank",
+            "slug": "tank"
+          },
+          {
+            "name": "Hard Mallet · Chain",
+            "slug": "chain"
+          },
+          {
+            "name": "Hard Mallet · I-Beam",
+            "slug": "i_beam"
+          },
+          {
+            "name": "Hard Mallet · Taut Cable",
+            "slug": "taut_cable"
+          },
+          {
+            "name": "Hard Mallet · Coil Spring",
+            "slug": "coil_spring"
+          },
+          {
+            "name": "Hard Mallet · Sheet Metal",
+            "slug": "sheet_metal"
+          },
+          {
+            "name": "Hard Mallet · Industrial Cog",
+            "slug": "industrial_cog"
+          }
+        ]
+      },
+      {
+        "folder": "experimental/drumstick",
+        "presets": [
+          {
+            "name": "Drumstick · Pipe",
+            "slug": "pipe"
+          },
+          {
+            "name": "Drumstick · Plate",
+            "slug": "plate"
+          },
+          {
+            "name": "Drumstick · Tank",
+            "slug": "tank"
+          },
+          {
+            "name": "Drumstick · Chain",
+            "slug": "chain"
+          },
+          {
+            "name": "Drumstick · I-Beam",
+            "slug": "i_beam"
+          },
+          {
+            "name": "Drumstick · Taut Cable",
+            "slug": "taut_cable"
+          },
+          {
+            "name": "Drumstick · Coil Spring",
+            "slug": "coil_spring"
+          },
+          {
+            "name": "Drumstick · Sheet Metal",
+            "slug": "sheet_metal"
+          },
+          {
+            "name": "Drumstick · Industrial Cog",
+            "slug": "industrial_cog"
+          }
+        ]
+      },
+      {
+        "folder": "experimental/wire_brush",
+        "presets": [
+          {
+            "name": "Wire Brush · Pipe",
+            "slug": "pipe"
+          },
+          {
+            "name": "Wire Brush · Plate",
+            "slug": "plate"
+          },
+          {
+            "name": "Wire Brush · Tank",
+            "slug": "tank"
+          },
+          {
+            "name": "Wire Brush · Chain",
+            "slug": "chain"
+          },
+          {
+            "name": "Wire Brush · I-Beam",
+            "slug": "i_beam"
+          },
+          {
+            "name": "Wire Brush · Taut Cable",
+            "slug": "taut_cable"
+          },
+          {
+            "name": "Wire Brush · Coil Spring",
+            "slug": "coil_spring"
+          },
+          {
+            "name": "Wire Brush · Sheet Metal",
+            "slug": "sheet_metal"
+          },
+          {
+            "name": "Wire Brush · Industrial Cog",
+            "slug": "industrial_cog"
+          }
+        ]
+      },
+      {
+        "folder": "experimental/metal_pipe",
+        "presets": [
+          {
+            "name": "Metal Pipe · Pipe",
+            "slug": "pipe"
+          },
+          {
+            "name": "Metal Pipe · Plate",
+            "slug": "plate"
+          },
+          {
+            "name": "Metal Pipe · Tank",
+            "slug": "tank"
+          },
+          {
+            "name": "Metal Pipe · Chain",
+            "slug": "chain"
+          },
+          {
+            "name": "Metal Pipe · I-Beam",
+            "slug": "i_beam"
+          },
+          {
+            "name": "Metal Pipe · Taut Cable",
+            "slug": "taut_cable"
+          },
+          {
+            "name": "Metal Pipe · Coil Spring",
+            "slug": "coil_spring"
+          },
+          {
+            "name": "Metal Pipe · Sheet Metal",
+            "slug": "sheet_metal"
+          },
+          {
+            "name": "Metal Pipe · Industrial Cog",
+            "slug": "industrial_cog"
+          }
+        ]
+      },
+      {
+        "folder": "experimental/metal_chain",
+        "presets": [
+          {
+            "name": "Metal Chain · Pipe",
+            "slug": "pipe"
+          },
+          {
+            "name": "Metal Chain · Plate",
+            "slug": "plate"
+          },
+          {
+            "name": "Metal Chain · Tank",
+            "slug": "tank"
+          },
+          {
+            "name": "Metal Chain · Chain",
+            "slug": "chain"
+          },
+          {
+            "name": "Metal Chain · I-Beam",
+            "slug": "i_beam"
+          },
+          {
+            "name": "Metal Chain · Taut Cable",
+            "slug": "taut_cable"
+          },
+          {
+            "name": "Metal Chain · Coil Spring",
+            "slug": "coil_spring"
+          },
+          {
+            "name": "Metal Chain · Sheet Metal",
+            "slug": "sheet_metal"
+          },
+          {
+            "name": "Metal Chain · Industrial Cog",
+            "slug": "industrial_cog"
+          }
+        ]
+      },
+      {
+        "folder": "experimental/stiff_point_scrape",
+        "presets": [
+          {
+            "name": "Stiff Point Scrape · Pipe",
+            "slug": "pipe"
+          },
+          {
+            "name": "Stiff Point Scrape · Plate",
+            "slug": "plate"
+          },
+          {
+            "name": "Stiff Point Scrape · Tank",
+            "slug": "tank"
+          },
+          {
+            "name": "Stiff Point Scrape · Chain",
+            "slug": "chain"
+          },
+          {
+            "name": "Stiff Point Scrape · I-Beam",
+            "slug": "i_beam"
+          },
+          {
+            "name": "Stiff Point Scrape · Taut Cable",
+            "slug": "taut_cable"
+          },
+          {
+            "name": "Stiff Point Scrape · Coil Spring",
+            "slug": "coil_spring"
+          },
+          {
+            "name": "Stiff Point Scrape · Sheet Metal",
+            "slug": "sheet_metal"
+          },
+          {
+            "name": "Stiff Point Scrape · Industrial Cog",
+            "slug": "industrial_cog"
+          }
+        ]
+      },
+      {
+        "folder": "experimental/heavy_grinding",
+        "presets": [
+          {
+            "name": "Heavy Grinding · Pipe",
+            "slug": "pipe"
+          },
+          {
+            "name": "Heavy Grinding · Plate",
+            "slug": "plate"
+          },
+          {
+            "name": "Heavy Grinding · Tank",
+            "slug": "tank"
+          },
+          {
+            "name": "Heavy Grinding · Chain",
+            "slug": "chain"
+          },
+          {
+            "name": "Heavy Grinding · I-Beam",
+            "slug": "i_beam"
+          },
+          {
+            "name": "Heavy Grinding · Taut Cable",
+            "slug": "taut_cable"
+          },
+          {
+            "name": "Heavy Grinding · Coil Spring",
+            "slug": "coil_spring"
+          },
+          {
+            "name": "Heavy Grinding · Sheet Metal",
+            "slug": "sheet_metal"
+          },
+          {
+            "name": "Heavy Grinding · Industrial Cog",
+            "slug": "industrial_cog"
+          }
+        ]
+      },
+      {
+        "folder": "experimental/corrugated_drag",
+        "presets": [
+          {
+            "name": "Corrugated Drag · Pipe",
+            "slug": "pipe"
+          },
+          {
+            "name": "Corrugated Drag · Plate",
+            "slug": "plate"
+          },
+          {
+            "name": "Corrugated Drag · Tank",
+            "slug": "tank"
+          },
+          {
+            "name": "Corrugated Drag · Chain",
+            "slug": "chain"
+          },
+          {
+            "name": "Corrugated Drag · I-Beam",
+            "slug": "i_beam"
+          },
+          {
+            "name": "Corrugated Drag · Taut Cable",
+            "slug": "taut_cable"
+          },
+          {
+            "name": "Corrugated Drag · Coil Spring",
+            "slug": "coil_spring"
+          },
+          {
+            "name": "Corrugated Drag · Sheet Metal",
+            "slug": "sheet_metal"
+          },
+          {
+            "name": "Corrugated Drag · Industrial Cog",
+            "slug": "industrial_cog"
+          }
+        ]
+      },
+      {
+        "folder": "experimental/tension_rise",
+        "presets": [
+          {
+            "name": "Tension Rise · Pipe",
+            "slug": "pipe"
+          },
+          {
+            "name": "Tension Rise · Plate",
+            "slug": "plate"
+          },
+          {
+            "name": "Tension Rise · Tank",
+            "slug": "tank"
+          },
+          {
+            "name": "Tension Rise · Chain",
+            "slug": "chain"
+          },
+          {
+            "name": "Tension Rise · I-Beam",
+            "slug": "i_beam"
+          },
+          {
+            "name": "Tension Rise · Taut Cable",
+            "slug": "taut_cable"
+          },
+          {
+            "name": "Tension Rise · Coil Spring",
+            "slug": "coil_spring"
+          },
+          {
+            "name": "Tension Rise · Sheet Metal",
+            "slug": "sheet_metal"
+          },
+          {
+            "name": "Tension Rise · Industrial Cog",
+            "slug": "industrial_cog"
+          }
+        ]
+      },
+      {
+        "folder": "experimental/pneumatic_jet",
+        "presets": [
+          {
+            "name": "Pneumatic Jet · Pipe",
+            "slug": "pipe"
+          },
+          {
+            "name": "Pneumatic Jet · Plate",
+            "slug": "plate"
+          },
+          {
+            "name": "Pneumatic Jet · Tank",
+            "slug": "tank"
+          },
+          {
+            "name": "Pneumatic Jet · Chain",
+            "slug": "chain"
+          },
+          {
+            "name": "Pneumatic Jet · I-Beam",
+            "slug": "i_beam"
+          },
+          {
+            "name": "Pneumatic Jet · Taut Cable",
+            "slug": "taut_cable"
+          },
+          {
+            "name": "Pneumatic Jet · Coil Spring",
+            "slug": "coil_spring"
+          },
+          {
+            "name": "Pneumatic Jet · Sheet Metal",
+            "slug": "sheet_metal"
+          },
+          {
+            "name": "Pneumatic Jet · Industrial Cog",
+            "slug": "industrial_cog"
+          }
+        ]
+      },
+      {
+        "folder": "experimental/electromagnetic_hum",
+        "presets": [
+          {
+            "name": "Electromagnetic Hum · Pipe",
+            "slug": "pipe"
+          },
+          {
+            "name": "Electromagnetic Hum · Plate",
+            "slug": "plate"
+          },
+          {
+            "name": "Electromagnetic Hum · Tank",
+            "slug": "tank"
+          },
+          {
+            "name": "Electromagnetic Hum · Chain",
+            "slug": "chain"
+          },
+          {
+            "name": "Electromagnetic Hum · I-Beam",
+            "slug": "i_beam"
+          },
+          {
+            "name": "Electromagnetic Hum · Taut Cable",
+            "slug": "taut_cable"
+          },
+          {
+            "name": "Electromagnetic Hum · Coil Spring",
+            "slug": "coil_spring"
+          },
+          {
+            "name": "Electromagnetic Hum · Sheet Metal",
+            "slug": "sheet_metal"
+          },
+          {
+            "name": "Electromagnetic Hum · Industrial Cog",
+            "slug": "industrial_cog"
+          }
+        ]
+      },
+      {
+        "folder": "experimental/tension_snap",
+        "presets": [
+          {
+            "name": "Tension Snap · Pipe",
+            "slug": "pipe"
+          },
+          {
+            "name": "Tension Snap · Plate",
+            "slug": "plate"
+          },
+          {
+            "name": "Tension Snap · Tank",
+            "slug": "tank"
+          },
+          {
+            "name": "Tension Snap · Chain",
+            "slug": "chain"
+          },
+          {
+            "name": "Tension Snap · I-Beam",
+            "slug": "i_beam"
+          },
+          {
+            "name": "Tension Snap · Taut Cable",
+            "slug": "taut_cable"
+          },
+          {
+            "name": "Tension Snap · Coil Spring",
+            "slug": "coil_spring"
+          },
+          {
+            "name": "Tension Snap · Sheet Metal",
+            "slug": "sheet_metal"
+          },
+          {
+            "name": "Tension Snap · Industrial Cog",
+            "slug": "industrial_cog"
+          }
+        ]
+      },
+      {
+        "folder": "experimental/particle_rain",
+        "presets": [
+          {
+            "name": "Particle Rain · Pipe",
+            "slug": "pipe"
+          },
+          {
+            "name": "Particle Rain · Plate",
+            "slug": "plate"
+          },
+          {
+            "name": "Particle Rain · Tank",
+            "slug": "tank"
+          },
+          {
+            "name": "Particle Rain · Chain",
+            "slug": "chain"
+          },
+          {
+            "name": "Particle Rain · I-Beam",
+            "slug": "i_beam"
+          },
+          {
+            "name": "Particle Rain · Taut Cable",
+            "slug": "taut_cable"
+          },
+          {
+            "name": "Particle Rain · Coil Spring",
+            "slug": "coil_spring"
+          },
+          {
+            "name": "Particle Rain · Sheet Metal",
+            "slug": "sheet_metal"
+          },
+          {
+            "name": "Particle Rain · Industrial Cog",
+            "slug": "industrial_cog"
+          }
+        ]
+      }
+    ]
+  },
+  "limiter_modes": [
+    {
+      "name": "Hard",
+      "value": 0
+    },
+    {
+      "name": "Lookahead",
+      "value": 1
+    }
+  ],
+  "note_modes": [
+    {
+      "name": "Tonal",
+      "value": 0
+    },
+    {
+      "name": "Kit",
+      "value": 1
+    },
+    {
+      "name": "Drone",
+      "value": 2
+    }
+  ],
+  "objects": [
+    {
+      "name": "Pipe",
+      "value": 0
+    },
+    {
+      "name": "Plate",
+      "value": 1
+    },
+    {
+      "name": "Tank",
+      "value": 2
+    },
+    {
+      "name": "Chain",
+      "value": 3
+    },
+    {
+      "name": "I-Beam",
+      "value": 4
+    },
+    {
+      "name": "Taut Cable",
+      "value": 5
+    },
+    {
+      "name": "Coil Spring",
+      "value": 6
+    },
+    {
+      "name": "Sheet Metal",
+      "value": 7
+    },
+    {
+      "name": "Industrial Cog",
+      "value": 8
+    }
+  ],
+  "quality_modes": [
+    {
+      "name": "Eco",
+      "value": 0
+    },
+    {
+      "name": "Normal",
+      "value": 1
+    },
+    {
+      "name": "High",
+      "value": 2
+    },
+    {
+      "name": "Render",
+      "value": 3
+    }
+  ],
+  "randomizer_modes": [
+    {
+      "name": "Safe",
+      "value": 0
+    },
+    {
+      "name": "Object",
+      "value": 1
+    },
+    {
+      "name": "Damage",
+      "value": 2
+    },
+    {
+      "name": "Full",
+      "value": 3
+    }
+  ],
+  "space_modes": [
+    {
+      "name": "Off",
+      "value": 0
+    },
+    {
+      "name": "Factory",
+      "value": 1
+    },
+    {
+      "name": "Spring",
+      "value": 2
+    },
+    {
+      "name": "Echo",
+      "value": 3
+    }
+  ]
+}

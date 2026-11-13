@@ -58,6 +58,9 @@ pub mod dsp;
 /// GUI module - optional egui-based editor interface
 pub mod gui;
 
+/// The user guide's data, exported from the plugin (`add-user-guide`)
+pub mod guide;
+
 /// Offline rendering module - batch processing and export utilities
 pub mod offline;
 

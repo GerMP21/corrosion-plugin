@@ -160,3 +160,18 @@ No user-facing migration. The deploy adds `/wiki/`. Rollback is reverting the me
   Mutation: relabelling Rust as "Rusty" fails it on all 27 configurations.
 - **Temporary `allow(dead_code)`** without the GUI features, until the exporter (2.2) uses the tables.
 - **Lanes:** fmt; CI-lane clippy `-D warnings`; CI test lane 516 passed; GUI lane 511 passed (one new test); GUI-lane clippy the same 27 warnings as before; web workspace clippy (native and wasm) passes.
+
+### Tasks 2.1–2.3: guide data exporter (2026-11-13)
+
+- **Module `src/guide/`** (feature-free, `corrosion::guide`): `parameters_json()`, `models_json()` and `guide_files()`. The binary `export_guide_data` writes them to `web/guide/src/data/`. Pretty-printed, keys sorted (`serde_json` without `preserve_order`), trailing newline.
+- **`parameters.json`** is `{ "parameters": [...] }`, 149 entries in the editor's order: panel by panel, fixed controls in drawing order, a panel's model slots right after its first section (Exciter: after Model Type, Pressure, Speed, Roughness; Resonator: after Material). Per entry: `id`, `name`, `panel`, `group`, `kind`, `min`, `max`, `default` and `unit`, all display strings from the parameter's own formatter. Then one of:
+  - `controls` (fixed controls): `label`, `group`, `shown` (`always`, `family:hit|friction|specialty`, `space:factory|spring|echo`) and `help`. `env_attack` and `env_release` have two (AD and ADSR panels).
+  - `slots` (model controls, `group: "Model controls"`): `model`, `group` (the model's panel title), `label`, `min`, `max` (the slot's slider range, formatted) and `help`.
+  
+  **Differs from Decision 3:** selectors have `options` (`value`, `name`, and the trial `selector_help` text per option) instead of `min`, `max` and `steps`, because their host min and max are value indices (UI Scale's "max" was 145 %, while the menu ends at 150 %). When every option shares one text (UI Scale, loop Start and End), it goes on the control's `help` instead. No parameter is `hidden`: all 149 have an editor control. Kinds: 139 float, 10 int.
+- **`models.json`**: `exciters` (value, name, family; editor order), `objects`, `space_modes`, `quality_modes`, `note_modes`, `limiter_modes`, `randomizer_modes`, and `factory`: `folders` (21: the five curated, `drums`, and 16 `experimental/<exciter>`, each with preset names and slugs in browser order) and `drum_kits` (name, slug, pad count).
+- **Sizes:** `parameters.json` 88 KB, `models.json` 28 KB.
+- **Tests (CI lane):** `guide_data_equals_the_files_on_disk` lists every stale or missing file and the first difference in each (a parameter ID, or a top-level key); `guide_data_lists_every_host_parameter` (the export's IDs equal `param_map()`'s, no duplicates); `guide_data_lists_every_model_and_mode` (16 exciters, 9 objects, the mode counts, every factory preset and kit). All three ran red against an empty export.
+- **Mutations:** Rust's default 0 → 0.5 fails with "parameter `rust` differs"; Plate → "Plates" fails naming parameter `object` in `parameters.json` and `factory` in `models.json` (the first differing key; `objects` differs too); deleting `models.json` fails with "is missing". Each restored and green.
+- The temporary `allow(dead_code)` in `controls.rs` is gone; the exporter uses the tables in every configuration.
+- **Lanes:** fmt; CI-lane clippy `-D warnings` (exit 0; the `include_dir` unused-dependency note is cargo's and was already there); CI test lane 519 passed; GUI lane 514 passed; GUI-lane clippy the same 27 warnings; web workspace clippy (native and wasm) passes.

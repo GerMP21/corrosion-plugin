@@ -6,9 +6,9 @@
 
 ## 2. Guide data (tests first)
 
-- [ ] 2.1 Test first: `guide_data_equals_the_files_on_disk` (CI lane) and a test that every parameter of `param_map()` is in the export; run red (no files)
-- [ ] 2.2 `export_guide_data` binary: `parameters.json` and `models.json` (Decision 3); run it, tests green; remove the temporary `allow(dead_code)` at the top of `src/gui/controls.rs`
-- [ ] 2.3 Mutation checks: change one parameter's default and one model name and see the drift test fail, naming them
+- [x] 2.1 Test first: `guide_data_equals_the_files_on_disk` (CI lane) and a test that every parameter of `param_map()` is in the export; run red (no files) (as built: plus `guide_data_lists_every_model_and_mode`; all three red against an empty export)
+- [x] 2.2 `export_guide_data` binary: `parameters.json` and `models.json` (Decision 3); run it, tests green; remove the temporary `allow(dead_code)` at the top of `src/gui/controls.rs`
+- [x] 2.3 Mutation checks: change one parameter's default and one model name and see the drift test fail, naming them (as built: also a deleted file; see design.md)
 
 ## 3. Guide site skeleton
 

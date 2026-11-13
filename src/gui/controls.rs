@@ -6,11 +6,6 @@
 //! guide's data exporter and its tests can read them in the CI lane
 //! (`--no-default-features`).
 
-// Until the guide's exporter reads these tables (`add-user-guide` task 2.2),
-// only the editor uses them, so builds without it would warn. Remove this
-// allow with 2.2.
-#![cfg_attr(not(any(feature = "gui", feature = "web-gui")), allow(dead_code))]
-
 use crate::params::{CorrosionParams, ExciterType, Object};
 use nih_plug::prelude::FloatParam;
 
