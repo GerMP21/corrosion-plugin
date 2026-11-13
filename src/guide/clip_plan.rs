@@ -149,7 +149,7 @@ const QUIET: &[(&str, Point, &str)] = &[
     (
         "internal_rattle",
         Point::Min,
-        "With no rattle, Metal Chain's drop is almost silent (−62 dBFS); asked of the maintainer.",
+        "With no rattle, Metal Chain's drop is almost silent (−62 dBFS); in docs/BACKLOG.md.",
     ),
 ];
 

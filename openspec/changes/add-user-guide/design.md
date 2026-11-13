@@ -275,4 +275,5 @@ Each mutation was restored, and the guide tests pass.
 - `cargo doc --no-deps --no-default-features` had one new warning, an unresolved intra-doc link to `guide_files` in `src/guide/mod.rs` (since task 2.2); fixed, 0 warnings.
 - Guide check and build pass; `site.cjs`, `smoke.cjs` and `features.cjs` pass against the full local build.
 - **Not tested:** the Cloudflare deploy itself (the Node install path was run by hand, not in Workers Builds); the guide's look on Safari and Firefox (Chromium only).
-- **Open for the maintainer:** the home demos (provisional); whether Metal Chain with Internal Rattle 0 should be almost silent (−62 dBFS, declared quiet meanwhile); 64 kbps vs 48 kbps for the clips (16.1 MB vs about 12 MB); the review of `parameters.es.json` in `write-user-guide-content`.
+- **Open for the maintainer:** the home demos (provisional: the maintainer listens first, then chooses); 64 kbps vs 48 kbps for the clips (16.1 MB vs about 12 MB); the review of `parameters.es.json` in `write-user-guide-content`.
+- **Moved to `docs/BACKLOG.md` (maintainer, 2026-11-13):** Metal Chain almost silent at Internal Rattle 0 (−62 dBFS); the clip stays declared quiet.

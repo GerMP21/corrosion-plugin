@@ -36,6 +36,14 @@ Each item notes the relevant file(s) and an acceptance check.
   2–3 s, the default patch included (`reorganize-factory-presets` design).
   The percussion presets add Rust and Sludge to make strikes decay. *Accept:*
   decide by ear whether the default should decay sooner.
+- [ ] **[VERIFY] Metal Chain is almost silent at Internal Rattle 0.** With no
+  rattle the chain's drop barely sounds: −62 dBFS RMS on the guide's base
+  patch (Hand Strike on Plate, `param:internal_rattle:min`, declared quiet in
+  `src/guide/clip_plan.rs`). Found by the guide's audibility check
+  (`add-user-guide`). Decide whether the links should still ring on their own
+  at 0, or whether the range should start above silence. *Accept:* Metal Chain
+  at Internal Rattle 0 is audible (over the guide's silence floor) or the
+  tooltip says that 0 mutes it; the clip's quiet declaration goes either way.
 - [ ] **[PARTIAL] MSEG PingPong loop ignores the loop stages.** It always loops
   Decay → Sustain, like Forward 3 → 4 (`src/params.rs` `loop_mode` doc,
   `src/dsp/envelopes/mod.rs`). *Accept:* PingPong runs forward then backward

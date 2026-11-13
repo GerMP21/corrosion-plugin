@@ -1517,7 +1517,7 @@
       "file": "params/internal_rattle/min.opus",
       "gain_db": -2.8,
       "peak_db": -50.4,
-      "quiet": "With no rattle, Metal Chain's drop is almost silent (−62 dBFS); asked of the maintainer.",
+      "quiet": "With no rattle, Metal Chain's drop is almost silent (−62 dBFS); in docs/BACKLOG.md.",
       "ref": "param:internal_rattle:min",
       "rms_db": -66.7,
       "set": "param:internal_rattle",
