@@ -2,14 +2,16 @@
 // starts in its canvas, audio starts, a key on the editor's strip and a
 // computer key sound, a preset chosen in the editor reaches the engine, and
 // no console error is logged.
-// Usage: node web/scripts/smoke.cjs http://localhost:8787/ [screenshot.png]
+// Usage: node web/scripts/smoke.cjs http://localhost:8787/ (the site's base URL) [screenshot.png]
 const { chromium } = require("playwright");
 
 const meter = (page) => page.evaluate(() => window.corrosionMeter);
 const wait = (page, ms) => page.waitForTimeout(ms);
 
 (async () => {
-  const url = process.argv[2] ?? "http://localhost:8787/";
+  // The argument is the site's base URL; the app lives under play/
+  // (`add-site-shell`).
+  const url = new URL("play/", process.argv[2] ?? "http://localhost:8787/").href;
   const browser = await chromium.launch({
     args: ["--autoplay-policy=no-user-gesture-required", "--enable-unsafe-swiftshader", "--use-angle=swiftshader"],
   });

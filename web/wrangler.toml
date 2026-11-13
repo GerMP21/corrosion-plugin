@@ -1,12 +1,22 @@
-# Cloudflare Workers: serves the built web app (web/dist) as static assets
-# (`add-web-app`). No server code: the whole app runs in the browser.
+# Cloudflare Workers: serves the built site (web/dist) as static assets
+# (`add-web-app`, `add-site-shell`). No server code: the home page and the
+# guide are static, and the app runs in the browser.
 name = "corrosion-vst"
 compatibility_date = "2026-11-01"
 
+# The public URLs (maintainer's choice: a domain of their own). The zone
+# corrosion-vst.org must be in the same Cloudflare account; wrangler creates
+# the DNS records and certificates on deploy. preview. stays so its record
+# stays proxied: a Redirect Rule in the dashboard sends it to
+# https://corrosion-vst.org/play/ (docs/ARCHITECTURE.md).
+routes = [
+  { pattern = "corrosion-vst.org", custom_domain = true },
+  { pattern = "preview.corrosion-vst.org", custom_domain = true },
+]
+
 [assets]
 directory = "./dist"
-
-# The public URL (maintainer's choice: a domain of their own). The zone
-# corrosion-vst.org must be in the same Cloudflare account; wrangler
-# creates the DNS record and certificate on deploy.
-routes = [{ pattern = "preview.corrosion-vst.org", custom_domain = true }]
+# /play and /wiki redirect to their trailing-slash form; unknown paths get
+# the nearest 404.html, themed.
+html_handling = "auto-trailing-slash"
+not_found_handling = "404-page"

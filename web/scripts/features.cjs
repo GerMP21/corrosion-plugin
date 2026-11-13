@@ -2,7 +2,7 @@
 // group 4): session autosave and restore, saving a preset in the editor
 // into IndexedDB, opening a preset file, downloading the current sound,
 // MIDI messages reaching the engine, the BPM field, and the load meter.
-// Usage: node web/scripts/features.cjs http://localhost:8787/ preset-file
+// Usage: node web/scripts/features.cjs http://localhost:8787/ (the site's base URL) preset-file
 const { chromium } = require("playwright");
 const fs = require("fs");
 
@@ -32,7 +32,9 @@ const sameSound = (a, b) => {
 };
 
 (async () => {
-  const [url = "http://localhost:8787/", presetFile] = process.argv.slice(2);
+  const [base = "http://localhost:8787/", presetFile] = process.argv.slice(2);
+  // The app lives under play/ (`add-site-shell`).
+  const url = new URL("play/", base).href;
   const browser = await chromium.launch({
     args: ["--autoplay-policy=no-user-gesture-required", "--enable-unsafe-swiftshader", "--use-angle=swiftshader"],
   });

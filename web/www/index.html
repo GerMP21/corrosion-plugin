@@ -5,19 +5,28 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Corrosion</title>
 <meta name="description" content="Corrosion, a physical-modelling synthesizer, running in your browser.">
+<meta name="theme-color" content="#0D0D0D">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<!-- Colours, type and spacing from the site's shared tokens (`add-site-shell`). -->
+<link rel="stylesheet" href="/theme/tokens.css">
 <style>
-  :root { color-scheme: dark; --bg: #121212; --bar: #1b1b1b; --fg: #e6e1d8; --muted: #8f8a80; --accent: #e8b400; --warn: #e0533d; --line: #2c2c2c; }
-  html, body { margin: 0; background: var(--bg); color: var(--fg); font: 14px/1.4 system-ui, sans-serif; }
+  html, body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.4 var(--font); }
   body { display: flex; flex-direction: column; min-height: 100vh; }
-  header { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; padding: 8px 16px; background: var(--bar); border-bottom: 1px solid var(--line); }
-  header h1 { margin: 0; font-size: 15px; letter-spacing: 0.12em; font-weight: 700; }
+  header { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; padding: 8px 16px; background: var(--surface); border-bottom: 1px solid var(--line); }
+  header h1 { margin: 0; font-size: 15px; letter-spacing: var(--tracking-caps); font-weight: 700; }
+  header h1 a { color: var(--accent); text-decoration: none; }
+  header nav { display: inline-flex; align-items: center; gap: 12px; }
+  header nav a { color: var(--text); text-decoration: none; }
+  header nav a:hover { color: var(--accent); }
   header .grow { flex: 1; }
   header label { color: var(--muted); display: inline-flex; align-items: center; gap: 6px; }
   button, select, input { font: inherit; }
-  button { background: #2a2a2a; color: var(--fg); border: 1px solid #3a3a3a; border-radius: 4px; padding: 5px 12px; cursor: pointer; }
-  button.primary { background: var(--accent); color: #111; border-color: var(--accent); font-weight: 600; }
+  button { background: var(--control); color: var(--text); border: 1px solid var(--control-border); border-radius: var(--radius); padding: 5px 12px; cursor: pointer; }
+  button:hover:not(:disabled) { background: var(--control-hover); }
+  button.primary { background: var(--accent); color: var(--on-accent); border-color: var(--accent); font-weight: 600; }
+  button.primary:hover:not(:disabled) { background: var(--accent); filter: brightness(1.08); }
   button:disabled { opacity: 0.45; cursor: default; }
-  select, input[type=number] { background: #222; color: var(--fg); border: 1px solid #3a3a3a; border-radius: 4px; padding: 4px 6px; }
+  select, input[type=number] { background: var(--recessed); color: var(--text); border: 1px solid var(--control-border); border-radius: var(--radius); padding: 4px 6px; }
   input[type=number] { width: 4.5em; }
   #status, #load { color: var(--muted); font-variant-numeric: tabular-nums; }
   #load.warn { color: var(--warn); }
@@ -27,16 +36,17 @@
   #editor { display: block; width: 80%; height: 840px; outline: none; }
   /* On narrow screens 80 % would make the controls too small to use. */
   @media (max-width: 900px) { #editor { width: 100%; } }
-  footer { padding: 6px 16px; color: var(--muted); font-size: 12px; border-top: 1px solid var(--line); background: var(--bar); }
-  a { color: var(--fg); }
-  .github { display: inline-flex; align-items: center; gap: 6px; color: var(--fg); text-decoration: none; padding: 4px 6px; border-radius: 4px; }
-  .github:hover { background: #2a2a2a; }
+  footer { padding: 6px 16px; color: var(--muted); font-size: 12px; border-top: 1px solid var(--line); background: var(--surface); }
+  a { color: var(--text); }
+  footer a { color: var(--muted); }
+  .github { display: inline-flex; align-items: center; gap: 6px; color: var(--text); text-decoration: none; padding: 4px 6px; border-radius: var(--radius); }
+  .github:hover { background: var(--control); }
   .github svg { width: 22px; height: 22px; fill: currentColor; }
 </style>
 </head>
 <body>
 <header>
-  <h1>CORROSION</h1>
+  <h1><a href="/" title="Corrosion home">CORROSION</a></h1>
   <button id="start" class="primary">Start audio</button>
   <span id="status">Audio is off: browsers start audio only after a click.</span>
   <span id="load"></span>
@@ -45,6 +55,7 @@
   <label>BPM <input id="bpm" type="number" min="20" max="300" step="1" value="120"></label>
   <button id="open">Open preset…</button>
   <button id="download">Download preset</button>
+  <nav><a href="/">Home</a><a href="/wiki/">Guide</a></nav>
   <a class="github" href="https://github.com/Synaptech-Solutions-SAS/Corrosion-VST" target="_blank" rel="noopener" title="Corrosion on GitHub" aria-label="Corrosion on GitHub">
     <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
   </a>
@@ -55,7 +66,7 @@
   Corrosion is free software under the <a href="https://www.gnu.org/licenses/gpl-3.0.html">GPLv3</a> ·
   <a href="https://github.com/Synaptech-Solutions-SAS/Corrosion-VST">Source code</a> ·
   Build <span id="build">dev</span> ·
-  Your sound and presets are kept in this browser only.
+  Your sound and presets are kept in this browser only, for this address.
 </footer>
 <script type="module" src="app.js"></script>
 </body>

@@ -1,5 +1,0 @@
-# Cloudflare static-asset headers (`add-web-app`). File names aren't
-# hashed, so caches revalidate after an hour; a deploy is seen within it.
-/*
-  Cache-Control: public, max-age=3600, must-revalidate
-  X-Content-Type-Options: nosniff

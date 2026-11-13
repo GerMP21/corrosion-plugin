@@ -100,3 +100,19 @@ It ends with requirements (VST3 and CLAP; Windows, macOS, Linux) and a footer (s
 1. Merge to `main`. Workers Builds deploys, and both `corrosion-vst.org` and `preview.` now serve the new layout (preview's root shows the home page for a few minutes).
 2. The maintainer adds the Redirect Rule. Check `curl -sI https://preview.corrosion-vst.org/` → `301 location: https://corrosion-vst.org/play/`.
 3. Rollback: revert the merge. The previous deploy serves the app at the root again. Disable the Redirect Rule if it was added.
+
+## As built
+
+- **`/wiki/` placeholder.** The home page's guide link and the app's Guide link would 404 until `add-user-guide`. Instead, `web/site/wiki/index.html` (themed, "The guide is being written", pointing at the ⓘ help) answers there, so every call to action resolves (spec: home page links resolve). `add-user-guide` replaces it.
+- **`routes` was inside `[assets]`.** In the `add-web-app` config, wrangler ignored it ("Unexpected fields found in assets field: routes"). The preview domain worked only because it had been added in the dashboard. `routes` is now top-level, listing both domains.
+- **Local and CI server.** `python3 -m http.server` returns its own 404 page, not `404.html`. `web/scripts/serve.cjs` (no dependencies) follows the two Workers rules: directory → 307 to the trailing slash, nearest `404.html`. CI's browser step runs `site.cjs`, `smoke.cjs` and `features.cjs` against it. Locally, `wrangler dev` (4.156.0, with `--compatibility-date 2026-10-30` because its runtime predates the config's date) gives the same answers: `/play` → 307 `/play/`.
+- **Screenshot.** `web/scripts/home-screenshot.cjs` captures the whole editor from the local app (1600 px window, so the editor is 1280 px wide, at deviceScaleFactor 2). It is converted to `web/site/assets/editor.webp` (1600 × 881, 33 KB), and CSS fades its cut-off bottom edge.
+- **Extras.** A palette favicon (`web/site/favicon.svg`) on every page, `Referrer-Policy` in `_headers`. The app's footer says presets are kept "in this browser only, for this address".
+- **App colours changed slightly.** The app's page chrome used colours outside the palette (`#121212` background, `#e8b400` accent, `#e6e1d8` text). It now uses the tokens: CHARCOAL, SAFETY_YELLOW, OFF_WHITE.
+
+## Measurements
+
+- `site.cjs`: all checks pass locally (`wrangler dev` and `serve.cjs`). Before the change, against the old `dist`: 11 of 22 checks failed (no calls to action, `/play` 404, unthemed 404, `#121212` background).
+- `smoke.cjs` at `/play/`: strip RMS 0.31, key 0.35, next preset 0.51, no console errors. `features.cjs`: all pass.
+- Palette test: green; with `--safety-yellow` changed to `#FACC16` it fails with `SAFETY_YELLOW: palette #FACC15, tokens.css #FACC16`.
+- Lanes: fmt clean; clippy `-D warnings` (CI lane) clean; CI test lane 516 passed, 0 failed; GUI lane 510 passed, 0 failed (30 ignored). GUI-lane clippy shows 27 warnings, the same count as before the change.

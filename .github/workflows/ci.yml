@@ -185,10 +185,12 @@ jobs:
 
       - name: Browser checks
         run: |
-          python3 -m http.server 8787 --directory dist >/dev/null 2>&1 &
+          # serve.cjs follows the Workers trailing-slash and 404-page rules.
+          node scripts/serve.cjs dist 8787 >/dev/null 2>&1 &
           sleep 1
-          node scripts/smoke.cjs http://localhost:8787/
-          node scripts/features.cjs http://localhost:8787/ ../presets/factory/bass/tank_boom_bass.corrosion-preset
+          node scripts/site.cjs http://127.0.0.1:8787/
+          node scripts/smoke.cjs http://127.0.0.1:8787/
+          node scripts/features.cjs http://127.0.0.1:8787/ ../presets/factory/bass/tank_boom_bass.corrosion-preset
 
   # VST3 and CLAP built on each platform's own runner, checked, validated and
   # zipped. Needs every platform's checks, so a release never mixes a tested
