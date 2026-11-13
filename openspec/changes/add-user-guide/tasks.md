@@ -26,7 +26,7 @@
 - [x] 4.2 `src/guide/clip_plan.rs`: base patch, per-parameter entries, exclusions with reasons, comparison sets, preset, kit and demo lists. Render candidate base patches and comparison sets, and choose them with the maintainer by ear before the full render; record in design.md (as built: base patch D, Hand Strike on Plate; exciters compared on Tank, objects with Felt Mallet; demos provisional)
 - [x] 4.3 `render_guide_clips` binary and `scripts/build-guide-clips.sh` (`opusenc --bitrate 64`, manifest); generate all clips; tests green
 - [x] 4.4 `<Clips>` component (shared lazy `<audio>`, translated labels, keyboard access); wired into `ParamReference`, the exciter and object pages and the kit page
-- [ ] 4.5 Home page audio demos (`web/site/`) from the generated demo clips
+- [x] 4.5 Home page audio demos (`web/site/`) from the generated demo clips
 - [ ] 4.6 Mutation checks: a planned parameter removed, a clip file deleted, the plan changed without regenerating; each test fails
 
 ## 5. Build, CI, docs

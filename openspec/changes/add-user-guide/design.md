@@ -232,3 +232,8 @@ No user-facing migration. The deploy adds `/wiki/`. Rollback is reverting the me
 - Labels are translated (Min/Mid/Max, Mín/Medio/Máx) or come from the manifest's source, so they follow the plan: "On Tank" / "Sobre Tank", "With Felt Mallet" / "Con Felt Mallet", "Preset: <name>".
 - Wired into every reference card (142 parameters have clips; excluded ones show none), each exciter and object page's Listen section (its comparison clip and its preset), the Exciters and Objects overview pages (the whole comparison set) and the Kit page (the ten kits).
 - Checked with Playwright: on the Spanish Resonator reference, 84 buttons and no clip requests before a click; clicking Rust's Max requests `/wiki/clips/params/rust/max.opus` (200) and presses the button; Enter on a focused button plays it; the Spanish Bow page shows "Sobre Tank" and "Preset: Bowed Cable Sub". No console errors.
+
+### Task 4.5: home demos (2026-11-13)
+
+- A "Hear it" section on the home page (`web/site/index.html`) with five buttons, Bass, Lead, Chords, Drones and Percussion, playing `/wiki/clips/demos/<folder>.opus` through one shared `Audio` (`preload = 'none'`), with the same toggle and `aria-pressed` as `<Clips>`. The labels are the folder names, which are stable; which preset plays is up to the clip plan (still the provisional first preset per folder).
+- `site.cjs` passes against the local site (no third-party scripts, 375 px without horizontal scroll). Playwright: clicking Drones fetches the clip (200) and presses the button, at 1280 and 375 px.
