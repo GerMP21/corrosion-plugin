@@ -49,8 +49,12 @@ const check = (ok, what) => {
   check(/GPL/i.test(footer), "footer states the GPLv3 license");
   check((await page.locator('footer a[href*="github.com"]').count()) >= 1, "footer links the source");
   check((await page.locator('footer #build').count()) === 1, "footer shows the build commit");
+  // Cloudflare Web Analytics' cookie-free beacon is injected by the host on
+  // the live site and is allowed (maintainer's choice); nothing else is.
   const thirdParty = await page.evaluate((origin) =>
-    [...document.scripts].map((s) => s.src).filter((src) => src && !src.startsWith(origin)), new URL(base).origin);
+    [...document.scripts].map((s) => s.src)
+      .filter((src) => src && !src.startsWith(origin) && !src.startsWith("https://static.cloudflareinsights.com/")),
+    new URL(base).origin);
   check(thirdParty.length === 0, `no third-party scripts (${thirdParty.join(", ")})`);
   const bg = await page.evaluate(() => getComputedStyle(document.body).backgroundColor);
   check(bg === "rgb(13, 13, 13)", `home background is CHARCOAL (${bg})`);

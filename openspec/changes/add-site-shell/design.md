@@ -117,3 +117,16 @@ It ends with requirements (VST3 and CLAP; Windows, macOS, Linux) and a footer (s
 - Palette test: green; with `--safety-yellow` changed to `#FACC16` it fails with `SAFETY_YELLOW: palette #FACC15, tokens.css #FACC16`.
 - Lanes: fmt clean; clippy `-D warnings` (CI lane) clean; CI test lane 516 passed, 0 failed; GUI lane 510 passed, 0 failed (30 ignored). GUI-lane clippy shows 27 warnings, the same count as before the change.
 - **Domains (maintainer, 2026-11-13).** The Worker's only domain is `corrosion-vst.org`. `preview.` was removed from `routes` (wrangler would re-add it on each deploy otherwise). It stays reachable for the redirect through a proxied placeholder record, `AAAA preview 100::`, which replaces Decision 3's "keep preview as a Worker domain". The Redirect Rule is unchanged: 301 to `/play/`.
+- **Cloudflare Web Analytics kept (maintainer, 2026-11-13).** On the live site, Cloudflare injects its cookie-free beacon (`static.cloudflareinsights.com/beacon.min.js`) into the HTML it serves to browsers; it is not in the repository and `curl` doesn't see it. The spec and `site.cjs` allow that one script and nothing else.
+
+## Live checks (2026-11-13, after #27 and #28 and the dashboard settings)
+
+- `curl -sI`:
+  - `https://corrosion-vst.org/` → 200 (home, build 3783b63);
+  - `/play` → 307 `/play/`;
+  - `/play/` → 200;
+  - `/wiki/` → 200 (placeholder);
+  - `https://preview.corrosion-vst.org/` and `/algo?x=1` → 301 `https://corrosion-vst.org/play/` (query string dropped).
+- `site.cjs` against `https://corrosion-vst.org/` with `CHECK_EXTERNAL=1`: the only failure was the injected analytics beacon, now allowed (rerun below).
+- `features.cjs`: passes.
+- `smoke.cjs`: failed once (the wheel didn't scroll the page, `scrolled: 0`), then passed twice in a row (strip RMS 0.31, key 0.31). It looks like a timing flake on the live network. If it recurs, `smoke.cjs` should wait for the canvas height to settle before the wheel step.

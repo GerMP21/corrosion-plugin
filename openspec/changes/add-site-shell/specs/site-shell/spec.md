@@ -29,7 +29,7 @@ Every request to `preview.corrosion-vst.org` SHALL be answered with a permanent 
 - **THEN** the response is a 301 to `https://corrosion-vst.org/play/`
 
 ### Requirement: Home page
-The home page SHALL say in one or two sentences what Corrosion is, and SHALL link prominently to the web app (`/play/`), the downloads (the repository's GitHub releases) and the guide (`/wiki/`). It SHALL also link the source repository and state the GPLv3 license and the build commit. It SHALL load no third-party script and set no tracking cookie, and it SHALL be usable at phone width without horizontal scrolling.
+The home page SHALL say in one or two sentences what Corrosion is, and SHALL link prominently to the web app (`/play/`), the downloads (the repository's GitHub releases) and the guide (`/wiki/`). It SHALL also link the source repository and state the GPLv3 license and the build commit, and it SHALL be usable at phone width without horizontal scrolling.
 
 #### Scenario: Calls to action
 - **WHEN** a visitor opens `/`
@@ -38,6 +38,13 @@ The home page SHALL say in one or two sentences what Corrosion is, and SHALL lin
 #### Scenario: Phone width
 - **WHEN** the home page is shown 375 px wide
 - **THEN** the page has no horizontal scroll and the three calls to action are reachable
+
+### Requirement: No third-party scripts or tracking cookies
+The site's pages SHALL load no third-party script other than Cloudflare Web Analytics' cookie-free beacon, which the host injects (maintainer's choice), and SHALL set no tracking cookie.
+
+#### Scenario: Scripts on the home page
+- **WHEN** the live home page is loaded in a browser
+- **THEN** every script comes from the site's own origin, except the Cloudflare Web Analytics beacon
 
 ### Requirement: Shared dark theme
 The home page, the web app's page chrome and the guide SHALL use one shared set of design tokens whose colours are the plugin editor's palette. The site SHALL be dark-only. The token file's colours SHALL equal the plugin palette (`src/gui/palette.rs`, which the editor draws with), and a test SHALL fail when either side changes alone.

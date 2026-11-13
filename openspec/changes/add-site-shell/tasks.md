@@ -26,5 +26,5 @@
 
 - [x] 4.1 Docs: README links to `https://corrosion-vst.org` and `/play/`; `docs/ARCHITECTURE.md` web section (layout, domains, Redirect Rule settings, tokens test); `add-web-app` design note on the move
 - [x] 4.2 Close-out lanes: fmt, clippy `-D warnings`, CI test lane, the web scripts; commit and push to `dev`
-- [ ] 4.3 After the maintainer merges: `site.cjs` and `smoke.cjs` against `https://corrosion-vst.org/`; the maintainer removes `preview.` from the Worker's domains, adds the placeholder record `AAAA preview 100::` (proxied) and the Redirect Rule; `curl -sI` on preview shows the 301; record both in design.md `## Measurements`
-- [ ] 4.4 Update CLAUDE.md Current state
+- [x] 4.3 After the maintainer merges: `site.cjs` and `smoke.cjs` against `https://corrosion-vst.org/`; the maintainer removes `preview.` from the Worker's domains, adds the placeholder record `AAAA preview 100::` (proxied) and the Redirect Rule; `curl -sI` on preview shows the 301; record both in design.md `## Measurements`
+- [x] 4.4 Update CLAUDE.md Current state
