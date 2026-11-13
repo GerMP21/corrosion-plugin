@@ -1,0 +1,31 @@
+---
+// Placeholder for a page whose prose isn't written yet (`add-user-guide`).
+// `npm run check -- --complete` fails while any page still uses it.
+const { t } = Astro.locals;
+---
+
+<aside class="stub" role="note">
+  <p class="stub-title">{t('guide.stub.title')}</p>
+  <p>{t('guide.stub.body')}</p>
+</aside>
+
+<style>
+  .stub {
+    border: 1px solid var(--line);
+    border-left: 4px solid var(--accent);
+    background: var(--surface);
+    padding: 0.75rem 1rem;
+    border-radius: var(--radius);
+  }
+  .stub p {
+    margin: 0;
+  }
+  .stub .stub-title {
+    color: var(--accent);
+    text-transform: uppercase;
+    letter-spacing: var(--tracking-caps);
+    font-size: var(--sl-text-xs);
+    font-weight: 600;
+    margin-bottom: 0.25rem;
+  }
+</style>

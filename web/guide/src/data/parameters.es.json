@@ -1,0 +1,661 @@
+{
+  "air_pressure": {
+    "slots": {
+      "Pneumatic Jet": "Presión del chorro de aire. Más alto suena más fuerte y más turbulento."
+    }
+  },
+  "amplitude_randomization": {
+    "slots": {
+      "Wire Brush": "Variación aleatoria de nivel entre alambres o golpes. Más alto suena más suelto y más orgánico."
+    }
+  },
+  "analog_ceiling": {
+    "help": "El nivel máximo de la salida. Más bajo hace que el diodo y el limitador recorten antes."
+  },
+  "beam_shear": {
+    "slots": {
+      "I-Beam": "Intensidad de los modos de cortante de la viga. Más alto añade más armónicos inarmónicos."
+    }
+  },
+  "bias_starvation": {
+    "help": "Deja sin alimentación a la distorsión de vez en cuando. Más alto la hace caer y chisporrotear más a menudo."
+  },
+  "body": {
+    "help": "Nivel del cuerpo que resuena bajo el sonido. Más alto suena más lleno y más físico."
+  },
+  "bow_pressure": {
+    "slots": {
+      "Bow": "Cuánto presiona el arco sobre el objeto. Más alto suena más fuerte y áspero, y demasiado lo hace crujir."
+    }
+  },
+  "bow_speed": {
+    "slots": {
+      "Bow": "Lo rápido que se mueve el arco. Más alto da un tono más brillante y estable."
+    }
+  },
+  "break_threshold": {
+    "slots": {
+      "Tension Rise": "Tensión a la que desliza el material. Más alto acumula más tensión antes de cada crujido."
+    }
+  },
+  "brush_wire_stiffness": {
+    "slots": {
+      "Wire Brush": "Rigidez de los alambres (de la escobilla o de las espiras del muelle, según el modelo). Más alto suena más brillante y más tenso."
+    }
+  },
+  "cable_braid": {
+    "slots": {
+      "Taut Cable": "Rigidez del trenzado del cable. Más alto suena más brillante y menos armónico."
+    }
+  },
+  "cable_tension_drop": {
+    "slots": {
+      "Taut Cable": "Cuánto baja la altura en las notas fuertes. Más alto curva más hacia abajo las notas fuertes."
+    }
+  },
+  "chain_instability": {
+    "slots": {
+      "Chain": "Cuánto se desplazan los eslabones entre sí. Más alto suena más suelto y más caótico."
+    }
+  },
+  "chain_link_mass": {
+    "slots": {
+      "Chain": "Peso de cada eslabón. Los eslabones más pesados suenan más graves y más contundentes."
+    }
+  },
+  "chain_mass": {
+    "slots": {
+      "Metal Chain": "Peso de la cadena que cae. Una cadena más pesada golpea más fuerte y más oscuro."
+    }
+  },
+  "chaos_depth": {
+    "help": "Cuánto modula el atractor de Lorenz la distorsión. Más alto hace que la distorsión se mueva de forma impredecible."
+  },
+  "chassis_material": {
+    "help": "Material del cuerpo que resuena con el sonido. Cambia el tono del cuerpo."
+  },
+  "chassis_volume": {
+    "help": "Tamaño del cuerpo. Más alto da resonancias más graves y algo más fuertes."
+  },
+  "chatter_damping": {
+    "slots": {
+      "Stiff Point Scrape": "Lo rápido que se apaga cada ráfaga de chirrido. Más alto suena más seco y más apretado."
+    }
+  },
+  "chatter_pitch": {
+    "slots": {
+      "Stiff Point Scrape": "Altura del chirrido del stick-slip. Más alto suena más chillón."
+    }
+  },
+  "cog_dissonance": {
+    "slots": {
+      "Industrial Cog": "Desafinación de los dientes del engranaje. Más alto suena más disonante."
+    }
+  },
+  "coil_proximity": {
+    "slots": {
+      "Electromagnetic Hum": "Lo cerca que está la bobina del objeto. Más alto acopla con más fuerza y suena más fuerte."
+    }
+  },
+  "component_tolerance": {
+    "help": "Deriva aleatoria de los componentes del filtro. Más alto suena menos preciso y más analógico."
+  },
+  "compression_curve": {
+    "slots": {
+      "Felt Mallet": "Lo rápido que se endurece el fieltro al comprimirse. Más alto hace los golpes fuertes mucho más brillantes que los suaves."
+    }
+  },
+  "core_hardness": {
+    "slots": {
+      "Felt Mallet": "Dureza del núcleo bajo el fieltro. Más alto añade un clic más brillante a los golpes fuertes."
+    }
+  },
+  "coupling_stiffness": {
+    "help": "Con cuánta fuerza se empujan el excitador y el objeto. Más alto hace su interacción más fuerte y más salvaje."
+  },
+  "creak_sharpness": {
+    "slots": {
+      "Tension Rise": "Nitidez de cada crujido. Más alto suena más brillante y más percusivo."
+    }
+  },
+  "curve_tension": {
+    "help": "Forma de los tramos de la envolvente. Cuanto más te alejas del centro, más se curvan."
+  },
+  "damage": {
+    "help": "Abolla y agrieta el objeto: desafina sus modos y añade compañeros que zumban. Más alto suena más roto."
+  },
+  "delay_time": {
+    "help": "Tiempo entre ecos. Más alto los separa más."
+  },
+  "diode_asymmetry": {
+    "help": "Recorta antes la mitad negativa. Más alto añade armónicos pares y una arenilla más llena."
+  },
+  "diode_softness": {
+    "help": "Codo del diodo. 0 recorta en seco; más alto curva antes y suena más cálido."
+  },
+  "drag_exciter_mass": {
+    "slots": {
+      "Corrugated Drag": "Peso del excitador arrastrado. Más pesado suena más grave y más contundente."
+    }
+  },
+  "drag_speed": {
+    "slots": {
+      "Corrugated Drag": "Lo rápido que se arrastra el excitador sobre las estrías. Más alto sube la frecuencia de las estrías."
+    }
+  },
+  "drive": {
+    "help": "Saturación maestra sobre la mezcla de voces, antes de la cadena de salida. Más alto satura más."
+  },
+  "drive_amount": {
+    "help": "Saturación de la distorsión de Lorenz en la cadena de salida. Más alto suena más distorsionado."
+  },
+  "drop_envelope_spread": {
+    "slots": {
+      "Metal Chain": "Cuánto se reparten en el tiempo los eslabones al caer, en milisegundos. Más alto alarga la cascada."
+    }
+  },
+  "env_amount": {
+    "help": "Cuánto moldea la envolvente la excitación. Más bajo la aplana."
+  },
+  "env_attack": {
+    "help": "Tiempo que tarda la nota en llegar a su nivel máximo. Más alto entra más despacio."
+  },
+  "env_decay": {
+    "help": "Tiempo para bajar del pico al nivel de sustain. Más alto decae más despacio."
+  },
+  "env_release": {
+    "help": "Tiempo de desvanecimiento al soltar la nota. Más alto se apaga más despacio."
+  },
+  "env_sustain": {
+    "help": "Nivel que se mantiene mientras la tecla está pulsada. Más alto suena más fuerte."
+  },
+  "exciter": {
+    "options": {
+      "Bow": "Fricción de arco suave por stick-slip, con presión, velocidad, agarre y deslizamiento, según el modelo de arco documentado.",
+      "Corrugated Drag": "Arrastre sobre estrías, con separación, profundidad y masa del contacto ajustables.",
+      "Drumstick": "Impacto rígido y ligero, con energía de rebote y número de microrrebotes ajustables.",
+      "Electromagnetic Hum": "Inyección continua por fuerza de Lorentz, con control directo de la frecuencia de red, la proximidad y la caída de tensión.",
+      "Felt Mallet": "Maza blanda no lineal: una capa de fieltro que se comprime sobre un núcleo más duro.",
+      "Hand Strike": "Impacto carnoso de Kelvin-Voigt, con mucha amortiguación y una cola de apagado propia.",
+      "Hard Mallet": "Golpe rígido de Hertz, ajustado con la masa, el brillo y la supresión de rebotes.",
+      "Heavy Grinding": "Arrastre pesado y rugoso, con fuerza de base, arenilla que desgarra y color del ruido por separado.",
+      "Metal Chain": "Impactos agrupados de eslabones pesados, con dispersión temporal y color del traqueteo agudo por separado.",
+      "Metal Pipe": "Impacto de tubo en ambos sentidos: el cuerpo del excitador suena y realimenta el choque.",
+      "Particle Rain": "Nube continua de partículas, controlada por la densidad del flujo, el peso de cada partícula y la variación.",
+      "Pneumatic Jet": "Excitador de turbulencia de banda limitada, moldeado por el foco de la boquilla y el caos por sobrecarga.",
+      "Stiff Point Scrape": "Raspado con una punta rígida: la altura y la amortiguación del chirrido definen su carácter.",
+      "Tension Rise": "Crujido de integración y disparo: velocidad de tirón, umbral, aleatoriedad y nitidez del chasquido.",
+      "Tension Snap": "Mecanismo de gancho que tira y suelta, con distancia de tirón, rigidez y fuerza de rotura.",
+      "Wire Brush": "Escobilla como nube de impulsos, con densidad, dispersión, rigidez y variación aleatoria."
+    }
+  },
+  "exciter_pressure": {
+    "help": "Cuánto presiona el excitador sobre el objeto. Más alto lo excita con más fuerza: más volumen y más tensión."
+  },
+  "exciter_roughness": {
+    "help": "Irregularidad del contacto. Más alto añade arenilla, ruido y temblor a la excitación."
+  },
+  "exciter_speed": {
+    "help": "Lo rápido que se mueve el excitador sobre el objeto o contra él. Más alto suena más brillante y más agitado."
+  },
+  "factory_size": {
+    "help": "Tamaño de la nave. Más alto da una reverb más larga y más grande."
+  },
+  "felt_softness": {
+    "slots": {
+      "Felt Mallet": "Suavidad del fieltro. Más alto da un golpe más redondo y oscuro."
+    }
+  },
+  "filter_cutoff": {
+    "help": "Corte del filtro paso bajo después de las voces. Más bajo suena más oscuro."
+  },
+  "filter_resonance": {
+    "help": "Pico resonante en el corte. Más alto resuena y silba más."
+  },
+  "flesh_damping": {
+    "slots": {
+      "Hand Strike": "Cuánto absorbe la carne el impacto. Más alto suaviza el ataque."
+    }
+  },
+  "flesh_stiffness": {
+    "slots": {
+      "Hand Strike": "Rigidez de la carne en el contacto. Más alto da una palmada más corta y brillante."
+    }
+  },
+  "flow_rate": {
+    "slots": {
+      "Particle Rain": "Cuántas partículas caen por segundo. Más alto da una lluvia más densa."
+    }
+  },
+  "fundamental_anchor": {
+    "help": "Con cuánta firmeza mantiene el fundamental su altura mientras los otros modos se mueven. Más alto mantiene las notas más afinadas."
+  },
+  "global_time_scale": {
+    "help": "Escala todos los tiempos de la envolvente. Más alto ralentiza toda la envolvente."
+  },
+  "grind_pressure": {
+    "slots": {
+      "Heavy Grinding": "Cuánto presiona la amoladora sobre el objeto. Más alto suena más fuerte y más agresivo."
+    }
+  },
+  "grind_speed": {
+    "slots": {
+      "Heavy Grinding": "Velocidad de la muela. Más alto da un rugido más brillante y más denso."
+    }
+  },
+  "grit_color": {
+    "slots": {
+      "Heavy Grinding": "Tono del ruido de la arenilla. Más alto es más brillante."
+    }
+  },
+  "hand_mass": {
+    "slots": {
+      "Hand Strike": "Peso de la mano que golpea. Una mano más pesada lleva más graves al objeto."
+    }
+  },
+  "heat": {
+    "help": "Calienta el metal: baja su altura, lo oscurece y añade una ondulación lenta. Más alto, más caliente."
+  },
+  "high_frequency_damping": {
+    "help": "Oscurece cada repetición del eco. Más alto recorta más agudos."
+  },
+  "hook_stiffness": {
+    "slots": {
+      "Tension Snap": "Rigidez del gancho. Más alto da una suelta más seca."
+    }
+  },
+  "impact_damping": {
+    "slots": {
+      "Hard Mallet": "Energía que se pierde en el propio contacto. Más alto suaviza y acorta el ataque."
+    }
+  },
+  "internal_rattle": {
+    "slots": {
+      "Metal Chain": "Traqueteo entre los eslabones. Más alto añade más repiqueteo al golpe."
+    }
+  },
+  "limiter_mode": {
+    "options": {
+      "Hard": "Recorta los picos en el techo sin añadir latencia.",
+      "Lookahead": "Baja los picos con suavidad y por adelantado. Añade cerca de 1 ms de latencia."
+    }
+  },
+  "link_count": {
+    "slots": {
+      "Metal Chain": "Número de eslabones de la cadena que cae. Más alto da un traqueteo más largo y más denso."
+    }
+  },
+  "listener_proximity": {
+    "help": "Lo cerca que está el oyente. Más alto suena más cercano y más lleno."
+  },
+  "loop_end_stage": {
+    "help": "La etapa donde termina el bucle de la envolvente."
+  },
+  "loop_mode": {
+    "options": {
+      "Forward": "La envolvente se repite entre las etapas Start y End.",
+      "Off": "La envolvente se reproduce una vez.",
+      "Ping-Pong": "La envolvente va y viene entre las etapas Start y End."
+    }
+  },
+  "loop_start_stage": {
+    "help": "La etapa donde empieza el bucle de la envolvente."
+  },
+  "machinery_clutter": {
+    "help": "Objetos en la nave. Más alto añade reflexiones más numerosas y más densas."
+  },
+  "machinery_movement": {
+    "help": "Cuánto oscila el retardo del eco. Más alto suena más deformado."
+  },
+  "macro_brightness": {
+    "help": "Abre el filtro y da brillo al objeto. Más alto suena más brillante."
+  },
+  "macro_corrosion": {
+    "help": "Desgasta el objeto: más amortiguación y más óxido. Más alto suena más viejo y apagado."
+  },
+  "macro_mass": {
+    "help": "Lo hace todo más pesado: el peso de los excitadores y el tamaño del objeto. Más alto suena más grande y más grave."
+  },
+  "macro_violence": {
+    "help": "Empuja la saturación, el caos y el daño. Más alto suena más áspero y más roto."
+  },
+  "mains_frequency": {
+    "slots": {
+      "Electromagnetic Hum": "Frecuencia de la excitación electromagnética, en hercios. Fija la altura base del zumbido."
+    }
+  },
+  "mallet_mass": {
+    "slots": {
+      "Felt Mallet": "Peso de la cabeza de la maza. Una maza más pesada se queda más tiempo en contacto y saca los modos graves.",
+      "Hard Mallet": "Peso de la cabeza de la maza. Una maza más pesada se queda más tiempo en contacto y saca los modos graves."
+    }
+  },
+  "mass_variance": {
+    "slots": {
+      "Particle Rain": "Variación del peso de las partículas. Más alto suena más desigual."
+    }
+  },
+  "material_stiffness": {
+    "slots": {
+      "Hard Mallet": "Rigidez de la cabeza de la maza. Más alto da un golpe más seco y brillante."
+    }
+  },
+  "metal_stiffness": {
+    "slots": {
+      "Metal Pipe": "Rigidez del metal que golpea. Más alto da un golpe metálico más duro y brillante."
+    }
+  },
+  "micro_bounce_limit": {
+    "slots": {
+      "Drumstick": "Número máximo de pequeños rebotes tras un golpe. Más alto permite un ataque más zumbante, con traqueteo."
+    }
+  },
+  "mseg_attack": {
+    "help": "Tiempo que tarda la nota en llegar a su nivel máximo. Más alto entra más despacio."
+  },
+  "mseg_decay": {
+    "help": "Tiempo para bajar del pico al nivel de sustain. Más alto decae más despacio."
+  },
+  "mseg_hold": {
+    "help": "Tiempo que la envolvente se mantiene en el pico antes de decaer. Más alto lo mantiene más."
+  },
+  "mseg_onset": {
+    "help": "Duración de la etapa de arranque que inicia la envolvente de fricción. Más alto hace entrar la nota más despacio."
+  },
+  "mseg_onset_level": {
+    "help": "Nivel de la etapa de arranque de la envolvente de fricción. Más alto empieza la nota con más fuerza."
+  },
+  "mseg_release": {
+    "help": "Tiempo de desvanecimiento al soltar la nota. Más alto se apaga más despacio."
+  },
+  "mseg_sustain": {
+    "help": "Nivel que se mantiene mientras la tecla está pulsada. Más alto suena más fuerte."
+  },
+  "mute_decay": {
+    "slots": {
+      "Hand Strike": "Cuánto tiempo descansa la mano sobre el objeto tras el golpe. Más bajo apaga antes la resonancia."
+    }
+  },
+  "nozzle_width": {
+    "slots": {
+      "Pneumatic Jet": "Anchura de la boquilla. Más alto da un siseo más ancho y oscuro."
+    }
+  },
+  "object": {
+    "options": {
+      "Chain": "Resonador de eslabones, moldeado por el peso de cada eslabón, la longitud de la cadena, la inestabilidad y la pérdida por fricción.",
+      "Coil Spring": "Respuesta dispersiva de muelle, controlada por la longitud de la espira, la densidad del chirp y la inestabilidad del vaivén.",
+      "I-Beam": "Modos de viga, con masa, densidad de cortante y amortiguación de la rigidez ajustables.",
+      "Industrial Cog": "Comportamiento de disco dentado, con radio, disonancia de los dientes y grosor del disco.",
+      "Pipe": "Respuesta longitudinal de tubo, con controles propios de longitud, diámetro y sustain.",
+      "Plate": "Respuesta de placa en 2D que equilibra el tamaño, la proporción y la rigidez del material.",
+      "Sheet Metal": "Respuesta de chapa fina, con tamaño, delgadez y amortiguación de los bordes en lugar de controles genéricos de brillo.",
+      "Tank": "Comportamiento de carcasa y cavidad, con volumen, grosor de pared, equilibrio de la cavidad y decaimiento de la carcasa.",
+      "Taut Cable": "Respuesta de cuerda rígida, con tensión, rigidez del trenzado y control de la caída dinámica de altura."
+    }
+  },
+  "output": {
+    "help": "Nivel de salida final, en dB. El techo sigue limitando los picos."
+  },
+  "particle_mass": {
+    "slots": {
+      "Particle Rain": "Peso de cada partícula. Las partículas más pesadas golpean más fuerte y más oscuro."
+    }
+  },
+  "pipe_diameter": {
+    "slots": {
+      "Pipe": "Diámetro del tubo. Más alto suena más grave y más hueco."
+    }
+  },
+  "pipe_mass": {
+    "slots": {
+      "Metal Pipe": "Peso del tubo que golpea. Un tubo más pesado golpea más fuerte y más oscuro."
+    }
+  },
+  "pipe_pitch": {
+    "slots": {
+      "Metal Pipe": "Afinación de la resonancia propia del tubo que golpea. Más alto sube su armónico."
+    }
+  },
+  "pipe_ring_decay": {
+    "slots": {
+      "Metal Pipe": "Cuánto dura la resonancia propia del tubo que golpea. Más alto añade una cola metálica más larga a cada golpe."
+    }
+  },
+  "plate_aspect": {
+    "slots": {
+      "Plate": "Proporción entre los lados de la placa. Cambia cómo se reparten sus modos, de uniformes a agrupados."
+    }
+  },
+  "plate_stiffness": {
+    "slots": {
+      "Plate": "Rigidez de la placa. Más alto separa sus armónicos y suena más brillante."
+    }
+  },
+  "play_mode": {
+    "options": {
+      "Drone": "Como Tonal, pero los excitadores frotados y raspados siguen sonando mientras mantienes la tecla (la envolvente repite Decay y Sustain). Los golpeados siguen decayendo.",
+      "Kit": "Cada tecla toca su propio pad, con su sonido y su afinación, que se configuran con la barra de kit sobre el teclado. Las teclas sin pad no suenan.",
+      "Tonal": "Cada tecla toca el patch a su propia altura. Los excitadores frotados y raspados siguen la envolvente, así que se apagan aunque mantengas la tecla."
+    }
+  },
+  "point_pressure": {
+    "slots": {
+      "Stiff Point Scrape": "Cuánto se clava la punta en la superficie. Más alto suena más fuerte y más áspero."
+    }
+  },
+  "position_envelope": {
+    "help": "Cuánto barre la envolvente el punto de golpe. Más alto da un barrido de timbre más marcado."
+  },
+  "position_wander": {
+    "help": "Cuánto se desplaza el punto de golpe mientras suena la nota. Más alto hace que el timbre se mueva más."
+  },
+  "position_wander_rate": {
+    "help": "Velocidad del desplazamiento del punto de golpe. Más alto deriva más rápido."
+  },
+  "pull_distance": {
+    "slots": {
+      "Tension Snap": "Cuánto tira el gancho antes de soltar. Más alto da un chasquido mayor."
+    }
+  },
+  "pull_speed": {
+    "slots": {
+      "Tension Rise": "Lo rápido que se acumula la tensión. Más alto hace que los crujidos lleguen antes."
+    }
+  },
+  "quality_mode": {
+    "options": {
+      "Eco": "El menor consumo de CPU: menos modos por voz y sin sobremuestreo en el clipper.",
+      "High": "Más modos por voz y más sobremuestreo en el clipper.",
+      "Normal": "El equilibrio por defecto entre detalle y CPU.",
+      "Render": "El máximo detalle y el menor aliasing, para exportar. Es el que más CPU usa."
+    }
+  },
+  "rattle_color": {
+    "slots": {
+      "Metal Chain": "Tono del traqueteo. Más alto es más brillante."
+    }
+  },
+  "res_brightness": {
+    "help": "Abre el filtro y da brillo al objeto. Más alto suena más brillante."
+  },
+  "res_damping": {
+    "slots": {
+      "Chain": "Tiempo de decaimiento de la envolvente de fricción. Más alto apaga la fricción más despacio.",
+      "I-Beam": "Amortiguación de la rigidez de la viga. Más alto acorta los modos agudos.",
+      "Industrial Cog": "Grosor del engranaje. Más alto suena más brillante y más rígido.",
+      "Pipe": "Cuánto se sostiene la envolvente de fricción en Drone y en los modos con bucle. Más alto sostiene más.",
+      "Sheet Metal": "Amortiguación en los bordes de la chapa. Más alto acorta la resonancia.",
+      "Tank": "Cuánto tiempo resuena la carcasa. Más alto sostiene más."
+    }
+  },
+  "restitution_bounciness": {
+    "slots": {
+      "Drumstick": "Cuánto rebota la baqueta tras el contacto. Más alto da golpes más vivos, con más rebotes."
+    }
+  },
+  "ridge_depth": {
+    "slots": {
+      "Corrugated Drag": "Profundidad de las estrías. Más alto da golpecitos más fuertes."
+    }
+  },
+  "ridge_spacing": {
+    "slots": {
+      "Corrugated Drag": "Distancia entre las estrías de la superficie. Más alto separa más los golpecitos."
+    }
+  },
+  "rosin_grip": {
+    "slots": {
+      "Bow": "Fricción estática de la resina. Más alto agarra más y da un stick-slip más fuerte y rugoso."
+    }
+  },
+  "rust": {
+    "help": "Corroe el objeto: acorta el decaimiento y apaga los modos agudos. Más alto suena más apagado y más seco."
+  },
+  "scrape_speed": {
+    "slots": {
+      "Stiff Point Scrape": "Lo rápido que raspa la punta sobre la superficie. Más alto sube la altura y la densidad del chirrido."
+    }
+  },
+  "sheet_thinness": {
+    "slots": {
+      "Sheet Metal": "Delgadez de la chapa. Más alto dobla y deforma más el sonido."
+    }
+  },
+  "size": {
+    "slots": {
+      "Chain": "Tamaño de la cadena. Las cadenas más grandes suenan más graves.",
+      "Coil Spring": "Longitud de la espira. Las espiras más largas suenan más graves.",
+      "I-Beam": "Peso de la viga. Las vigas más pesadas suenan más graves.",
+      "Industrial Cog": "Radio del engranaje. Los engranajes más grandes suenan más graves.",
+      "Pipe": "Longitud del tubo. Los tubos más largos suenan más graves.",
+      "Plate": "Tamaño de la placa. Las placas más grandes suenan más graves.",
+      "Sheet Metal": "Tamaño de la chapa. Las chapas más grandes suenan más graves.",
+      "Tank": "Tamaño del tanque. Los tanques más grandes suenan más graves.",
+      "Taut Cable": "Tensión del cable. Más alto suena más agudo."
+    }
+  },
+  "slip_curve": {
+    "slots": {
+      "Bow": "Lo rápido que cae la fricción cuando el arco desliza. Más alto da un tono más incisivo y agresivo."
+    }
+  },
+  "slip_stochasticity": {
+    "slots": {
+      "Tension Rise": "Aleatoriedad de los deslizamientos. Más alto suena más irregular."
+    }
+  },
+  "sludge": {
+    "help": "Cubre el objeto de lodo. Más alto lo amortigua y apaga el ataque."
+  },
+  "snap_force": {
+    "slots": {
+      "Tension Snap": "Fuerza de la suelta. Más alto suena más fuerte y más duro."
+    }
+  },
+  "space_amount": {
+    "help": "Mezcla del efecto de Space. Más alto suena más húmedo."
+  },
+  "space_mode": {
+    "options": {
+      "Echo": "Un eco estéreo modulado, libre o sincronizado con el tempo del host.",
+      "Factory": "Una reverb de nave industrial grande.",
+      "Off": "Sin efecto de Space: el sonido queda seco.",
+      "Spring": "Un tanque de reverb de muelle, con su twang y su chirp."
+    }
+  },
+  "spread_duration": {
+    "slots": {
+      "Wire Brush": "Cuánto tardan en caer los alambres de la escobilla, en milisegundos. Más alto convierte el golpe en un barrido."
+    }
+  },
+  "spread_width": {
+    "help": "Apertura estéreo de la imagen. Más alto suena más ancho."
+  },
+  "spring_dispersion": {
+    "slots": {
+      "Coil Spring": "Cuánto emborrona el muelle las frecuencias agudas. Más alto da un chirp de muelle más marcado."
+    }
+  },
+  "spring_slosh": {
+    "slots": {
+      "Coil Spring": "Vaivén del muelle. Más alto suena más suelto y más líquido."
+    }
+  },
+  "spring_tank_size": {
+    "help": "Tamaño del tanque. Los tanques más grandes suenan más graves."
+  },
+  "spring_tension": {
+    "help": "Tensión del muelle de la reverb. Más alto sube su twang."
+  },
+  "stick_mass": {
+    "slots": {
+      "Drumstick": "Peso de la baqueta. Una baqueta más pesada excita el objeto con más fuerza y más oscuro."
+    }
+  },
+  "strike_position": {
+    "help": "Dónde golpea el excitador al objeto. Al moverlo cambian los modos que suenan, y con ellos el timbre."
+  },
+  "surface_grit": {
+    "slots": {
+      "Heavy Grinding": "Aspereza de la superficie amolada. Más alto añade ruido y crepitación."
+    }
+  },
+  "sync_rate": {
+    "help": "Sincroniza el eco con el tempo del host. Off lo deja en Delay Time."
+  },
+  "tank_cavity_mix": {
+    "slots": {
+      "Tank": "Nivel de la resonancia de la cavidad de aire. Más alto suena más hueco."
+    }
+  },
+  "tank_volume": {
+    "slots": {
+      "Tank": "Volumen del tanque. Más alto suena más grave y más retumbante."
+    }
+  },
+  "thickness": {
+    "help": "Grosor del objeto. Más alto suena más brillante y más rígido."
+  },
+  "tip_stiffness": {
+    "slots": {
+      "Drumstick": "Rigidez de la punta de la baqueta. Más alto da un toque más seco y brillante."
+    }
+  },
+  "turbulence_chaos": {
+    "slots": {
+      "Pneumatic Jet": "Inestabilidad del flujo de aire. Más alto suena más rugoso y más caótico."
+    }
+  },
+  "ui_scale": {
+    "help": "Tamaño de la ventana del editor."
+  },
+  "velocity_to_level": {
+    "help": "Cuánto cambia la velocity el nivel de la nota. Más alto da más rango dinámico."
+  },
+  "velocity_to_peak": {
+    "help": "Cuánto cambia la velocity el pico de la envolvente. Más alto hace que las notas suaves suenen más bajas."
+  },
+  "velocity_to_time": {
+    "help": "Cuánto acorta la velocity la envolvente. Más alto hace más rápidas las notas fuertes."
+  },
+  "voltage_sag": {
+    "slots": {
+      "Electromagnetic Hum": "Inestabilidad de la alimentación. Más alto hace que el zumbido oscile y decaiga."
+    }
+  },
+  "wall_impedance": {
+    "help": "Dureza de las paredes. Más alto suena más brillante y más reflectante."
+  },
+  "width": {
+    "help": "Anchura estéreo de las voces. Más alto las abre más."
+  },
+  "wire_density": {
+    "slots": {
+      "Wire Brush": "Número de alambres de la escobilla. Más alto da un barrido más denso y suave."
+    }
+  },
+  "wire_stiffness": {
+    "help": "Rigidez de los alambres (de la escobilla o de las espiras del muelle, según el modelo). Más alto suena más brillante y más tenso."
+  }
+}
