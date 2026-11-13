@@ -154,7 +154,8 @@ fn invalid_preset_values_are_sanitized_on_load() {
     assert_eq!(params.output.value(), 100.0);
     assert_eq!(params.width.value(), -2.0);
     assert_eq!(params.body.value(), 5.0);
-    assert_eq!(params.ui_scale.value(), 4);
+    // Clamped to the last index (8, 95 %: 80–95 % were added as 5–8).
+    assert_eq!(params.ui_scale.value(), 8);
     assert_eq!(params.loop_mode.value(), 2);
     assert_eq!(params.loop_start_stage.value(), 0);
     assert_eq!(params.loop_end_stage.value(), 5);

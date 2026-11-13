@@ -147,7 +147,7 @@ src/
     utils/            budget (mode-count estimates), body, dc_blocker (voice mix),
                       deterministic_excitation
   gui/
-    editor.rs         egui editor: knobs/faders, UI scale (50–150%, default 75%: 810×630,
+    editor.rs         egui editor: knobs/faders, UI scale (50, 75, 80–95 in 5 % steps, 100, 125, 150 %; UI_SCALE_CHOICES, new sizes stored as indices 5–8; default 75%: 810×630,
                       of which 54 are the keyboard strip;
                       a change asks the host to resize; the layout never exceeds the
                       window's width), quality,
