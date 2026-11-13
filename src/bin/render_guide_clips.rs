@@ -40,6 +40,7 @@ struct Args {
 
 fn main() {
     let args = Args::parse();
+    std::fs::create_dir_all(&args.out).expect("create the output folder");
     let clips: Vec<ClipSpec> = if args.candidates {
         candidates()
     } else {
