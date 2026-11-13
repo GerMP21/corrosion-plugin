@@ -149,13 +149,17 @@ fn family_exciter(family: ExciterFamily) -> ExciterType {
     }
 }
 
-/// The patch every parameter clip starts from: the default patch with Space
-/// off, in Render quality. Provisional: confirmed by ear with the maintainer
-/// (task 4.2).
+/// The patch every parameter clip starts from: the default patch (Hand
+/// Strike) on Plate, with Space off, in Render quality. Chosen by ear by the
+/// maintainer from four candidates (task 4.2, candidate D).
 pub fn guide_base_patch() -> Preset {
     with_values(
         &Preset::from_params("Guide base", &CorrosionParams::default()),
-        &[("space_mode", 0.0), ("quality_mode", 3.0)],
+        &[
+            ("object", Object::Plate.to_int() as f32),
+            ("space_mode", 0.0),
+            ("quality_mode", 3.0),
+        ],
     )
 }
 
