@@ -1,0 +1,82 @@
+# Design
+
+## Context
+
+- After `add-user-guide`, every page exists in English and Spanish with its headings, its `covers:` front matter and a `<Stub />` body.
+- The parameter reference, `<Clips>`, `parameters.json`, `parameters.es.json` (first-pass translations of the ⓘ texts), `models.json` and the clip generator are in place.
+- `check.mjs` already supports `--complete`.
+
+## Goals / Non-Goals
+
+**Goals:**
+- A reader who has never used a physical-modelling synth can go from install to their own patch with the guide alone.
+- An experienced reader can find every control's exact behaviour in two clicks: from search or the sidebar, to the reference card.
+- Prose stays correct as the plugin evolves, because numbers come from data and pages have a fixed shape.
+
+**Non-Goals:**
+- Changing the plugin, tooltips or presets. Problems found while writing are reported to the maintainer as their own changes.
+- Video. Possible later; screenshots and clips cover v1.
+
+## Decisions
+
+### 1. Voice and style
+- Second person, short sentences, and the plain style the repository's docs already use.
+- Each page opens with one sentence on what the thing does to the sound, then a "Try it" step that a reader can do in the web app.
+- No jargon without a glossary link the first time it appears on a page.
+- English is written first, page by page. The Spanish twin is then written as a translation of meaning, not of words, using the plugin's English control names in `code` style.
+
+### 2. Fixed shapes, enforced by the check
+- **Model pages:** the seven sections of the spec. `check.mjs` gains a rule: an exciter or object page must have those headings in order (translated headings are mapped by a small table), and its Controls section must link every control the model shows. The list comes from `parameters.json` slots for that model plus the common controls.
+- **Panel pages** (exciter controls, resonator, output chain): one `###` per control, in editor order. Each has a "what you hear" paragraph, an interaction note where one exists, and the control's `<Clips>`.
+
+### 3. Numbers from data
+A `<Data>` component renders values from the generated JSON:
+- `<Data count="factoryPresets" />`;
+- `<Data param="cutoff" field="range" />`.
+
+Prose uses it wherever it would otherwise type a count, range or default. The check warns about bare numbers next to known parameter names. It is a heuristic, so it only warns and does not fail.
+
+### 4. Screenshots from the web app
+`web/scripts/screenshots.cjs` (Playwright, deviceScaleFactor 2) opens the local web app at a fixed width and captures:
+- the whole editor;
+- each panel (by known fractions of the canvas, like `features.cjs`);
+- the kit bar, the preset browser open, and the Randomizer menu.
+
+Annotation callouts (numbered markers) are drawn by an MDX component over the image. The image itself has no text, so one image serves both languages. Screenshots are regenerated when the editor changes, and the script is rerunnable.
+
+### 5. Recipes
+8–12 recipes, each a page section:
+- the starting factory preset;
+- the steps (setting, value as displayed);
+- the before and after clips.
+
+The clip plan gains a `Recipe { preset, changes }` entry, so the after clip is rendered from exactly the listed changes, and the manifest test covers recipes too. Proposed recipes, for the maintainer to trim:
+- metallic bass;
+- industrial drone;
+- a kit from scratch;
+- a bowed lead;
+- an impact sound effect;
+- a rusted bell;
+- a glitchy percussion loop;
+- a pad with a Spring tail;
+- turning a preset into a kit pad;
+- taming a loud friction release.
+
+### 6. Review workflow for Spanish
+- Pages go in batches by section, in sidebar order. Each batch is one commit with EN and ES, and the maintainer reviews the Spanish in the PR or in chat.
+- `design.md` keeps a table: page → EN written, ES written, ES approved (date).
+- The final PR to main is opened only when every row is approved (spec: reviewed before publishing).
+- Corrections to `parameters.es.json` from review land in the same batches.
+
+### 7. Accuracy pass
+Before each batch is offered for review, every behavioural claim is checked against the code, a test or a render. Claims that needed a render are listed in the batch's notes. Any mismatch between a tooltip and the behaviour goes to the maintainer as a question, with the numbers.
+
+## Risks / Trade-offs
+
+- [Volume: about 70 pages × 2 languages] → Batches by section, so review keeps pace with writing. The strict check is turned on only in the last task, so earlier batches can merge to `dev` with placeholders left.
+- [Prose drifts after future plugin changes] → Numbers come from data, model pages are shape-checked, and CLAUDE.md adds: a change that alters a user-visible behaviour updates its guide page (EN and ES) in the same change.
+- [Screenshots go stale when the editor changes] → The script is rerunnable. CLAUDE.md lists "regenerate guide screenshots" with the editor-change close-out.
+
+## Open Questions
+
+- Which recipes stay (Decision 5's list is a proposal). This doesn't change the structure or the checks.
