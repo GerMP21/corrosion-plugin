@@ -29,9 +29,10 @@ pub const VELOCITY: f32 = 100.0;
 /// A plain clip's length and note-off, in seconds.
 pub const SECONDS: f32 = 3.0;
 pub const NOTE_OFF: f32 = 2.0;
-/// Every clip renders this long past its last note-off; `trim_to_silence`
-/// then cuts it where its tail falls silent (maintainer, 2026-11-13).
-pub const RELEASE_TAIL: f32 = 8.0;
+/// Every clip renders this long past its last note-off, its longest tail;
+/// `trim_to_silence` then cuts it sooner where its tail falls silent, and
+/// fades it out at this cap otherwise (maintainer, 2026-11-13).
+pub const RELEASE_TAIL: f32 = 2.0;
 /// A clip's tail ends at its last sample above this, relative to its peak.
 pub const SILENCE_BELOW_PEAK_DB: f32 = -60.0;
 /// The fade at the cut, in seconds.

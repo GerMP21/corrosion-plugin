@@ -239,6 +239,7 @@ No user-facing migration. The deploy adds `/wiki/`. Rollback is reverting the me
 - **Demos chosen (maintainer, 2026-11-13):** Bass · Low Sheet Bow from C2, Lead · Driven Pipe Lead from C4, Chords · Glass Cable Choir from C5, Drones · Spring Bow Drone from C3, Percussion · Cog Gong Hit from C3 (Cog Tick since the follow-up); each the same four-note phrase (root, fifth, octave, fifth), as `HOME_DEMOS` in `clip_plan.rs`, checked by `home_demos_cover_each_curated_folder_once`. Only the five demo clips changed; the other 486 render the same and were kept.
 - **Follow-up (maintainer, 2026-11-13):** the Chords demo plays major triads, the Drones demo one held note (3.5 s), as `DemoPhrase`; every clip runs at least `RELEASE_TAIL` = 2 s past its last note-off (`every_clip_leaves_time_for_the_release`; it was 1 s for most parameter clips, 0.5 s for the long notes); all clips re-encoded at **48 kbps** (`opusenc --bitrate 48`). 491 clips, 14.9 MB (from 16.1 MB), render 20.7 s.
 - **Tails cut at silence (maintainer, 2026-11-13):** the fixed 2 s tail left Cog Gong Hit's ring cut off. Every clip now renders `RELEASE_TAIL` = 8 s past its last note-off and `trim_to_silence` cuts it after its last sample within 60 dB of its peak, with a 50 ms fade (`trimming_cuts_where_the_tail_falls_silent`, red with the trim disabled). Percussion demo now **Cog Tick** (maintainer). Clip lengths 0.1–11.5 s, median 3.0 s; **59 clips reach the 8 s cap** without falling 60 dB (the exciters on Tank, the long-ringing object parameters, most representative presets and kits, the Bass, Lead, Chords and Drones demos). Size **19.5 MB**; render 203.5 s. From the decoded clips, cutting at −40 dB instead would save about 10 % and leave about 50 clips at the cap.
+- **Cap back to 2 s (maintainer, 2026-11-13):** `RELEASE_TAIL` = 2 s, with the silence cut kept: a tail ends where it falls 60 dB under the peak or, at the latest, 2 s past the last note-off, faded over 50 ms either way. Clips 0.1–5.5 s, median 3.0 s; the Bass, Lead and Chords demos 4.0 s, Drones 5.5 s, Percussion (Cog Tick) 3.2 s. Size **14.2 MB**; render 20.8 s.
 - `site.cjs` passes against the local site (no third-party scripts, 375 px without horizontal scroll). Playwright: clicking Drones fetches the clip (200) and presses the button, at 1280 and 375 px.
 
 ### Task 4.6: the clip tests' mutations (2026-11-13)
@@ -268,7 +269,7 @@ Each mutation was restored, and the guide tests pass.
 | `npm run check` | under 1 s; 149 pages, 149 parameters |
 | Guide data | `parameters.json` 88 KB, `models.json` 31 KB (with the `kit` block), `parameters.es.json` 47 KB |
 | Clips | 491 (426 parameter clips over 142 parameters, 16 exciters on Tank, 9 objects with Felt Mallet, 16 + 9 representative presets, 10 kits, 5 demos) |
-| Clip size | 19.5 MB of Opus at 48 kbps, tails cut at silence (was 16.1 MB at 64 kbps with fixed 3 s clips; design estimate about 11 MB) |
+| Clip size | 14.2 MB of Opus at 48 kbps, tails cut at silence or at 2 s (was 16.1 MB at 64 kbps with fixed 3 s clips; design estimate about 11 MB) |
 | Clip render | 13.2 s for 491 clips on 4 cores (release); `build-guide-clips.sh` 44 s with encoding |
 | Full site build (`web/scripts/build.sh`, Rust cached) | 10.5 s; `dist/` 833 files, `dist/wiki/` 26 MB |
 
