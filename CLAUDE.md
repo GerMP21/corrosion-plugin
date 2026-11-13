@@ -120,6 +120,7 @@ CI (`.github/workflows/ci.yml`) uses `x86_64-unknown-linux-musl` with the latest
 - `[profile.test]` uses `opt-level = 1`, so debug test runs aren't painfully slow.
 - **Known noise:** clippy on the GUI lane (`cargo clippy --lib` with default features) reports 13 existing `falling back to f32` warnings in `src/gui/editor.rs`. CI doesn't run that lane; don't add new ones.
 - **Ignored measurement tests** print tables, run with `-- --ignored --nocapture`: `preset_levels_are_sane`, `preset_levels_table`, `print_exciter_overdrive`, `print_48k_exciter_render_hashes`, `print_unsoundable_mode_counts`, `print_editor_content_height`, and others.
+- **Checking in REAPER** (Linux, from a cloud session): `docs/REAPER_TESTING.md` has the recipe: Xorg dummy display, REAPER with a startup script that loads the CLAP plugin, a screenshot build with `srgb: false`, and `xdotool` with ImageMagick.
 - **Golden mode-bank fixture** (`tests/fixtures/mode_bank_hashes.txt`): regenerate only for an intended sound change, with `CORROSION_UPDATE_GOLDEN=1 cargo test mode_banks_match_golden`, and add the reason to the doc comment above `mode_banks_match_golden_fixture` in `src/dsp/resonators/core.rs`. It must match on gnu and musl.
 
 ## Benchmarks
