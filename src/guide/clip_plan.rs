@@ -36,12 +36,12 @@ pub const PEAK_CEILING_DB: f32 = -1.0;
 /// Under this RMS, in dBFS, a clip counts as silent.
 pub const SILENCE_DB: f32 = -60.0;
 
-/// The object every exciter plays in the exciter comparison set.
-/// Provisional: chosen by ear with the maintainer (task 4.2).
-pub const COMPARISON_OBJECT: Object = Object::Plate;
-/// The exciter every object is played with in the object comparison set.
-/// Provisional: chosen by ear with the maintainer (task 4.2).
-pub const COMPARISON_EXCITER: ExciterType = ExciterType::HardMallet;
+/// The object every exciter plays in the exciter comparison set (chosen by
+/// ear by the maintainer, task 4.2).
+pub const COMPARISON_OBJECT: Object = Object::Tank;
+/// The exciter every object is played with in the object comparison set
+/// (chosen by ear by the maintainer, task 4.2).
+pub const COMPARISON_EXCITER: ExciterType = ExciterType::FeltMallet;
 
 /// How a parameter is demonstrated.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -130,6 +130,26 @@ const EXCLUDED: &[(&str, &str)] = &[
     (
         "space_mode",
         "Each mode is heard on its own controls' clips, which render with that mode on.",
+    ),
+];
+
+/// Points expected to be near silent, with the reason the guide gives.
+const QUIET: &[(&str, Point, &str)] = &[
+    (
+        "air_pressure",
+        Point::Min,
+        "With no air pressure, Pneumatic Jet barely moves the object.",
+    ),
+    ("output", Point::Min, "Output's minimum mutes the plugin."),
+    (
+        "coil_proximity",
+        Point::Min,
+        "With the coil at its farthest, the hum doesn't reach the object.",
+    ),
+    (
+        "internal_rattle",
+        Point::Min,
+        "With no rattle, Metal Chain's drop is almost silent (−62 dBFS); asked of the maintainer.",
     ),
 ];
 
@@ -265,11 +285,16 @@ pub fn parameter_plans() -> Vec<ParamPlan> {
                 }
                 None => fixed_setup(&id),
             };
+            let quiet = QUIET
+                .iter()
+                .filter(|(q, _, _)| *q == id)
+                .map(|&(_, point, reason)| (point, reason))
+                .collect();
             ParamPlan {
                 id,
                 demo,
                 setup,
-                quiet: Vec::new(),
+                quiet,
             }
         })
         .collect()

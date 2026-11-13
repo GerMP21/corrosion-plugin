@@ -58,7 +58,6 @@ fn guide_clip_plan_covers_every_parameter() {
 }
 
 #[test]
-#[ignore = "red until task 4.3 renders the clips (add-user-guide); remove this then"]
 fn guide_clip_manifest_is_complete_and_audible() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(CLIPS_DIR);
     let regenerate = "run `scripts/build-guide-clips.sh`";

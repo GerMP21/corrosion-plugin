@@ -23,8 +23,8 @@
 ## 4. Audio clips (tests first)
 
 - [x] 4.1 Test first: `guide_clip_plan_covers_every_parameter` and `guide_clip_manifest_is_complete_and_audible` (CI lane); run red (as built: the manifest test is `#[ignore]`d until 4.3 renders the clips, so `dev` stays green; 4.3 removes the ignore)
-- [ ] 4.2 `src/guide/clip_plan.rs`: base patch, per-parameter entries, exclusions with reasons, comparison sets, preset, kit and demo lists. Render candidate base patches and comparison sets, and choose them with the maintainer by ear before the full render; record in design.md (in progress: plan, generator and candidate renders done; waiting for the maintainer's choice)
-- [ ] 4.3 `render_guide_clips` binary and `scripts/build-guide-clips.sh` (`opusenc --bitrate 64`, manifest); generate all clips; tests green
+- [x] 4.2 `src/guide/clip_plan.rs`: base patch, per-parameter entries, exclusions with reasons, comparison sets, preset, kit and demo lists. Render candidate base patches and comparison sets, and choose them with the maintainer by ear before the full render; record in design.md (as built: base patch D, Hand Strike on Plate; exciters compared on Tank, objects with Felt Mallet; demos provisional)
+- [x] 4.3 `render_guide_clips` binary and `scripts/build-guide-clips.sh` (`opusenc --bitrate 64`, manifest); generate all clips; tests green
 - [ ] 4.4 `<Clips>` component (shared lazy `<audio>`, translated labels, keyboard access); wired into `ParamReference`, the exciter and object pages and the kit page
 - [ ] 4.5 Home page audio demos (`web/site/`) from the generated demo clips
 - [ ] 4.6 Mutation checks: a planned parameter removed, a clip file deleted, the plan changed without regenerating; each test fails
