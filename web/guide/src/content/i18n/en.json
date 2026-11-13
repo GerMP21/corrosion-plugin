@@ -27,5 +27,14 @@
   "guide.kit.level": "Pad level",
   "guide.kit.level.value": "A gain in dB stored with each pad; the factory kits set it so every pad plays at the same loudness.",
   "guide.kit.pad": "Stored in each pad",
-  "guide.kit.global": "Shared by every pad"
+  "guide.kit.global": "Shared by every pad",
+  "guide.clips.min": "Min",
+  "guide.clips.mid": "Mid",
+  "guide.clips.max": "Max",
+  "guide.clips.listen": "Listen",
+  "guide.clips.play": "Play {{name}}",
+  "guide.clips.stop": "Stop",
+  "guide.clips.on": "On {{name}}",
+  "guide.clips.with": "With {{name}}",
+  "guide.clips.preset": "Preset: {{name}}"
 }

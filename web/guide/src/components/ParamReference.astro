@@ -8,6 +8,7 @@
 import parametersData from '../data/parameters.json';
 import modelsData from '../data/models.json';
 import esTexts from '../data/parameters.es.json';
+import Clips from './Clips.astro';
 
 interface Props {
   panel: string;
@@ -155,6 +156,7 @@ const linkTo = (id: string) => {
                   </tbody>
                 </table>
               )}
+              <Clips param={p.id} />
             </article>
           ))}
         </section>

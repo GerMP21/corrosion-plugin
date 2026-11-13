@@ -27,5 +27,14 @@
   "guide.kit.level": "Nivel del pad",
   "guide.kit.level.value": "Una ganancia en dB guardada con cada pad; los kits de fábrica la ajustan para que todos los pads suenen igual de fuerte.",
   "guide.kit.pad": "Se guarda en cada pad",
-  "guide.kit.global": "Compartido por todos los pads"
+  "guide.kit.global": "Compartido por todos los pads",
+  "guide.clips.min": "Mín",
+  "guide.clips.mid": "Medio",
+  "guide.clips.max": "Máx",
+  "guide.clips.listen": "Escuchar",
+  "guide.clips.play": "Reproducir {{name}}",
+  "guide.clips.stop": "Parar",
+  "guide.clips.on": "Sobre {{name}}",
+  "guide.clips.with": "Con {{name}}",
+  "guide.clips.preset": "Preset: {{name}}"
 }

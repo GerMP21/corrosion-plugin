@@ -225,3 +225,10 @@ No user-facing migration. The deploy adds `/wiki/`. Rollback is reverting the me
 - **Levels:** every non-quiet clip is above −60 dBFS RMS; the loudest peak is −1.0 dBFS (the ceiling).
 - **Quiet, declared with reasons:** `output` min (mutes), `coil_proximity` min (the hum doesn't reach the object), `air_pressure` min (Pneumatic Jet with no air; −61.3 dBFS, caught by the audibility test on the new base), `internal_rattle` min (Metal Chain with no rattle, −62 dBFS; **asked of the maintainer whether it's intended**).
 - `guide_clip_manifest_is_complete_and_audible` is no longer ignored and passes; CI test lane 521 passed.
+
+### Task 4.4: `<Clips>` (2026-11-13)
+
+- `<Clips param="id" />` (Min, Mid, Max), `<Clips set="…" item="…" />` (one item) and `<Clips set="…" />` (every item, labelled by item name). It reads `public/clips/clips.json` at build. Every row on a page shares one `Audio` with `preload = 'none'`; a button toggles its clip, and `aria-pressed` and a play/stop icon show the state.
+- Labels are translated (Min/Mid/Max, Mín/Medio/Máx) or come from the manifest's source, so they follow the plan: "On Tank" / "Sobre Tank", "With Felt Mallet" / "Con Felt Mallet", "Preset: <name>".
+- Wired into every reference card (142 parameters have clips; excluded ones show none), each exciter and object page's Listen section (its comparison clip and its preset), the Exciters and Objects overview pages (the whole comparison set) and the Kit page (the ten kits).
+- Checked with Playwright: on the Spanish Resonator reference, 84 buttons and no clip requests before a click; clicking Rust's Max requests `/wiki/clips/params/rust/max.opus` (200) and presses the button; Enter on a focused button plays it; the Spanish Bow page shows "Sobre Tank" and "Preset: Bowed Cable Sub". No console errors.
