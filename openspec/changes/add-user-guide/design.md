@@ -237,3 +237,12 @@ No user-facing migration. The deploy adds `/wiki/`. Rollback is reverting the me
 
 - A "Hear it" section on the home page (`web/site/index.html`) with five buttons, Bass, Lead, Chords, Drones and Percussion, playing `/wiki/clips/demos/<folder>.opus` through one shared `Audio` (`preload = 'none'`), with the same toggle and `aria-pressed` as `<Clips>`. The labels are the folder names, which are stable; which preset plays is up to the clip plan (still the provisional first preset per folder).
 - `site.cjs` passes against the local site (no third-party scripts, 375 px without horizontal scroll). Playwright: clicking Drones fetches the clip (200) and presses the button, at 1280 and 375 px.
+
+### Task 4.6: the clip tests' mutations (2026-11-13)
+
+- Dropping `rust` from `parameter_plans()` fails the coverage test ("parameters without a clip plan or exclusion: [\"rust\"]") and the manifest test (the plan's fingerprint changed).
+- Deleting `params/heat/max.opus` fails the manifest test: "param:heat:max has no file (params/heat/max.opus)".
+- Changing `NOTE_OFF` from 2.0 to 1.5 without regenerating fails it: "the clip plan changed since the clips were rendered: run `scripts/build-guide-clips.sh`".
+- The silent-clip path was exercised for real: with base patch D, Air Pressure's minimum fell to −61.3 dBFS and the test named it until it was declared quiet (task 4.3).
+
+Each mutation was restored, and the guide tests pass.

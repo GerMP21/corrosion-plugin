@@ -27,7 +27,7 @@
 - [x] 4.3 `render_guide_clips` binary and `scripts/build-guide-clips.sh` (`opusenc --bitrate 64`, manifest); generate all clips; tests green
 - [x] 4.4 `<Clips>` component (shared lazy `<audio>`, translated labels, keyboard access); wired into `ParamReference`, the exciter and object pages and the kit page
 - [x] 4.5 Home page audio demos (`web/site/`) from the generated demo clips
-- [ ] 4.6 Mutation checks: a planned parameter removed, a clip file deleted, the plan changed without regenerating; each test fails
+- [x] 4.6 Mutation checks: a planned parameter removed, a clip file deleted, the plan changed without regenerating; each test fails
 
 ## 5. Build, CI, docs
 
