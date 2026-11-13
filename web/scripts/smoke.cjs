@@ -66,7 +66,7 @@ const wait = (page, ms) => page.waitForTimeout(ms);
   await page.evaluate(() => window.scrollTo(0, 0));
   await wait(page, 300);
   canvas = await page.locator("#editor").boundingBox();
-  await page.mouse.click(...fromTop(0.565, 0.0355));
+  await page.mouse.click(...fromTop(0.584, 0.037));
   await wait(page, 300);
   await page.keyboard.down("a");
   await wait(page, 500);

@@ -1452,19 +1452,19 @@ fn apply_editor_style(ctx: &egui::Context, scale: f32) {
     style.visuals.selection.stroke = egui::Stroke::new(1.0, SAFETY_YELLOW);
     style.text_styles.insert(
         egui::TextStyle::Heading,
-        egui::FontId::proportional(width_pct(scale, 0.016666668)),
+        egui::FontId::proportional(font_size(scale, 0.016666668)),
     );
     style.text_styles.insert(
         egui::TextStyle::Body,
-        egui::FontId::proportional(width_pct(scale, 0.010185185)),
+        egui::FontId::proportional(font_size(scale, 0.010185185)),
     );
     style.text_styles.insert(
         egui::TextStyle::Button,
-        egui::FontId::proportional(width_pct(scale, 0.010185185)),
+        egui::FontId::proportional(font_size(scale, 0.010185185)),
     );
     style.text_styles.insert(
         egui::TextStyle::Small,
-        egui::FontId::proportional(width_pct(scale, 0.008333334)),
+        egui::FontId::proportional(font_size(scale, 0.008333334)),
     );
     ctx.set_style(style);
 }
@@ -1546,6 +1546,15 @@ fn editor_width(scale: f32) -> f32 {
 /// is taller by the keyboard strip.
 fn editor_height(scale: f32) -> f32 {
     BASE_LAYOUT_HEIGHT as f32 * scale
+}
+
+/// Points added to every editor font at the 100 % layout scale (scaled
+/// with it): the fonts were a little small to read (maintainer, 2026-11-13).
+const FONT_SIZE_BOOST: f32 = 1.0;
+
+/// A font size: `pct` of the editor width, plus [`FONT_SIZE_BOOST`].
+fn font_size(scale: f32, pct: f32) -> f32 {
+    width_pct(scale, pct) + FONT_SIZE_BOOST * scale
 }
 
 fn width_pct(scale: f32, pct: f32) -> f32 {
@@ -1753,7 +1762,7 @@ fn industrial_knob_text(
         egui::pos2(center.x, label_y),
         egui::Align2::CENTER_TOP,
         label.to_uppercase(),
-        egui::FontId::proportional(width_pct(scale, 0.008333334)),
+        egui::FontId::proportional(font_size(scale, 0.008333334)),
         OFF_WHITE,
         help_for(label),
     );
@@ -1769,7 +1778,7 @@ fn industrial_knob_text(
         egui::pos2(center.x, label_y + label_height),
         egui::Align2::CENTER_TOP,
         value_text,
-        egui::FontId::proportional(width_pct(scale, 0.008333334)),
+        egui::FontId::proportional(font_size(scale, 0.008333334)),
         accent,
     );
 
@@ -1929,7 +1938,7 @@ fn industrial_fader_text(
         egui::pos2(rect.min.x + value_width * 0.5, cy),
         egui::Align2::CENTER_CENTER,
         value_text,
-        egui::FontId::proportional(width_pct(scale, 0.009259259)),
+        egui::FontId::proportional(font_size(scale, 0.009259259)),
         accent,
     );
 
@@ -1978,7 +1987,7 @@ fn industrial_fader_text(
         egui::pos2(rect.right() - label_width * 0.5, cy),
         egui::Align2::CENTER_CENTER,
         label.to_uppercase(),
-        egui::FontId::proportional(width_pct(scale, 0.008333334)),
+        egui::FontId::proportional(font_size(scale, 0.008333334)),
         MUTED_GREY,
         help_for(label),
     );
@@ -1987,6 +1996,14 @@ fn industrial_fader_text(
 }
 
 /// Industrial vertical fader for envelope parameters.
+/// Where a vertical fader's track starts, below its label, as a share of
+/// the layout height (was 0.0208; lowered to clear the label, maintainer
+/// 2026-11-13).
+const VFADER_TRACK_TOP: f32 = 0.028645834;
+
+/// The same for the header's faders (was 0.0182).
+const GLOBAL_VFADER_TRACK_TOP: f32 = 0.026041668;
+
 fn industrial_vfader(
     ui: &mut egui::Ui,
     label: &str,
@@ -2004,7 +2021,7 @@ fn industrial_vfader(
     let thumb_height = height_pct(scale, 0.020833334);
     let desired_size = egui::vec2(
         track_width + width_pct(scale, 0.031481482),
-        track_height + height_pct(scale, 0.057291668),
+        track_height + height_pct(scale, VFADER_TRACK_TOP + 0.036458334),
     );
 
     let (rect, response) = ui.allocate_exact_size(desired_size, egui::Sense::click_and_drag());
@@ -2022,7 +2039,7 @@ fn industrial_vfader(
     }
     if response.dragged() {
         if let Some(pointer) = response.interact_pointer_pos() {
-            let track_top = rect.min.y + height_pct(scale, 0.020833334);
+            let track_top = rect.min.y + height_pct(scale, VFADER_TRACK_TOP);
             if track_height > 0.0 {
                 let new_normalized = (1.0 - (pointer.y - track_top) / track_height).clamp(0.0, 1.0);
                 let new_value = min + new_normalized * (max - min);
@@ -2038,7 +2055,7 @@ fn industrial_vfader(
     if response.clicked() {
         setter.begin_set_parameter(param);
         if let Some(pointer) = response.interact_pointer_pos() {
-            let track_top = rect.min.y + height_pct(scale, 0.020833334);
+            let track_top = rect.min.y + height_pct(scale, VFADER_TRACK_TOP);
             if track_height > 0.0 {
                 let new_normalized = (1.0 - (pointer.y - track_top) / track_height).clamp(0.0, 1.0);
                 let new_value = min + new_normalized * (max - min);
@@ -2061,14 +2078,14 @@ fn industrial_vfader(
         egui::pos2(cx, rect.min.y + height_pct(scale, 0.0078125)),
         egui::Align2::CENTER_TOP,
         label.to_uppercase(),
-        egui::FontId::proportional(width_pct(scale, 0.0074074073)),
+        egui::FontId::proportional(font_size(scale, 0.0074074073)),
         MUTED_GREY,
         help_for(label),
     );
     let painter = ui.painter();
 
     // Track
-    let track_top = rect.min.y + height_pct(scale, 0.020833334);
+    let track_top = rect.min.y + height_pct(scale, VFADER_TRACK_TOP);
     let track_bottom = track_top + track_height;
     let track_rect = egui::Rect::from_min_max(
         egui::pos2(cx - track_width * 0.5, track_top),
@@ -2132,7 +2149,7 @@ fn industrial_vfader(
         egui::pos2(cx, track_bottom + height_pct(scale, 0.0078125)),
         egui::Align2::CENTER_TOP,
         value_text,
-        egui::FontId::proportional(width_pct(scale, 0.008333334)),
+        egui::FontId::proportional(font_size(scale, 0.008333334)),
         accent,
     );
 
@@ -2164,7 +2181,7 @@ fn industrial_combo(
             let widget = ui
                 .label(
                     egui::RichText::new(label.to_uppercase())
-                        .size(width_pct(scale, 0.008333334))
+                        .size(font_size(scale, 0.008333334))
                         .color(MUTED_GREY),
                 )
                 .rect;
@@ -2180,7 +2197,7 @@ fn industrial_combo(
             .width(ui.available_width())
             .selected_text(
                 egui::RichText::new(selected)
-                    .size(width_pct(scale, 0.010185185))
+                    .size(font_size(scale, 0.010185185))
                     .color(OFF_WHITE),
             )
             .show_ui(ui, |ui| {
@@ -2189,7 +2206,7 @@ fn industrial_combo(
                     if ui
                         .selectable_label(
                             is_selected,
-                            egui::RichText::new(*name).size(width_pct(scale, 0.010185185)),
+                            egui::RichText::new(*name).size(font_size(scale, 0.010185185)),
                         )
                         .clicked()
                     {
@@ -2532,7 +2549,7 @@ fn section_heading(ui: &mut egui::Ui, text: &str, accent: egui::Color32, scale: 
     ui.horizontal(|ui| {
         ui.label(
             egui::RichText::new(text)
-                .size(width_pct(scale, 0.009259259))
+                .size(font_size(scale, 0.009259259))
                 .color(OFF_WHITE)
                 .strong(),
         );
@@ -2657,7 +2674,7 @@ fn render_header(
                         ui.add_space(width_pct(scale, 0.0018518518));
                         ui.label(
                             egui::RichText::new("CORROSION")
-                                .size(width_pct(scale, 0.02037037))
+                                .size(font_size(scale, 0.02037037))
                                 .color(OFF_WHITE)
                                 .strong(),
                         );
@@ -2671,7 +2688,7 @@ fn render_header(
                     ui.add_space(width_pct(scale, 0.0037037036));
                     // Measure the two lines first and reserve their width,
                     // plus a margin, so the next column starts after them.
-                    let font = egui::FontId::proportional(width_pct(scale, 0.0074074073));
+                    let font = egui::FontId::proportional(font_size(scale, 0.0074074073));
                     let galley1 = ui.painter().layout_no_wrap(
                         "INDUSTRIAL RESONATOR".into(),
                         font.clone(),
@@ -2890,7 +2907,7 @@ fn header_column(ui: &mut egui::Ui, width: f32, add: impl FnOnce(&mut egui::Ui))
 
 /// Width of a header fader's cell, as a share of the editor width: room for
 /// its label and help badge.
-const GLOBAL_FADER_WIDTH: f32 = 0.046296295;
+const GLOBAL_FADER_WIDTH: f32 = 0.050925925;
 /// Height of a header fader's track, as a share of the layout height.
 const GLOBAL_FADER_TRACK_HEIGHT: f32 = 0.0625;
 
@@ -2910,7 +2927,7 @@ fn vfader_global(
     let track_height = height_pct(scale, GLOBAL_FADER_TRACK_HEIGHT);
     let desired = egui::vec2(
         width_pct(scale, GLOBAL_FADER_WIDTH),
-        track_height + height_pct(scale, 0.036458332),
+        track_height + height_pct(scale, GLOBAL_VFADER_TRACK_TOP + 0.018229166),
     );
 
     let (rect, response) = ui.allocate_exact_size(desired, egui::Sense::click_and_drag());
@@ -2927,7 +2944,7 @@ fn vfader_global(
     }
     if response.dragged() {
         if let Some(pointer) = response.interact_pointer_pos() {
-            let track_top = rect.min.y + height_pct(scale, 0.018229166);
+            let track_top = rect.min.y + height_pct(scale, GLOBAL_VFADER_TRACK_TOP);
             if track_height > 0.0 {
                 let new_norm = (1.0 - (pointer.y - track_top) / track_height).clamp(0.0, 1.0);
                 let new_val = min + new_norm * (max - min);
@@ -2943,7 +2960,7 @@ fn vfader_global(
     if response.clicked() {
         setter.begin_set_parameter(param);
         if let Some(pointer) = response.interact_pointer_pos() {
-            let track_top = rect.min.y + height_pct(scale, 0.018229166);
+            let track_top = rect.min.y + height_pct(scale, GLOBAL_VFADER_TRACK_TOP);
             if track_height > 0.0 {
                 let new_norm = (1.0 - (pointer.y - track_top) / track_height).clamp(0.0, 1.0);
                 let new_val = min + new_norm * (max - min);
@@ -2966,14 +2983,14 @@ fn vfader_global(
         egui::pos2(cx, rect.min.y + height_pct(scale, 0.0052083335)),
         egui::Align2::CENTER_TOP,
         label.to_string(),
-        egui::FontId::proportional(width_pct(scale, 0.0074074073)),
+        egui::FontId::proportional(font_size(scale, 0.0074074073)),
         MUTED_GREY,
         help_for(label),
     );
     let painter = ui.painter();
 
     // Track
-    let track_top = rect.min.y + height_pct(scale, 0.018229166);
+    let track_top = rect.min.y + height_pct(scale, GLOBAL_VFADER_TRACK_TOP);
     let track_rect = egui::Rect::from_min_max(
         egui::pos2(cx - track_width * 0.5, track_top),
         egui::pos2(cx + track_width * 0.5, track_top + track_height),
@@ -3052,7 +3069,7 @@ fn render_preset_loader(
         ui.vertical_centered(|ui| {
             ui.label(
                 egui::RichText::new("PRESET BANK")
-                    .size(width_pct(scale, 0.0069444445))
+                    .size(font_size(scale, 0.0069444445))
                     .color(MUTED_GREY),
             );
             ui.horizontal(|ui| {
@@ -3060,7 +3077,7 @@ fn render_preset_loader(
                 if count == 0 {
                     ui.label(
                         egui::RichText::new("No presets")
-                            .size(width_pct(scale, 0.008333334))
+                            .size(font_size(scale, 0.008333334))
                             .color(MUTED_GREY),
                     );
                     return;
@@ -3075,7 +3092,7 @@ fn render_preset_loader(
                     parts.join(" / ")
                 };
                 let mut load = None;
-                let text_size = width_pct(scale, 0.012962963);
+                let text_size = font_size(scale, 0.012962963);
 
                 let arrow_size =
                     egui::vec2(width_pct(scale, 0.016666668), height_pct(scale, 0.0234375));
@@ -3128,7 +3145,7 @@ fn render_preset_loader(
                 }
             });
             ui.horizontal(|ui| {
-                let text_size = width_pct(scale, 0.011111112);
+                let text_size = font_size(scale, 0.011111112);
                 if state.confirm_overwrite {
                     ui.label(
                         egui::RichText::new(format!("Replace \"{}\"?", state.save_name.trim()))
@@ -3187,7 +3204,7 @@ fn render_preset_loader(
             // the browser (`add-web-app`).
             #[cfg(not(target_arch = "wasm32"))]
             ui.horizontal(|ui| {
-                let text_size = width_pct(scale, 0.011111112);
+                let text_size = font_size(scale, 0.011111112);
                 let (enabled, tooltip) = open_folder_button(state.user_preset_dir.as_deref());
                 let open = ui
                     .add_enabled(
@@ -3208,13 +3225,13 @@ fn render_preset_loader(
             if let Some((message, is_error)) = notice {
                 ui.label(
                     egui::RichText::new(message)
-                        .size(width_pct(scale, 0.0069444445))
+                        .size(font_size(scale, 0.0069444445))
                         .color(if is_error { DANGER_RED } else { MUTED_GREY }),
                 );
             }
             ui.horizontal(|ui| {
                 use crate::randomizer::RandomizerMode;
-                let text_size = width_pct(scale, 0.011111112);
+                let text_size = font_size(scale, 0.011111112);
                 egui::ComboBox::from_id_salt("randomizer-mode")
                     .selected_text(
                         egui::RichText::new(state.randomizer_mode.name()).size(text_size),
@@ -3413,7 +3430,7 @@ fn render_exciter_column(
         ui.horizontal(|ui| {
             ui.label(
                 egui::RichText::new("EXCITER")
-                    .size(width_pct(scale, 0.014814815))
+                    .size(font_size(scale, 0.014814815))
                     .color(OFF_WHITE)
                     .strong(),
             );
@@ -3442,7 +3459,7 @@ fn render_exciter_column(
         let panel_spec = exciter_panel(exciter);
         ui.label(
             egui::RichText::new(panel_spec.description)
-                .size(width_pct(scale, 0.0074074073))
+                .size(font_size(scale, 0.0074074073))
                 .color(MUTED_GREY),
         );
         ui.add_space(height_pct(scale, 0.0052083335));
@@ -3603,7 +3620,7 @@ fn render_envelope(
             section_heading(ui, "Force Envelope (AD)", SAFETY_YELLOW, scale);
             ui.label(
                 egui::RichText::new("One-shot impact envelope")
-                    .size(width_pct(scale, 0.0074074073))
+                    .size(font_size(scale, 0.0074074073))
                     .color(MUTED_GREY),
             );
             ui.add_space(height_pct(scale, 0.0052083335));
@@ -3641,7 +3658,7 @@ fn render_envelope(
             section_heading(ui, "Force Envelope (MSEG)", SAFETY_YELLOW, scale);
             ui.label(
                 egui::RichText::new("6-stage gesture envelope")
-                    .size(width_pct(scale, 0.0074074073))
+                    .size(font_size(scale, 0.0074074073))
                     .color(MUTED_GREY),
             );
             ui.add_space(height_pct(scale, 0.0052083335));
@@ -3785,7 +3802,7 @@ fn render_envelope(
             section_heading(ui, "Force Envelope (ADSR)", SAFETY_YELLOW, scale);
             ui.label(
                 egui::RichText::new("ADSR force shaping")
-                    .size(width_pct(scale, 0.0074074073))
+                    .size(font_size(scale, 0.0074074073))
                     .color(MUTED_GREY),
             );
             ui.add_space(height_pct(scale, 0.0052083335));
@@ -3860,7 +3877,7 @@ fn render_resonator_column(
         ui.horizontal(|ui| {
             ui.label(
                 egui::RichText::new("RESONATOR")
-                    .size(width_pct(scale, 0.014814815))
+                    .size(font_size(scale, 0.014814815))
                     .color(OFF_WHITE)
                     .strong(),
             );
@@ -3892,7 +3909,7 @@ fn render_resonator_column(
         let panel_spec = resonator_panel(object);
         ui.label(
             egui::RichText::new(panel_spec.description)
-                .size(width_pct(scale, 0.0074074073))
+                .size(font_size(scale, 0.0074074073))
                 .color(MUTED_GREY),
         );
         ui.add_space(height_pct(scale, 0.0052083335));
@@ -4101,7 +4118,7 @@ fn render_processing_column(
         ui.horizontal(|ui| {
             ui.label(
                 egui::RichText::new("PROCESSING")
-                    .size(width_pct(scale, 0.014814815))
+                    .size(font_size(scale, 0.014814815))
                     .color(OFF_WHITE)
                     .strong(),
             );
@@ -4416,7 +4433,7 @@ fn render_processing_column(
             ui.horizontal(|ui| {
                 ui.label(
                     egui::RichText::new("BRICKWALL LIMITER")
-                        .size(width_pct(scale, 0.009259259))
+                        .size(font_size(scale, 0.009259259))
                         .color(DANGER_RED)
                         .strong(),
                 );
@@ -4543,7 +4560,7 @@ fn render_footer(ui: &mut egui::Ui, scale: f32) {
         ),
         egui::Align2::LEFT_CENTER,
         "CORROSION ENGINE v0.1.0",
-        egui::FontId::proportional(width_pct(scale, 0.0074074073)),
+        egui::FontId::proportional(font_size(scale, 0.0074074073)),
         MUTED_GREY,
     );
     painter.text(
@@ -4553,7 +4570,7 @@ fn render_footer(ui: &mut egui::Ui, scale: f32) {
         ),
         egui::Align2::RIGHT_CENTER,
         "Industrial Physical Modeling",
-        egui::FontId::proportional(width_pct(scale, 0.0074074073)),
+        egui::FontId::proportional(font_size(scale, 0.0074074073)),
         MUTED_GREY,
     );
     // Claim the footer's space so the keyboard strip lands below it.
@@ -4823,7 +4840,7 @@ fn render_kit_bar(
     scale: f32,
 ) {
     let size = egui::vec2(ui.available_width(), KIT_BAR_BASE_HEIGHT * scale);
-    let font = egui::FontId::proportional(width_pct(scale, 0.0101852));
+    let font = egui::FontId::proportional(font_size(scale, 0.0101852));
     ui.allocate_ui_with_layout(
         size,
         egui::Layout::left_to_right(egui::Align::Center),
@@ -5028,7 +5045,7 @@ fn render_keyboard_strip(
     };
     let painter = ui.painter();
     let outline = egui::Stroke::new((scale).max(0.5), RECESSED_BG);
-    let font = egui::FontId::proportional(width_pct(scale, 0.0083333));
+    let font = egui::FontId::proportional(font_size(scale, 0.0083333));
     let key_base = strip.sender.key_base();
     let mut lit = false;
     for &(note, key_rect) in &keys {
