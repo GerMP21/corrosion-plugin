@@ -22,7 +22,7 @@ cd "$wavs"
 find . -name '*.wav' | sort | while read -r wav; do
   dest="$out/${wav%.wav}.opus"
   mkdir -p "$(dirname "$dest")"
-  opusenc --quiet --bitrate 64 "$wav" "$dest"
+  opusenc --quiet --bitrate 48 "$wav" "$dest"
 done
 cp clips.json "$out/clips.json"
 echo "clips: $(find "$out" -name '*.opus' | wc -l) files, $(du -sh "$out" | cut -f1)"

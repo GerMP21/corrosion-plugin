@@ -103,12 +103,48 @@ fn home_demos_cover_each_curated_folder_once() {
         .into_iter()
         .filter(|c| c.set.starts_with("set:demos:"))
         .collect();
-    for &(folder, name, root) in HOME_DEMOS {
+    for &(folder, name, root, phrase) in HOME_DEMOS {
         let clip = demos
             .iter()
             .find(|c| c.file == format!("demos/{folder}"))
             .expect("a demo clip per folder");
         assert_eq!(clip.preset.name, name);
-        assert_eq!(clip.notes.first().map(|n| n.note), Some(root));
+        let ons: Vec<&OfflineNote> = clip
+            .notes
+            .iter()
+            .filter(|n| matches!(n.kind, crate::offline::OfflineNoteKind::On { .. }))
+            .collect();
+        let mut first: Vec<u8> = ons
+            .iter()
+            .filter(|n| n.frame == 0)
+            .map(|n| n.note)
+            .collect();
+        first.sort_unstable();
+        let (expected, count): (Vec<u8>, usize) = match phrase {
+            DemoPhrase::Notes => (vec![root], 4),
+            DemoPhrase::Triads => (vec![root, root + 4, root + 7], 12),
+            DemoPhrase::Held => (vec![root], 1),
+        };
+        assert_eq!(first, expected, "`{folder}` demo's first notes");
+        assert_eq!(ons.len(), count, "`{folder}` demo's note count");
+    }
+}
+
+#[test]
+fn every_clip_leaves_time_for_the_release() {
+    for clip in plan() {
+        let last_off = clip
+            .notes
+            .iter()
+            .filter(|n| n.kind == crate::offline::OfflineNoteKind::Off)
+            .map(|n| n.frame)
+            .max()
+            .expect("every clip releases its notes");
+        let tail = clip.seconds - last_off as f32 / SAMPLE_RATE as f32;
+        assert!(
+            tail >= RELEASE_TAIL - 1e-3,
+            "{} ends {tail:.2} s after its last note-off",
+            clip.reference
+        );
     }
 }

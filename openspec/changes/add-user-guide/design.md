@@ -237,6 +237,7 @@ No user-facing migration. The deploy adds `/wiki/`. Rollback is reverting the me
 
 - A "Hear it" section on the home page (`web/site/index.html`) with five buttons, Bass, Lead, Chords, Drones and Percussion, playing `/wiki/clips/demos/<folder>.opus` through one shared `Audio` (`preload = 'none'`), with the same toggle and `aria-pressed` as `<Clips>`. The labels are the folder names, which are stable; which preset plays is up to the clip plan (`HOME_DEMOS`).
 - **Demos chosen (maintainer, 2026-11-13):** Bass · Low Sheet Bow from C2, Lead · Driven Pipe Lead from C4, Chords · Glass Cable Choir from C5, Drones · Spring Bow Drone from C3, Percussion · Cog Gong Hit from C3; each the same four-note phrase (root, fifth, octave, fifth), as `HOME_DEMOS` in `clip_plan.rs`, checked by `home_demos_cover_each_curated_folder_once`. Only the five demo clips changed; the other 486 render the same and were kept.
+- **Follow-up (maintainer, 2026-11-13):** the Chords demo plays major triads, the Drones demo one held note (3.5 s), as `DemoPhrase`; every clip runs at least `RELEASE_TAIL` = 2 s past its last note-off (`every_clip_leaves_time_for_the_release`; it was 1 s for most parameter clips, 0.5 s for the long notes); all clips re-encoded at **48 kbps** (`opusenc --bitrate 48`). 491 clips, 14.9 MB (from 16.1 MB), render 20.7 s.
 - `site.cjs` passes against the local site (no third-party scripts, 375 px without horizontal scroll). Playwright: clicking Drones fetches the clip (200) and presses the button, at 1280 and 375 px.
 
 ### Task 4.6: the clip tests' mutations (2026-11-13)
@@ -266,7 +267,7 @@ Each mutation was restored, and the guide tests pass.
 | `npm run check` | under 1 s; 149 pages, 149 parameters |
 | Guide data | `parameters.json` 88 KB, `models.json` 31 KB (with the `kit` block), `parameters.es.json` 47 KB |
 | Clips | 491 (426 parameter clips over 142 parameters, 16 exciters on Tank, 9 objects with Felt Mallet, 16 + 9 representative presets, 10 kits, 5 demos) |
-| Clip size | 16.1 MB of Opus at 64 kbps (design estimate about 11 MB) |
+| Clip size | 14.9 MB of Opus at 48 kbps with the 2 s release tail (was 16.1 MB at 64 kbps with 1 s; design estimate about 11 MB) |
 | Clip render | 13.2 s for 491 clips on 4 cores (release); `build-guide-clips.sh` 44 s with encoding |
 | Full site build (`web/scripts/build.sh`, Rust cached) | 10.5 s; `dist/` 833 files, `dist/wiki/` 26 MB |
 
@@ -276,5 +277,5 @@ Each mutation was restored, and the guide tests pass.
 - `cargo doc --no-deps --no-default-features` had one new warning, an unresolved intra-doc link to `guide_files` in `src/guide/mod.rs` (since task 2.2); fixed, 0 warnings.
 - Guide check and build pass; `site.cjs`, `smoke.cjs` and `features.cjs` pass against the full local build.
 - **Not tested:** the Cloudflare deploy itself (the Node install path was run by hand, not in Workers Builds); the guide's look on Safari and Firefox (Chromium only).
-- **Open for the maintainer:** 64 kbps vs 48 kbps for the clips (16.1 MB vs about 12 MB); the review of `parameters.es.json` in `write-user-guide-content`.
+- **Open for the maintainer:** the review of `parameters.es.json` in `write-user-guide-content`.
 - **Moved to `docs/BACKLOG.md` (maintainer, 2026-11-13):** Metal Chain almost silent at Internal Rattle 0 (−62 dBFS); the clip stays declared quiet.

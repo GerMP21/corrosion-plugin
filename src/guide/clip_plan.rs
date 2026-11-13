@@ -29,6 +29,9 @@ pub const VELOCITY: f32 = 100.0;
 /// A plain clip's length and note-off, in seconds.
 pub const SECONDS: f32 = 3.0;
 pub const NOTE_OFF: f32 = 2.0;
+/// Every clip runs at least this long after its last note-off, so the
+/// release is heard (maintainer, 2026-11-13).
+pub const RELEASE_TAIL: f32 = 2.0;
 /// The level a set's reference clip is brought to.
 pub const TARGET_RMS: f32 = factory::TARGET_RMS;
 /// No clip's peak goes above this, in dBFS.
@@ -157,17 +160,57 @@ const QUIET: &[(&str, Point, &str)] = &[
 const VELOCITY_PAIRS: &[&str] = &["velocity_to_peak", "velocity_to_level", "velocity_to_time"];
 /// Parameters whose effect needs a long note.
 const LONG_NOTES: &[&str] = &["position_wander", "position_wander_rate"];
-/// The home page demos, as (folder, preset, root key): the root, its fifth,
-/// its octave and the fifth again. Chosen by the maintainer (2026-11-13):
-/// bass an octave under the guide's note, lead from middle C up, chords high,
-/// drones and percussion around the guide's note (C3).
-pub const HOME_DEMOS: &[(&str, &str, u8)] = &[
-    ("bass", "Low Sheet Bow", NOTE - 12),
-    ("lead", "Driven Pipe Lead", NOTE + 12),
-    ("chords", "Glass Cable Choir", NOTE + 24),
-    ("drones", "Spring Bow Drone", NOTE),
-    ("percussion", "Cog Gong Hit", NOTE),
+/// How a home page demo plays its preset.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum DemoPhrase {
+    /// The root, its fifth, its octave and the fifth again, half a second each.
+    Notes,
+    /// The same phrase as major triads.
+    Triads,
+    /// The root held for the whole clip.
+    Held,
+}
+
+/// The home page demos, as (folder, preset, root key, phrase). Chosen by the
+/// maintainer (2026-11-13): bass an octave under the guide's note, lead from
+/// middle C up, chords high as triads, a held drone and percussion around the
+/// guide's note (C3).
+pub const HOME_DEMOS: &[(&str, &str, u8, DemoPhrase)] = &[
+    ("bass", "Low Sheet Bow", NOTE - 12, DemoPhrase::Notes),
+    ("lead", "Driven Pipe Lead", NOTE + 12, DemoPhrase::Notes),
+    ("chords", "Glass Cable Choir", NOTE + 24, DemoPhrase::Triads),
+    ("drones", "Spring Bow Drone", NOTE, DemoPhrase::Held),
+    ("percussion", "Cog Gong Hit", NOTE, DemoPhrase::Notes),
 ];
+
+/// The note events of a home page demo.
+fn demo_notes(root: u8, phrase: DemoPhrase) -> Vec<OfflineNote> {
+    let step = (SAMPLE_RATE as f32 * 0.5) as usize;
+    let velocity = VELOCITY / 127.0;
+    let mut notes = Vec::new();
+    if phrase == DemoPhrase::Held {
+        notes.push(OfflineNote::on(0, root, velocity));
+        notes.push(OfflineNote::off(step * 7, root));
+        return notes;
+    }
+    let chord: &[u8] = if phrase == DemoPhrase::Triads {
+        &[0, 4, 7]
+    } else {
+        &[0]
+    };
+    for (i, base) in [root, root + 7, root + 12, root + 7]
+        .into_iter()
+        .enumerate()
+    {
+        for &interval in chord {
+            let key = base + interval;
+            notes.push(OfflineNote::on(i * step, key, velocity));
+            notes.push(OfflineNote::off(i * step + step * 9 / 10, key));
+        }
+    }
+    notes.sort_by_key(|n| n.frame);
+    notes
+}
 
 /// The tempo of the tempo-synced demos.
 const DEMO_BPM: f32 = 120.0;
@@ -548,21 +591,12 @@ pub fn plan() -> Vec<ClipSpec> {
 
     // Home page demos: a preset per curated folder (maintainer's choice,
     // 2026-11-13), each a short phrase from its own root key.
-    for &(folder, name, root) in HOME_DEMOS {
+    for &(folder, name, root, phrase) in HOME_DEMOS {
         let entry = bank
             .iter()
             .find(|e| e.folder == folder && e.preset.name == name)
             .unwrap_or_else(|| panic!("no factory preset {folder}/{name}"));
-        let step = (SAMPLE_RATE as f32 * 0.5) as usize;
-        let mut notes = Vec::new();
-        for (i, key) in [root, root + 7, root + 12, root + 7]
-            .into_iter()
-            .enumerate()
-        {
-            notes.push(OfflineNote::on(i * step, key, VELOCITY / 127.0));
-            notes.push(OfflineNote::off(i * step + step * 9 / 10, key));
-        }
-        notes.sort_by_key(|n| n.frame);
+        let notes = demo_notes(root, phrase);
         let set = format!("set:demos:{folder}");
         clips.push(ClipSpec {
             reference: set.clone(),
@@ -576,6 +610,18 @@ pub fn plan() -> Vec<ClipSpec> {
             tempo_bpm: None,
             quiet: None,
         });
+    }
+    for clip in &mut clips {
+        let last_off = clip
+            .notes
+            .iter()
+            .filter(|n| n.kind == crate::offline::OfflineNoteKind::Off)
+            .map(|n| n.frame)
+            .max()
+            .unwrap_or(0);
+        clip.seconds = clip
+            .seconds
+            .max(last_off as f32 / SAMPLE_RATE as f32 + RELEASE_TAIL);
     }
     clips
 }
