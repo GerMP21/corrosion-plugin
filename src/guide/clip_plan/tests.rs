@@ -131,7 +131,7 @@ fn home_demos_cover_each_curated_folder_once() {
 }
 
 #[test]
-fn every_clip_leaves_time_for_the_release() {
+fn every_clip_renders_its_release_before_trimming() {
     for clip in plan() {
         let last_off = clip
             .notes
@@ -147,4 +147,45 @@ fn every_clip_leaves_time_for_the_release() {
             clip.reference
         );
     }
+}
+
+#[test]
+fn trimming_cuts_where_the_tail_falls_silent() {
+    let rate = SAMPLE_RATE as f32;
+    // A tone decaying 20 dB a second for 2 s, then 6 s of silence.
+    let mut frames: Vec<(f32, f32)> = (0..(rate * 8.0) as usize)
+        .map(|i| {
+            let t = i as f32 / rate;
+            let x = if t < 2.0 {
+                (t * 440.0 * std::f32::consts::TAU).sin() * 10f32.powf(-t)
+            } else {
+                0.0
+            };
+            (x, x)
+        })
+        .collect();
+    trim_to_silence(&mut frames);
+    let seconds = frames.len() as f32 / rate;
+    assert!(
+        (1.9..2.1).contains(&seconds),
+        "the 2 s decay (to -40 dB) is kept, the silence cut: {seconds:.2} s"
+    );
+    assert!(frames.last().unwrap().0.abs() < 1e-6, "the cut is faded");
+    // A tail that falls 60 dB under the peak is cut there.
+    let mut long: Vec<(f32, f32)> = (0..(rate * 8.0) as usize)
+        .map(|i| {
+            let x = 10f32.powf(-(i as f32 / rate)) * if i % 2 == 0 { 1.0 } else { -1.0 };
+            (x, x)
+        })
+        .collect();
+    trim_to_silence(&mut long);
+    let seconds = long.len() as f32 / rate;
+    assert!(
+        (3.0..3.1).contains(&seconds),
+        "cut at -60 dB: {seconds:.2} s"
+    );
+    // Silence is cut to the fade.
+    let mut silent = vec![(0.0, 0.0); 48_000];
+    trim_to_silence(&mut silent);
+    assert_eq!(silent.len(), (rate * TRIM_FADE) as usize);
 }

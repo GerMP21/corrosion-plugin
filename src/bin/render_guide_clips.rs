@@ -12,8 +12,8 @@
 
 use clap::Parser;
 use corrosion::guide::clip_plan::{
-    self, fingerprint, guide_base_patch, plan, render_clip, with_values, ClipSpec, NOTE,
-    PEAK_CEILING_DB, SAMPLE_RATE, TARGET_RMS,
+    self, fingerprint, guide_base_patch, plan, render_clip, trim_to_silence, with_values, ClipSpec,
+    NOTE, PEAK_CEILING_DB, SAMPLE_RATE, TARGET_RMS,
 };
 use corrosion::offline::OfflineNote;
 use corrosion::presets::Preset;
@@ -54,7 +54,9 @@ fn main() {
             .collect()
     };
     let started = std::time::Instant::now();
-    let rendered = render_all(&clips);
+    let mut rendered = render_all(&clips);
+    // Cut each clip where its tail falls silent, before levelling.
+    rendered.iter_mut().for_each(trim_to_silence);
     let levelled = level(&clips, rendered);
     let mut entries = Vec::new();
     for (clip, (frames, gain)) in clips.iter().zip(&levelled) {
@@ -70,6 +72,7 @@ fn main() {
             "gain_db": round1(db(*gain)),
             "rms_db": round1(db(rms)),
             "peak_db": round1(db(peak)),
+            "seconds": round1(frames.len() as f32 / SAMPLE_RATE as f32),
         });
         if let Some(reason) = clip.quiet {
             entry["quiet"] = json!(reason);

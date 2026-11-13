@@ -29,9 +29,13 @@ pub const VELOCITY: f32 = 100.0;
 /// A plain clip's length and note-off, in seconds.
 pub const SECONDS: f32 = 3.0;
 pub const NOTE_OFF: f32 = 2.0;
-/// Every clip runs at least this long after its last note-off, so the
-/// release is heard (maintainer, 2026-11-13).
-pub const RELEASE_TAIL: f32 = 2.0;
+/// Every clip renders this long past its last note-off; `trim_to_silence`
+/// then cuts it where its tail falls silent (maintainer, 2026-11-13).
+pub const RELEASE_TAIL: f32 = 8.0;
+/// A clip's tail ends at its last sample above this, relative to its peak.
+pub const SILENCE_BELOW_PEAK_DB: f32 = -60.0;
+/// The fade at the cut, in seconds.
+pub const TRIM_FADE: f32 = 0.05;
 /// The level a set's reference clip is brought to.
 pub const TARGET_RMS: f32 = factory::TARGET_RMS;
 /// No clip's peak goes above this, in dBFS.
@@ -180,7 +184,7 @@ pub const HOME_DEMOS: &[(&str, &str, u8, DemoPhrase)] = &[
     ("lead", "Driven Pipe Lead", NOTE + 12, DemoPhrase::Notes),
     ("chords", "Glass Cable Choir", NOTE + 24, DemoPhrase::Triads),
     ("drones", "Spring Bow Drone", NOTE, DemoPhrase::Held),
-    ("percussion", "Cog Gong Hit", NOTE, DemoPhrase::Notes),
+    ("percussion", "Cog Tick", NOTE, DemoPhrase::Notes),
 ];
 
 /// The note events of a home page demo.
@@ -624,6 +628,27 @@ pub fn plan() -> Vec<ClipSpec> {
             .max(last_off as f32 / SAMPLE_RATE as f32 + RELEASE_TAIL);
     }
     clips
+}
+
+/// Cut a rendered clip where its tail falls silent: after the last sample
+/// louder than `SILENCE_BELOW_PEAK_DB` under the clip's peak, plus a
+/// `TRIM_FADE` fade. A silent clip is cut to the fade's length.
+pub fn trim_to_silence(frames: &mut Vec<(f32, f32)>) {
+    let fade = (SAMPLE_RATE as f32 * TRIM_FADE) as usize;
+    let level = |&(l, r): &(f32, f32)| l.abs().max(r.abs());
+    let peak = frames.iter().map(level).fold(0.0, f32::max);
+    let threshold = peak * 10f32.powf(SILENCE_BELOW_PEAK_DB / 20.0);
+    let last = frames
+        .iter()
+        .rposition(|f| peak > 0.0 && level(f) > threshold);
+    let end = last.map_or(fade, |i| i + 1 + fade).min(frames.len());
+    frames.truncate(end);
+    let start = end.saturating_sub(fade);
+    for (i, frame) in frames[start..].iter_mut().enumerate() {
+        let g = 1.0 - (i + 1) as f32 / fade as f32;
+        frame.0 *= g;
+        frame.1 *= g;
+    }
 }
 
 /// A stable hash (FNV-1a, 64-bit) of everything the plan renders.
