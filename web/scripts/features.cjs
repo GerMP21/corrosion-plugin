@@ -52,7 +52,7 @@ const sameSound = (a, b) => {
   const fresh = await sound(page);
 
   // Session: pick the next factory preset, let the autosave run, reload.
-  await page.mouse.click(...at(0.565, 0.0355));
+  await page.mouse.click(...at(0.584, 0.037));
   await wait(page, 2000);
   const changed = await sound(page);
   check("the editor changes the sound", !sameSound(changed, fresh));
@@ -62,14 +62,14 @@ const sameSound = (a, b) => {
   check("a reload restores the session", sameSound(await sound(page), changed));
 
   // Save in the editor: type a name in the bank's field and press Save.
-  await page.mouse.click(...at(0.382, 0.0545));
+  await page.mouse.click(...at(0.444, 0.0574));
   // At a typing pace: egui's web text input drops characters that arrive
   // in the same instant.
   await page.keyboard.type("Web Test", { delay: 80 });
   // Let the editor draw the last character before Save is clicked (slow
   // software WebGL on CI runners takes several frames).
   await wait(page, 800);
-  await page.mouse.click(...at(0.538, 0.0545));
+  await page.mouse.click(...at(0.558, 0.0574));
   await wait(page, 2000);
   const stored = await page.evaluate(() => new Promise((resolve) => {
     const request = indexedDB.open("corrosion", 1);

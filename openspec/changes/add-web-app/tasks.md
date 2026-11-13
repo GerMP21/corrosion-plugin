@@ -35,7 +35,7 @@
 - [x] 5.2 Web build script (`wasm-pack`/`wasm-bindgen`, `wasm-opt`), static assets, `wrangler.toml`; record bundle sizes
 - [x] 5.3 CI job: build the web app and run a headless Chromium check (page loads, start, note, RMS > 0, no console errors)
 - [x] 5.4 Sound check: web engine vs offline renderer on a few presets within a level and spectrum tolerance
-- [ ] 5.5 Cloudflare Workers project connected to the repository, deployed from `main`
+- [x] 5.5 Cloudflare Workers project connected to the repository, deployed from `main`
 - [x] 5.6 Native plugins unchanged: render hashes of the 16 exciters and the bank tests match before and after
 
 ## 6. Close-out
