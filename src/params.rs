@@ -1647,29 +1647,61 @@ pub(crate) fn body_param(value: f32) -> FloatParam {
     ))
 }
 
+/// The UI Scale choices as (index, label, scale factor), in size order:
+/// 50 to 150 % in 5 % steps (maintainer, 2026-11-13). The indices are what
+/// projects and presets store, so they never change: 0–4 were the original
+/// five sizes, 80–95 % were added as 5–8, and the other steps as 9–20.
+pub const UI_SCALE_CHOICES: [(i32, &str, f32); 21] = [
+    (0, "50%", 0.50),
+    (9, "55%", 0.55),
+    (10, "60%", 0.60),
+    (11, "65%", 0.65),
+    (12, "70%", 0.70),
+    (1, "75%", 0.75),
+    (5, "80%", 0.80),
+    (6, "85%", 0.85),
+    (7, "90%", 0.90),
+    (8, "95%", 0.95),
+    (2, "100%", 1.00),
+    (13, "105%", 1.05),
+    (14, "110%", 1.10),
+    (15, "115%", 1.15),
+    (16, "120%", 1.20),
+    (3, "125%", 1.25),
+    (17, "130%", 1.30),
+    (18, "135%", 1.35),
+    (19, "140%", 1.40),
+    (20, "145%", 1.45),
+    (4, "150%", 1.50),
+];
+
+/// The highest UI Scale index.
+const UI_SCALE_MAX_INDEX: i32 = 20;
+
 /// Build the "UI Scale" parameter, shared by the live parameters and
 /// `Preset::into_params` (`m10-m18-tidy-dead-code-and-docs`).
 pub(crate) fn ui_scale_param(value: i32) -> IntParam {
     IntParam::new(
         "UI Scale",
-        value.clamp(0, 4),
-        IntRange::Linear { min: 0, max: 4 },
+        value.clamp(0, UI_SCALE_MAX_INDEX),
+        IntRange::Linear {
+            min: 0,
+            max: UI_SCALE_MAX_INDEX,
+        },
     )
-    .with_value_to_string(Arc::new(|value| match value {
-        0 => "50%".to_string(),
-        1 => "75%".to_string(),
-        2 => "100%".to_string(),
-        3 => "125%".to_string(),
-        4 => "150%".to_string(),
-        _ => "100%".to_string(),
+    .with_value_to_string(Arc::new(|value| {
+        UI_SCALE_CHOICES
+            .iter()
+            .find(|(index, _, _)| *index == value)
+            .map_or("100%", |(_, name, _)| name)
+            .to_string()
     }))
-    .with_string_to_value(Arc::new(|string| match string.trim() {
-        "50%" => Some(0),
-        "75%" => Some(1),
-        "100%" => Some(2),
-        "125%" => Some(3),
-        "150%" => Some(4),
-        _ => None,
+    .with_string_to_value(Arc::new(|string| {
+        let string = string.trim();
+        UI_SCALE_CHOICES
+            .iter()
+            .find(|(_, name, _)| *name == string)
+            .map(|(index, _, _)| *index)
     }))
 }
 

@@ -1431,6 +1431,10 @@ fn apply_editor_style(ctx: &egui::Context, scale: f32) {
     style.spacing.menu_margin =
         egui::Margin::same((defaults.menu_margin.left as f32 * scale).round() as i8);
     style.spacing.scroll.bar_width = defaults.scroll.bar_width * scale;
+    // egui sizes a popup on its first frame within this, then keeps that
+    // size; the default (600 × 400 points) cut the UI Scale menu's 21
+    // items at 110 % and above. egui still keeps areas inside the window.
+    style.spacing.default_area_size = egui::vec2(editor_width(scale), 4.0 * editor_height(scale));
     style.spacing.item_spacing = egui::vec2(
         height_pct(scale, 0.0052083335),
         width_pct(scale, 0.0027777778),
@@ -1473,15 +1477,23 @@ fn apply_editor_style(ctx: &egui::Context, scale: f32) {
 // Utility functions (unchanged)
 // ---------------------------------------------------------------------------
 
-fn ui_scale_factor(value: i32) -> f32 {
-    match value {
-        0 => 0.50,
-        1 => 0.75,
-        2 => 1.00,
-        3 => 1.25,
-        4 => 1.50,
-        _ => 1.00,
+/// The UI Scale menu's items, in size order.
+const UI_SCALE_ITEMS: [(i32, &str); crate::params::UI_SCALE_CHOICES.len()] = {
+    let choices = crate::params::UI_SCALE_CHOICES;
+    let mut items = [(0, ""); crate::params::UI_SCALE_CHOICES.len()];
+    let mut i = 0;
+    while i < choices.len() {
+        items[i] = (choices[i].0, choices[i].1);
+        i += 1;
     }
+    items
+};
+
+fn ui_scale_factor(value: i32) -> f32 {
+    crate::params::UI_SCALE_CHOICES
+        .iter()
+        .find(|(index, _, _)| *index == value)
+        .map_or(1.0, |(_, _, factor)| *factor)
 }
 
 #[cfg(feature = "gui")]
@@ -2197,8 +2209,13 @@ fn industrial_combo(
             let (badge, _) = ui.allocate_exact_size(egui::vec2(side, side), egui::Sense::hover());
             paint_info_badge(ui, param.as_ptr(), badge, widget, help);
         });
-        egui::ComboBox::from_id_salt(id)
+        // The scale is part of the id: egui keeps a popup's size from its
+        // first opening, so after a UI Scale change the menu stayed at the
+        // old size and hid its last items (UI Scale showed only 50–100 % at
+        // 125 %). The height leaves room for every item.
+        egui::ComboBox::from_id_salt((id, scale.to_bits()))
             .width(ui.available_width())
+            .height(ui.ctx().screen_rect().height())
             .selected_text(
                 egui::RichText::new(selected)
                     .size(font_size(scale, 0.010185185))
@@ -2768,13 +2785,7 @@ fn render_header(
                                                             "ui-scale-header",
                                                             "SCALE",
                                                             &params.ui_scale,
-                                                            &[
-                                                                (0, "50%"),
-                                                                (1, "75%"),
-                                                                (2, "100%"),
-                                                                (3, "125%"),
-                                                                (4, "150%"),
-                                                            ],
+                                                            &UI_SCALE_ITEMS,
                                                             setter,
                                                             MUTED_GREY,
                                                             scale,
@@ -4563,7 +4574,7 @@ fn render_footer(ui: &mut egui::Ui, scale: f32) {
             footer_rect.center().y,
         ),
         egui::Align2::LEFT_CENTER,
-        "CORROSION ENGINE v0.1.0",
+        concat!("CORROSION ENGINE v", env!("CARGO_PKG_VERSION")),
         egui::FontId::proportional(font_size(scale, 0.0074074073)),
         MUTED_GREY,
     );
@@ -6504,6 +6515,70 @@ mod tests {
         assert_eq!(scaled_editor_size(ui_scale_factor(4)), (1620, 1260));
     }
 
+    /// UI Scale steps by 5 % from 50 to 150 % (maintainer, 2026-11-13).
+    /// The original five sizes keep indices 0–4, 80–95 % keep 5–8, and the
+    /// rest take 9–20, so saved projects and presets keep their scale; the
+    /// menu lists every choice in size order, and the host shows each one's
+    /// percentage.
+    #[test]
+    fn ui_scale_steps_by_five_percent() {
+        use nih_plug::prelude::Param;
+        assert_eq!(scaled_editor_size(ui_scale_factor(5)), (864, 672));
+        assert_eq!(scaled_editor_size(ui_scale_factor(8)), (1026, 798));
+
+        let percents: Vec<u32> = crate::params::UI_SCALE_CHOICES
+            .iter()
+            .map(|(_, _, factor)| (factor * 100.0).round() as u32)
+            .collect();
+        assert_eq!(percents, (50..=150).step_by(5).collect::<Vec<_>>());
+
+        // Indices stored by earlier versions keep their size.
+        for (index, percent) in [
+            (0, 50),
+            (1, 75),
+            (2, 100),
+            (3, 125),
+            (4, 150),
+            (5, 80),
+            (6, 85),
+            (7, 90),
+            (8, 95),
+        ] {
+            assert_eq!(
+                (ui_scale_factor(index) * 100.0).round() as u32,
+                percent,
+                "index {index}"
+            );
+        }
+        let mut indices: Vec<i32> = crate::params::UI_SCALE_CHOICES
+            .iter()
+            .map(|c| c.0)
+            .collect();
+        indices.sort();
+        assert_eq!(
+            indices,
+            (0..=20).collect::<Vec<_>>(),
+            "each index once, no gaps"
+        );
+
+        for (index, name, factor) in crate::params::UI_SCALE_CHOICES {
+            assert_eq!(name, format!("{}%", (factor * 100.0).round() as u32));
+            assert_eq!(ui_scale_factor(index), factor, "{name}");
+            let param = crate::params::ui_scale_param(index);
+            assert_eq!(param.value(), index, "{name} is kept, not clamped");
+            assert_eq!(
+                param.normalized_value_to_string(param.unmodulated_normalized_value(), false),
+                name
+            );
+            assert_eq!(
+                param
+                    .string_to_normalized_value(name)
+                    .map(|n| param.preview_plain(n)),
+                Some(index)
+            );
+        }
+    }
+
     #[test]
     fn ui_scale_persists_host_facing_editor_size() {
         let editor_state = EguiState::from_size(1080, 840);
@@ -7027,7 +7102,7 @@ mod tests {
         /// pinned to the window's bottom edge, inside it, and as wide as it.
         #[test]
         fn the_strip_fits_at_every_ui_scale() {
-            for ui_scale in 0..=4 {
+            for (ui_scale, _, _) in crate::params::UI_SCALE_CHOICES {
                 let scale = super::super::ui_scale_factor(ui_scale);
                 let harness = Harness::at_scale(scale);
                 let (rect, keys) = harness.keys();
