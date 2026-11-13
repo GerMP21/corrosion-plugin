@@ -90,3 +90,25 @@ fn guide_clip_manifest_is_complete_and_audible() {
     }
     assert!(problems.is_empty(), "{}: {regenerate}", problems.join("; "));
 }
+
+#[test]
+fn home_demos_cover_each_curated_folder_once() {
+    let folders: Vec<&str> = HOME_DEMOS.iter().map(|d| d.0).collect();
+    let mut expected: Vec<&str> = factory::CURATED_FOLDERS.to_vec();
+    let mut got = folders.clone();
+    expected.sort_unstable();
+    got.sort_unstable();
+    assert_eq!(got, expected, "one home demo per curated folder");
+    let demos: Vec<ClipSpec> = plan()
+        .into_iter()
+        .filter(|c| c.set.starts_with("set:demos:"))
+        .collect();
+    for &(folder, name, root) in HOME_DEMOS {
+        let clip = demos
+            .iter()
+            .find(|c| c.file == format!("demos/{folder}"))
+            .expect("a demo clip per folder");
+        assert_eq!(clip.preset.name, name);
+        assert_eq!(clip.notes.first().map(|n| n.note), Some(root));
+    }
+}

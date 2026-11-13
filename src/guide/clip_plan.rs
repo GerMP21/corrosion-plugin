@@ -157,6 +157,18 @@ const QUIET: &[(&str, Point, &str)] = &[
 const VELOCITY_PAIRS: &[&str] = &["velocity_to_peak", "velocity_to_level", "velocity_to_time"];
 /// Parameters whose effect needs a long note.
 const LONG_NOTES: &[&str] = &["position_wander", "position_wander_rate"];
+/// The home page demos, as (folder, preset, root key): the root, its fifth,
+/// its octave and the fifth again. Chosen by the maintainer (2026-11-13):
+/// bass an octave under the guide's note, lead from middle C up, chords high,
+/// drones and percussion around the guide's note (C3).
+pub const HOME_DEMOS: &[(&str, &str, u8)] = &[
+    ("bass", "Low Sheet Bow", NOTE - 12),
+    ("lead", "Driven Pipe Lead", NOTE + 12),
+    ("chords", "Glass Cable Choir", NOTE + 24),
+    ("drones", "Spring Bow Drone", NOTE),
+    ("percussion", "Cog Gong Hit", NOTE),
+];
+
 /// The tempo of the tempo-synced demos.
 const DEMO_BPM: f32 = 120.0;
 
@@ -534,16 +546,16 @@ pub fn plan() -> Vec<ClipSpec> {
         });
     }
 
-    // Home page demos: the first preset of each curated folder, a short
-    // phrase each. Provisional: chosen with the maintainer (task 4.2).
-    for folder in factory::CURATED_FOLDERS {
+    // Home page demos: a preset per curated folder (maintainer's choice,
+    // 2026-11-13), each a short phrase from its own root key.
+    for &(folder, name, root) in HOME_DEMOS {
         let entry = bank
             .iter()
-            .find(|e| e.folder == folder)
-            .expect("curated folders aren't empty");
+            .find(|e| e.folder == folder && e.preset.name == name)
+            .unwrap_or_else(|| panic!("no factory preset {folder}/{name}"));
         let step = (SAMPLE_RATE as f32 * 0.5) as usize;
         let mut notes = Vec::new();
-        for (i, key) in [NOTE, NOTE + 7, NOTE + 12, NOTE + 7]
+        for (i, key) in [root, root + 7, root + 12, root + 7]
             .into_iter()
             .enumerate()
         {

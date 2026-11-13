@@ -235,7 +235,8 @@ No user-facing migration. The deploy adds `/wiki/`. Rollback is reverting the me
 
 ### Task 4.5: home demos (2026-11-13)
 
-- A "Hear it" section on the home page (`web/site/index.html`) with five buttons, Bass, Lead, Chords, Drones and Percussion, playing `/wiki/clips/demos/<folder>.opus` through one shared `Audio` (`preload = 'none'`), with the same toggle and `aria-pressed` as `<Clips>`. The labels are the folder names, which are stable; which preset plays is up to the clip plan (still the provisional first preset per folder).
+- A "Hear it" section on the home page (`web/site/index.html`) with five buttons, Bass, Lead, Chords, Drones and Percussion, playing `/wiki/clips/demos/<folder>.opus` through one shared `Audio` (`preload = 'none'`), with the same toggle and `aria-pressed` as `<Clips>`. The labels are the folder names, which are stable; which preset plays is up to the clip plan (`HOME_DEMOS`).
+- **Demos chosen (maintainer, 2026-11-13):** Bass · Low Sheet Bow from C2, Lead · Driven Pipe Lead from C4, Chords · Glass Cable Choir from C5, Drones · Spring Bow Drone from C3, Percussion · Cog Gong Hit from C3; each the same four-note phrase (root, fifth, octave, fifth), as `HOME_DEMOS` in `clip_plan.rs`, checked by `home_demos_cover_each_curated_folder_once`. Only the five demo clips changed; the other 486 render the same and were kept.
 - `site.cjs` passes against the local site (no third-party scripts, 375 px without horizontal scroll). Playwright: clicking Drones fetches the clip (200) and presses the button, at 1280 and 375 px.
 
 ### Task 4.6: the clip tests' mutations (2026-11-13)
@@ -275,5 +276,5 @@ Each mutation was restored, and the guide tests pass.
 - `cargo doc --no-deps --no-default-features` had one new warning, an unresolved intra-doc link to `guide_files` in `src/guide/mod.rs` (since task 2.2); fixed, 0 warnings.
 - Guide check and build pass; `site.cjs`, `smoke.cjs` and `features.cjs` pass against the full local build.
 - **Not tested:** the Cloudflare deploy itself (the Node install path was run by hand, not in Workers Builds); the guide's look on Safari and Firefox (Chromium only).
-- **Open for the maintainer:** the home demos (provisional: the maintainer listens first, then chooses); 64 kbps vs 48 kbps for the clips (16.1 MB vs about 12 MB); the review of `parameters.es.json` in `write-user-guide-content`.
+- **Open for the maintainer:** 64 kbps vs 48 kbps for the clips (16.1 MB vs about 12 MB); the review of `parameters.es.json` in `write-user-guide-content`.
 - **Moved to `docs/BACKLOG.md` (maintainer, 2026-11-13):** Metal Chain almost silent at Internal Rattle 0 (−62 dBFS); the clip stays declared quiet.

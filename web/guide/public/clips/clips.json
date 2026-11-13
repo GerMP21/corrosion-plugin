@@ -4380,51 +4380,51 @@
     },
     {
       "file": "demos/bass.opus",
-      "gain_db": -4.0,
-      "peak_db": -4.3,
+      "gain_db": -1.1,
+      "peak_db": -11.6,
       "ref": "set:demos:bass",
       "rms_db": -17.7,
       "set": "set:demos:bass",
-      "source": "preset Felt Cable Upright (bass)"
+      "source": "preset Low Sheet Bow (bass)"
     },
     {
       "file": "demos/lead.opus",
-      "gain_db": -1.9,
-      "peak_db": -14.0,
+      "gain_db": 0.5,
+      "peak_db": -13.3,
       "ref": "set:demos:lead",
       "rms_db": -17.7,
       "set": "set:demos:lead",
-      "source": "preset Bowed Cable Lead (lead)"
+      "source": "preset Driven Pipe Lead (lead)"
     },
     {
       "file": "demos/chords.opus",
-      "gain_db": -3.9,
-      "peak_db": -7.2,
+      "gain_db": 6.8,
+      "peak_db": -6.3,
       "ref": "set:demos:chords",
       "rms_db": -17.7,
       "set": "set:demos:chords",
-      "source": "preset Bowed Cable Pad (chords)"
+      "source": "preset Glass Cable Choir (chords)"
     },
     {
       "file": "demos/drones.opus",
-      "gain_db": -1.4,
-      "peak_db": -13.0,
+      "gain_db": -1.6,
+      "peak_db": -13.4,
       "ref": "set:demos:drones",
       "rms_db": -17.7,
       "set": "set:demos:drones",
-      "source": "preset Smokestack Hum (drones)"
+      "source": "preset Spring Bow Drone (drones)"
     },
     {
       "file": "demos/percussion.opus",
-      "gain_db": -5.7,
-      "peak_db": -9.8,
+      "gain_db": -3.3,
+      "peak_db": -9.9,
       "ref": "set:demos:percussion",
       "rms_db": -17.7,
       "set": "set:demos:percussion",
-      "source": "preset Plate Snare Crack (percussion)"
+      "source": "preset Cog Gong Hit (percussion)"
     }
   ],
-  "fingerprint": "cbc452455f65ca0b",
-  "generator_commit": "73f3695",
+  "fingerprint": "f2ef814de591d2e3",
+  "generator_commit": "a726849",
   "sample_rate": 48000
 }
