@@ -11,6 +11,7 @@
 
 #[cfg(any(feature = "gui", feature = "web-gui"))]
 mod editor;
+pub mod palette;
 
 #[cfg(feature = "gui")]
 pub use editor::create_editor;

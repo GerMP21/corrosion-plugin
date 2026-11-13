@@ -1,3 +1,4 @@
+use super::palette;
 use include_dir::{include_dir, Dir};
 #[cfg(feature = "gui")]
 use nih_plug::params::persist::PersistentField;
@@ -88,23 +89,28 @@ fn note_drawn(_param: ParamPtr) {
 }
 
 // ---------------------------------------------------------------------------
-// Design tokens – industrial / brutalist palette from the evidence HTML
+// Design tokens – industrial / brutalist palette (values in `super::palette`)
 // ---------------------------------------------------------------------------
 
-const CHARCOAL: egui::Color32 = egui::Color32::from_rgb(0x0D, 0x0D, 0x0D);
-const DARK_STEEL: egui::Color32 = egui::Color32::from_rgb(0x1A, 0x1A, 0x1A);
-const CONCRETE: egui::Color32 = egui::Color32::from_rgb(0x33, 0x33, 0x33);
-const SAFETY_YELLOW: egui::Color32 = egui::Color32::from_rgb(0xFA, 0xCC, 0x15);
-const RUST_ORANGE: egui::Color32 = egui::Color32::from_rgb(0xC2, 0x41, 0x0C);
-const DANGER_RED: egui::Color32 = egui::Color32::from_rgb(0xB9, 0x1C, 0x1C);
-const OFF_WHITE: egui::Color32 = egui::Color32::from_rgb(0xD4, 0xD4, 0xD4);
-const MUTED_GREY: egui::Color32 = egui::Color32::from_rgb(0x73, 0x73, 0x73);
-const STEEL_LIGHT: egui::Color32 = egui::Color32::from_rgb(0x55, 0x55, 0x55);
+/// An egui colour from a palette entry (`super::palette`).
+const fn rgb([r, g, b]: [u8; 3]) -> egui::Color32 {
+    egui::Color32::from_rgb(r, g, b)
+}
+
+const CHARCOAL: egui::Color32 = rgb(palette::CHARCOAL);
+const DARK_STEEL: egui::Color32 = rgb(palette::DARK_STEEL);
+const CONCRETE: egui::Color32 = rgb(palette::CONCRETE);
+const SAFETY_YELLOW: egui::Color32 = rgb(palette::SAFETY_YELLOW);
+const RUST_ORANGE: egui::Color32 = rgb(palette::RUST_ORANGE);
+const DANGER_RED: egui::Color32 = rgb(palette::DANGER_RED);
+const OFF_WHITE: egui::Color32 = rgb(palette::OFF_WHITE);
+const MUTED_GREY: egui::Color32 = rgb(palette::MUTED_GREY);
+const STEEL_LIGHT: egui::Color32 = rgb(palette::STEEL_LIGHT);
 const _STEEL_MID: egui::Color32 = egui::Color32::from_rgb(0x44, 0x44, 0x44);
-const RECESSED_BG: egui::Color32 = egui::Color32::from_rgb(0x11, 0x11, 0x11);
-const FADER_TRACK_BG: egui::Color32 = egui::Color32::from_rgb(0x00, 0x00, 0x00);
-const THUMB_BG: egui::Color32 = egui::Color32::from_rgb(0x44, 0x44, 0x44);
-const THUMB_BORDER: egui::Color32 = egui::Color32::from_rgb(0x66, 0x66, 0x66);
+const RECESSED_BG: egui::Color32 = rgb(palette::RECESSED_BG);
+const FADER_TRACK_BG: egui::Color32 = rgb(palette::FADER_TRACK_BG);
+const THUMB_BG: egui::Color32 = rgb(palette::THUMB_BG);
+const THUMB_BORDER: egui::Color32 = rgb(palette::THUMB_BORDER);
 
 /// Logical editor width for the 100% UI scale.
 const BASE_EDITOR_WIDTH: u32 = 1080;

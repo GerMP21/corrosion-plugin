@@ -1,0 +1,54 @@
+/* Corrosion site design tokens (`add-site-shell`), shared by the home page,
+   the web app's page chrome and the guide. The colours are the plugin's
+   palette (src/gui/palette.rs); `site_theme_matches_editor_palette` fails
+   if the two drift. The site is dark-only. */
+:root {
+  color-scheme: dark;
+
+  /* Palette: one token per constant, same name in kebab case. */
+  --charcoal: #0D0D0D;
+  --dark-steel: #1A1A1A;
+  --concrete: #333333;
+  --safety-yellow: #FACC15;
+  --rust-orange: #C2410C;
+  --danger-red: #B91C1C;
+  --off-white: #D4D4D4;
+  --muted-grey: #737373;
+  --steel-light: #555555;
+  --recessed-bg: #111111;
+  --fader-track-bg: #000000;
+  --thumb-bg: #444444;
+  --thumb-border: #666666;
+
+  /* Roles. */
+  --bg: var(--charcoal);
+  --surface: var(--dark-steel);
+  --recessed: var(--recessed-bg);
+  --line: var(--concrete);
+  --text: var(--off-white);
+  --muted: var(--muted-grey);
+  --accent: var(--safety-yellow);
+  --on-accent: var(--charcoal);
+  --warn: var(--rust-orange);
+  --danger: var(--danger-red);
+  --control: var(--concrete);
+  --control-border: var(--thumb-bg);
+  --control-hover: var(--thumb-bg);
+
+  /* Type. */
+  --font: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace;
+  --tracking-caps: 0.12em;
+
+  /* Spacing scale. */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+  --space-8: 72px;
+  --radius: 4px;
+  --page-max: 1120px;
+}
