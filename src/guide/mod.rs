@@ -4,6 +4,8 @@
 //! and `guide_data_equals_the_files_on_disk` fails when the committed files
 //! drift from what the plugin would write.
 
+pub mod clip_plan;
+
 use crate::gui::controls::{
     exciter_panel, exciter_param_ref, help_for, resonator_panel, resonator_param_ref,
     selector_help, selector_items, FixedControl, Panel, Shown, FIXED_CONTROLS, LIMITER_MODE_ITEMS,
@@ -352,6 +354,11 @@ fn to_file(value: &Value) -> String {
     let mut text = serde_json::to_string_pretty(value).expect("JSON values serialize");
     text.push('\n');
     text
+}
+
+/// The exciters' (value, name) pairs in editor order, for the binaries.
+pub fn exciter_names() -> Vec<(i32, &'static str)> {
+    exciter_model_items().to_vec()
 }
 
 /// Every file the exporter writes, as (path relative to the repository,

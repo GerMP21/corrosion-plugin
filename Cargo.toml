@@ -23,6 +23,10 @@ path = "src/bin/seed_presets.rs"
 name = "export_guide_data"
 path = "src/bin/export_guide_data.rs"
 
+[[bin]]
+name = "render_guide_clips"
+path = "src/bin/render_guide_clips.rs"
+
 [dependencies]
 nih_plug_egui = { git = "https://github.com/robbert-vdh/nih-plug", optional = true }
 # The editor's egui without baseview, for the web build (`web-gui`). The same

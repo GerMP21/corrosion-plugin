@@ -126,12 +126,25 @@ impl PresetRenderer {
         sample_rate: u32,
         frame_count: usize,
     ) -> RenderedFrames {
+        self.render_at_tempo(notes, sample_rate, frame_count, None)
+    }
+
+    /// [`render`](Self::render) with a host tempo, for tempo-synced
+    /// controls (`add-user-guide`'s Echo Sync clips).
+    pub fn render_at_tempo(
+        &mut self,
+        notes: &[OfflineNote],
+        sample_rate: u32,
+        frame_count: usize,
+        tempo_bpm: Option<f32>,
+    ) -> RenderedFrames {
         render_blocks(
             &mut self.plugin,
             notes,
             sample_rate,
             frame_count,
             OFFLINE_BLOCK_SIZE,
+            tempo_bpm,
         )
     }
 }
@@ -144,6 +157,7 @@ fn render_blocks(
     sample_rate: u32,
     frame_count: usize,
     block_size: usize,
+    tempo_bpm: Option<f32>,
 ) -> RenderedFrames {
     assert!(
         notes.windows(2).all(|w| w[0].frame <= w[1].frame),
@@ -167,7 +181,7 @@ fn render_blocks(
         plugin.process_block(
             block_len,
             sample_rate,
-            None,
+            tempo_bpm,
             &mut next_event,
             || block_events.next(),
             |i, out, pre| {
@@ -199,6 +213,24 @@ pub fn render_preset(
 ) -> Vec<(f32, f32)> {
     PresetRenderer::new(preset)
         .render(notes, sample_rate, frame_count(sample_rate, seconds))
+        .output
+}
+
+/// [`render_preset`] with a host tempo in beats per minute.
+pub fn render_preset_at_tempo(
+    preset: &Preset,
+    notes: &[OfflineNote],
+    sample_rate: u32,
+    seconds: f32,
+    tempo_bpm: Option<f32>,
+) -> Vec<(f32, f32)> {
+    PresetRenderer::new(preset)
+        .render_at_tempo(
+            notes,
+            sample_rate,
+            frame_count(sample_rate, seconds),
+            tempo_bpm,
+        )
         .output
 }
 
