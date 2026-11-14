@@ -230,3 +230,6 @@ __pycache__/
 
 # Alternate cargo target dirs (toolchain or profile side builds)
 /target-*/
+
+# vendor/nih_log has a source module folder named target/ (src/target/windbg.rs)
+!vendor/nih_log/src/target/
