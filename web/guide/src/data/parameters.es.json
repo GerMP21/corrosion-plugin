@@ -45,7 +45,7 @@
   },
   "cable_braid": {
     "slots": {
-      "Taut Cable": "Rigidez del trenzado del cable. Más alto suena más brillante y menos armónico."
+      "Taut Cable": "Rigidez del trenzado del cable. Más alto separa los parciales, para una resonancia menos armónica y más metálica."
     }
   },
   "cable_tension_drop": {
@@ -65,7 +65,7 @@
   },
   "chain_mass": {
     "slots": {
-      "Metal Chain": "Peso de la cadena que cae. Una cadena más pesada golpea más fuerte y más oscuro."
+      "Metal Chain": "Peso de los eslabones de la cadena que cae. Los eslabones más pesados golpean más fuerte."
     }
   },
   "chaos_depth": {
@@ -102,7 +102,7 @@
   },
   "compression_curve": {
     "slots": {
-      "Felt Mallet": "Lo rápido que se endurece el fieltro al comprimirse. Más alto hace los golpes fuertes mucho más brillantes que los suaves."
+      "Felt Mallet": "Lo bruscamente que entra el núcleo duro al comprimirse el fieltro. Más bajo lo hace entrar antes, para un golpe más brillante."
     }
   },
   "core_hardness": {
@@ -214,12 +214,12 @@
   },
   "flesh_damping": {
     "slots": {
-      "Hand Strike": "Cuánto absorbe la carne el impacto. Más alto suaviza el ataque."
+      "Hand Strike": "Cuánto empuja la carne mientras se mueve. Más alto golpea más fuerte y más brillante."
     }
   },
   "flesh_stiffness": {
     "slots": {
-      "Hand Strike": "Rigidez de la carne en el contacto. Más alto da una palmada más corta y brillante."
+      "Hand Strike": "Rigidez de la carne en el contacto. Más alto hace rebotar la mano en el metal: una palmada más corta y más ligera."
     }
   },
   "flow_rate": {
@@ -373,7 +373,7 @@
   },
   "mute_decay": {
     "slots": {
-      "Hand Strike": "Cuánto tiempo descansa la mano sobre el objeto tras el golpe. Más bajo apaga antes la resonancia."
+      "Hand Strike": "Cuánto tiempo descansa la mano sobre el objeto tras el golpe. Más alto la deja más tiempo y apaga antes la resonancia."
     }
   },
   "nozzle_width": {
@@ -473,7 +473,7 @@
   },
   "rattle_color": {
     "slots": {
-      "Metal Chain": "Tono del traqueteo. Más alto es más brillante."
+      "Metal Chain": "Dónde se sitúa el paso alto del traqueteo. Más alto adelgaza el traqueteo y deja oír los golpes de los eslabones."
     }
   },
   "res_brightness": {
@@ -590,7 +590,7 @@
   },
   "stick_mass": {
     "slots": {
-      "Drumstick": "Peso de la baqueta. Una baqueta más pesada excita el objeto con más fuerza y más oscuro."
+      "Drumstick": "Peso de la baqueta. Una baqueta más pesada excita el objeto con más fuerza y más brillo."
     }
   },
   "strike_position": {
@@ -641,7 +641,7 @@
   },
   "voltage_sag": {
     "slots": {
-      "Electromagnetic Hum": "Inestabilidad de la alimentación. Más alto hace que el zumbido oscile y decaiga."
+      "Electromagnetic Hum": "Inestabilidad de la alimentación. Más alto añade armónicos zumbantes al zumbido."
     }
   },
   "wall_impedance": {

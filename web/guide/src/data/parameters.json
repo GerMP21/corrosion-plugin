@@ -527,7 +527,7 @@
       "slots": [
         {
           "group": "Hand strike physics",
-          "help": "Stiffness of the hand's flesh at contact. Higher gives a shorter, brighter slap.",
+          "help": "Stiffness of the hand's flesh at contact. Higher throws the hand back off the metal: a shorter, lighter slap.",
           "label": "Flesh Stiffness",
           "max": "0.8",
           "min": "0.05",
@@ -548,7 +548,7 @@
       "slots": [
         {
           "group": "Hand strike physics",
-          "help": "How much the flesh absorbs the impact. Higher softens the attack.",
+          "help": "How hard the flesh pushes back while it moves. Higher hits harder and brighter.",
           "label": "Flesh Damping",
           "max": "1.8",
           "min": "0.3",
@@ -569,7 +569,7 @@
       "slots": [
         {
           "group": "Hand strike physics",
-          "help": "How long the hand rests on the object after the strike. Lower mutes the ring sooner.",
+          "help": "How long the hand rests on the object after the strike. Higher keeps it there longer, muting the ring sooner.",
           "label": "Mute Decay",
           "max": "0.999",
           "min": "0.85",
@@ -661,7 +661,7 @@
       "slots": [
         {
           "group": "Felt mallet contact",
-          "help": "How quickly the felt stiffens as it is squeezed. Higher makes hard hits much brighter than soft ones.",
+          "help": "How suddenly the hard core takes over as the felt is squeezed. Lower brings it in sooner, for a brighter strike.",
           "label": "Compression Curve",
           "max": "5",
           "min": "2",
@@ -724,7 +724,7 @@
       "slots": [
         {
           "group": "Drumstick bounce",
-          "help": "Weight of the drumstick. Heavier sticks drive the object harder and darker.",
+          "help": "Weight of the drumstick. Heavier sticks drive the object harder and brighter.",
           "label": "Stick Mass",
           "max": "1.25",
           "min": "0.05",
@@ -997,7 +997,7 @@
       "slots": [
         {
           "group": "Metal chain cascade",
-          "help": "Weight of the dropped chain. Heavier chains hit harder and darker.",
+          "help": "Weight of the dropped chain's links. Heavier links strike harder.",
           "label": "Chain Mass",
           "max": "1.4",
           "min": "0.2",
@@ -1060,7 +1060,7 @@
       "slots": [
         {
           "group": "Metal chain cascade",
-          "help": "Tone of the rattle. Higher is brighter.",
+          "help": "Where the rattle's high-pass sits. Higher thins the rattle out and leaves the links' strikes.",
           "label": "Rattle Color",
           "max": "1",
           "min": "0",
@@ -1606,7 +1606,7 @@
       "slots": [
         {
           "group": "Electromagnetic drive",
-          "help": "Instability of the supply. Higher makes the hum waver and sag.",
+          "help": "Instability of the supply. Higher adds buzzing harmonics to the hum.",
           "label": "Voltage Sag",
           "max": "2",
           "min": "0",
@@ -2586,7 +2586,7 @@
       "slots": [
         {
           "group": "Cable tension",
-          "help": "Stiffness of the cable's braid. Higher sounds brighter and less harmonic.",
+          "help": "Stiffness of the cable's braid. Higher stretches the partials apart, for a less harmonic, more metallic ring.",
           "label": "Braid Stiffness",
           "max": "1",
           "min": "0",

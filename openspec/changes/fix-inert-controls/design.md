@@ -220,6 +220,32 @@ The mode-bank golden fixture still matches. One experimental preset left the flo
 - **What is left.** Raising the echo's feedback or wet level would move the seven manual echo presets. Reverted, waiting for the maintainer.
 - **Diode Softness** is near the floor (0.78 dB level, 0.96 dB width) and acts only while the diode clips. The knee is pending the maintainer's ear test from `add-asymmetric-diode-stage`, so it is left as is.
 
+### Task 2.5: help texts (2026-11-14)
+
+Re-measured after the fixes above, from each control's minimum to its maximum, in its context. The centroid is the power-weighted octave-band index. Nine texts were rewritten, in English and Spanish.
+
+| Control | Measured | Old help | New help says |
+|---|---|---|---|
+| Mute Decay | −17.6 → −25.7 dB, ring 2.23 → 1.46 s | lower mutes sooner | higher keeps the hand on, muting sooner |
+| Flesh Damping | −19.6 → −15.3 dB, brighter | softens the attack | higher hits harder and brighter |
+| Rattle Color | −18.0 → −20.9 dB, centroid 2.12 → 2.05 | brighter | higher thins the rattle out, leaving the links' strikes |
+| Stick Mass | −40.5 → −15.0 dB, centroid 2.01 → 2.22 | harder and darker | harder and brighter |
+| Voltage Sag | −12.1 → −8.6 dB, centroid 1.05 → 2.21 | wavers and sags | adds buzzing harmonics |
+| Chain Mass | −20.6 → −19.6 dB, tone unchanged | harder and darker | heavier links strike harder |
+| Flesh Stiffness | −15.2 → −17.1 dB, ring 2.56 → 2.30 s | shorter, brighter | throws the hand back: shorter, lighter |
+| Compression Curve | centroid 0.62 → 0.46 | higher brighter on hard hits | lower brings the core in sooner, brighter |
+| Braid Stiffness | partials stretched, tone unchanged | brighter, less harmonic | less harmonic, more metallic |
+
+Kept, because the measurement agrees:
+- Pipe Mass: louder, centroid 0.63 → 0.42, so darker.
+- Core Hardness: brighter, 0.31 → 0.80.
+- Impact Damping: ring 1.45 → 0.70 s, darker.
+- Grind Pressure: louder.
+- Chatter Damping: shorter.
+- Link Count, Wire Stiffness.
+
+`export_guide_data` rerun; `npm run check` passes.
+
 ### Found, not fixed: Bow and Drumstick (2026-11-14)
 
 - **Bow (Slip Curve).** The bow never sticks. The resonator moves at most 0.0007 against a bow speed of 0.94, and the relative speed never drops under 0.094, above the Stribeck width (0.02). So the friction sits on its sliding branch and Slip Curve, which only shapes the sticking side, does nothing.
