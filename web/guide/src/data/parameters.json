@@ -1,0 +1,3446 @@
+{
+  "parameters": [
+    {
+      "controls": [
+        {
+          "group": "Header",
+          "help": "Size of the editor window.",
+          "label": "SCALE",
+          "shown": "always"
+        }
+      ],
+      "default": "75%",
+      "group": "Header",
+      "id": "ui_scale",
+      "kind": "int",
+      "name": "UI Scale",
+      "options": [
+        {
+          "name": "50%",
+          "value": 0
+        },
+        {
+          "name": "55%",
+          "value": 9
+        },
+        {
+          "name": "60%",
+          "value": 10
+        },
+        {
+          "name": "65%",
+          "value": 11
+        },
+        {
+          "name": "70%",
+          "value": 12
+        },
+        {
+          "name": "75%",
+          "value": 1
+        },
+        {
+          "name": "80%",
+          "value": 5
+        },
+        {
+          "name": "85%",
+          "value": 6
+        },
+        {
+          "name": "90%",
+          "value": 7
+        },
+        {
+          "name": "95%",
+          "value": 8
+        },
+        {
+          "name": "100%",
+          "value": 2
+        },
+        {
+          "name": "105%",
+          "value": 13
+        },
+        {
+          "name": "110%",
+          "value": 14
+        },
+        {
+          "name": "115%",
+          "value": 15
+        },
+        {
+          "name": "120%",
+          "value": 16
+        },
+        {
+          "name": "125%",
+          "value": 3
+        },
+        {
+          "name": "130%",
+          "value": 17
+        },
+        {
+          "name": "135%",
+          "value": 18
+        },
+        {
+          "name": "140%",
+          "value": 19
+        },
+        {
+          "name": "145%",
+          "value": 20
+        },
+        {
+          "name": "150%",
+          "value": 4
+        }
+      ],
+      "panel": "header",
+      "unit": ""
+    },
+    {
+      "controls": [
+        {
+          "group": "Header",
+          "help": "",
+          "label": "MODE",
+          "shown": "always"
+        }
+      ],
+      "default": "Normal",
+      "group": "Header",
+      "id": "quality_mode",
+      "kind": "int",
+      "name": "Quality Mode",
+      "options": [
+        {
+          "help": "Lowest CPU: fewer modes per voice and no clipper oversampling.",
+          "name": "Eco",
+          "value": 0
+        },
+        {
+          "help": "The default balance of detail and CPU.",
+          "name": "Normal",
+          "value": 1
+        },
+        {
+          "help": "More modes per voice and more clipper oversampling.",
+          "name": "High",
+          "value": 2
+        },
+        {
+          "help": "Most detail and least aliasing, for bouncing. Uses the most CPU.",
+          "name": "Render",
+          "value": 3
+        }
+      ],
+      "panel": "header",
+      "unit": ""
+    },
+    {
+      "controls": [
+        {
+          "group": "Header",
+          "help": "",
+          "label": "NOTE MODE",
+          "shown": "always"
+        }
+      ],
+      "default": "Tonal",
+      "group": "Header",
+      "id": "play_mode",
+      "kind": "int",
+      "name": "Note Mode",
+      "options": [
+        {
+          "help": "Each key plays the patch at its own pitch. Bowed and scraped exciters follow the envelope, so they fade out even while the key is held.",
+          "name": "Tonal",
+          "value": 0
+        },
+        {
+          "help": "Each key plays its own pad, with its own sound and tuning, set up with the kit bar above the keyboard. Keys without a pad are silent.",
+          "name": "Kit",
+          "value": 1
+        },
+        {
+          "help": "Like Tonal, but bowed and scraped exciters keep sounding while the key is held (the envelope loops Decay and Sustain). Struck exciters still decay.",
+          "name": "Drone",
+          "value": 2
+        }
+      ],
+      "panel": "header",
+      "unit": ""
+    },
+    {
+      "controls": [
+        {
+          "group": "Header",
+          "help": "",
+          "label": "LIMITER",
+          "shown": "always"
+        }
+      ],
+      "default": "Hard",
+      "group": "Header",
+      "id": "limiter_mode",
+      "kind": "int",
+      "name": "Limiter Mode",
+      "options": [
+        {
+          "help": "Clamps peaks at the ceiling with no added latency.",
+          "name": "Hard",
+          "value": 0
+        },
+        {
+          "help": "Turns peaks down smoothly ahead of time. Adds about 1 ms of latency.",
+          "name": "Lookahead",
+          "value": 1
+        }
+      ],
+      "panel": "header",
+      "unit": ""
+    },
+    {
+      "controls": [
+        {
+          "group": "Header",
+          "help": "Final output level, in dB. The ceiling still limits the peaks.",
+          "label": "OUTPUT",
+          "shown": "always"
+        }
+      ],
+      "default": "0.00 dB",
+      "group": "Header",
+      "id": "output",
+      "kind": "float",
+      "max": "40.00 dB",
+      "min": "-inf dB",
+      "name": "Output",
+      "panel": "header",
+      "unit": "dB"
+    },
+    {
+      "controls": [
+        {
+          "group": "Header",
+          "help": "Stereo width of the voices. Higher spreads them wider.",
+          "label": "WIDTH",
+          "shown": "always"
+        }
+      ],
+      "default": "0.5",
+      "group": "Header",
+      "id": "width",
+      "kind": "float",
+      "max": "3",
+      "min": "-2",
+      "name": "Width",
+      "panel": "header",
+      "unit": ""
+    },
+    {
+      "controls": [
+        {
+          "group": "Header",
+          "help": "Level of the resonating body under the sound. Higher sounds fuller and more physical.",
+          "label": "BODY",
+          "shown": "always"
+        }
+      ],
+      "default": "2.62",
+      "group": "Header",
+      "id": "body",
+      "kind": "float",
+      "max": "5",
+      "min": "0",
+      "name": "Body",
+      "panel": "header",
+      "unit": ""
+    },
+    {
+      "controls": [
+        {
+          "group": "Macros",
+          "help": "Makes everything heavier: exciter weights and object size. Higher sounds bigger and lower.",
+          "label": "MASS",
+          "shown": "always"
+        }
+      ],
+      "default": "0.5",
+      "group": "Macros",
+      "id": "macro_mass",
+      "kind": "float",
+      "max": "1",
+      "min": "0",
+      "name": "Mass",
+      "panel": "macros",
+      "unit": ""
+    },
+    {
+      "controls": [
+        {
+          "group": "Macros",
+          "help": "Wears the object down: more damping and rust. Higher sounds older and duller.",
+          "label": "CORROSION",
+          "shown": "always"
+        }
+      ],
+      "default": "0.5",
+      "group": "Macros",
+      "id": "macro_corrosion",
+      "kind": "float",
+      "max": "1",
+      "min": "0",
+      "name": "Corrosion",
+      "panel": "macros",
+      "unit": ""
+    },
+    {
+      "controls": [
+        {
+          "group": "Macros",
+          "help": "Pushes drive, chaos and damage. Higher sounds harsher and more broken.",
+          "label": "VIOLENCE",
+          "shown": "always"
+        }
+      ],
+      "default": "0.5",
+      "group": "Macros",
+      "id": "macro_violence",
+      "kind": "float",
+      "max": "1",
+      "min": "0",
+      "name": "Violence",
+      "panel": "macros",
+      "unit": ""
+    },
+    {
+      "controls": [
+        {
+          "group": "Macros",
+          "help": "Opens the filter and brightens the object. Higher sounds brighter.",
+          "label": "BRIGHTNESS",
+          "shown": "always"
+        }
+      ],
+      "default": "0.5",
+      "group": "Macros",
+      "id": "macro_brightness",
+      "kind": "float",
+      "max": "1",
+      "min": "0",
+      "name": "Macro Brightness",
+      "panel": "macros",
+      "unit": ""
+    },
+    {
+      "controls": [
+        {
+          "group": "Exciter",
+          "help": "",
+          "label": "Model Type",
+          "shown": "always"
+        }
+      ],
+      "default": "Hand Strike",
+      "group": "Exciter",
+      "id": "exciter",
+      "kind": "int",
+      "name": "Exciter",
+      "options": [
+        {
+          "help": "Fleshy Kelvin-Voigt impact with heavy damping and an explicit mute tail.",
+          "name": "Hand Strike",
+          "value": 2
+        },
+        {
+          "help": "Soft non-linear mallet with a compressive felt layer over a harder core.",
+          "name": "Felt Mallet",
+          "value": 3
+        },
+        {
+          "help": "Rigid Hertzian strike tuned around mass, brightness, and bounce suppression.",
+          "name": "Hard Mallet",
+          "value": 4
+        },
+        {
+          "help": "Light rigid impact with explicit rebound energy and micro-bounce count.",
+          "name": "Drumstick",
+          "value": 5
+        },
+        {
+          "help": "Impulse-cloud brush model with density, spread, stiffness, and stochastic variance.",
+          "name": "Wire Brush",
+          "value": 6
+        },
+        {
+          "help": "Bi-directional pipe impact with a ringing exciter body feeding back into the collision.",
+          "name": "Metal Pipe",
+          "value": 7
+        },
+        {
+          "help": "Clustered heavy-link impacts with separate timing spread and high-frequency rattle coloration.",
+          "name": "Metal Chain",
+          "value": 8
+        },
+        {
+          "help": "Smooth stick-slip bow friction with pressure, speed, grip, and slip controls from the documented bow model.",
+          "name": "Bow",
+          "value": 1
+        },
+        {
+          "help": "Rigid point scrape where chatter pitch and damping define the squeal character.",
+          "name": "Stiff Point Scrape",
+          "value": 9
+        },
+        {
+          "help": "Heavy rough drag with separate baseline force, tearing grit, and noise color.",
+          "name": "Heavy Grinding",
+          "value": 10
+        },
+        {
+          "help": "Drag motion across ridges with explicit spacing, depth, and moving contact mass.",
+          "name": "Corrugated Drag",
+          "value": 11
+        },
+        {
+          "help": "Integrate-and-fire creak model driven by pull speed, threshold, randomness, and crack sharpness.",
+          "name": "Tension Rise",
+          "value": 12
+        },
+        {
+          "help": "Band-limited turbulence exciter shaped by nozzle focus and overload chaos.",
+          "name": "Pneumatic Jet",
+          "value": 13
+        },
+        {
+          "help": "Continuous Lorentz-force injection with direct control of mains pitch, proximity, and sag.",
+          "name": "Electromagnetic Hum",
+          "value": 14
+        },
+        {
+          "help": "Hook-and-release mechanism with explicit pull distance, stiffness, and break force.",
+          "name": "Tension Snap",
+          "value": 15
+        },
+        {
+          "help": "Continuous debris cloud controlled by flow density, particle weight, and variance.",
+          "name": "Particle Rain",
+          "value": 16
+        }
+      ],
+      "panel": "exciter",
+      "unit": ""
+    },
+    {
+      "controls": [
+        {
+          "group": "Exciter",
+          "help": "How hard the exciter presses on the object. Higher drives the object harder: louder and more strained.",
+          "label": "Pressure",
+          "shown": "always"
+        }
+      ],
+      "default": "+0.0 dB",
+      "group": "Exciter",
+      "id": "exciter_pressure",
+      "kind": "float",
+      "max": "+12.0 dB",
+      "min": "-12.0 dB",
+      "name": "Pressure",
+      "panel": "exciter",
+      "unit": ""
+    },
+    {
+      "controls": [
+        {
+          "group": "Exciter",
+          "help": "How fast the exciter moves across or against the object. Higher sounds brighter and more agitated.",
+          "label": "Speed",
+          "shown": "always"
+        }
+      ],
+      "default": "×1.00",
+      "group": "Exciter",
+      "id": "exciter_speed",
+      "kind": "float",
+      "max": "×2.00",
+      "min": "×0.50",
+      "name": "Speed",
+      "panel": "exciter",
+      "unit": ""
+    },
+    {
+      "controls": [
+        {
+          "group": "Exciter",
+          "help": "Irregularity of the contact. Higher adds grit, noise and jitter to the excitation.",
+          "label": "Roughness",
+          "shown": "always"
+        }
+      ],
+      "default": "×1.00",
+      "group": "Exciter",
+      "id": "exciter_roughness",
+      "kind": "float",
+      "max": "×3.33",
+      "min": "×0.00",
+      "name": "Roughness",
+      "panel": "exciter",
+      "unit": ""
+    },
+    {
+      "default": "1.7",
+      "group": "Model controls",
+      "id": "hand_mass",
+      "kind": "float",
+      "max": "3",
+      "min": "0.4",
+      "name": "Hand Mass",
+      "panel": "exciter",
+      "slots": [
+        {
+          "group": "Hand strike physics",
+          "help": "Weight of the striking hand. Heavier hands push more low end into the object.",
+          "label": "Hand Mass",
+          "max": "3",
+          "min": "0.4",
+          "model": "Hand Strike"
+        }
+      ],
+      "unit": ""
+    },
+    {
+      "default": "0.425",
+      "group": "Model controls",
+      "id": "flesh_stiffness",
+      "kind": "float",
+      "max": "0.8",
+      "min": "0.05",
+      "name": "Flesh Stiffness",
+      "panel": "exciter",
+      "slots": [
+        {
+          "group": "Hand strike physics",
+          "help": "Stiffness of the hand's flesh at contact. Higher gives a shorter, brighter slap.",
+          "label": "Flesh Stiffness",
+          "max": "0.8",
+          "min": "0.05",
+          "model": "Hand Strike"
+        }
+      ],
+      "unit": ""
+    },
+    {
+      "default": "0.75",
+      "group": "Model controls",
+      "id": "flesh_damping",
+      "kind": "float",
+      "max": "1.8",
+      "min": "0.3",
+      "name": "Flesh Damping",
+      "panel": "exciter",
+      "slots": [
+        {
+          "group": "Hand strike physics",
+          "help": "How much the flesh absorbs the impact. Higher softens the attack.",
+          "label": "Flesh Damping",
+          "max": "1.8",
+          "min": "0.3",
+          "model": "Hand Strike"
+        }
+      ],
+      "unit": ""
+    },
+    {
+      "default": "0.9245",
+      "group": "Model controls",
+      "id": "mute_decay",
+      "kind": "float",
+      "max": "0.999",
+      "min": "0.85",
+      "name": "Mute Decay",
+      "panel": "exciter",
+      "slots": [
+        {
+          "group": "Hand strike physics",
+          "help": "How long the hand rests on the object after the strike. Lower mutes the ring sooner.",
+          "label": "Mute Decay",
+          "max": "0.999",
+          "min": "0.85",
+          "model": "Hand Strike"
+        }
+      ],
+      "unit": ""
+    },
+    {
+      "default": "1.5",
+      "group": "Model controls",
+      "id": "mallet_mass",
+      "kind": "float",
+      "max": "3.5",
+      "min": "0.4",
+      "name": "Mallet Mass",
+      "panel": "exciter",
+      "slots": [
+        {
+          "group": "Felt mallet contact",
+          "help": "Weight of the mallet head. Heavier mallets stay in contact longer and bring out the low modes.",
+          "label": "Mallet Mass",
+          "max": "3.5",
+          "min": "0.4",
+          "model": "Felt Mallet"
+        },
+        {
+          "group": "Hard mallet contact",
+          "help": "Weight of the mallet head. Heavier mallets stay in contact longer and bring out the low modes.",
+          "label": "Mallet Mass",
+          "max": "3.5",
+          "min": "0.4",
+          "model": "Hard Mallet"
+        }
+      ],
+      "unit": ""
+    },
+    {
+      "default": "0.94",
+      "group": "Model controls",
+      "id": "felt_softness",
+      "kind": "float",
+      "max": "1.3",
+      "min": "0.1",
+      "name": "Felt Softness",
+      "panel": "exciter",
+      "slots": [
+        {
+          "group": "Felt mallet contact",
+          "help": "Softness of the felt covering. Higher gives a rounder, darker strike.",
+          "label": "Felt Softness",
+          "max": "1.3",
+          "min": "0.1",
+          "model": "Felt Mallet"
+        }
+      ],
+      "unit": ""
+    },
+    {
+      "default": "2.5",
+      "group": "Model controls",
+      "id": "core_hardness",
+      "kind": "float",
+      "max": "4.5",
+      "min": "0.5",
+      "name": "Core Hardness",
+      "panel": "exciter",
+      "slots": [
+        {
+          "group": "Felt mallet contact",
+          "help": "Hardness of the mallet's core under the felt. Higher adds a brighter click to loud hits.",
+          "label": "Core Hardness",
+          "max": "4.5",
+          "min": "0.5",
+          "model": "Felt Mallet"
+        }
+      ],
+      "unit": ""
+    },
+    {
+      "default": "2.9",
+      "group": "Model controls",
+      "id": "compression_curve",
+      "kind": "float",
+      "max": "5",
+      "min": "2",
+      "name": "Compression Curve",
+      "panel": "exciter",
+      "slots": [
+        {
+          "group": "Felt mallet contact",
+          "help": "How quickly the felt stiffens as it is squeezed. Higher makes hard hits much brighter than soft ones.",
+          "label": "Compression Curve",
+          "max": "5",
+          "min": "2",
+          "model": "Felt Mallet"
+        }
+      ],
+      "unit": ""
+    },
+    {
+      "default": "2.75",
+      "group": "Model controls",
+      "id": "material_stiffness",
+      "kind": "float",
+      "max": "5",
+      "min": "0.5",
+      "name": "Material Stiffness",
+      "panel": "exciter",
+      "slots": [
+        {
+          "group": "Hard mallet contact",
+          "help": "Stiffness of the mallet head. Higher gives a sharper, brighter strike.",
+          "label": "Material Stiffness",
+          "max": "5",
+          "min": "0.5",
+          "model": "Hard Mallet"
+        }
+      ],
+      "unit": ""
+    },
+    {
+      "default": "0.46",
+      "group": "Model controls",
+      "id": "impact_damping",
+      "kind": "float",
+      "max": "1.3",
+      "min": "0.1",
+      "name": "Impact Damping",
+      "panel": "exciter",
+      "slots": [
+        {
+          "group": "Hard mallet contact",
+          "help": "Energy lost in the contact itself. Higher softens and shortens the attack.",
+          "label": "Impact Damping",
+          "max": "1.3",
+          "min": "0.1",
+          "model": "Hard Mallet"
+        }
+      ],
+      "unit": ""
+    },
+    {
+      "default": "0.65",
+      "group": "Model controls",
+      "id": "stick_mass",
+      "kind": "float",
+      "max": "1.25",
+      "min": "0.05",
+      "name": "Stick Mass",
+      "panel": "exciter",
+      "slots": [
+        {
+          "group": "Drumstick bounce",
+          "help": "Weight of the drumstick. Heavier sticks drive the object harder and darker.",
+          "label": "Stick Mass",
+          "max": "1.25",
+          "min": "0.05",
+          "model": "Drumstick"
+        }
+      ],
+      "unit": ""
+    },
+    {
+      "default": "3.8",
+      "group": "Model controls",
+      "id": "tip_stiffness",
+      "kind": "float",
+      "max": "6.8",
+      "min": "0.8",
+      "name": "Tip Stiffness",
+      "panel": "exciter",
+      "slots": [
+        {
+          "group": "Drumstick bounce",
+          "help": "Stiffness of the stick's tip. Higher gives a sharper, brighter tick.",
+          "label": "Tip Stiffness",
+          "max": "6.8",
+          "min": "0.8",
+          "model": "Drumstick"
+        }
+      ],
+      "unit": ""
+    },
+    {
+      "default": "0.41",
+      "group": "Model controls",
+      "id": "restitution_bounciness",
+      "kind": "float",
+      "max": "0.9",
+      "min": "0.2",
+      "name": "Restitution Bounciness",
+      "panel": "exciter",
+      "slots": [
+        {
+          "group": "Drumstick bounce",
+          "help": "How much the stick bounces back after contact. Higher gives livelier, more rebound-rich hits.",
+          "label": "Restitution Bounciness",
+          "max": "0.9",
+          "min": "0.2",
+          "model": "Drumstick"
+        }
+      ],
+      "unit": ""
+    },
+    {
+      "default": "4",
+      "group": "Model controls",
+      "id": "micro_bounce_limit",
+      "kind": "float",
+      "max": "8",
+      "min": "2",
+      "name": "Micro Bounce Limit",
+      "panel": "exciter",
+      "slots": [
+        {
+          "group": "Drumstick bounce",
+          "help": "Maximum number of small rebounds after a strike. Higher allows a buzzier, rattling attack.",
+          "label": "Micro Bounce Limit",
+          "max": "8",
+          "min": "2",
+          "model": "Drumstick"
+        }
+      ],
+      "unit": ""
+    },
+    {
+      "default": "46",
+      "group": "Model controls",
+      "id": "wire_density",
+      "kind": "float",
+      "max": "130",
+      "min": "10",
+      "name": "Wire Density",
+      "panel": "exciter",
+      "slots": [
+        {
+          "group": "Wire brush cluster",
+          "help": "Number of wires in the brush. Higher gives a denser, smoother swish.",
+          "label": "Wire Density",
+          "max": "130",
+          "min": "10",
+          "model": "Wire Brush"
+        }
+      ],
+      "unit": ""
+    },
+    {
+      "default": "130",
+      "group": "Model controls",
+      "id": "spread_duration",
+      "kind": "float",
+      "max": "250",
+      "min": "10",
+      "name": "Spread Duration",
+      "panel": "exciter",
+      "slots": [
+        {
+          "group": "Wire brush cluster",
+          "help": "How long the brush's wires take to land, in milliseconds. Higher smears the hit into a sweep.",
+          "label": "Spread Duration",
+          "max": "250",
+          "min": "10",
+          "model": "Wire Brush"
+        }
+      ],
+      "unit": ""
+    },
+    {
+      "default": "0.3",
+      "group": "Model controls",
+      "id": "brush_wire_stiffness",
+      "kind": "float",
+      "max": "1",
+      "min": "0",
+      "name": "Brush Wire Stiffness",
+      "panel": "exciter",
+      "slots": [
+        {
+          "group": "Wire brush cluster",
+          "help": "Stiffness of the wires (brush wires or spring coils, by model). Higher sounds brighter and tighter.",
+          "label": "Wire Stiffness",
+          "max": "1",
+          "min": "0",
+          "model": "Wire Brush"
+        }
+      ],
+      "unit": ""
+    },
+    {
+      "default": "0.3",
+      "group": "Model controls",
+      "id": "amplitude_randomization",
+      "kind": "float",
+      "max": "1",
+      "min": "0",
+      "name": "Amplitude Randomization",
+      "panel": "exciter",
+      "slots": [
+        {
+          "group": "Wire brush cluster",
+          "help": "Random level variation between wires or hits. Higher sounds looser and more organic.",
+          "label": "Amplitude Randomization",
+          "max": "1",
+          "min": "0",
+          "model": "Wire Brush"
+        }
+      ],
+      "unit": ""
+    },
+    {
+      "default": "1.5",
+      "group": "Model controls",
+      "id": "pipe_mass",
+      "kind": "float",
+      "max": "2.6",
+      "min": "0.4",
+      "name": "Pipe Mass",
+      "panel": "exciter",
+      "slots": [
+        {
+          "group": "Metal pipe coupling",
+          "help": "Weight of the striking pipe. Heavier pipes hit harder and darker.",
+          "label": "Pipe Mass",
+          "max": "2.6",
+          "min": "0.4",
+          "model": "Metal Pipe"
+        }
+      ],
+      "unit": ""
+    },
+    {
+      "default": "3",
+      "group": "Model controls",
+      "id": "metal_stiffness",
+      "kind": "float",
+      "max": "5.5",
+      "min": "0.5",
+      "name": "Metal Stiffness",
+      "panel": "exciter",
+      "slots": [
+        {
+          "group": "Metal pipe coupling",
+          "help": "Stiffness of the striking metal. Higher gives a harder, brighter clang.",
+          "label": "Metal Stiffness",
+          "max": "5.5",
+          "min": "0.5",
+          "model": "Metal Pipe"
+        }
+      ],
+      "unit": ""
+    },
+    {
+      "default": "1.1",
+      "group": "Model controls",
+      "id": "pipe_pitch",
+      "kind": "float",
+      "max": "2.5",
+      "min": "0.5",
+      "name": "Pipe Pitch",
+      "panel": "exciter",
+      "slots": [
+        {
+          "group": "Metal pipe coupling",
+          "help": "Tuning of the striking pipe's own ring. Higher raises its overtone.",
+          "label": "Pipe Pitch",
+          "max": "2.5",
+          "min": "0.5",
+          "model": "Metal Pipe"
+        }
+      ],
+      "unit": ""
+    },
+    {
+      "default": "0.9795",
+      "group": "Model controls",
+      "id": "pipe_ring_decay",
+      "kind": "float",
+      "max": "0.999",
+      "min": "0.96",
+      "name": "Pipe Ring Decay",
+      "panel": "exciter",
+      "slots": [
+        {
+          "group": "Metal pipe coupling",
+          "help": "How long the striking pipe's own ring lasts. Higher adds a longer metallic tail to each hit.",
+          "label": "Pipe Ring Decay",
+          "max": "0.999",
+          "min": "0.96",
+          "model": "Metal Pipe"
+        }
+      ],
+      "unit": ""
+    },
+    {
+      "default": "9",
+      "group": "Model controls",
+      "id": "link_count",
+      "kind": "float",
+      "max": "15",
+      "min": "3",
+      "name": "Link Count",
+      "panel": "exciter",
+      "slots": [
+        {
+          "group": "Metal chain cascade",
+          "help": "Number of links in the dropped chain. Higher gives a longer, busier rattle.",
+          "label": "Link Count",
+          "max": "15",
+          "min": "3",
+          "model": "Metal Chain"
+        }
+      ],
+      "unit": ""
+    },
+    {
+      "default": "0.8",
+      "group": "Model controls",
+      "id": "chain_mass",
+      "kind": "float",
+      "max": "1.4",
+      "min": "0.2",
+      "name": "Chain Mass",
+      "panel": "exciter",
+      "slots": [
+        {
+          "group": "Metal chain cascade",
+          "help": "Weight of the dropped chain. Heavier chains hit harder and darker.",
+          "label": "Chain Mass",
+          "max": "1.4",
+          "min": "0.2",
+          "model": "Metal Chain"
+        }
+      ],
+      "unit": ""
+    },
+    {
+      "default": "220",
+      "group": "Model controls",
+      "id": "drop_envelope_spread",
+      "kind": "float",
+      "max": "400",
+      "min": "40",
+      "name": "Drop Envelope Spread",
+      "panel": "exciter",
+      "slots": [
+        {
+          "group": "Metal chain cascade",
+          "help": "How spread out in time the links land, in milliseconds. Higher stretches the cascade.",
+          "label": "Drop Envelope Spread",
+          "max": "400",
+          "min": "40",
+          "model": "Metal Chain"
+        }
+      ],
+      "unit": ""
+    },
+    {
+      "default": "0.3",
+      "group": "Model controls",
+      "id": "internal_rattle",
+      "kind": "float",
+      "max": "1",
+      "min": "0",
+      "name": "Internal Rattle",
+      "panel": "exciter",
+      "slots": [
+        {
+          "group": "Metal chain cascade",
+          "help": "Rattling between the links. Higher adds more clatter to the strike.",
+          "label": "Internal Rattle",
+          "max": "1",
+          "min": "0",
+          "model": "Metal Chain"
+        }
+      ],
+      "unit": ""
+    },
+    {
+      "default": "0.3",
+      "group": "Model controls",
+      "id": "rattle_color",
+      "kind": "float",
+      "max": "1",
+      "min": "0",
+      "name": "Rattle Color",
+      "panel": "exciter",
+      "slots": [
+        {
+          "group": "Metal chain cascade",
+          "help": "Tone of the rattle. Higher is brighter.",
+          "label": "Rattle Color",
+          "max": "1",
+          "min": "0",
+          "model": "Metal Chain"
+        }
+      ],
+      "unit": ""
+    },
+    {
+      "default": "1.1",
+      "group": "Model controls",
+      "id": "bow_pressure",
+      "kind": "float",
+      "max": "2",
+      "min": "0.2",
+      "name": "Bow Pressure",
+      "panel": "exciter",
+      "slots": [
+        {
+          "group": "Bow",
+          "help": "How hard the bow presses on the object. Higher is louder and grittier, and too much makes it crunch.",
+          "label": "Bow Pressure",
+          "max": "2",
+          "min": "0.2",
+          "model": "Bow"
+        }
+      ],
+      "unit": ""
+    },
+    {
+      "default": "1.05",
+      "group": "Model controls",
+      "id": "bow_speed",
+      "kind": "float",
+      "max": "2",
+      "min": "0.1",
+      "name": "Bow Speed",
+      "panel": "exciter",
+      "slots": [
+        {
+          "group": "Bow",
+          "help": "How fast the bow moves. Higher gives a brighter, more stable tone.",
+          "label": "Bow Speed",
+          "max": "2",
+          "min": "0.1",
+          "model": "Bow"
+        }
+      ],
+      "unit": ""
+    },
+    {
+      "default": "0.485",
+      "group": "Model controls",
+      "id": "rosin_grip",
+      "kind": "float",
+      "max": "1.5",
+      "min": "0.05",
+      "name": "Rosin Grip",
+      "panel": "exciter",
+      "slots": [
+        {
+          "group": "Bow",
+          "help": "Static friction of the rosin. Higher grips harder, giving a stronger, rougher stick-slip.",
+          "label": "Rosin Grip",
+          "max": "1.5",
+          "min": "0.05",
+          "model": "Bow"
+        }
+      ],
+      "unit": ""
+    },
+    {
+      "default": "0.485",
+      "group": "Model controls",
+      "id": "slip_curve",
+      "kind": "float",
+      "max": "1.5",
+      "min": "0.05",
+      "name": "Slip Curve",
+      "panel": "exciter",
+      "slots": [
+        {
+          "group": "Bow",
+          "help": "How quickly friction falls once the bow slips. Higher gives a sharper, more aggressive tone.",
+          "label": "Slip Curve",
+          "max": "1.5",
+          "min": "0.05",
+          "model": "Bow"
+        }
+      ],
+      "unit": ""
+    },
+    {
+      "default": "0.82",
+      "group": "Model controls",
+      "id": "scrape_speed",
+      "kind": "float",
+      "max": "2.5",
+      "min": "0.1",
+      "name": "Scrape Speed",
+      "panel": "exciter",
+      "slots": [
+        {
+          "group": "Stiff point chatter",
+          "help": "How fast the point scrapes along the surface. Higher raises the chatter's pitch and density.",
+          "label": "Scrape Speed",
+          "max": "2.5",
+          "min": "0.1",
+          "model": "Stiff Point Scrape"
+        }
+      ],
+      "unit": ""
+    },
+    {
+      "default": "0.8",
+      "group": "Model controls",
+      "id": "point_pressure",
+      "kind": "float",
+      "max": "1.5",
+      "min": "0.1",
+      "name": "Point Pressure",
+      "panel": "exciter",
+      "slots": [
+        {
+          "group": "Stiff point chatter",
+          "help": "How hard the point presses into the surface. Higher is louder and harsher.",
+          "label": "Point Pressure",
+          "max": "1.5",
+          "min": "0.1",
+          "model": "Stiff Point Scrape"
+        }
+      ],
+      "unit": ""
+    },
+    {
+      "default": "0.52",
+      "group": "Model controls",
+      "id": "chatter_pitch",
+      "kind": "float",
+      "max": "1.5",
+      "min": "0.1",
+      "name": "Chatter Pitch",
+      "panel": "exciter",
+      "slots": [
+        {
+          "group": "Stiff point chatter",
+          "help": "Pitch of the stick-slip chatter. Higher sounds squealier.",
+          "label": "Chatter Pitch",
+          "max": "1.5",
+          "min": "0.1",
+          "model": "Stiff Point Scrape"
+        }
+      ],
+      "unit": ""
+    },
+    {
+      "default": "0.66",
+      "group": "Model controls",
+      "id": "chatter_damping",
+      "kind": "float",
+      "max": "0.9",
+      "min": "0.1",
+      "name": "Chatter Damping",
+      "panel": "exciter",
+      "slots": [
+        {
+          "group": "Stiff point chatter",
+          "help": "How quickly each chatter burst dies away. Higher sounds drier and tighter.",
+          "label": "Chatter Damping",
+          "max": "0.9",
+          "min": "0.1",
+          "model": "Stiff Point Scrape"
+        }
+      ],
+      "unit": ""
+    },
+    {
+      "default": "0.82",
+      "group": "Model controls",
+      "id": "grind_speed",
+      "kind": "float",
+      "max": "2.5",
+      "min": "0.1",
+      "name": "Grind Speed",
+      "panel": "exciter",
+      "slots": [
+        {
+          "group": "Grinding friction",
+          "help": "Speed of the grinding wheel. Higher gives a brighter, denser roar.",
+          "label": "Grind Speed",
+          "max": "2.5",
+          "min": "0.1",
+          "model": "Heavy Grinding"
+        }
+      ],
+      "unit": ""
+    },
+    {
+      "default": "1",
+      "group": "Model controls",
+      "id": "grind_pressure",
+      "kind": "float",
+      "max": "1.9",
+      "min": "0.1",
+      "name": "Grind Pressure",
+      "panel": "exciter",
+      "slots": [
+        {
+          "group": "Grinding friction",
+          "help": "How hard the grinder presses on the object. Higher is louder and more aggressive.",
+          "label": "Grind Pressure",
+          "max": "1.9",
+          "min": "0.1",
+          "model": "Heavy Grinding"
+        }
+      ],
+      "unit": ""
+    },
+    {
+      "default": "0.3",
+      "group": "Model controls",
+      "id": "surface_grit",
+      "kind": "float",
+      "max": "1",
+      "min": "0",
+      "name": "Surface Grit",
+      "panel": "exciter",
+      "slots": [
+        {
+          "group": "Grinding friction",
+          "help": "Coarseness of the ground surface. Higher adds noise and crackle.",
+          "label": "Surface Grit",
+          "max": "1",
+          "min": "0",
+          "model": "Heavy Grinding"
+        }
+      ],
+      "unit": ""
+    },
+    {
+      "default": "0.3",
+      "group": "Model controls",
+      "id": "grit_color",
+      "kind": "float",
+      "max": "1",
+      "min": "0",
+      "name": "Grit Color",
+      "panel": "exciter",
+      "slots": [
+        {
+          "group": "Grinding friction",
+          "help": "Tone of the grit noise. Higher is brighter.",
+          "label": "Grit Color",
+          "max": "1",
+          "min": "0",
+          "model": "Heavy Grinding"
+        }
+      ],
+      "unit": ""
+    },
+    {
+      "default": "0.82",
+      "group": "Model controls",
+      "id": "drag_speed",
+      "kind": "float",
+      "max": "2.5",
+      "min": "0.1",
+      "name": "Drag Speed",
+      "panel": "exciter",
+      "slots": [
+        {
+          "group": "Corrugated drag topology",
+          "help": "How fast the exciter drags across the ridges. Higher raises the ridge rate.",
+          "label": "Drag Speed",
+          "max": "2.5",
+          "min": "0.1",
+          "model": "Corrugated Drag"
+        }
+      ],
+      "unit": ""
+    },
+    {
+      "default": "0.143",
+      "group": "Model controls",
+      "id": "ridge_spacing",
+      "kind": "float",
+      "max": "0.2",
+      "min": "0.01",
+      "name": "Ridge Spacing",
+      "panel": "exciter",
+      "slots": [
+        {
+          "group": "Corrugated drag topology",
+          "help": "Distance between the surface's ridges. Higher spaces the ticks further apart.",
+          "label": "Ridge Spacing",
+          "max": "0.2",
+          "min": "0.01",
+          "model": "Corrugated Drag"
+        }
+      ],
+      "unit": ""
+    },
+    {
+      "default": "0.6",
+      "group": "Model controls",
+      "id": "ridge_depth",
+      "kind": "float",
+      "max": "2",
+      "min": "0",
+      "name": "Ridge Depth",
+      "panel": "exciter",
+      "slots": [
+        {
+          "group": "Corrugated drag topology",
+          "help": "Depth of the ridges. Higher gives stronger, louder ticks.",
+          "label": "Ridge Depth",
+          "max": "2",
+          "min": "0",
+          "model": "Corrugated Drag"
+        }
+      ],
+      "unit": ""
+    },
+    {
+      "default": "1.1",
+      "group": "Model controls",
+      "id": "drag_exciter_mass",
+      "kind": "float",
+      "max": "2",
+      "min": "0.2",
+      "name": "Exciter Mass",
+      "panel": "exciter",
+      "slots": [
+        {
+          "group": "Corrugated drag topology",
+          "help": "Weight of the dragged exciter. Heavier sounds lower and heavier.",
+          "label": "Exciter Mass",
+          "max": "2",
+          "min": "0.2",
+          "model": "Corrugated Drag"
+        }
+      ],
+      "unit": ""
+    },
+    {
+      "default": "0.8",
+      "group": "Model controls",
+      "id": "pull_speed",
+      "kind": "float",
+      "max": "1.55",
+      "min": "0.05",
+      "name": "Pull Speed",
+      "panel": "exciter",
+      "slots": [
+        {
+          "group": "Tension-rise slip",
+          "help": "How fast the tension builds. Higher makes creaks come faster.",
+          "label": "Pull Speed",
+          "max": "1.55",
+          "min": "0.05",
+          "model": "Tension Rise"
+        }
+      ],
+      "unit": ""
+    },
+    {
+      "default": "0.85",
+      "group": "Model controls",
+      "id": "break_threshold",
+      "kind": "float",
+      "max": "1.6",
+      "min": "0.1",
+      "name": "Break Threshold",
+      "panel": "exciter",
+      "slots": [
+        {
+          "group": "Tension-rise slip",
+          "help": "Tension at which the material slips. Higher builds more tension before each creak.",
+          "label": "Break Threshold",
+          "max": "1.6",
+          "min": "0.1",
+          "model": "Tension Rise"
+        }
+      ],
+      "unit": ""
+    },
+    {
+      "default": "0.3",
+      "group": "Model controls",
+      "id": "slip_stochasticity",
+      "kind": "float",
+      "max": "1",
+      "min": "0",
+      "name": "Slip Stochasticity",
+      "panel": "exciter",
+      "slots": [
+        {
+          "group": "Tension-rise slip",
+          "help": "Randomness of the slips. Higher sounds more irregular.",
+          "label": "Slip Stochasticity",
+          "max": "1",
+          "min": "0",
+          "model": "Tension Rise"
+        }
+      ],
+      "unit": ""
+    },
+    {
+      "default": "0.56",
+      "group": "Model controls",
+      "id": "creak_sharpness",
+      "kind": "float",
+      "max": "1.4",
+      "min": "0.2",
+      "name": "Creak Sharpness",
+      "panel": "exciter",
+      "slots": [
+        {
+          "group": "Tension-rise slip",
+          "help": "Sharpness of each creak. Higher sounds brighter and more percussive.",
+          "label": "Creak Sharpness",
+          "max": "1.4",
+          "min": "0.2",
+          "model": "Tension Rise"
+        }
+      ],
+      "unit": ""
+    },
+    {
+      "default": "1.1",
+      "group": "Model controls",
+      "id": "air_pressure",
+      "kind": "float",
+      "max": "2.1",
+      "min": "0.1",
+      "name": "Air Pressure",
+      "panel": "exciter",
+      "slots": [
+        {
+          "group": "Pneumatic jet drive",
+          "help": "Pressure of the air jet. Higher is louder and more turbulent.",
+          "label": "Air Pressure",
+          "max": "2.1",
+          "min": "0.1",
+          "model": "Pneumatic Jet"
+        }
+      ],
+      "unit": ""
+    },
+    {
+      "default": "0.85",
+      "group": "Model controls",
+      "id": "nozzle_width",
+      "kind": "float",
+      "max": "1.6",
+      "min": "0.1",
+      "name": "Nozzle Width",
+      "panel": "exciter",
+      "slots": [
+        {
+          "group": "Pneumatic jet drive",
+          "help": "Width of the nozzle. Higher gives a broader, darker hiss.",
+          "label": "Nozzle Width",
+          "max": "1.6",
+          "min": "0.1",
+          "model": "Pneumatic Jet"
+        }
+      ],
+      "unit": ""
+    },
+    {
+      "default": "0.6",
+      "group": "Model controls",
+      "id": "turbulence_chaos",
+      "kind": "float",
+      "max": "2",
+      "min": "0",
+      "name": "Turbulence Chaos",
+      "panel": "exciter",
+      "slots": [
+        {
+          "group": "Pneumatic jet drive",
+          "help": "Instability of the airflow. Higher sounds rougher and more chaotic.",
+          "label": "Turbulence Chaos",
+          "max": "2",
+          "min": "0",
+          "model": "Pneumatic Jet"
+        }
+      ],
+      "unit": ""
+    },
+    {
+      "default": "80",
+      "group": "Model controls",
+      "id": "mains_frequency",
+      "kind": "float",
+      "max": "120",
+      "min": "40",
+      "name": "Mains Frequency",
+      "panel": "exciter",
+      "slots": [
+        {
+          "group": "Electromagnetic drive",
+          "help": "Frequency of the electromagnetic drive, in hertz. It sets the hum's base pitch.",
+          "label": "Mains Frequency",
+          "max": "120",
+          "min": "40",
+          "model": "Electromagnetic Hum"
+        }
+      ],
+      "unit": ""
+    },
+    {
+      "default": "1",
+      "group": "Model controls",
+      "id": "coil_proximity",
+      "kind": "float",
+      "max": "2",
+      "min": "0",
+      "name": "Coil Proximity",
+      "panel": "exciter",
+      "slots": [
+        {
+          "group": "Electromagnetic drive",
+          "help": "How close the coil sits to the object. Higher couples more strongly and sounds louder.",
+          "label": "Coil Proximity",
+          "max": "2",
+          "min": "0",
+          "model": "Electromagnetic Hum"
+        }
+      ],
+      "unit": ""
+    },
+    {
+      "default": "0.6",
+      "group": "Model controls",
+      "id": "voltage_sag",
+      "kind": "float",
+      "max": "2",
+      "min": "0",
+      "name": "Voltage Sag",
+      "panel": "exciter",
+      "slots": [
+        {
+          "group": "Electromagnetic drive",
+          "help": "Instability of the supply. Higher makes the hum waver and sag.",
+          "label": "Voltage Sag",
+          "max": "2",
+          "min": "0",
+          "model": "Electromagnetic Hum"
+        }
+      ],
+      "unit": ""
+    },
+    {
+      "default": "0.8",
+      "group": "Model controls",
+      "id": "pull_distance",
+      "kind": "float",
+      "max": "1.5",
+      "min": "0.1",
+      "name": "Pull Distance",
+      "panel": "exciter",
+      "slots": [
+        {
+          "group": "Tension snap release",
+          "help": "How far the hook pulls before releasing. Higher gives a bigger snap.",
+          "label": "Pull Distance",
+          "max": "1.5",
+          "min": "0.1",
+          "model": "Tension Snap"
+        }
+      ],
+      "unit": ""
+    },
+    {
+      "default": "1.2",
+      "group": "Model controls",
+      "id": "hook_stiffness",
+      "kind": "float",
+      "max": "2.2",
+      "min": "0.2",
+      "name": "Hook Stiffness",
+      "panel": "exciter",
+      "slots": [
+        {
+          "group": "Tension snap release",
+          "help": "Stiffness of the hook. Higher gives a sharper release.",
+          "label": "Hook Stiffness",
+          "max": "2.2",
+          "min": "0.2",
+          "model": "Tension Snap"
+        }
+      ],
+      "unit": ""
+    },
+    {
+      "default": "0.67",
+      "group": "Model controls",
+      "id": "snap_force",
+      "kind": "float",
+      "max": "2",
+      "min": "0.1",
+      "name": "Snap Force",
+      "panel": "exciter",
+      "slots": [
+        {
+          "group": "Tension snap release",
+          "help": "Force of the release. Higher is louder and harder.",
+          "label": "Snap Force",
+          "max": "2",
+          "min": "0.1",
+          "model": "Tension Snap"
+        }
+      ],
+      "unit": ""
+    },
+    {
+      "default": "1.6",
+      "group": "Model controls",
+      "id": "flow_rate",
+      "kind": "float",
+      "max": "3.1",
+      "min": "0.1",
+      "name": "Flow Rate",
+      "panel": "exciter",
+      "slots": [
+        {
+          "group": "Particle rain stream",
+          "help": "How many particles fall per second. Higher gives a denser rain.",
+          "label": "Flow Rate",
+          "max": "3.1",
+          "min": "0.1",
+          "model": "Particle Rain"
+        }
+      ],
+      "unit": ""
+    },
+    {
+      "default": "0.525",
+      "group": "Model controls",
+      "id": "particle_mass",
+      "kind": "float",
+      "max": "1",
+      "min": "0.05",
+      "name": "Particle Mass",
+      "panel": "exciter",
+      "slots": [
+        {
+          "group": "Particle rain stream",
+          "help": "Weight of each particle. Heavier particles hit harder and darker.",
+          "label": "Particle Mass",
+          "max": "1",
+          "min": "0.05",
+          "model": "Particle Rain"
+        }
+      ],
+      "unit": ""
+    },
+    {
+      "default": "0.6",
+      "group": "Model controls",
+      "id": "mass_variance",
+      "kind": "float",
+      "max": "2",
+      "min": "0",
+      "name": "Mass Variance",
+      "panel": "exciter",
+      "slots": [
+        {
+          "group": "Particle rain stream",
+          "help": "Variation in particle weight. Higher sounds more uneven.",
+          "label": "Mass Variance",
+          "max": "2",
+          "min": "0",
+          "model": "Particle Rain"
+        }
+      ],
+      "unit": ""
+    },
+    {
+      "controls": [
+        {
+          "group": "Gesture Modifiers",
+          "help": "How much the envelope shapes the excitation. Lower flattens it.",
+          "label": "Env Amount",
+          "shown": "always"
+        }
+      ],
+      "default": "1",
+      "group": "Gesture Modifiers",
+      "id": "env_amount",
+      "kind": "float",
+      "max": "1",
+      "min": "0",
+      "name": "Env Amount",
+      "panel": "exciter",
+      "unit": ""
+    },
+    {
+      "controls": [
+        {
+          "group": "Gesture Modifiers",
+          "help": "How much velocity changes the envelope's peak. Higher makes soft notes quieter.",
+          "label": "Vel To Peak",
+          "shown": "always"
+        }
+      ],
+      "default": "0.5",
+      "group": "Gesture Modifiers",
+      "id": "velocity_to_peak",
+      "kind": "float",
+      "max": "1",
+      "min": "0",
+      "name": "Velocity To Peak",
+      "panel": "exciter",
+      "unit": ""
+    },
+    {
+      "controls": [
+        {
+          "group": "Gesture Modifiers",
+          "help": "Scales every envelope time. Higher slows the whole envelope.",
+          "label": "Global Time",
+          "shown": "always"
+        }
+      ],
+      "default": "1",
+      "group": "Gesture Modifiers",
+      "id": "global_time_scale",
+      "kind": "float",
+      "max": "10",
+      "min": "0.1",
+      "name": "Global Time Scale",
+      "panel": "exciter",
+      "unit": ""
+    },
+    {
+      "controls": [
+        {
+          "group": "Gesture Modifiers",
+          "help": "How much velocity changes the note's level. Higher gives more dynamic range.",
+          "label": "Vel To Level",
+          "shown": "always"
+        }
+      ],
+      "default": "1",
+      "group": "Gesture Modifiers",
+      "id": "velocity_to_level",
+      "kind": "float",
+      "max": "1",
+      "min": "0",
+      "name": "Velocity To Level",
+      "panel": "exciter",
+      "unit": ""
+    },
+    {
+      "controls": [
+        {
+          "group": "Gesture Modifiers",
+          "help": "How much velocity shortens the envelope. Higher makes hard notes snappier.",
+          "label": "Vel To Time",
+          "shown": "always"
+        }
+      ],
+      "default": "0.15",
+      "group": "Gesture Modifiers",
+      "id": "velocity_to_time",
+      "kind": "float",
+      "max": "1",
+      "min": "0",
+      "name": "Velocity To Time",
+      "panel": "exciter",
+      "unit": ""
+    },
+    {
+      "controls": [
+        {
+          "group": "Gesture Modifiers",
+          "help": "Shape of the envelope's segments. Turning it away from the middle bends them more.",
+          "label": "Curve",
+          "shown": "always"
+        }
+      ],
+      "default": "0",
+      "group": "Gesture Modifiers",
+      "id": "curve_tension",
+      "kind": "float",
+      "max": "1",
+      "min": "-1",
+      "name": "Curve Tension",
+      "panel": "exciter",
+      "unit": ""
+    },
+    {
+      "controls": [
+        {
+          "group": "Force Envelope (AD)",
+          "help": "Time the note takes to reach full level. Higher fades in slower.",
+          "label": "Attack",
+          "shown": "family:hit"
+        },
+        {
+          "group": "Force Envelope (ADSR)",
+          "help": "Time the note takes to reach full level. Higher fades in slower.",
+          "label": "Attack",
+          "shown": "family:specialty"
+        }
+      ],
+      "default": "0.05",
+      "group": "Force Envelope (AD)",
+      "id": "env_attack",
+      "kind": "float",
+      "max": "2",
+      "min": "0.001",
+      "name": "Attack",
+      "panel": "exciter",
+      "unit": ""
+    },
+    {
+      "controls": [
+        {
+          "group": "Force Envelope (AD)",
+          "help": "Time to fade after the note ends. Higher fades longer.",
+          "label": "Release",
+          "shown": "family:hit"
+        },
+        {
+          "group": "Force Envelope (ADSR)",
+          "help": "Time to fade after the note ends. Higher fades longer.",
+          "label": "Release",
+          "shown": "family:specialty"
+        }
+      ],
+      "default": "0.5",
+      "group": "Force Envelope (AD)",
+      "id": "env_release",
+      "kind": "float",
+      "max": "5",
+      "min": "0.01",
+      "name": "Release",
+      "panel": "exciter",
+      "unit": ""
+    },
+    {
+      "controls": [
+        {
+          "group": "Force Envelope (MSEG)",
+          "help": "Length of the onset stage that starts the friction envelope. Higher eases the note in slower.",
+          "label": "Onset",
+          "shown": "family:friction"
+        }
+      ],
+      "default": "0.01",
+      "group": "Force Envelope (MSEG)",
+      "id": "mseg_onset",
+      "kind": "float",
+      "max": "1",
+      "min": "0.001",
+      "name": "Onset Time",
+      "panel": "exciter",
+      "unit": ""
+    },
+    {
+      "controls": [
+        {
+          "group": "Force Envelope (MSEG)",
+          "help": "Level of the friction envelope's onset stage. Higher starts the note stronger.",
+          "label": "Onset Lvl",
+          "shown": "family:friction"
+        }
+      ],
+      "default": "0.01",
+      "group": "Force Envelope (MSEG)",
+      "id": "mseg_onset_level",
+      "kind": "float",
+      "max": "1",
+      "min": "0",
+      "name": "Onset Level",
+      "panel": "exciter",
+      "unit": ""
+    },
+    {
+      "controls": [
+        {
+          "group": "Force Envelope (MSEG)",
+          "help": "Time the note takes to reach full level. Higher fades in slower.",
+          "label": "Attack",
+          "shown": "family:friction"
+        }
+      ],
+      "default": "0.05",
+      "group": "Force Envelope (MSEG)",
+      "id": "mseg_attack",
+      "kind": "float",
+      "max": "2",
+      "min": "0.001",
+      "name": "MSEG Attack",
+      "panel": "exciter",
+      "unit": ""
+    },
+    {
+      "controls": [
+        {
+          "group": "Force Envelope (MSEG)",
+          "help": "Time the envelope holds at its peak before decaying. Higher holds longer.",
+          "label": "Hold",
+          "shown": "family:friction"
+        }
+      ],
+      "default": "0.02",
+      "group": "Force Envelope (MSEG)",
+      "id": "mseg_hold",
+      "kind": "float",
+      "max": "2",
+      "min": "0",
+      "name": "Hold",
+      "panel": "exciter",
+      "unit": ""
+    },
+    {
+      "controls": [
+        {
+          "group": "Force Envelope (MSEG)",
+          "help": "Time to fall from the peak to the sustain level. Higher decays slower.",
+          "label": "Decay",
+          "shown": "family:friction"
+        }
+      ],
+      "default": "0.3",
+      "group": "Force Envelope (MSEG)",
+      "id": "mseg_decay",
+      "kind": "float",
+      "max": "5",
+      "min": "0.01",
+      "name": "MSEG Decay",
+      "panel": "exciter",
+      "unit": ""
+    },
+    {
+      "controls": [
+        {
+          "group": "Force Envelope (MSEG)",
+          "help": "Level held while the note is down. Higher stays louder.",
+          "label": "Sustain",
+          "shown": "family:friction"
+        }
+      ],
+      "default": "0.5",
+      "group": "Force Envelope (MSEG)",
+      "id": "mseg_sustain",
+      "kind": "float",
+      "max": "1",
+      "min": "0",
+      "name": "MSEG Sustain",
+      "panel": "exciter",
+      "unit": ""
+    },
+    {
+      "controls": [
+        {
+          "group": "Force Envelope (MSEG)",
+          "help": "Time to fade after the note ends. Higher fades longer.",
+          "label": "Release",
+          "shown": "family:friction"
+        }
+      ],
+      "default": "0.1",
+      "group": "Force Envelope (MSEG)",
+      "id": "mseg_release",
+      "kind": "float",
+      "max": "5",
+      "min": "0.01",
+      "name": "MSEG Release",
+      "panel": "exciter",
+      "unit": ""
+    },
+    {
+      "controls": [
+        {
+          "group": "Force Envelope (MSEG)",
+          "help": "",
+          "label": "Loop",
+          "shown": "family:friction"
+        }
+      ],
+      "default": "0",
+      "group": "Force Envelope (MSEG)",
+      "id": "loop_mode",
+      "kind": "int",
+      "name": "Loop Mode",
+      "options": [
+        {
+          "help": "The envelope plays once.",
+          "name": "Off",
+          "value": 0
+        },
+        {
+          "help": "The envelope repeats between the Start and End stages.",
+          "name": "Forward",
+          "value": 1
+        },
+        {
+          "help": "The envelope runs back and forth between the Start and End stages.",
+          "name": "Ping-Pong",
+          "value": 2
+        }
+      ],
+      "panel": "exciter",
+      "unit": ""
+    },
+    {
+      "controls": [
+        {
+          "group": "Force Envelope (MSEG)",
+          "help": "The stage where the envelope loop begins.",
+          "label": "Start",
+          "shown": "family:friction"
+        }
+      ],
+      "default": "3",
+      "group": "Force Envelope (MSEG)",
+      "id": "loop_start_stage",
+      "kind": "int",
+      "name": "Loop Start Stage",
+      "options": [
+        {
+          "name": "0",
+          "value": 0
+        },
+        {
+          "name": "1",
+          "value": 1
+        },
+        {
+          "name": "2",
+          "value": 2
+        },
+        {
+          "name": "3",
+          "value": 3
+        },
+        {
+          "name": "4",
+          "value": 4
+        },
+        {
+          "name": "5",
+          "value": 5
+        }
+      ],
+      "panel": "exciter",
+      "unit": ""
+    },
+    {
+      "controls": [
+        {
+          "group": "Force Envelope (MSEG)",
+          "help": "The stage where the envelope loop ends.",
+          "label": "End",
+          "shown": "family:friction"
+        }
+      ],
+      "default": "4",
+      "group": "Force Envelope (MSEG)",
+      "id": "loop_end_stage",
+      "kind": "int",
+      "name": "Loop End Stage",
+      "options": [
+        {
+          "name": "0",
+          "value": 0
+        },
+        {
+          "name": "1",
+          "value": 1
+        },
+        {
+          "name": "2",
+          "value": 2
+        },
+        {
+          "name": "3",
+          "value": 3
+        },
+        {
+          "name": "4",
+          "value": 4
+        },
+        {
+          "name": "5",
+          "value": 5
+        }
+      ],
+      "panel": "exciter",
+      "unit": ""
+    },
+    {
+      "controls": [
+        {
+          "group": "Force Envelope (ADSR)",
+          "help": "Time to fall from the peak to the sustain level. Higher decays slower.",
+          "label": "Decay",
+          "shown": "family:specialty"
+        }
+      ],
+      "default": "0.3",
+      "group": "Force Envelope (ADSR)",
+      "id": "env_decay",
+      "kind": "float",
+      "max": "5",
+      "min": "0.01",
+      "name": "Decay",
+      "panel": "exciter",
+      "unit": ""
+    },
+    {
+      "controls": [
+        {
+          "group": "Force Envelope (ADSR)",
+          "help": "Level held while the note is down. Higher stays louder.",
+          "label": "Sustain",
+          "shown": "family:specialty"
+        }
+      ],
+      "default": "0.7",
+      "group": "Force Envelope (ADSR)",
+      "id": "env_sustain",
+      "kind": "float",
+      "max": "1",
+      "min": "0",
+      "name": "Sustain",
+      "panel": "exciter",
+      "unit": ""
+    },
+    {
+      "controls": [
+        {
+          "group": "Resonator",
+          "help": "",
+          "label": "Material",
+          "shown": "always"
+        }
+      ],
+      "default": "Pipe",
+      "group": "Resonator",
+      "id": "object",
+      "kind": "int",
+      "name": "Object",
+      "options": [
+        {
+          "help": "Longitudinal pipe response with dedicated length, diameter, and sustain controls.",
+          "name": "Pipe",
+          "value": 0
+        },
+        {
+          "help": "2D plate response balancing overall span, aspect ratio, and material stiffness.",
+          "name": "Plate",
+          "value": 1
+        },
+        {
+          "help": "Shell-and-cavity behavior with volume, wall thickness, cavity balance, and shell decay.",
+          "name": "Tank",
+          "value": 2
+        },
+        {
+          "help": "Linked resonator behavior shaped by link weight, chain length, instability, and friction loss.",
+          "name": "Chain",
+          "value": 3
+        },
+        {
+          "help": "Beam-like modes with explicit mass, shear density, and rigidity damping emphasis.",
+          "name": "I-Beam",
+          "value": 4
+        },
+        {
+          "help": "Stiff string response with tension, braid stiffness, and dynamic pitch-drop control.",
+          "name": "Taut Cable",
+          "value": 5
+        },
+        {
+          "help": "Dispersive spring response controlled by coil length, chirp density, and slosh instability.",
+          "name": "Coil Spring",
+          "value": 6
+        },
+        {
+          "help": "Thin-sheet response with size, thinness, and edge damping rather than generic brightness knobs.",
+          "name": "Sheet Metal",
+          "value": 7
+        },
+        {
+          "help": "Circular blade behavior with radius, tooth dissonance, and blade thickness control.",
+          "name": "Industrial Cog",
+          "value": 8
+        }
+      ],
+      "panel": "resonator",
+      "unit": ""
+    },
+    {
+      "default": "1",
+      "group": "Model controls",
+      "id": "size",
+      "kind": "float",
+      "max": "10",
+      "min": "0.05",
+      "name": "Size",
+      "panel": "resonator",
+      "slots": [
+        {
+          "group": "Pipe geometry",
+          "help": "Length of the pipe. Longer pipes sound lower.",
+          "label": "Pipe Length",
+          "max": "10",
+          "min": "0.05",
+          "model": "Pipe"
+        },
+        {
+          "group": "Plate surface",
+          "help": "Size of the plate. Larger plates sound lower.",
+          "label": "Plate Size",
+          "max": "10",
+          "min": "0.05",
+          "model": "Plate"
+        },
+        {
+          "group": "Tank cavity",
+          "help": "Size of the tank. Larger tanks sound lower.",
+          "label": "Tank Size",
+          "max": "10",
+          "min": "0.05",
+          "model": "Tank"
+        },
+        {
+          "group": "Chain instability",
+          "help": "Size of the chain. Larger chains sound lower.",
+          "label": "Chain Size",
+          "max": "10",
+          "min": "0.05",
+          "model": "Chain"
+        },
+        {
+          "group": "I-beam structure",
+          "help": "Weight of the beam. Heavier beams sound lower.",
+          "label": "Beam Mass",
+          "max": "10",
+          "min": "0.05",
+          "model": "I-Beam"
+        },
+        {
+          "group": "Cable tension",
+          "help": "Tension of the cable. Higher sounds higher.",
+          "label": "Cable Tension",
+          "max": "10",
+          "min": "0.05",
+          "model": "Taut Cable"
+        },
+        {
+          "group": "Coil spring dispersion",
+          "help": "Length of the coil. Longer coils sound lower.",
+          "label": "Coil Length",
+          "max": "10",
+          "min": "0.05",
+          "model": "Coil Spring"
+        },
+        {
+          "group": "Sheet metal buckling",
+          "help": "Size of the sheet. Larger sheets sound lower.",
+          "label": "Sheet Size",
+          "max": "10",
+          "min": "0.05",
+          "model": "Sheet Metal"
+        },
+        {
+          "group": "Cog and blade split",
+          "help": "Radius of the cog. Larger cogs sound lower.",
+          "label": "Blade Radius",
+          "max": "10",
+          "min": "0.05",
+          "model": "Industrial Cog"
+        }
+      ],
+      "unit": ""
+    },
+    {
+      "default": "0.5",
+      "group": "Model controls",
+      "id": "pipe_diameter",
+      "kind": "float",
+      "max": "1",
+      "min": "0",
+      "name": "Pipe Diameter",
+      "panel": "resonator",
+      "slots": [
+        {
+          "group": "Pipe geometry",
+          "help": "Diameter of the pipe. Higher sounds lower and hollower.",
+          "label": "Tube Diameter",
+          "max": "1",
+          "min": "0",
+          "model": "Pipe"
+        }
+      ],
+      "unit": ""
+    },
+    {
+      "default": "0.5",
+      "group": "Model controls",
+      "id": "res_damping",
+      "kind": "float",
+      "max": "1",
+      "min": "0",
+      "name": "Damping",
+      "panel": "resonator",
+      "slots": [
+        {
+          "group": "Pipe geometry",
+          "help": "How long the friction envelope sustains in Drone and looped modes. Higher sustains longer.",
+          "label": "Sustain Time",
+          "max": "1",
+          "min": "0",
+          "model": "Pipe"
+        },
+        {
+          "group": "Tank cavity",
+          "help": "How long the shell rings. Higher sustains longer.",
+          "label": "Shell Decay",
+          "max": "1",
+          "min": "0",
+          "model": "Tank"
+        },
+        {
+          "group": "Chain instability",
+          "help": "Decay time of the friction envelope. Higher fades the friction slower.",
+          "label": "Friction Decay",
+          "max": "1",
+          "min": "0",
+          "model": "Chain"
+        },
+        {
+          "group": "I-beam structure",
+          "help": "Damping of the beam's stiffness. Higher shortens the high modes.",
+          "label": "Rigidity Damping",
+          "max": "1",
+          "min": "0",
+          "model": "I-Beam"
+        },
+        {
+          "group": "Sheet metal buckling",
+          "help": "Damping at the sheet's edges. Higher shortens the ring.",
+          "label": "Edge Damping",
+          "max": "1",
+          "min": "0",
+          "model": "Sheet Metal"
+        },
+        {
+          "group": "Cog and blade split",
+          "help": "Thickness of the cog. Higher sounds brighter and stiffer.",
+          "label": "Blade Thickness",
+          "max": "1",
+          "min": "0",
+          "model": "Industrial Cog"
+        }
+      ],
+      "unit": ""
+    },
+    {
+      "default": "1",
+      "group": "Model controls",
+      "id": "plate_aspect",
+      "kind": "float",
+      "max": "4",
+      "min": "0.1",
+      "name": "Plate Aspect",
+      "panel": "resonator",
+      "slots": [
+        {
+          "group": "Plate surface",
+          "help": "Ratio of the plate's sides. Changes how its modes are spread, from even to clustered.",
+          "label": "Plate Aspect",
+          "max": "4",
+          "min": "0.1",
+          "model": "Plate"
+        }
+      ],
+      "unit": ""
+    },
+    {
+      "default": "1",
+      "group": "Model controls",
+      "id": "plate_stiffness",
+      "kind": "float",
+      "max": "3",
+      "min": "0.25",
+      "name": "Plate Stiffness",
+      "panel": "resonator",
+      "slots": [
+        {
+          "group": "Plate surface",
+          "help": "Stiffness of the plate. Higher spreads its overtones and sounds brighter.",
+          "label": "Plate Stiffness",
+          "max": "3",
+          "min": "0.25",
+          "model": "Plate"
+        }
+      ],
+      "unit": ""
+    },
+    {
+      "default": "0.5",
+      "group": "Model controls",
+      "id": "tank_volume",
+      "kind": "float",
+      "max": "1",
+      "min": "0",
+      "name": "Tank Volume",
+      "panel": "resonator",
+      "slots": [
+        {
+          "group": "Tank cavity",
+          "help": "Volume of the tank. Higher sounds lower and boomier.",
+          "label": "Tank Volume",
+          "max": "1",
+          "min": "0",
+          "model": "Tank"
+        }
+      ],
+      "unit": ""
+    },
+    {
+      "default": "0.6",
+      "group": "Model controls",
+      "id": "tank_cavity_mix",
+      "kind": "float",
+      "max": "1",
+      "min": "0",
+      "name": "Cavity Mix",
+      "panel": "resonator",
+      "slots": [
+        {
+          "group": "Tank cavity",
+          "help": "Level of the air cavity's resonance. Higher sounds hollower.",
+          "label": "Cavity Mix",
+          "max": "1",
+          "min": "0",
+          "model": "Tank"
+        }
+      ],
+      "unit": ""
+    },
+    {
+      "default": "0.5",
+      "group": "Model controls",
+      "id": "chain_link_mass",
+      "kind": "float",
+      "max": "1",
+      "min": "0.1",
+      "name": "Link Mass",
+      "panel": "resonator",
+      "slots": [
+        {
+          "group": "Chain instability",
+          "help": "Weight of each chain link. Heavier links sound lower and heavier.",
+          "label": "Link Mass",
+          "max": "1",
+          "min": "0.1",
+          "model": "Chain"
+        }
+      ],
+      "unit": ""
+    },
+    {
+      "default": "0.3",
+      "group": "Model controls",
+      "id": "chain_instability",
+      "kind": "float",
+      "max": "1",
+      "min": "0",
+      "name": "Instability",
+      "panel": "resonator",
+      "slots": [
+        {
+          "group": "Chain instability",
+          "help": "How much the links shift against each other. Higher sounds looser and more chaotic.",
+          "label": "Instability",
+          "max": "1",
+          "min": "0",
+          "model": "Chain"
+        }
+      ],
+      "unit": ""
+    },
+    {
+      "default": "0.5",
+      "group": "Model controls",
+      "id": "beam_shear",
+      "kind": "float",
+      "max": "1",
+      "min": "0",
+      "name": "Shear Density",
+      "panel": "resonator",
+      "slots": [
+        {
+          "group": "I-beam structure",
+          "help": "Strength of the beam's shear modes. Higher adds more inharmonic overtones.",
+          "label": "Shear Density",
+          "max": "1",
+          "min": "0",
+          "model": "I-Beam"
+        }
+      ],
+      "unit": ""
+    },
+    {
+      "default": "0.3",
+      "group": "Model controls",
+      "id": "cable_braid",
+      "kind": "float",
+      "max": "1",
+      "min": "0",
+      "name": "Braid Stiffness",
+      "panel": "resonator",
+      "slots": [
+        {
+          "group": "Cable tension",
+          "help": "Stiffness of the cable's braid. Higher sounds brighter and less harmonic.",
+          "label": "Braid Stiffness",
+          "max": "1",
+          "min": "0",
+          "model": "Taut Cable"
+        }
+      ],
+      "unit": ""
+    },
+    {
+      "default": "0.4",
+      "group": "Model controls",
+      "id": "cable_tension_drop",
+      "kind": "float",
+      "max": "1",
+      "min": "0",
+      "name": "Tension Drop",
+      "panel": "resonator",
+      "slots": [
+        {
+          "group": "Cable tension",
+          "help": "How much the pitch drops on loud notes. Higher bends loud notes down further.",
+          "label": "Tension Drop",
+          "max": "1",
+          "min": "0",
+          "model": "Taut Cable"
+        }
+      ],
+      "unit": ""
+    },
+    {
+      "default": "0.5",
+      "group": "Model controls",
+      "id": "spring_dispersion",
+      "kind": "float",
+      "max": "1",
+      "min": "0",
+      "name": "Dispersion Chirp",
+      "panel": "resonator",
+      "slots": [
+        {
+          "group": "Coil spring dispersion",
+          "help": "How much the spring smears high frequencies. Higher gives a stronger springy chirp.",
+          "label": "Dispersion Chirp",
+          "max": "1",
+          "min": "0",
+          "model": "Coil Spring"
+        }
+      ],
+      "unit": ""
+    },
+    {
+      "default": "0.3",
+      "group": "Model controls",
+      "id": "spring_slosh",
+      "kind": "float",
+      "max": "1",
+      "min": "0",
+      "name": "Spring Slosh",
+      "panel": "resonator",
+      "slots": [
+        {
+          "group": "Coil spring dispersion",
+          "help": "Wobble of the spring. Higher sounds looser and more liquid.",
+          "label": "Spring Slosh",
+          "max": "1",
+          "min": "0",
+          "model": "Coil Spring"
+        }
+      ],
+      "unit": ""
+    },
+    {
+      "default": "0.4",
+      "group": "Model controls",
+      "id": "sheet_thinness",
+      "kind": "float",
+      "max": "1",
+      "min": "0",
+      "name": "Metal Thinness",
+      "panel": "resonator",
+      "slots": [
+        {
+          "group": "Sheet metal buckling",
+          "help": "Thinness of the sheet. Higher bends and warps the sound more.",
+          "label": "Metal Thinness",
+          "max": "1",
+          "min": "0",
+          "model": "Sheet Metal"
+        }
+      ],
+      "unit": ""
+    },
+    {
+      "default": "0.1",
+      "group": "Model controls",
+      "id": "cog_dissonance",
+      "kind": "float",
+      "max": "1",
+      "min": "0",
+      "name": "Tooth Dissonance",
+      "panel": "resonator",
+      "slots": [
+        {
+          "group": "Cog and blade split",
+          "help": "Detuning of the cog's teeth. Higher sounds more dissonant.",
+          "label": "Tooth Dissonance",
+          "max": "1",
+          "min": "0",
+          "model": "Industrial Cog"
+        }
+      ],
+      "unit": ""
+    },
+    {
+      "controls": [
+        {
+          "group": "Object",
+          "help": "Opens the filter and brightens the object. Higher sounds brighter.",
+          "label": "Brightness",
+          "shown": "always"
+        }
+      ],
+      "default": "0.5",
+      "group": "Object",
+      "id": "res_brightness",
+      "kind": "float",
+      "max": "1",
+      "min": "0",
+      "name": "Resonator Brightness",
+      "panel": "resonator",
+      "unit": ""
+    },
+    {
+      "controls": [
+        {
+          "group": "Environmental Exposure",
+          "help": "Corrodes the object: shortens the decay and dulls the upper modes. Higher sounds duller and drier.",
+          "label": "Rust",
+          "shown": "always"
+        }
+      ],
+      "default": "0",
+      "group": "Environmental Exposure",
+      "id": "rust",
+      "kind": "float",
+      "max": "5",
+      "min": "0",
+      "name": "Rust",
+      "panel": "resonator",
+      "unit": ""
+    },
+    {
+      "controls": [
+        {
+          "group": "Environmental Exposure",
+          "help": "Dents and cracks the object: detunes its modes and adds buzzing companions. Higher sounds more broken.",
+          "label": "Damage",
+          "shown": "always"
+        }
+      ],
+      "default": "0",
+      "group": "Environmental Exposure",
+      "id": "damage",
+      "kind": "float",
+      "max": "10",
+      "min": "0",
+      "name": "Damage",
+      "panel": "resonator",
+      "unit": ""
+    },
+    {
+      "controls": [
+        {
+          "group": "Environmental Exposure",
+          "help": "Heats the metal: lowers its pitch, darkens it and adds a slow warble. Higher is hotter.",
+          "label": "Heat",
+          "shown": "always"
+        }
+      ],
+      "default": "0",
+      "group": "Environmental Exposure",
+      "id": "heat",
+      "kind": "float",
+      "max": "1",
+      "min": "0",
+      "name": "Heat",
+      "panel": "resonator",
+      "unit": ""
+    },
+    {
+      "controls": [
+        {
+          "group": "Environmental Exposure",
+          "help": "Coats the object in sludge. Higher damps it and dulls the attack.",
+          "label": "Sludge",
+          "shown": "always"
+        }
+      ],
+      "default": "0",
+      "group": "Environmental Exposure",
+      "id": "sludge",
+      "kind": "float",
+      "max": "1",
+      "min": "0",
+      "name": "Sludge",
+      "panel": "resonator",
+      "unit": ""
+    },
+    {
+      "controls": [
+        {
+          "group": "Environmental Exposure",
+          "help": "Thickness of the object. Higher sounds brighter and stiffer.",
+          "label": "Thickness",
+          "shown": "always"
+        }
+      ],
+      "default": "0.5",
+      "group": "Environmental Exposure",
+      "id": "thickness",
+      "kind": "float",
+      "max": "1",
+      "min": "0",
+      "name": "Thickness",
+      "panel": "resonator",
+      "unit": ""
+    },
+    {
+      "controls": [
+        {
+          "group": "Mechanical Linkage",
+          "help": "Where the exciter hits the object. Moving it changes which modes ring, so the timbre changes.",
+          "label": "Strike Pos",
+          "shown": "always"
+        }
+      ],
+      "default": "0.5",
+      "group": "Mechanical Linkage",
+      "id": "strike_position",
+      "kind": "float",
+      "max": "1",
+      "min": "0",
+      "name": "Strike Position",
+      "panel": "resonator",
+      "unit": ""
+    },
+    {
+      "controls": [
+        {
+          "group": "Mechanical Linkage",
+          "help": "How strongly the exciter and object push each other. Higher makes their interaction stronger and wilder.",
+          "label": "Coupling",
+          "shown": "always"
+        }
+      ],
+      "default": "1",
+      "group": "Mechanical Linkage",
+      "id": "coupling_stiffness",
+      "kind": "float",
+      "max": "1",
+      "min": "0",
+      "name": "Coupling Stiffness",
+      "panel": "resonator",
+      "unit": ""
+    },
+    {
+      "controls": [
+        {
+          "group": "Mechanical Linkage",
+          "help": "How much the strike position drifts while the note plays. Higher makes the timbre move more.",
+          "label": "Pos Wander",
+          "shown": "always"
+        }
+      ],
+      "default": "0",
+      "group": "Mechanical Linkage",
+      "id": "position_wander",
+      "kind": "float",
+      "max": "1",
+      "min": "0",
+      "name": "Position Wander",
+      "panel": "resonator",
+      "unit": ""
+    },
+    {
+      "controls": [
+        {
+          "group": "Mechanical Linkage",
+          "help": "Speed of the strike position's drift. Higher wanders faster.",
+          "label": "Wander Rate",
+          "shown": "always"
+        }
+      ],
+      "default": "0.10 Hz",
+      "group": "Mechanical Linkage",
+      "id": "position_wander_rate",
+      "kind": "float",
+      "max": "5.00 Hz",
+      "min": "0.10 Hz",
+      "name": "Wander Rate",
+      "panel": "resonator",
+      "unit": "Hz"
+    },
+    {
+      "controls": [
+        {
+          "group": "Mechanical Linkage",
+          "help": "How much the envelope sweeps the strike position. Higher gives a stronger timbral sweep.",
+          "label": "Pos Env",
+          "shown": "always"
+        }
+      ],
+      "default": "0",
+      "group": "Mechanical Linkage",
+      "id": "position_envelope",
+      "kind": "float",
+      "max": "1",
+      "min": "0",
+      "name": "Position Envelope",
+      "panel": "resonator",
+      "unit": ""
+    },
+    {
+      "controls": [
+        {
+          "group": "Mechanical Linkage",
+          "help": "How firmly the fundamental keeps its pitch while other modes move. Higher keeps notes more in tune.",
+          "label": "Anchor",
+          "shown": "always"
+        }
+      ],
+      "default": "0.3",
+      "group": "Mechanical Linkage",
+      "id": "fundamental_anchor",
+      "kind": "float",
+      "max": "1",
+      "min": "0",
+      "name": "Fundamental Anchor",
+      "panel": "resonator",
+      "unit": ""
+    },
+    {
+      "controls": [
+        {
+          "group": "Filter Bank",
+          "help": "Cutoff of the low-pass filter after the voices. Lower sounds darker.",
+          "label": "Cutoff",
+          "shown": "always"
+        }
+      ],
+      "default": "20000",
+      "group": "Filter Bank",
+      "id": "filter_cutoff",
+      "kind": "float",
+      "max": "20000",
+      "min": "20",
+      "name": "Filter Cutoff",
+      "panel": "processing",
+      "unit": ""
+    },
+    {
+      "controls": [
+        {
+          "group": "Filter Bank",
+          "help": "Resonant peak at the cutoff. Higher rings and whistles more.",
+          "label": "Resonance",
+          "shown": "always"
+        }
+      ],
+      "default": "0",
+      "group": "Filter Bank",
+      "id": "filter_resonance",
+      "kind": "float",
+      "max": "1",
+      "min": "0",
+      "name": "Filter Resonance",
+      "panel": "processing",
+      "unit": ""
+    },
+    {
+      "controls": [
+        {
+          "group": "Filter Bank",
+          "help": "Random component drift in the filter. Higher sounds less precise and more analogue.",
+          "label": "Tolerance",
+          "shown": "always"
+        }
+      ],
+      "default": "0",
+      "group": "Filter Bank",
+      "id": "component_tolerance",
+      "kind": "float",
+      "max": "1",
+      "min": "0",
+      "name": "Component Tolerance",
+      "panel": "processing",
+      "unit": ""
+    },
+    {
+      "controls": [
+        {
+          "group": "Overdrive Unit",
+          "help": "Saturation of the Lorenz drive in the post chain. Higher sounds more distorted.",
+          "label": "Drive Amt",
+          "shown": "always"
+        }
+      ],
+      "default": "0",
+      "group": "Overdrive Unit",
+      "id": "drive_amount",
+      "kind": "float",
+      "max": "5",
+      "min": "0",
+      "name": "Drive Amount",
+      "panel": "processing",
+      "unit": ""
+    },
+    {
+      "controls": [
+        {
+          "group": "Overdrive Unit",
+          "help": "Starves the drive's supply now and then. Higher makes it sag and sputter more often.",
+          "label": "Bias Starve",
+          "shown": "always"
+        }
+      ],
+      "default": "0",
+      "group": "Overdrive Unit",
+      "id": "bias_starvation",
+      "kind": "float",
+      "max": "1",
+      "min": "0",
+      "name": "Bias Starvation",
+      "panel": "processing",
+      "unit": ""
+    },
+    {
+      "controls": [
+        {
+          "group": "Overdrive Unit",
+          "help": "How much the Lorenz attractor modulates the drive. Higher makes the distortion move unpredictably.",
+          "label": "Chaos",
+          "shown": "always"
+        }
+      ],
+      "default": "0",
+      "group": "Overdrive Unit",
+      "id": "chaos_depth",
+      "kind": "float",
+      "max": "1",
+      "min": "0",
+      "name": "Chaos Depth",
+      "panel": "processing",
+      "unit": ""
+    },
+    {
+      "controls": [
+        {
+          "group": "Overdrive Unit",
+          "help": "Master drive on the voice mix, before the post chain. Higher saturates more.",
+          "label": "Legacy Drive",
+          "shown": "always"
+        }
+      ],
+      "default": "0",
+      "group": "Overdrive Unit",
+      "id": "drive",
+      "kind": "float",
+      "max": "5",
+      "min": "0",
+      "name": "Drive",
+      "panel": "processing",
+      "unit": ""
+    },
+    {
+      "controls": [
+        {
+          "group": "Dispersion",
+          "help": "Material of the body that resonates with the sound. Changes the body's tone.",
+          "label": "Chassis Mat",
+          "shown": "always"
+        }
+      ],
+      "default": "0.5",
+      "group": "Dispersion",
+      "id": "chassis_material",
+      "kind": "float",
+      "max": "1",
+      "min": "0",
+      "name": "Chassis Material",
+      "panel": "processing",
+      "unit": ""
+    },
+    {
+      "controls": [
+        {
+          "group": "Dispersion",
+          "help": "Size of the body. Higher gives lower, slightly louder resonances.",
+          "label": "Chassis Vol",
+          "shown": "always"
+        }
+      ],
+      "default": "0.5",
+      "group": "Dispersion",
+      "id": "chassis_volume",
+      "kind": "float",
+      "max": "1",
+      "min": "0",
+      "name": "Chassis Volume",
+      "panel": "processing",
+      "unit": ""
+    },
+    {
+      "controls": [
+        {
+          "group": "Dispersion",
+          "help": "Stereo spread of the image. Higher sounds wider.",
+          "label": "Spread",
+          "shown": "always"
+        }
+      ],
+      "default": "0.5",
+      "group": "Dispersion",
+      "id": "spread_width",
+      "kind": "float",
+      "max": "1",
+      "min": "0",
+      "name": "Spread Width",
+      "panel": "processing",
+      "unit": ""
+    },
+    {
+      "controls": [
+        {
+          "group": "Dispersion",
+          "help": "How close the listener sits. Higher sounds nearer and fuller.",
+          "label": "Proximity",
+          "shown": "always"
+        }
+      ],
+      "default": "0.5",
+      "group": "Dispersion",
+      "id": "listener_proximity",
+      "kind": "float",
+      "max": "1",
+      "min": "0",
+      "name": "Listener Proximity",
+      "panel": "processing",
+      "unit": ""
+    },
+    {
+      "controls": [
+        {
+          "group": "Space",
+          "help": "",
+          "label": "Mode",
+          "shown": "always"
+        }
+      ],
+      "default": "0",
+      "group": "Space",
+      "id": "space_mode",
+      "kind": "int",
+      "name": "Space Mode",
+      "options": [
+        {
+          "help": "No Space effect: the sound stays dry.",
+          "name": "Off",
+          "value": 0
+        },
+        {
+          "help": "A large factory hall reverb.",
+          "name": "Factory",
+          "value": 1
+        },
+        {
+          "help": "A spring reverb tank with its twang and chirp.",
+          "name": "Spring",
+          "value": 2
+        },
+        {
+          "help": "A modulated stereo echo, free or synced to the host tempo.",
+          "name": "Echo",
+          "value": 3
+        }
+      ],
+      "panel": "processing",
+      "unit": ""
+    },
+    {
+      "controls": [
+        {
+          "group": "Space",
+          "help": "Mix of the Space effect. Higher sounds wetter.",
+          "label": "Amount",
+          "shown": "always"
+        }
+      ],
+      "default": "0",
+      "group": "Space",
+      "id": "space_amount",
+      "kind": "float",
+      "max": "1",
+      "min": "0",
+      "name": "Space Amount",
+      "panel": "processing",
+      "unit": ""
+    },
+    {
+      "controls": [
+        {
+          "group": "Space",
+          "help": "Size of the factory room. Higher gives a longer, bigger reverb.",
+          "label": "Factory Size",
+          "shown": "space:factory"
+        }
+      ],
+      "default": "0.5",
+      "group": "Space",
+      "id": "factory_size",
+      "kind": "float",
+      "max": "1",
+      "min": "0",
+      "name": "Factory Size",
+      "panel": "processing",
+      "unit": ""
+    },
+    {
+      "controls": [
+        {
+          "group": "Space",
+          "help": "Clutter in the factory room. Higher adds busier, denser reflections.",
+          "label": "Machinery",
+          "shown": "space:factory"
+        }
+      ],
+      "default": "0.3",
+      "group": "Space",
+      "id": "machinery_clutter",
+      "kind": "float",
+      "max": "1",
+      "min": "0",
+      "name": "Machinery Clutter",
+      "panel": "processing",
+      "unit": ""
+    },
+    {
+      "controls": [
+        {
+          "group": "Space",
+          "help": "Hardness of the walls. Higher sounds brighter and more reflective.",
+          "label": "Wall Impedance",
+          "shown": "space:factory"
+        }
+      ],
+      "default": "0.5",
+      "group": "Space",
+      "id": "wall_impedance",
+      "kind": "float",
+      "max": "1",
+      "min": "0",
+      "name": "Wall Impedance",
+      "panel": "processing",
+      "unit": ""
+    },
+    {
+      "controls": [
+        {
+          "group": "Space",
+          "help": "Tension of the reverb spring. Higher raises its twang.",
+          "label": "Spring Tension",
+          "shown": "space:spring"
+        }
+      ],
+      "default": "0.5",
+      "group": "Space",
+      "id": "spring_tension",
+      "kind": "float",
+      "max": "1",
+      "min": "0",
+      "name": "Spring Tension",
+      "panel": "processing",
+      "unit": ""
+    },
+    {
+      "controls": [
+        {
+          "group": "Space",
+          "help": "Stiffness of the wires (brush wires or spring coils, by model). Higher sounds brighter and tighter.",
+          "label": "Wire Stiffness",
+          "shown": "space:spring"
+        }
+      ],
+      "default": "0.5",
+      "group": "Space",
+      "id": "wire_stiffness",
+      "kind": "float",
+      "max": "1",
+      "min": "0",
+      "name": "Spring Wire Stiffness",
+      "panel": "processing",
+      "unit": ""
+    },
+    {
+      "controls": [
+        {
+          "group": "Space",
+          "help": "Size of the tank. Larger tanks sound lower.",
+          "label": "Tank Size",
+          "shown": "space:spring"
+        }
+      ],
+      "default": "0.5",
+      "group": "Space",
+      "id": "spring_tank_size",
+      "kind": "float",
+      "max": "1",
+      "min": "0",
+      "name": "Spring Tank Size",
+      "panel": "processing",
+      "unit": ""
+    },
+    {
+      "controls": [
+        {
+          "group": "Space",
+          "help": "Locks the echo to the host tempo. Off leaves it on Delay Time.",
+          "label": "Sync",
+          "shown": "space:echo"
+        }
+      ],
+      "default": "Off",
+      "group": "Space",
+      "id": "sync_rate",
+      "kind": "float",
+      "max": "2/1",
+      "min": "Off",
+      "name": "Sync Rate",
+      "panel": "processing",
+      "unit": ""
+    },
+    {
+      "controls": [
+        {
+          "group": "Space",
+          "help": "Time between echoes. Higher spaces them further apart.",
+          "label": "Delay Time",
+          "shown": "space:echo"
+        }
+      ],
+      "default": "0.25",
+      "group": "Space",
+      "id": "delay_time",
+      "kind": "float",
+      "max": "1",
+      "min": "0",
+      "name": "Delay Time",
+      "panel": "processing",
+      "unit": ""
+    },
+    {
+      "controls": [
+        {
+          "group": "Space",
+          "help": "How much the echo's delay wobbles. Higher sounds more warped.",
+          "label": "Movement",
+          "shown": "space:echo"
+        }
+      ],
+      "default": "0",
+      "group": "Space",
+      "id": "machinery_movement",
+      "kind": "float",
+      "max": "1",
+      "min": "0",
+      "name": "Machinery Movement",
+      "panel": "processing",
+      "unit": ""
+    },
+    {
+      "controls": [
+        {
+          "group": "Space",
+          "help": "Darkens each echo repeat. Higher rolls off more highs.",
+          "label": "HF Damping",
+          "shown": "space:echo"
+        }
+      ],
+      "default": "0.5",
+      "group": "Space",
+      "id": "high_frequency_damping",
+      "kind": "float",
+      "max": "1",
+      "min": "0",
+      "name": "High Frequency Damping",
+      "panel": "processing",
+      "unit": ""
+    },
+    {
+      "controls": [
+        {
+          "group": "Brickwall Limiter",
+          "help": "The output's maximum level. Lower clips the diode stage and limiter earlier.",
+          "label": "Ceiling",
+          "shown": "always"
+        }
+      ],
+      "default": "0.9661",
+      "group": "Brickwall Limiter",
+      "id": "analog_ceiling",
+      "kind": "float",
+      "max": "1",
+      "min": "0.5",
+      "name": "Analog Ceiling",
+      "panel": "processing",
+      "unit": ""
+    },
+    {
+      "controls": [
+        {
+          "group": "Brickwall Limiter",
+          "help": "Knee of the diode stage. 0 clips hard; higher bends earlier and sounds warmer.",
+          "label": "Softness",
+          "shown": "always"
+        }
+      ],
+      "default": "0.5",
+      "group": "Brickwall Limiter",
+      "id": "diode_softness",
+      "kind": "float",
+      "max": "1",
+      "min": "0",
+      "name": "Diode Softness",
+      "panel": "processing",
+      "unit": ""
+    },
+    {
+      "controls": [
+        {
+          "group": "Brickwall Limiter",
+          "help": "Clips the negative half earlier. Higher adds even harmonics and a fuller grit.",
+          "label": "Asymmetry",
+          "shown": "always"
+        }
+      ],
+      "default": "0.25",
+      "group": "Brickwall Limiter",
+      "id": "diode_asymmetry",
+      "kind": "float",
+      "max": "1",
+      "min": "0",
+      "name": "Diode Asymmetry",
+      "panel": "processing",
+      "unit": ""
+    }
+  ]
+}

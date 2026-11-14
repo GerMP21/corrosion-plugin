@@ -1,0 +1,10 @@
+---
+// Dark-only (`add-user-guide` Decision 2): replaces Starlight's theme provider,
+// which would follow the system or a stored choice, with one that always sets
+// the dark theme before paint.
+---
+
+<script is:inline>
+	document.documentElement.dataset.theme = 'dark';
+	window.StarlightThemeProvider = { updatePickers() {} };
+</script>

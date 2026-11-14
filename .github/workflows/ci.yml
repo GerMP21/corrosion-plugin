@@ -192,6 +192,37 @@ jobs:
           node scripts/smoke.cjs http://127.0.0.1:8787/
           node scripts/features.cjs http://127.0.0.1:8787/ ../presets/factory/bass/tank_boom_bass.corrosion-preset
 
+  # The user guide (`add-user-guide`): its checks (twins, coverage, Spanish
+  # texts, clip references) and a full build, which also validates every
+  # internal link. No Rust: the guide's data and clips are committed, and
+  # their drift tests run in `checks`.
+  guide:
+    name: guide
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web/guide
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.23.4
+          cache: npm
+          cache-dependency-path: web/guide/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Guide checks
+        run: npm run check
+
+      - name: Build the guide
+        run: npm run build
+
   # VST3 and CLAP built on each platform's own runner, checked, validated and
   # zipped. Needs every platform's checks, so a release never mixes a tested
   # platform with an untested one.

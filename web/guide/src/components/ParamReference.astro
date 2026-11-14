@@ -1,0 +1,234 @@
+---
+// One panel of the parameter reference (`add-user-guide` Decision 4),
+// rendered from the data the plugin exports (src/data/*.json, written by
+// `cargo run --bin export_guide_data`) and the Spanish texts in
+// parameters.es.json. One card per parameter, grouped by editor section;
+// each card's id is the parameter ID, so pages link to
+// /wiki/reference/<panel>/#<id>.
+import parametersData from '../data/parameters.json';
+import modelsData from '../data/models.json';
+import esTexts from '../data/parameters.es.json';
+import Clips from './Clips.astro';
+
+interface Props {
+  panel: string;
+}
+const { panel } = Astro.props;
+const { t } = Astro.locals;
+const es = Astro.locals.starlightRoute.locale === 'es';
+const prefix = es ? '/wiki/es/reference/' : '/wiki/reference/';
+const parameters = parametersData.parameters as any[];
+const texts = esTexts as Record<string, any>;
+
+const helpOf = (p: any) => (es ? texts[p.id]?.help : p.controls?.find((c: any) => c.help)?.help) ?? '';
+const slotHelp = (p: any, slot: any) => (es ? texts[p.id]?.slots?.[slot.model] : slot.help) ?? '';
+const optionHelp = (p: any, option: any) => (es ? texts[p.id]?.options?.[option.name] : option.help) ?? '';
+const shown = (s: string) => {
+  if (s === 'always') return '';
+  const [kind, value] = s.split(':');
+  if (kind === 'family') return t(`guide.ref.shown.family.${value}` as any);
+  const mode = modelsData.space_modes.find((m) => m.name.toLowerCase() === value)?.name ?? value;
+  return t('guide.ref.shown.space' as any, { mode });
+};
+
+const onPanel = parameters.filter((p) => p.panel === panel);
+const groups: [string, any[]][] = [];
+for (const p of onPanel) {
+  const last = groups.at(-1);
+  if (last && last[0] === p.group) last[1].push(p);
+  else groups.push([p.group, [p]]);
+}
+const kit = modelsData.kit;
+const byId = new Map(parameters.map((p) => [p.id, p]));
+const linkTo = (id: string) => {
+  const p = byId.get(id);
+  return p ? `${prefix}${p.panel}/#${id}` : undefined;
+};
+---
+
+{
+  panel === 'kit' ? (
+    <div class="param-reference">
+      <p>{t('guide.kit.intro' as any)}</p>
+      <dl class="facts">
+        <dt>{t('guide.kit.zone' as any)}</dt>
+        <dd>{t('guide.kit.zone.value' as any, { low: kit.zone[0], high: kit.zone[1] })}</dd>
+        <dt>{t('guide.kit.tune' as any)}</dt>
+        <dd>{t('guide.kit.tune.value' as any, { max: kit.max_tune })}</dd>
+        <dt>{t('guide.kit.level' as any)}</dt>
+        <dd>{t('guide.kit.level.value' as any)}</dd>
+      </dl>
+      {[
+        ['guide.kit.pad', kit.pad_params],
+        ['guide.kit.global', kit.global_params],
+      ].map(([key, ids]) => (
+        <section class="param-group">
+          <h2 id={key === 'guide.kit.pad' ? 'pad-params' : 'global-params'}>{t(key as any)}</h2>
+          <ul class="id-list">
+            {(ids as string[]).map((id) => (
+              <li>
+                <a href={linkTo(id)}>{byId.get(id)?.name ?? id}</a>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ))}
+    </div>
+  ) : (
+    <div class="param-reference">
+      <p class="count">{t('guide.ref.count' as any, { count: onPanel.length })}</p>
+      {groups.map(([group, list]) => (
+        <section class="param-group">
+          <h2 id={`group-${group.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`}>{group}</h2>
+          {list.map((p) => (
+            <article class="param-card" id={p.id}>
+              <header>
+                <h3>
+                  <a href={`#${p.id}`}>{p.name}</a>
+                </h3>
+                <code>{p.id}</code>
+              </header>
+              {helpOf(p) && <p class="help">{helpOf(p)}</p>}
+              <dl class="facts">
+                {p.options ? (
+                  <>
+                    <dt>{t('guide.ref.options' as any)}</dt>
+                    <dd>{p.options.map((o: any) => o.name).join(' · ')}</dd>
+                  </>
+                ) : (
+                  <>
+                    <dt>{t('guide.ref.range' as any)}</dt>
+                    <dd>
+                      {p.min} – {p.max}
+                    </dd>
+                  </>
+                )}
+                <dt>{t('guide.ref.default' as any)}</dt>
+                <dd>{p.default}</dd>
+                {p.unit && (
+                  <>
+                    <dt>{t('guide.ref.unit' as any)}</dt>
+                    <dd>{p.unit}</dd>
+                  </>
+                )}
+                {(p.controls ?? []).some((c: any) => c.shown !== 'always') && (
+                  <>
+                    <dt>{t('guide.ref.shown' as any)}</dt>
+                    <dd>
+                      {p.controls
+                        .map((c: any) => `${c.label} ${shown(c.shown)}`.trim())
+                        .join('; ')}
+                    </dd>
+                  </>
+                )}
+              </dl>
+              {p.options && p.options.some((o: any) => optionHelp(p, o)) && (
+                <ul class="options">
+                  {p.options.map((o: any) => (
+                    <li>
+                      <strong>{o.name}</strong>: {optionHelp(p, o)}
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {p.slots && (
+                <table class="slots">
+                  <caption>{t('guide.ref.models' as any)}</caption>
+                  <thead>
+                    <tr>
+                      <th>{t('guide.ref.model' as any)}</th>
+                      <th>{t('guide.ref.label' as any)}</th>
+                      <th>{t('guide.ref.range' as any)}</th>
+                      <th>{t('guide.ref.help' as any)}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {p.slots.map((s: any) => (
+                      <tr>
+                        <td>{s.model}</td>
+                        <td>{s.label}</td>
+                        <td>
+                          {s.min} – {s.max}
+                        </td>
+                        <td>{slotHelp(p, s)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+              <Clips param={p.id} />
+            </article>
+          ))}
+        </section>
+      ))}
+    </div>
+  )
+}
+
+<style>
+  .param-card {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 0.75rem 1rem;
+    margin-top: 1rem;
+    scroll-margin-top: calc(var(--sl-nav-height) + 1rem);
+  }
+  .param-card header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+  }
+  .param-card h3 {
+    margin: 0;
+    font-size: var(--sl-text-lg);
+  }
+  .param-card h3 a {
+    color: var(--text);
+    text-decoration: none;
+  }
+  .param-card code {
+    color: var(--muted);
+    background: none;
+  }
+  .help {
+    margin-top: 0.5rem;
+  }
+  .facts {
+    display: grid;
+    grid-template-columns: max-content 1fr;
+    gap: 0.25rem 1rem;
+    align-items: baseline;
+    margin-top: 0.5rem;
+    font-size: var(--sl-text-sm);
+  }
+  .facts > * {
+    margin: 0;
+  }
+  .facts dt {
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: var(--tracking-caps);
+    font-size: var(--sl-text-xs);
+  }
+  .facts dd {
+    margin: 0;
+  }
+  .options,
+  .slots {
+    font-size: var(--sl-text-sm);
+  }
+  .slots caption {
+    text-align: start;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: var(--tracking-caps);
+    font-size: var(--sl-text-xs);
+  }
+  .id-list {
+    columns: 3 12rem;
+    font-size: var(--sl-text-sm);
+  }
+</style>

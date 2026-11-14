@@ -1,0 +1,4921 @@
+{
+  "clips": [
+    {
+      "file": "params/size/min.opus",
+      "gain_db": -7.0,
+      "peak_db": -19.9,
+      "ref": "param:size:min",
+      "rms_db": -43.6,
+      "seconds": 4.0,
+      "set": "param:size",
+      "source": "size = 0.05"
+    },
+    {
+      "file": "params/size/mid.opus",
+      "gain_db": -7.0,
+      "peak_db": -14.3,
+      "ref": "param:size:mid",
+      "rms_db": -17.7,
+      "seconds": 4.0,
+      "set": "param:size",
+      "source": "size = 5.025"
+    },
+    {
+      "file": "params/size/max.opus",
+      "gain_db": -7.0,
+      "peak_db": -14.1,
+      "ref": "param:size:max",
+      "rms_db": -18.1,
+      "seconds": 4.0,
+      "set": "param:size",
+      "source": "size = 10"
+    },
+    {
+      "file": "params/rust/min.opus",
+      "gain_db": -1.6,
+      "peak_db": -9.3,
+      "ref": "param:rust:min",
+      "rms_db": -17.0,
+      "seconds": 2.7,
+      "set": "param:rust",
+      "source": "rust = 0"
+    },
+    {
+      "file": "params/rust/mid.opus",
+      "gain_db": -1.6,
+      "peak_db": -9.3,
+      "ref": "param:rust:mid",
+      "rms_db": -17.7,
+      "seconds": 2.2,
+      "set": "param:rust",
+      "source": "rust = 2.5"
+    },
+    {
+      "file": "params/rust/max.opus",
+      "gain_db": -1.6,
+      "peak_db": -9.3,
+      "ref": "param:rust:max",
+      "rms_db": -17.8,
+      "seconds": 1.6,
+      "set": "param:rust",
+      "source": "rust = 5"
+    },
+    {
+      "file": "params/damage/min.opus",
+      "gain_db": -1.9,
+      "peak_db": -9.6,
+      "ref": "param:damage:min",
+      "rms_db": -17.3,
+      "seconds": 2.7,
+      "set": "param:damage",
+      "source": "damage = 0"
+    },
+    {
+      "file": "params/damage/mid.opus",
+      "gain_db": -1.9,
+      "peak_db": -9.2,
+      "ref": "param:damage:mid",
+      "rms_db": -17.7,
+      "seconds": 2.2,
+      "set": "param:damage",
+      "source": "damage = 5"
+    },
+    {
+      "file": "params/damage/max.opus",
+      "gain_db": -1.9,
+      "peak_db": -9.1,
+      "ref": "param:damage:max",
+      "rms_db": -17.9,
+      "seconds": 2.2,
+      "set": "param:damage",
+      "source": "damage = 10"
+    },
+    {
+      "file": "params/drive/min.opus",
+      "gain_db": -7.3,
+      "peak_db": -14.9,
+      "ref": "param:drive:min",
+      "rms_db": -22.7,
+      "seconds": 2.7,
+      "set": "param:drive",
+      "source": "drive = 0"
+    },
+    {
+      "file": "params/drive/mid.opus",
+      "gain_db": -7.3,
+      "peak_db": -10.4,
+      "ref": "param:drive:mid",
+      "rms_db": -17.7,
+      "seconds": 2.7,
+      "set": "param:drive",
+      "source": "drive = 2.5"
+    },
+    {
+      "file": "params/drive/max.opus",
+      "gain_db": -7.3,
+      "peak_db": -10.3,
+      "ref": "param:drive:max",
+      "rms_db": -16.6,
+      "seconds": 2.7,
+      "set": "param:drive",
+      "source": "drive = 5"
+    },
+    {
+      "file": "params/output/min.opus",
+      "gain_db": -0.7,
+      "peak_db": -200.0,
+      "quiet": "Output's minimum mutes the plugin.",
+      "ref": "param:output:min",
+      "rms_db": -200.0,
+      "seconds": 0.1,
+      "set": "param:output",
+      "source": "output = -inf dB"
+    },
+    {
+      "file": "params/output/mid.opus",
+      "gain_db": -0.7,
+      "peak_db": -18.4,
+      "ref": "param:output:mid",
+      "rms_db": -26.1,
+      "seconds": 2.7,
+      "set": "param:output",
+      "source": "output = -10.03 dB"
+    },
+    {
+      "file": "params/output/max.opus",
+      "gain_db": -0.7,
+      "peak_db": -1.0,
+      "ref": "param:output:max",
+      "rms_db": -2.4,
+      "seconds": 2.7,
+      "set": "param:output",
+      "source": "output = 40.00 dB"
+    },
+    {
+      "file": "params/width/min.opus",
+      "gain_db": -2.3,
+      "peak_db": -9.9,
+      "ref": "param:width:min",
+      "rms_db": -17.8,
+      "seconds": 2.7,
+      "set": "param:width",
+      "source": "width = -2"
+    },
+    {
+      "file": "params/width/mid.opus",
+      "gain_db": -2.3,
+      "peak_db": -10.0,
+      "ref": "param:width:mid",
+      "rms_db": -17.7,
+      "seconds": 2.7,
+      "set": "param:width",
+      "source": "width = 0.5"
+    },
+    {
+      "file": "params/width/max.opus",
+      "gain_db": -2.3,
+      "peak_db": -9.8,
+      "ref": "param:width:max",
+      "rms_db": -17.8,
+      "seconds": 2.7,
+      "set": "param:width",
+      "source": "width = 3"
+    },
+    {
+      "file": "params/body/min.opus",
+      "gain_db": -1.9,
+      "peak_db": -22.9,
+      "ref": "param:body:min",
+      "rms_db": -40.2,
+      "seconds": 2.5,
+      "set": "param:body",
+      "source": "body = 0"
+    },
+    {
+      "file": "params/body/mid.opus",
+      "gain_db": -1.9,
+      "peak_db": -9.9,
+      "ref": "param:body:mid",
+      "rms_db": -17.7,
+      "seconds": 2.7,
+      "set": "param:body",
+      "source": "body = 2.5"
+    },
+    {
+      "file": "params/body/max.opus",
+      "gain_db": -1.9,
+      "peak_db": -5.6,
+      "ref": "param:body:max",
+      "rms_db": -12.1,
+      "seconds": 2.7,
+      "set": "param:body",
+      "source": "body = 5"
+    },
+    {
+      "file": "params/env_attack/min.opus",
+      "gain_db": 4.7,
+      "peak_db": -1.0,
+      "ref": "param:env_attack:min",
+      "rms_db": -9.4,
+      "seconds": 3.0,
+      "set": "param:env_attack",
+      "source": "env_attack = 0.001"
+    },
+    {
+      "file": "params/env_attack/mid.opus",
+      "gain_db": 4.7,
+      "peak_db": -11.4,
+      "ref": "param:env_attack:mid",
+      "rms_db": -26.6,
+      "seconds": 2.2,
+      "set": "param:env_attack",
+      "source": "env_attack = 1.0005"
+    },
+    {
+      "file": "params/env_attack/max.opus",
+      "gain_db": 4.7,
+      "peak_db": -17.5,
+      "ref": "param:env_attack:max",
+      "rms_db": -32.7,
+      "seconds": 2.2,
+      "set": "param:env_attack",
+      "source": "env_attack = 2"
+    },
+    {
+      "file": "params/env_decay/min.opus",
+      "gain_db": -6.2,
+      "peak_db": -13.9,
+      "ref": "param:env_decay:min",
+      "rms_db": -18.0,
+      "seconds": 4.0,
+      "set": "param:env_decay",
+      "source": "env_decay = 0.01"
+    },
+    {
+      "file": "params/env_decay/mid.opus",
+      "gain_db": -6.2,
+      "peak_db": -13.3,
+      "ref": "param:env_decay:mid",
+      "rms_db": -17.7,
+      "seconds": 4.0,
+      "set": "param:env_decay",
+      "source": "env_decay = 2.505"
+    },
+    {
+      "file": "params/env_decay/max.opus",
+      "gain_db": -6.2,
+      "peak_db": -13.2,
+      "ref": "param:env_decay:max",
+      "rms_db": -17.6,
+      "seconds": 4.0,
+      "set": "param:env_decay",
+      "source": "env_decay = 5"
+    },
+    {
+      "file": "params/env_sustain/min.opus",
+      "gain_db": -5.7,
+      "peak_db": -13.0,
+      "ref": "param:env_sustain:min",
+      "rms_db": -20.6,
+      "seconds": 2.7,
+      "set": "param:env_sustain",
+      "source": "env_sustain = 0"
+    },
+    {
+      "file": "params/env_sustain/mid.opus",
+      "gain_db": -5.7,
+      "peak_db": -12.8,
+      "ref": "param:env_sustain:mid",
+      "rms_db": -17.7,
+      "seconds": 4.0,
+      "set": "param:env_sustain",
+      "source": "env_sustain = 0.5"
+    },
+    {
+      "file": "params/env_sustain/max.opus",
+      "gain_db": -5.7,
+      "peak_db": -12.4,
+      "ref": "param:env_sustain:max",
+      "rms_db": -16.9,
+      "seconds": 4.0,
+      "set": "param:env_sustain",
+      "source": "env_sustain = 1"
+    },
+    {
+      "file": "params/env_release/min.opus",
+      "gain_db": -2.3,
+      "peak_db": -10.0,
+      "ref": "param:env_release:min",
+      "rms_db": -17.7,
+      "seconds": 2.7,
+      "set": "param:env_release",
+      "source": "env_release = 0.01"
+    },
+    {
+      "file": "params/env_release/mid.opus",
+      "gain_db": -2.3,
+      "peak_db": -10.0,
+      "ref": "param:env_release:mid",
+      "rms_db": -17.7,
+      "seconds": 2.7,
+      "set": "param:env_release",
+      "source": "env_release = 2.505"
+    },
+    {
+      "file": "params/env_release/max.opus",
+      "gain_db": -2.3,
+      "peak_db": -10.0,
+      "ref": "param:env_release:max",
+      "rms_db": -17.7,
+      "seconds": 2.7,
+      "set": "param:env_release",
+      "source": "env_release = 5"
+    },
+    {
+      "file": "params/mseg_onset/min.opus",
+      "gain_db": 1.5,
+      "peak_db": -6.9,
+      "ref": "param:mseg_onset:min",
+      "rms_db": -17.7,
+      "seconds": 4.0,
+      "set": "param:mseg_onset",
+      "source": "mseg_onset = 0.001"
+    },
+    {
+      "file": "params/mseg_onset/mid.opus",
+      "gain_db": 1.5,
+      "peak_db": -6.9,
+      "ref": "param:mseg_onset:mid",
+      "rms_db": -17.7,
+      "seconds": 4.0,
+      "set": "param:mseg_onset",
+      "source": "mseg_onset = 0.5005"
+    },
+    {
+      "file": "params/mseg_onset/max.opus",
+      "gain_db": 1.5,
+      "peak_db": -6.9,
+      "ref": "param:mseg_onset:max",
+      "rms_db": -17.7,
+      "seconds": 4.0,
+      "set": "param:mseg_onset",
+      "source": "mseg_onset = 1"
+    },
+    {
+      "file": "params/mseg_onset_level/min.opus",
+      "gain_db": 1.4,
+      "peak_db": -7.0,
+      "ref": "param:mseg_onset_level:min",
+      "rms_db": -17.8,
+      "seconds": 4.0,
+      "set": "param:mseg_onset_level",
+      "source": "mseg_onset_level = 0"
+    },
+    {
+      "file": "params/mseg_onset_level/mid.opus",
+      "gain_db": 1.4,
+      "peak_db": -7.0,
+      "ref": "param:mseg_onset_level:mid",
+      "rms_db": -17.7,
+      "seconds": 4.0,
+      "set": "param:mseg_onset_level",
+      "source": "mseg_onset_level = 0.5"
+    },
+    {
+      "file": "params/mseg_onset_level/max.opus",
+      "gain_db": 1.4,
+      "peak_db": -6.4,
+      "ref": "param:mseg_onset_level:max",
+      "rms_db": -17.1,
+      "seconds": 4.0,
+      "set": "param:mseg_onset_level",
+      "source": "mseg_onset_level = 1"
+    },
+    {
+      "file": "params/mseg_attack/min.opus",
+      "gain_db": 1.7,
+      "peak_db": -6.3,
+      "ref": "param:mseg_attack:min",
+      "rms_db": -14.2,
+      "seconds": 4.0,
+      "set": "param:mseg_attack",
+      "source": "mseg_attack = 0.001"
+    },
+    {
+      "file": "params/mseg_attack/mid.opus",
+      "gain_db": 1.7,
+      "peak_db": -6.6,
+      "ref": "param:mseg_attack:mid",
+      "rms_db": -17.7,
+      "seconds": 4.0,
+      "set": "param:mseg_attack",
+      "source": "mseg_attack = 1.0005"
+    },
+    {
+      "file": "params/mseg_attack/max.opus",
+      "gain_db": 1.7,
+      "peak_db": -6.2,
+      "ref": "param:mseg_attack:max",
+      "rms_db": -16.6,
+      "seconds": 4.0,
+      "set": "param:mseg_attack",
+      "source": "mseg_attack = 2"
+    },
+    {
+      "file": "params/mseg_hold/min.opus",
+      "gain_db": 1.5,
+      "peak_db": -6.9,
+      "ref": "param:mseg_hold:min",
+      "rms_db": -17.7,
+      "seconds": 4.0,
+      "set": "param:mseg_hold",
+      "source": "mseg_hold = 0"
+    },
+    {
+      "file": "params/mseg_hold/mid.opus",
+      "gain_db": 1.5,
+      "peak_db": -6.9,
+      "ref": "param:mseg_hold:mid",
+      "rms_db": -17.7,
+      "seconds": 4.0,
+      "set": "param:mseg_hold",
+      "source": "mseg_hold = 1"
+    },
+    {
+      "file": "params/mseg_hold/max.opus",
+      "gain_db": 1.5,
+      "peak_db": -6.4,
+      "ref": "param:mseg_hold:max",
+      "rms_db": -16.6,
+      "seconds": 4.0,
+      "set": "param:mseg_hold",
+      "source": "mseg_hold = 2"
+    },
+    {
+      "file": "params/mseg_decay/min.opus",
+      "gain_db": 1.1,
+      "peak_db": -7.2,
+      "ref": "param:mseg_decay:min",
+      "rms_db": -17.9,
+      "seconds": 4.0,
+      "set": "param:mseg_decay",
+      "source": "mseg_decay = 0.01"
+    },
+    {
+      "file": "params/mseg_decay/mid.opus",
+      "gain_db": 1.1,
+      "peak_db": -7.1,
+      "ref": "param:mseg_decay:mid",
+      "rms_db": -17.7,
+      "seconds": 4.0,
+      "set": "param:mseg_decay",
+      "source": "mseg_decay = 2.505"
+    },
+    {
+      "file": "params/mseg_decay/max.opus",
+      "gain_db": 1.1,
+      "peak_db": -6.9,
+      "ref": "param:mseg_decay:max",
+      "rms_db": -17.3,
+      "seconds": 4.0,
+      "set": "param:mseg_decay",
+      "source": "mseg_decay = 5"
+    },
+    {
+      "file": "params/mseg_sustain/min.opus",
+      "gain_db": 1.5,
+      "peak_db": -9.6,
+      "ref": "param:mseg_sustain:min",
+      "rms_db": -26.2,
+      "seconds": 1.7,
+      "set": "param:mseg_sustain",
+      "source": "mseg_sustain = 0"
+    },
+    {
+      "file": "params/mseg_sustain/mid.opus",
+      "gain_db": 1.5,
+      "peak_db": -6.9,
+      "ref": "param:mseg_sustain:mid",
+      "rms_db": -17.7,
+      "seconds": 4.0,
+      "set": "param:mseg_sustain",
+      "source": "mseg_sustain = 0.5"
+    },
+    {
+      "file": "params/mseg_sustain/max.opus",
+      "gain_db": 1.5,
+      "peak_db": -5.9,
+      "ref": "param:mseg_sustain:max",
+      "rms_db": -15.9,
+      "seconds": 4.0,
+      "set": "param:mseg_sustain",
+      "source": "mseg_sustain = 1"
+    },
+    {
+      "file": "params/mseg_release/min.opus",
+      "gain_db": 1.5,
+      "peak_db": -6.9,
+      "ref": "param:mseg_release:min",
+      "rms_db": -17.7,
+      "seconds": 4.0,
+      "set": "param:mseg_release",
+      "source": "mseg_release = 0.01"
+    },
+    {
+      "file": "params/mseg_release/mid.opus",
+      "gain_db": 1.5,
+      "peak_db": -6.9,
+      "ref": "param:mseg_release:mid",
+      "rms_db": -17.7,
+      "seconds": 4.0,
+      "set": "param:mseg_release",
+      "source": "mseg_release = 2.505"
+    },
+    {
+      "file": "params/mseg_release/max.opus",
+      "gain_db": 1.5,
+      "peak_db": -6.9,
+      "ref": "param:mseg_release:max",
+      "rms_db": -17.7,
+      "seconds": 4.0,
+      "set": "param:mseg_release",
+      "source": "mseg_release = 5"
+    },
+    {
+      "file": "params/env_amount/min.opus",
+      "gain_db": -2.3,
+      "peak_db": -10.0,
+      "ref": "param:env_amount:min",
+      "rms_db": -17.7,
+      "seconds": 2.7,
+      "set": "param:env_amount",
+      "source": "env_amount = 0"
+    },
+    {
+      "file": "params/env_amount/mid.opus",
+      "gain_db": -2.3,
+      "peak_db": -10.0,
+      "ref": "param:env_amount:mid",
+      "rms_db": -17.7,
+      "seconds": 2.7,
+      "set": "param:env_amount",
+      "source": "env_amount = 0.5"
+    },
+    {
+      "file": "params/env_amount/max.opus",
+      "gain_db": -2.3,
+      "peak_db": -10.0,
+      "ref": "param:env_amount:max",
+      "rms_db": -17.7,
+      "seconds": 2.7,
+      "set": "param:env_amount",
+      "source": "env_amount = 1"
+    },
+    {
+      "file": "params/velocity_to_peak/min.opus",
+      "gain_db": -2.1,
+      "peak_db": -9.4,
+      "ref": "param:velocity_to_peak:min",
+      "rms_db": -17.7,
+      "seconds": 4.3,
+      "set": "param:velocity_to_peak",
+      "source": "velocity_to_peak = 0"
+    },
+    {
+      "file": "params/velocity_to_peak/mid.opus",
+      "gain_db": -2.1,
+      "peak_db": -9.4,
+      "ref": "param:velocity_to_peak:mid",
+      "rms_db": -17.7,
+      "seconds": 4.3,
+      "set": "param:velocity_to_peak",
+      "source": "velocity_to_peak = 0.5"
+    },
+    {
+      "file": "params/velocity_to_peak/max.opus",
+      "gain_db": -2.1,
+      "peak_db": -9.4,
+      "ref": "param:velocity_to_peak:max",
+      "rms_db": -17.7,
+      "seconds": 4.3,
+      "set": "param:velocity_to_peak",
+      "source": "velocity_to_peak = 1"
+    },
+    {
+      "file": "params/loop_mode/min.opus",
+      "gain_db": -3.7,
+      "peak_db": -12.0,
+      "ref": "param:loop_mode:min",
+      "rms_db": -22.9,
+      "seconds": 4.0,
+      "set": "param:loop_mode",
+      "source": "loop_mode = 0"
+    },
+    {
+      "file": "params/loop_mode/mid.opus",
+      "gain_db": -3.7,
+      "peak_db": -11.7,
+      "ref": "param:loop_mode:mid",
+      "rms_db": -17.7,
+      "seconds": 4.0,
+      "set": "param:loop_mode",
+      "source": "loop_mode = 1"
+    },
+    {
+      "file": "params/loop_mode/max.opus",
+      "gain_db": -3.7,
+      "peak_db": -11.7,
+      "ref": "param:loop_mode:max",
+      "rms_db": -17.7,
+      "seconds": 4.0,
+      "set": "param:loop_mode",
+      "source": "loop_mode = 2"
+    },
+    {
+      "file": "params/loop_start_stage/min.opus",
+      "gain_db": -3.7,
+      "peak_db": -11.5,
+      "ref": "param:loop_start_stage:min",
+      "rms_db": -16.7,
+      "seconds": 4.0,
+      "set": "param:loop_start_stage",
+      "source": "loop_start_stage = 0"
+    },
+    {
+      "file": "params/loop_start_stage/mid.opus",
+      "gain_db": -3.7,
+      "peak_db": -11.7,
+      "ref": "param:loop_start_stage:mid",
+      "rms_db": -17.7,
+      "seconds": 4.0,
+      "set": "param:loop_start_stage",
+      "source": "loop_start_stage = 3"
+    },
+    {
+      "file": "params/loop_start_stage/max.opus",
+      "gain_db": -3.7,
+      "peak_db": -12.0,
+      "ref": "param:loop_start_stage:max",
+      "rms_db": -22.9,
+      "seconds": 4.0,
+      "set": "param:loop_start_stage",
+      "source": "loop_start_stage = 5"
+    },
+    {
+      "file": "params/loop_end_stage/min.opus",
+      "gain_db": 1.5,
+      "peak_db": -6.9,
+      "ref": "param:loop_end_stage:min",
+      "rms_db": -17.7,
+      "seconds": 4.0,
+      "set": "param:loop_end_stage",
+      "source": "loop_end_stage = 0"
+    },
+    {
+      "file": "params/loop_end_stage/mid.opus",
+      "gain_db": 1.5,
+      "peak_db": -6.9,
+      "ref": "param:loop_end_stage:mid",
+      "rms_db": -17.7,
+      "seconds": 4.0,
+      "set": "param:loop_end_stage",
+      "source": "loop_end_stage = 3"
+    },
+    {
+      "file": "params/loop_end_stage/max.opus",
+      "gain_db": 1.5,
+      "peak_db": -6.5,
+      "ref": "param:loop_end_stage:max",
+      "rms_db": -12.6,
+      "seconds": 4.0,
+      "set": "param:loop_end_stage",
+      "source": "loop_end_stage = 5"
+    },
+    {
+      "file": "params/sync_rate/min.opus",
+      "gain_db": -1.9,
+      "peak_db": -7.9,
+      "ref": "param:sync_rate:min",
+      "rms_db": -17.7,
+      "seconds": 2.9,
+      "set": "param:sync_rate",
+      "source": "sync_rate = Off"
+    },
+    {
+      "file": "params/sync_rate/mid.opus",
+      "gain_db": -1.9,
+      "peak_db": -8.6,
+      "ref": "param:sync_rate:mid",
+      "rms_db": -17.7,
+      "seconds": 3.7,
+      "set": "param:sync_rate",
+      "source": "sync_rate = 1/4"
+    },
+    {
+      "file": "params/sync_rate/max.opus",
+      "gain_db": -1.9,
+      "peak_db": -8.6,
+      "ref": "param:sync_rate:max",
+      "rms_db": -17.7,
+      "seconds": 3.7,
+      "set": "param:sync_rate",
+      "source": "sync_rate = 2/1"
+    },
+    {
+      "file": "params/global_time_scale/min.opus",
+      "gain_db": -2.3,
+      "peak_db": -10.0,
+      "ref": "param:global_time_scale:min",
+      "rms_db": -17.7,
+      "seconds": 2.7,
+      "set": "param:global_time_scale",
+      "source": "global_time_scale = 0.1"
+    },
+    {
+      "file": "params/global_time_scale/mid.opus",
+      "gain_db": -2.3,
+      "peak_db": -10.0,
+      "ref": "param:global_time_scale:mid",
+      "rms_db": -17.7,
+      "seconds": 2.7,
+      "set": "param:global_time_scale",
+      "source": "global_time_scale = 5.05"
+    },
+    {
+      "file": "params/global_time_scale/max.opus",
+      "gain_db": -2.3,
+      "peak_db": -10.0,
+      "ref": "param:global_time_scale:max",
+      "rms_db": -17.7,
+      "seconds": 2.7,
+      "set": "param:global_time_scale",
+      "source": "global_time_scale = 10"
+    },
+    {
+      "file": "params/velocity_to_level/min.opus",
+      "gain_db": -2.1,
+      "peak_db": -9.4,
+      "ref": "param:velocity_to_level:min",
+      "rms_db": -17.7,
+      "seconds": 4.3,
+      "set": "param:velocity_to_level",
+      "source": "velocity_to_level = 0"
+    },
+    {
+      "file": "params/velocity_to_level/mid.opus",
+      "gain_db": -2.1,
+      "peak_db": -9.4,
+      "ref": "param:velocity_to_level:mid",
+      "rms_db": -17.7,
+      "seconds": 4.3,
+      "set": "param:velocity_to_level",
+      "source": "velocity_to_level = 0.5"
+    },
+    {
+      "file": "params/velocity_to_level/max.opus",
+      "gain_db": -2.1,
+      "peak_db": -9.4,
+      "ref": "param:velocity_to_level:max",
+      "rms_db": -17.7,
+      "seconds": 4.3,
+      "set": "param:velocity_to_level",
+      "source": "velocity_to_level = 1"
+    },
+    {
+      "file": "params/velocity_to_time/min.opus",
+      "gain_db": -2.1,
+      "peak_db": -9.4,
+      "ref": "param:velocity_to_time:min",
+      "rms_db": -17.7,
+      "seconds": 4.3,
+      "set": "param:velocity_to_time",
+      "source": "velocity_to_time = 0"
+    },
+    {
+      "file": "params/velocity_to_time/mid.opus",
+      "gain_db": -2.1,
+      "peak_db": -9.4,
+      "ref": "param:velocity_to_time:mid",
+      "rms_db": -17.7,
+      "seconds": 4.3,
+      "set": "param:velocity_to_time",
+      "source": "velocity_to_time = 0.5"
+    },
+    {
+      "file": "params/velocity_to_time/max.opus",
+      "gain_db": -2.1,
+      "peak_db": -9.4,
+      "ref": "param:velocity_to_time:max",
+      "rms_db": -17.7,
+      "seconds": 4.3,
+      "set": "param:velocity_to_time",
+      "source": "velocity_to_time = 1"
+    },
+    {
+      "file": "params/curve_tension/min.opus",
+      "gain_db": -2.3,
+      "peak_db": -10.0,
+      "ref": "param:curve_tension:min",
+      "rms_db": -17.7,
+      "seconds": 2.7,
+      "set": "param:curve_tension",
+      "source": "curve_tension = -1"
+    },
+    {
+      "file": "params/curve_tension/mid.opus",
+      "gain_db": -2.3,
+      "peak_db": -10.0,
+      "ref": "param:curve_tension:mid",
+      "rms_db": -17.7,
+      "seconds": 2.7,
+      "set": "param:curve_tension",
+      "source": "curve_tension = 0"
+    },
+    {
+      "file": "params/curve_tension/max.opus",
+      "gain_db": -2.3,
+      "peak_db": -10.0,
+      "ref": "param:curve_tension:max",
+      "rms_db": -17.7,
+      "seconds": 2.7,
+      "set": "param:curve_tension",
+      "source": "curve_tension = 1"
+    },
+    {
+      "file": "params/exciter_pressure/min.opus",
+      "gain_db": -2.3,
+      "peak_db": -11.2,
+      "ref": "param:exciter_pressure:min",
+      "rms_db": -21.2,
+      "seconds": 2.2,
+      "set": "param:exciter_pressure",
+      "source": "exciter_pressure = -12.0 dB"
+    },
+    {
+      "file": "params/exciter_pressure/mid.opus",
+      "gain_db": -2.3,
+      "peak_db": -10.0,
+      "ref": "param:exciter_pressure:mid",
+      "rms_db": -17.7,
+      "seconds": 2.7,
+      "set": "param:exciter_pressure",
+      "source": "exciter_pressure = +0.0 dB"
+    },
+    {
+      "file": "params/exciter_pressure/max.opus",
+      "gain_db": -2.3,
+      "peak_db": -8.0,
+      "ref": "param:exciter_pressure:max",
+      "rms_db": -16.4,
+      "seconds": 3.0,
+      "set": "param:exciter_pressure",
+      "source": "exciter_pressure = +12.0 dB"
+    },
+    {
+      "file": "params/exciter_speed/min.opus",
+      "gain_db": -2.3,
+      "peak_db": -10.0,
+      "ref": "param:exciter_speed:min",
+      "rms_db": -17.7,
+      "seconds": 2.7,
+      "set": "param:exciter_speed",
+      "source": "exciter_speed = ×0.50"
+    },
+    {
+      "file": "params/exciter_speed/mid.opus",
+      "gain_db": -2.3,
+      "peak_db": -10.0,
+      "ref": "param:exciter_speed:mid",
+      "rms_db": -17.7,
+      "seconds": 2.7,
+      "set": "param:exciter_speed",
+      "source": "exciter_speed = ×1.00"
+    },
+    {
+      "file": "params/exciter_speed/max.opus",
+      "gain_db": -2.3,
+      "peak_db": -10.0,
+      "ref": "param:exciter_speed:max",
+      "rms_db": -17.7,
+      "seconds": 2.7,
+      "set": "param:exciter_speed",
+      "source": "exciter_speed = ×2.00"
+    },
+    {
+      "file": "params/exciter_roughness/min.opus",
+      "gain_db": -2.3,
+      "peak_db": -10.0,
+      "ref": "param:exciter_roughness:min",
+      "rms_db": -17.7,
+      "seconds": 2.7,
+      "set": "param:exciter_roughness",
+      "source": "exciter_roughness = ×0.00"
+    },
+    {
+      "file": "params/exciter_roughness/mid.opus",
+      "gain_db": -2.3,
+      "peak_db": -10.0,
+      "ref": "param:exciter_roughness:mid",
+      "rms_db": -17.7,
+      "seconds": 2.7,
+      "set": "param:exciter_roughness",
+      "source": "exciter_roughness = ×1.67"
+    },
+    {
+      "file": "params/exciter_roughness/max.opus",
+      "gain_db": -2.3,
+      "peak_db": -10.0,
+      "ref": "param:exciter_roughness:max",
+      "rms_db": -17.7,
+      "seconds": 2.7,
+      "set": "param:exciter_roughness",
+      "source": "exciter_roughness = ×3.33"
+    },
+    {
+      "file": "params/hand_mass/min.opus",
+      "gain_db": -2.3,
+      "peak_db": -11.2,
+      "ref": "param:hand_mass:min",
+      "rms_db": -21.4,
+      "seconds": 2.2,
+      "set": "param:hand_mass",
+      "source": "hand_mass = 0.4"
+    },
+    {
+      "file": "params/hand_mass/mid.opus",
+      "gain_db": -2.3,
+      "peak_db": -10.0,
+      "ref": "param:hand_mass:mid",
+      "rms_db": -17.7,
+      "seconds": 2.7,
+      "set": "param:hand_mass",
+      "source": "hand_mass = 1.7"
+    },
+    {
+      "file": "params/hand_mass/max.opus",
+      "gain_db": -2.3,
+      "peak_db": -8.7,
+      "ref": "param:hand_mass:max",
+      "rms_db": -16.8,
+      "seconds": 2.9,
+      "set": "param:hand_mass",
+      "source": "hand_mass = 3"
+    },
+    {
+      "file": "params/flesh_stiffness/min.opus",
+      "gain_db": -2.3,
+      "peak_db": -10.0,
+      "ref": "param:flesh_stiffness:min",
+      "rms_db": -17.7,
+      "seconds": 2.7,
+      "set": "param:flesh_stiffness",
+      "source": "flesh_stiffness = 0.05"
+    },
+    {
+      "file": "params/flesh_stiffness/mid.opus",
+      "gain_db": -2.3,
+      "peak_db": -10.0,
+      "ref": "param:flesh_stiffness:mid",
+      "rms_db": -17.7,
+      "seconds": 2.7,
+      "set": "param:flesh_stiffness",
+      "source": "flesh_stiffness = 0.425"
+    },
+    {
+      "file": "params/flesh_stiffness/max.opus",
+      "gain_db": -2.3,
+      "peak_db": -10.0,
+      "ref": "param:flesh_stiffness:max",
+      "rms_db": -17.7,
+      "seconds": 2.7,
+      "set": "param:flesh_stiffness",
+      "source": "flesh_stiffness = 0.8"
+    },
+    {
+      "file": "params/flesh_damping/min.opus",
+      "gain_db": -2.9,
+      "peak_db": -11.5,
+      "ref": "param:flesh_damping:min",
+      "rms_db": -20.2,
+      "seconds": 2.3,
+      "set": "param:flesh_damping",
+      "source": "flesh_damping = 0.3"
+    },
+    {
+      "file": "params/flesh_damping/mid.opus",
+      "gain_db": -2.9,
+      "peak_db": -10.0,
+      "ref": "param:flesh_damping:mid",
+      "rms_db": -17.7,
+      "seconds": 2.8,
+      "set": "param:flesh_damping",
+      "source": "flesh_damping = 1.05"
+    },
+    {
+      "file": "params/flesh_damping/max.opus",
+      "gain_db": -2.9,
+      "peak_db": -8.6,
+      "ref": "param:flesh_damping:max",
+      "rms_db": -17.0,
+      "seconds": 3.0,
+      "set": "param:flesh_damping",
+      "source": "flesh_damping = 1.8"
+    },
+    {
+      "file": "params/mute_decay/min.opus",
+      "gain_db": -2.3,
+      "peak_db": -10.3,
+      "ref": "param:mute_decay:min",
+      "rms_db": -18.0,
+      "seconds": 2.6,
+      "set": "param:mute_decay",
+      "source": "mute_decay = 0.85"
+    },
+    {
+      "file": "params/mute_decay/mid.opus",
+      "gain_db": -2.3,
+      "peak_db": -10.0,
+      "ref": "param:mute_decay:mid",
+      "rms_db": -17.7,
+      "seconds": 2.7,
+      "set": "param:mute_decay",
+      "source": "mute_decay = 0.9245"
+    },
+    {
+      "file": "params/mute_decay/max.opus",
+      "gain_db": -2.3,
+      "peak_db": -9.8,
+      "ref": "param:mute_decay:max",
+      "rms_db": -25.3,
+      "seconds": 2.2,
+      "set": "param:mute_decay",
+      "source": "mute_decay = 0.999"
+    },
+    {
+      "file": "params/mallet_mass/min.opus",
+      "gain_db": 5.0,
+      "peak_db": -4.0,
+      "ref": "param:mallet_mass:min",
+      "rms_db": -21.5,
+      "seconds": 1.1,
+      "set": "param:mallet_mass",
+      "source": "mallet_mass = 0.4"
+    },
+    {
+      "file": "params/mallet_mass/mid.opus",
+      "gain_db": 5.0,
+      "peak_db": -1.3,
+      "ref": "param:mallet_mass:mid",
+      "rms_db": -17.7,
+      "seconds": 1.6,
+      "set": "param:mallet_mass",
+      "source": "mallet_mass = 1.95"
+    },
+    {
+      "file": "params/mallet_mass/max.opus",
+      "gain_db": 5.0,
+      "peak_db": -1.4,
+      "ref": "param:mallet_mass:max",
+      "rms_db": -16.6,
+      "seconds": 1.8,
+      "set": "param:mallet_mass",
+      "source": "mallet_mass = 3.5"
+    },
+    {
+      "file": "params/felt_softness/min.opus",
+      "gain_db": 4.9,
+      "peak_db": -4.1,
+      "ref": "param:felt_softness:min",
+      "rms_db": -23.2,
+      "seconds": 0.9,
+      "set": "param:felt_softness",
+      "source": "felt_softness = 0.1"
+    },
+    {
+      "file": "params/felt_softness/mid.opus",
+      "gain_db": 4.9,
+      "peak_db": -2.5,
+      "ref": "param:felt_softness:mid",
+      "rms_db": -17.7,
+      "seconds": 1.4,
+      "set": "param:felt_softness",
+      "source": "felt_softness = 0.7"
+    },
+    {
+      "file": "params/felt_softness/max.opus",
+      "gain_db": 4.9,
+      "peak_db": -1.3,
+      "ref": "param:felt_softness:max",
+      "rms_db": -17.8,
+      "seconds": 1.6,
+      "set": "param:felt_softness",
+      "source": "felt_softness = 1.3"
+    },
+    {
+      "file": "params/core_hardness/min.opus",
+      "gain_db": 4.5,
+      "peak_db": -2.5,
+      "ref": "param:core_hardness:min",
+      "rms_db": -17.7,
+      "seconds": 1.5,
+      "set": "param:core_hardness",
+      "source": "core_hardness = 0.5"
+    },
+    {
+      "file": "params/core_hardness/mid.opus",
+      "gain_db": 4.5,
+      "peak_db": -2.5,
+      "ref": "param:core_hardness:mid",
+      "rms_db": -17.7,
+      "seconds": 1.5,
+      "set": "param:core_hardness",
+      "source": "core_hardness = 2.5"
+    },
+    {
+      "file": "params/core_hardness/max.opus",
+      "gain_db": 4.5,
+      "peak_db": -2.5,
+      "ref": "param:core_hardness:max",
+      "rms_db": -17.7,
+      "seconds": 1.5,
+      "set": "param:core_hardness",
+      "source": "core_hardness = 4.5"
+    },
+    {
+      "file": "params/compression_curve/min.opus",
+      "gain_db": 4.5,
+      "peak_db": -2.4,
+      "ref": "param:compression_curve:min",
+      "rms_db": -17.6,
+      "seconds": 1.5,
+      "set": "param:compression_curve",
+      "source": "compression_curve = 2"
+    },
+    {
+      "file": "params/compression_curve/mid.opus",
+      "gain_db": 4.5,
+      "peak_db": -2.5,
+      "ref": "param:compression_curve:mid",
+      "rms_db": -17.7,
+      "seconds": 1.5,
+      "set": "param:compression_curve",
+      "source": "compression_curve = 3.5"
+    },
+    {
+      "file": "params/compression_curve/max.opus",
+      "gain_db": 4.5,
+      "peak_db": -2.5,
+      "ref": "param:compression_curve:max",
+      "rms_db": -17.7,
+      "seconds": 1.5,
+      "set": "param:compression_curve",
+      "source": "compression_curve = 5"
+    },
+    {
+      "file": "params/material_stiffness/min.opus",
+      "gain_db": 3.7,
+      "peak_db": -3.3,
+      "ref": "param:material_stiffness:min",
+      "rms_db": -17.6,
+      "seconds": 2.0,
+      "set": "param:material_stiffness",
+      "source": "material_stiffness = 0.5"
+    },
+    {
+      "file": "params/material_stiffness/mid.opus",
+      "gain_db": 3.7,
+      "peak_db": -3.4,
+      "ref": "param:material_stiffness:mid",
+      "rms_db": -17.7,
+      "seconds": 2.0,
+      "set": "param:material_stiffness",
+      "source": "material_stiffness = 2.75"
+    },
+    {
+      "file": "params/material_stiffness/max.opus",
+      "gain_db": 3.7,
+      "peak_db": -3.4,
+      "ref": "param:material_stiffness:max",
+      "rms_db": -17.8,
+      "seconds": 2.1,
+      "set": "param:material_stiffness",
+      "source": "material_stiffness = 5"
+    },
+    {
+      "file": "params/impact_damping/min.opus",
+      "gain_db": 3.7,
+      "peak_db": -3.4,
+      "ref": "param:impact_damping:min",
+      "rms_db": -17.7,
+      "seconds": 2.0,
+      "set": "param:impact_damping",
+      "source": "impact_damping = 0.1"
+    },
+    {
+      "file": "params/impact_damping/mid.opus",
+      "gain_db": 3.7,
+      "peak_db": -3.4,
+      "ref": "param:impact_damping:mid",
+      "rms_db": -17.7,
+      "seconds": 2.0,
+      "set": "param:impact_damping",
+      "source": "impact_damping = 0.7"
+    },
+    {
+      "file": "params/impact_damping/max.opus",
+      "gain_db": 3.7,
+      "peak_db": -3.4,
+      "ref": "param:impact_damping:max",
+      "rms_db": -17.7,
+      "seconds": 2.1,
+      "set": "param:impact_damping",
+      "source": "impact_damping = 1.3"
+    },
+    {
+      "file": "params/stick_mass/min.opus",
+      "gain_db": -2.9,
+      "peak_db": -25.5,
+      "ref": "param:stick_mass:min",
+      "rms_db": -40.7,
+      "seconds": 2.2,
+      "set": "param:stick_mass",
+      "source": "stick_mass = 0.05"
+    },
+    {
+      "file": "params/stick_mass/mid.opus",
+      "gain_db": -2.9,
+      "peak_db": -9.4,
+      "ref": "param:stick_mass:mid",
+      "rms_db": -17.7,
+      "seconds": 2.8,
+      "set": "param:stick_mass",
+      "source": "stick_mass = 0.65"
+    },
+    {
+      "file": "params/stick_mass/max.opus",
+      "gain_db": -2.9,
+      "peak_db": -7.5,
+      "ref": "param:stick_mass:max",
+      "rms_db": -16.6,
+      "seconds": 3.0,
+      "set": "param:stick_mass",
+      "source": "stick_mass = 1.25"
+    },
+    {
+      "file": "params/tip_stiffness/min.opus",
+      "gain_db": -2.9,
+      "peak_db": -9.1,
+      "ref": "param:tip_stiffness:min",
+      "rms_db": -17.6,
+      "seconds": 2.8,
+      "set": "param:tip_stiffness",
+      "source": "tip_stiffness = 0.8"
+    },
+    {
+      "file": "params/tip_stiffness/mid.opus",
+      "gain_db": -2.9,
+      "peak_db": -9.4,
+      "ref": "param:tip_stiffness:mid",
+      "rms_db": -17.7,
+      "seconds": 2.8,
+      "set": "param:tip_stiffness",
+      "source": "tip_stiffness = 3.8"
+    },
+    {
+      "file": "params/tip_stiffness/max.opus",
+      "gain_db": -2.9,
+      "peak_db": -9.4,
+      "ref": "param:tip_stiffness:max",
+      "rms_db": -17.8,
+      "seconds": 2.8,
+      "set": "param:tip_stiffness",
+      "source": "tip_stiffness = 6.8"
+    },
+    {
+      "file": "params/restitution_bounciness/min.opus",
+      "gain_db": -2.9,
+      "peak_db": -9.4,
+      "ref": "param:restitution_bounciness:min",
+      "rms_db": -17.7,
+      "seconds": 2.8,
+      "set": "param:restitution_bounciness",
+      "source": "restitution_bounciness = 0.2"
+    },
+    {
+      "file": "params/restitution_bounciness/mid.opus",
+      "gain_db": -2.9,
+      "peak_db": -9.4,
+      "ref": "param:restitution_bounciness:mid",
+      "rms_db": -17.7,
+      "seconds": 2.8,
+      "set": "param:restitution_bounciness",
+      "source": "restitution_bounciness = 0.55"
+    },
+    {
+      "file": "params/restitution_bounciness/max.opus",
+      "gain_db": -2.9,
+      "peak_db": -9.4,
+      "ref": "param:restitution_bounciness:max",
+      "rms_db": -17.7,
+      "seconds": 2.8,
+      "set": "param:restitution_bounciness",
+      "source": "restitution_bounciness = 0.9"
+    },
+    {
+      "file": "params/micro_bounce_limit/min.opus",
+      "gain_db": -2.9,
+      "peak_db": -9.4,
+      "ref": "param:micro_bounce_limit:min",
+      "rms_db": -17.7,
+      "seconds": 2.8,
+      "set": "param:micro_bounce_limit",
+      "source": "micro_bounce_limit = 2"
+    },
+    {
+      "file": "params/micro_bounce_limit/mid.opus",
+      "gain_db": -2.9,
+      "peak_db": -9.4,
+      "ref": "param:micro_bounce_limit:mid",
+      "rms_db": -17.7,
+      "seconds": 2.8,
+      "set": "param:micro_bounce_limit",
+      "source": "micro_bounce_limit = 5"
+    },
+    {
+      "file": "params/micro_bounce_limit/max.opus",
+      "gain_db": -2.9,
+      "peak_db": -9.4,
+      "ref": "param:micro_bounce_limit:max",
+      "rms_db": -17.7,
+      "seconds": 2.8,
+      "set": "param:micro_bounce_limit",
+      "source": "micro_bounce_limit = 8"
+    },
+    {
+      "file": "params/wire_density/min.opus",
+      "gain_db": -2.4,
+      "peak_db": -11.2,
+      "ref": "param:wire_density:min",
+      "rms_db": -19.2,
+      "seconds": 2.5,
+      "set": "param:wire_density",
+      "source": "wire_density = 10"
+    },
+    {
+      "file": "params/wire_density/mid.opus",
+      "gain_db": -2.4,
+      "peak_db": -9.5,
+      "ref": "param:wire_density:mid",
+      "rms_db": -17.7,
+      "seconds": 2.8,
+      "set": "param:wire_density",
+      "source": "wire_density = 70"
+    },
+    {
+      "file": "params/wire_density/max.opus",
+      "gain_db": -2.4,
+      "peak_db": -10.0,
+      "ref": "param:wire_density:max",
+      "rms_db": -18.6,
+      "seconds": 2.6,
+      "set": "param:wire_density",
+      "source": "wire_density = 130"
+    },
+    {
+      "file": "params/spread_duration/min.opus",
+      "gain_db": -0.7,
+      "peak_db": -9.8,
+      "ref": "param:spread_duration:min",
+      "rms_db": -26.6,
+      "seconds": 2.2,
+      "set": "param:spread_duration",
+      "source": "spread_duration = 10"
+    },
+    {
+      "file": "params/spread_duration/mid.opus",
+      "gain_db": -0.7,
+      "peak_db": -9.2,
+      "ref": "param:spread_duration:mid",
+      "rms_db": -17.7,
+      "seconds": 2.6,
+      "set": "param:spread_duration",
+      "source": "spread_duration = 130"
+    },
+    {
+      "file": "params/spread_duration/max.opus",
+      "gain_db": -0.7,
+      "peak_db": -8.9,
+      "ref": "param:spread_duration:max",
+      "rms_db": -17.2,
+      "seconds": 2.6,
+      "set": "param:spread_duration",
+      "source": "spread_duration = 250"
+    },
+    {
+      "file": "params/brush_wire_stiffness/min.opus",
+      "gain_db": -1.6,
+      "peak_db": -20.1,
+      "ref": "param:brush_wire_stiffness:min",
+      "rms_db": -34.9,
+      "seconds": 2.2,
+      "set": "param:brush_wire_stiffness",
+      "source": "brush_wire_stiffness = 0"
+    },
+    {
+      "file": "params/brush_wire_stiffness/mid.opus",
+      "gain_db": -1.6,
+      "peak_db": -9.6,
+      "ref": "param:brush_wire_stiffness:mid",
+      "rms_db": -17.7,
+      "seconds": 2.7,
+      "set": "param:brush_wire_stiffness",
+      "source": "brush_wire_stiffness = 0.5"
+    },
+    {
+      "file": "params/brush_wire_stiffness/max.opus",
+      "gain_db": -1.6,
+      "peak_db": -8.8,
+      "ref": "param:brush_wire_stiffness:max",
+      "rms_db": -16.9,
+      "seconds": 2.9,
+      "set": "param:brush_wire_stiffness",
+      "source": "brush_wire_stiffness = 1"
+    },
+    {
+      "file": "params/amplitude_randomization/min.opus",
+      "gain_db": -0.9,
+      "peak_db": -9.3,
+      "ref": "param:amplitude_randomization:min",
+      "rms_db": -17.8,
+      "seconds": 2.6,
+      "set": "param:amplitude_randomization",
+      "source": "amplitude_randomization = 0"
+    },
+    {
+      "file": "params/amplitude_randomization/mid.opus",
+      "gain_db": -0.9,
+      "peak_db": -9.4,
+      "ref": "param:amplitude_randomization:mid",
+      "rms_db": -17.7,
+      "seconds": 2.6,
+      "set": "param:amplitude_randomization",
+      "source": "amplitude_randomization = 0.5"
+    },
+    {
+      "file": "params/amplitude_randomization/max.opus",
+      "gain_db": -0.9,
+      "peak_db": -9.3,
+      "ref": "param:amplitude_randomization:max",
+      "rms_db": -17.0,
+      "seconds": 2.6,
+      "set": "param:amplitude_randomization",
+      "source": "amplitude_randomization = 1"
+    },
+    {
+      "file": "params/pipe_mass/min.opus",
+      "gain_db": 6.4,
+      "peak_db": -2.0,
+      "ref": "param:pipe_mass:min",
+      "rms_db": -21.4,
+      "seconds": 1.8,
+      "set": "param:pipe_mass",
+      "source": "pipe_mass = 0.4"
+    },
+    {
+      "file": "params/pipe_mass/mid.opus",
+      "gain_db": 6.4,
+      "peak_db": -1.4,
+      "ref": "param:pipe_mass:mid",
+      "rms_db": -17.8,
+      "seconds": 1.5,
+      "set": "param:pipe_mass",
+      "source": "pipe_mass = 1.5"
+    },
+    {
+      "file": "params/pipe_mass/max.opus",
+      "gain_db": 6.4,
+      "peak_db": -1.0,
+      "ref": "param:pipe_mass:max",
+      "rms_db": -15.6,
+      "seconds": 1.3,
+      "set": "param:pipe_mass",
+      "source": "pipe_mass = 2.6"
+    },
+    {
+      "file": "params/metal_stiffness/min.opus",
+      "gain_db": 6.4,
+      "peak_db": -1.5,
+      "ref": "param:metal_stiffness:min",
+      "rms_db": -17.8,
+      "seconds": 1.6,
+      "set": "param:metal_stiffness",
+      "source": "metal_stiffness = 0.5"
+    },
+    {
+      "file": "params/metal_stiffness/mid.opus",
+      "gain_db": 6.4,
+      "peak_db": -1.4,
+      "ref": "param:metal_stiffness:mid",
+      "rms_db": -17.7,
+      "seconds": 1.5,
+      "set": "param:metal_stiffness",
+      "source": "metal_stiffness = 3"
+    },
+    {
+      "file": "params/metal_stiffness/max.opus",
+      "gain_db": 6.4,
+      "peak_db": -1.1,
+      "ref": "param:metal_stiffness:max",
+      "rms_db": -15.8,
+      "seconds": 1.2,
+      "set": "param:metal_stiffness",
+      "source": "metal_stiffness = 5.5"
+    },
+    {
+      "file": "params/pipe_pitch/min.opus",
+      "gain_db": 5.8,
+      "peak_db": -2.3,
+      "ref": "param:pipe_pitch:min",
+      "rms_db": -19.2,
+      "seconds": 1.4,
+      "set": "param:pipe_pitch",
+      "source": "pipe_pitch = 0.5"
+    },
+    {
+      "file": "params/pipe_pitch/mid.opus",
+      "gain_db": 5.8,
+      "peak_db": -2.0,
+      "ref": "param:pipe_pitch:mid",
+      "rms_db": -17.7,
+      "seconds": 1.5,
+      "set": "param:pipe_pitch",
+      "source": "pipe_pitch = 1.5"
+    },
+    {
+      "file": "params/pipe_pitch/max.opus",
+      "gain_db": 5.8,
+      "peak_db": -1.9,
+      "ref": "param:pipe_pitch:max",
+      "rms_db": -18.1,
+      "seconds": 1.5,
+      "set": "param:pipe_pitch",
+      "source": "pipe_pitch = 2.5"
+    },
+    {
+      "file": "params/pipe_ring_decay/min.opus",
+      "gain_db": 6.4,
+      "peak_db": -1.5,
+      "ref": "param:pipe_ring_decay:min",
+      "rms_db": -18.5,
+      "seconds": 1.5,
+      "set": "param:pipe_ring_decay",
+      "source": "pipe_ring_decay = 0.96"
+    },
+    {
+      "file": "params/pipe_ring_decay/mid.opus",
+      "gain_db": 6.4,
+      "peak_db": -1.4,
+      "ref": "param:pipe_ring_decay:mid",
+      "rms_db": -17.7,
+      "seconds": 1.5,
+      "set": "param:pipe_ring_decay",
+      "source": "pipe_ring_decay = 0.9795"
+    },
+    {
+      "file": "params/pipe_ring_decay/max.opus",
+      "gain_db": 6.4,
+      "peak_db": -1.2,
+      "ref": "param:pipe_ring_decay:max",
+      "rms_db": -17.7,
+      "seconds": 1.5,
+      "set": "param:pipe_ring_decay",
+      "source": "pipe_ring_decay = 0.999"
+    },
+    {
+      "file": "params/link_count/min.opus",
+      "gain_db": -2.5,
+      "peak_db": -9.2,
+      "ref": "param:link_count:min",
+      "rms_db": -17.5,
+      "seconds": 3.0,
+      "set": "param:link_count",
+      "source": "link_count = 3"
+    },
+    {
+      "file": "params/link_count/mid.opus",
+      "gain_db": -2.5,
+      "peak_db": -9.3,
+      "ref": "param:link_count:mid",
+      "rms_db": -17.7,
+      "seconds": 3.0,
+      "set": "param:link_count",
+      "source": "link_count = 9"
+    },
+    {
+      "file": "params/link_count/max.opus",
+      "gain_db": -2.5,
+      "peak_db": -9.2,
+      "ref": "param:link_count:max",
+      "rms_db": -17.5,
+      "seconds": 3.0,
+      "set": "param:link_count",
+      "source": "link_count = 15"
+    },
+    {
+      "file": "params/chain_mass/min.opus",
+      "gain_db": -2.5,
+      "peak_db": -9.3,
+      "ref": "param:chain_mass:min",
+      "rms_db": -17.7,
+      "seconds": 3.0,
+      "set": "param:chain_mass",
+      "source": "chain_mass = 0.2"
+    },
+    {
+      "file": "params/chain_mass/mid.opus",
+      "gain_db": -2.5,
+      "peak_db": -9.3,
+      "ref": "param:chain_mass:mid",
+      "rms_db": -17.7,
+      "seconds": 3.0,
+      "set": "param:chain_mass",
+      "source": "chain_mass = 0.8"
+    },
+    {
+      "file": "params/chain_mass/max.opus",
+      "gain_db": -2.5,
+      "peak_db": -9.3,
+      "ref": "param:chain_mass:max",
+      "rms_db": -17.7,
+      "seconds": 3.0,
+      "set": "param:chain_mass",
+      "source": "chain_mass = 1.4"
+    },
+    {
+      "file": "params/drop_envelope_spread/min.opus",
+      "gain_db": -2.5,
+      "peak_db": -9.4,
+      "ref": "param:drop_envelope_spread:min",
+      "rms_db": -17.6,
+      "seconds": 2.8,
+      "set": "param:drop_envelope_spread",
+      "source": "drop_envelope_spread = 40"
+    },
+    {
+      "file": "params/drop_envelope_spread/mid.opus",
+      "gain_db": -2.5,
+      "peak_db": -9.3,
+      "ref": "param:drop_envelope_spread:mid",
+      "rms_db": -17.7,
+      "seconds": 3.0,
+      "set": "param:drop_envelope_spread",
+      "source": "drop_envelope_spread = 220"
+    },
+    {
+      "file": "params/drop_envelope_spread/max.opus",
+      "gain_db": -2.5,
+      "peak_db": -9.7,
+      "ref": "param:drop_envelope_spread:max",
+      "rms_db": -17.4,
+      "seconds": 3.1,
+      "set": "param:drop_envelope_spread",
+      "source": "drop_envelope_spread = 400"
+    },
+    {
+      "file": "params/internal_rattle/min.opus",
+      "gain_db": -2.8,
+      "peak_db": -50.4,
+      "quiet": "With no rattle, Metal Chain's drop is almost silent (−62 dBFS); in docs/BACKLOG.md.",
+      "ref": "param:internal_rattle:min",
+      "rms_db": -65.2,
+      "seconds": 2.2,
+      "set": "param:internal_rattle",
+      "source": "internal_rattle = 0"
+    },
+    {
+      "file": "params/internal_rattle/mid.opus",
+      "gain_db": -2.8,
+      "peak_db": -9.3,
+      "ref": "param:internal_rattle:mid",
+      "rms_db": -17.7,
+      "seconds": 3.0,
+      "set": "param:internal_rattle",
+      "source": "internal_rattle = 0.5"
+    },
+    {
+      "file": "params/internal_rattle/max.opus",
+      "gain_db": -2.8,
+      "peak_db": -8.9,
+      "ref": "param:internal_rattle:max",
+      "rms_db": -18.4,
+      "seconds": 3.0,
+      "set": "param:internal_rattle",
+      "source": "internal_rattle = 1"
+    },
+    {
+      "file": "params/rattle_color/min.opus",
+      "gain_db": -2.0,
+      "peak_db": -7.6,
+      "ref": "param:rattle_color:min",
+      "rms_db": -15.8,
+      "seconds": 3.1,
+      "set": "param:rattle_color",
+      "source": "rattle_color = 0"
+    },
+    {
+      "file": "params/rattle_color/mid.opus",
+      "gain_db": -2.0,
+      "peak_db": -9.7,
+      "ref": "param:rattle_color:mid",
+      "rms_db": -17.7,
+      "seconds": 2.9,
+      "set": "param:rattle_color",
+      "source": "rattle_color = 0.5"
+    },
+    {
+      "file": "params/rattle_color/max.opus",
+      "gain_db": -2.0,
+      "peak_db": -10.3,
+      "ref": "param:rattle_color:max",
+      "rms_db": -19.0,
+      "seconds": 2.7,
+      "set": "param:rattle_color",
+      "source": "rattle_color = 1"
+    },
+    {
+      "file": "params/bow_pressure/min.opus",
+      "gain_db": 1.5,
+      "peak_db": -7.8,
+      "ref": "param:bow_pressure:min",
+      "rms_db": -28.3,
+      "seconds": 3.7,
+      "set": "param:bow_pressure",
+      "source": "bow_pressure = 0.2"
+    },
+    {
+      "file": "params/bow_pressure/mid.opus",
+      "gain_db": 1.5,
+      "peak_db": -6.9,
+      "ref": "param:bow_pressure:mid",
+      "rms_db": -17.7,
+      "seconds": 4.0,
+      "set": "param:bow_pressure",
+      "source": "bow_pressure = 1.1"
+    },
+    {
+      "file": "params/bow_pressure/max.opus",
+      "gain_db": 1.5,
+      "peak_db": -5.8,
+      "ref": "param:bow_pressure:max",
+      "rms_db": -15.8,
+      "seconds": 4.0,
+      "set": "param:bow_pressure",
+      "source": "bow_pressure = 2"
+    },
+    {
+      "file": "params/bow_speed/min.opus",
+      "gain_db": 1.5,
+      "peak_db": -3.5,
+      "ref": "param:bow_speed:min",
+      "rms_db": -7.8,
+      "seconds": 4.0,
+      "set": "param:bow_speed",
+      "source": "bow_speed = 0.1"
+    },
+    {
+      "file": "params/bow_speed/mid.opus",
+      "gain_db": 1.5,
+      "peak_db": -6.9,
+      "ref": "param:bow_speed:mid",
+      "rms_db": -17.7,
+      "seconds": 4.0,
+      "set": "param:bow_speed",
+      "source": "bow_speed = 1.05"
+    },
+    {
+      "file": "params/bow_speed/max.opus",
+      "gain_db": 1.5,
+      "peak_db": -6.9,
+      "ref": "param:bow_speed:max",
+      "rms_db": -17.7,
+      "seconds": 4.0,
+      "set": "param:bow_speed",
+      "source": "bow_speed = 2"
+    },
+    {
+      "file": "params/rosin_grip/min.opus",
+      "gain_db": 1.1,
+      "peak_db": -7.5,
+      "ref": "param:rosin_grip:min",
+      "rms_db": -18.8,
+      "seconds": 4.0,
+      "set": "param:rosin_grip",
+      "source": "rosin_grip = 0.05"
+    },
+    {
+      "file": "params/rosin_grip/mid.opus",
+      "gain_db": 1.1,
+      "peak_db": -7.2,
+      "ref": "param:rosin_grip:mid",
+      "rms_db": -17.7,
+      "seconds": 4.0,
+      "set": "param:rosin_grip",
+      "source": "rosin_grip = 0.775"
+    },
+    {
+      "file": "params/rosin_grip/max.opus",
+      "gain_db": 1.1,
+      "peak_db": -6.9,
+      "ref": "param:rosin_grip:max",
+      "rms_db": -16.9,
+      "seconds": 4.0,
+      "set": "param:rosin_grip",
+      "source": "rosin_grip = 1.5"
+    },
+    {
+      "file": "params/slip_curve/min.opus",
+      "gain_db": 1.5,
+      "peak_db": -6.9,
+      "ref": "param:slip_curve:min",
+      "rms_db": -17.7,
+      "seconds": 4.0,
+      "set": "param:slip_curve",
+      "source": "slip_curve = 0.05"
+    },
+    {
+      "file": "params/slip_curve/mid.opus",
+      "gain_db": 1.5,
+      "peak_db": -6.9,
+      "ref": "param:slip_curve:mid",
+      "rms_db": -17.7,
+      "seconds": 4.0,
+      "set": "param:slip_curve",
+      "source": "slip_curve = 0.775"
+    },
+    {
+      "file": "params/slip_curve/max.opus",
+      "gain_db": 1.5,
+      "peak_db": -6.9,
+      "ref": "param:slip_curve:max",
+      "rms_db": -17.7,
+      "seconds": 4.0,
+      "set": "param:slip_curve",
+      "source": "slip_curve = 1.5"
+    },
+    {
+      "file": "params/scrape_speed/min.opus",
+      "gain_db": -1.1,
+      "peak_db": -9.0,
+      "ref": "param:scrape_speed:min",
+      "rms_db": -19.1,
+      "seconds": 4.0,
+      "set": "param:scrape_speed",
+      "source": "scrape_speed = 0.1"
+    },
+    {
+      "file": "params/scrape_speed/mid.opus",
+      "gain_db": -1.1,
+      "peak_db": -8.3,
+      "ref": "param:scrape_speed:mid",
+      "rms_db": -17.7,
+      "seconds": 4.0,
+      "set": "param:scrape_speed",
+      "source": "scrape_speed = 1.3"
+    },
+    {
+      "file": "params/scrape_speed/max.opus",
+      "gain_db": -1.1,
+      "peak_db": -8.6,
+      "ref": "param:scrape_speed:max",
+      "rms_db": -18.8,
+      "seconds": 4.0,
+      "set": "param:scrape_speed",
+      "source": "scrape_speed = 2.5"
+    },
+    {
+      "file": "params/point_pressure/min.opus",
+      "gain_db": -0.2,
+      "peak_db": -8.2,
+      "ref": "param:point_pressure:min",
+      "rms_db": -18.3,
+      "seconds": 4.0,
+      "set": "param:point_pressure",
+      "source": "point_pressure = 0.1"
+    },
+    {
+      "file": "params/point_pressure/mid.opus",
+      "gain_db": -0.2,
+      "peak_db": -7.5,
+      "ref": "param:point_pressure:mid",
+      "rms_db": -17.7,
+      "seconds": 4.0,
+      "set": "param:point_pressure",
+      "source": "point_pressure = 0.8"
+    },
+    {
+      "file": "params/point_pressure/max.opus",
+      "gain_db": -0.2,
+      "peak_db": -7.3,
+      "ref": "param:point_pressure:max",
+      "rms_db": -15.8,
+      "seconds": 4.0,
+      "set": "param:point_pressure",
+      "source": "point_pressure = 1.5"
+    },
+    {
+      "file": "params/chatter_pitch/min.opus",
+      "gain_db": -0.2,
+      "peak_db": -7.5,
+      "ref": "param:chatter_pitch:min",
+      "rms_db": -17.7,
+      "seconds": 4.0,
+      "set": "param:chatter_pitch",
+      "source": "chatter_pitch = 0.1"
+    },
+    {
+      "file": "params/chatter_pitch/mid.opus",
+      "gain_db": -0.2,
+      "peak_db": -7.5,
+      "ref": "param:chatter_pitch:mid",
+      "rms_db": -17.7,
+      "seconds": 4.0,
+      "set": "param:chatter_pitch",
+      "source": "chatter_pitch = 0.8"
+    },
+    {
+      "file": "params/chatter_pitch/max.opus",
+      "gain_db": -0.2,
+      "peak_db": -7.5,
+      "ref": "param:chatter_pitch:max",
+      "rms_db": -17.7,
+      "seconds": 4.0,
+      "set": "param:chatter_pitch",
+      "source": "chatter_pitch = 1.5"
+    },
+    {
+      "file": "params/chatter_damping/min.opus",
+      "gain_db": -0.2,
+      "peak_db": -7.5,
+      "ref": "param:chatter_damping:min",
+      "rms_db": -17.7,
+      "seconds": 4.0,
+      "set": "param:chatter_damping",
+      "source": "chatter_damping = 0.1"
+    },
+    {
+      "file": "params/chatter_damping/mid.opus",
+      "gain_db": -0.2,
+      "peak_db": -7.5,
+      "ref": "param:chatter_damping:mid",
+      "rms_db": -17.7,
+      "seconds": 4.0,
+      "set": "param:chatter_damping",
+      "source": "chatter_damping = 0.5"
+    },
+    {
+      "file": "params/chatter_damping/max.opus",
+      "gain_db": -0.2,
+      "peak_db": -7.5,
+      "ref": "param:chatter_damping:max",
+      "rms_db": -17.7,
+      "seconds": 4.0,
+      "set": "param:chatter_damping",
+      "source": "chatter_damping = 0.9"
+    },
+    {
+      "file": "params/grind_speed/min.opus",
+      "gain_db": -6.5,
+      "peak_db": -31.9,
+      "ref": "param:grind_speed:min",
+      "rms_db": -45.2,
+      "seconds": 3.1,
+      "set": "param:grind_speed",
+      "source": "grind_speed = 0.1"
+    },
+    {
+      "file": "params/grind_speed/mid.opus",
+      "gain_db": -6.5,
+      "peak_db": -12.7,
+      "ref": "param:grind_speed:mid",
+      "rms_db": -17.7,
+      "seconds": 4.0,
+      "set": "param:grind_speed",
+      "source": "grind_speed = 1.3"
+    },
+    {
+      "file": "params/grind_speed/max.opus",
+      "gain_db": -6.5,
+      "peak_db": -11.3,
+      "ref": "param:grind_speed:max",
+      "rms_db": -16.2,
+      "seconds": 4.0,
+      "set": "param:grind_speed",
+      "source": "grind_speed = 2.5"
+    },
+    {
+      "file": "params/grind_pressure/min.opus",
+      "gain_db": -5.2,
+      "peak_db": -13.5,
+      "ref": "param:grind_pressure:min",
+      "rms_db": -17.8,
+      "seconds": 4.0,
+      "set": "param:grind_pressure",
+      "source": "grind_pressure = 0.1"
+    },
+    {
+      "file": "params/grind_pressure/mid.opus",
+      "gain_db": -5.2,
+      "peak_db": -13.5,
+      "ref": "param:grind_pressure:mid",
+      "rms_db": -17.7,
+      "seconds": 4.0,
+      "set": "param:grind_pressure",
+      "source": "grind_pressure = 1"
+    },
+    {
+      "file": "params/grind_pressure/max.opus",
+      "gain_db": -5.2,
+      "peak_db": -13.5,
+      "ref": "param:grind_pressure:max",
+      "rms_db": -17.7,
+      "seconds": 4.0,
+      "set": "param:grind_pressure",
+      "source": "grind_pressure = 1.9"
+    },
+    {
+      "file": "params/surface_grit/min.opus",
+      "gain_db": -5.9,
+      "peak_db": -15.2,
+      "ref": "param:surface_grit:min",
+      "rms_db": -35.5,
+      "seconds": 3.7,
+      "set": "param:surface_grit",
+      "source": "surface_grit = 0"
+    },
+    {
+      "file": "params/surface_grit/mid.opus",
+      "gain_db": -5.9,
+      "peak_db": -13.1,
+      "ref": "param:surface_grit:mid",
+      "rms_db": -17.7,
+      "seconds": 4.0,
+      "set": "param:surface_grit",
+      "source": "surface_grit = 0.5"
+    },
+    {
+      "file": "params/surface_grit/max.opus",
+      "gain_db": -5.9,
+      "peak_db": -11.4,
+      "ref": "param:surface_grit:max",
+      "rms_db": -16.7,
+      "seconds": 4.0,
+      "set": "param:surface_grit",
+      "source": "surface_grit = 1"
+    },
+    {
+      "file": "params/grit_color/min.opus",
+      "gain_db": -5.3,
+      "peak_db": -14.3,
+      "ref": "param:grit_color:min",
+      "rms_db": -21.1,
+      "seconds": 3.9,
+      "set": "param:grit_color",
+      "source": "grit_color = 0"
+    },
+    {
+      "file": "params/grit_color/mid.opus",
+      "gain_db": -5.3,
+      "peak_db": -13.6,
+      "ref": "param:grit_color:mid",
+      "rms_db": -17.7,
+      "seconds": 4.0,
+      "set": "param:grit_color",
+      "source": "grit_color = 0.5"
+    },
+    {
+      "file": "params/grit_color/max.opus",
+      "gain_db": -5.3,
+      "peak_db": -13.5,
+      "ref": "param:grit_color:max",
+      "rms_db": -17.6,
+      "seconds": 4.0,
+      "set": "param:grit_color",
+      "source": "grit_color = 1"
+    },
+    {
+      "file": "params/drag_speed/min.opus",
+      "gain_db": -0.6,
+      "peak_db": -9.4,
+      "ref": "param:drag_speed:min",
+      "rms_db": -13.7,
+      "seconds": 4.0,
+      "set": "param:drag_speed",
+      "source": "drag_speed = 0.1"
+    },
+    {
+      "file": "params/drag_speed/mid.opus",
+      "gain_db": -0.6,
+      "peak_db": -7.5,
+      "ref": "param:drag_speed:mid",
+      "rms_db": -17.7,
+      "seconds": 4.0,
+      "set": "param:drag_speed",
+      "source": "drag_speed = 1.3"
+    },
+    {
+      "file": "params/drag_speed/max.opus",
+      "gain_db": -0.6,
+      "peak_db": -6.2,
+      "ref": "param:drag_speed:max",
+      "rms_db": -10.3,
+      "seconds": 4.0,
+      "set": "param:drag_speed",
+      "source": "drag_speed = 2.5"
+    },
+    {
+      "file": "params/ridge_spacing/min.opus",
+      "gain_db": 0.8,
+      "peak_db": -7.4,
+      "ref": "param:ridge_spacing:min",
+      "rms_db": -17.7,
+      "seconds": 4.0,
+      "set": "param:ridge_spacing",
+      "source": "ridge_spacing = 0.01"
+    },
+    {
+      "file": "params/ridge_spacing/mid.opus",
+      "gain_db": 0.8,
+      "peak_db": -7.3,
+      "ref": "param:ridge_spacing:mid",
+      "rms_db": -17.7,
+      "seconds": 4.0,
+      "set": "param:ridge_spacing",
+      "source": "ridge_spacing = 0.105"
+    },
+    {
+      "file": "params/ridge_spacing/max.opus",
+      "gain_db": 0.8,
+      "peak_db": -7.1,
+      "ref": "param:ridge_spacing:max",
+      "rms_db": -17.7,
+      "seconds": 4.0,
+      "set": "param:ridge_spacing",
+      "source": "ridge_spacing = 0.2"
+    },
+    {
+      "file": "params/ridge_depth/min.opus",
+      "gain_db": -0.3,
+      "peak_db": -9.0,
+      "ref": "param:ridge_depth:min",
+      "rms_db": -22.4,
+      "seconds": 4.0,
+      "set": "param:ridge_depth",
+      "source": "ridge_depth = 0"
+    },
+    {
+      "file": "params/ridge_depth/mid.opus",
+      "gain_db": -0.3,
+      "peak_db": -6.6,
+      "ref": "param:ridge_depth:mid",
+      "rms_db": -17.7,
+      "seconds": 4.0,
+      "set": "param:ridge_depth",
+      "source": "ridge_depth = 1"
+    },
+    {
+      "file": "params/ridge_depth/max.opus",
+      "gain_db": -0.3,
+      "peak_db": -5.0,
+      "ref": "param:ridge_depth:max",
+      "rms_db": -10.5,
+      "seconds": 4.0,
+      "set": "param:ridge_depth",
+      "source": "ridge_depth = 2"
+    },
+    {
+      "file": "params/drag_exciter_mass/min.opus",
+      "gain_db": 0.7,
+      "peak_db": -8.0,
+      "ref": "param:drag_exciter_mass:min",
+      "rms_db": -20.3,
+      "seconds": 4.0,
+      "set": "param:drag_exciter_mass",
+      "source": "drag_exciter_mass = 0.2"
+    },
+    {
+      "file": "params/drag_exciter_mass/mid.opus",
+      "gain_db": 0.7,
+      "peak_db": -7.1,
+      "ref": "param:drag_exciter_mass:mid",
+      "rms_db": -17.7,
+      "seconds": 4.0,
+      "set": "param:drag_exciter_mass",
+      "source": "drag_exciter_mass = 1.1"
+    },
+    {
+      "file": "params/drag_exciter_mass/max.opus",
+      "gain_db": 0.7,
+      "peak_db": -5.2,
+      "ref": "param:drag_exciter_mass:max",
+      "rms_db": -16.6,
+      "seconds": 4.0,
+      "set": "param:drag_exciter_mass",
+      "source": "drag_exciter_mass = 2"
+    },
+    {
+      "file": "params/pull_speed/min.opus",
+      "gain_db": -4.5,
+      "peak_db": -13.4,
+      "ref": "param:pull_speed:min",
+      "rms_db": -19.8,
+      "seconds": 4.0,
+      "set": "param:pull_speed",
+      "source": "pull_speed = 0.05"
+    },
+    {
+      "file": "params/pull_speed/mid.opus",
+      "gain_db": -4.5,
+      "peak_db": -12.2,
+      "ref": "param:pull_speed:mid",
+      "rms_db": -17.7,
+      "seconds": 4.0,
+      "set": "param:pull_speed",
+      "source": "pull_speed = 0.8"
+    },
+    {
+      "file": "params/pull_speed/max.opus",
+      "gain_db": -4.5,
+      "peak_db": -11.6,
+      "ref": "param:pull_speed:max",
+      "rms_db": -16.3,
+      "seconds": 4.0,
+      "set": "param:pull_speed",
+      "source": "pull_speed = 1.55"
+    },
+    {
+      "file": "params/break_threshold/min.opus",
+      "gain_db": -4.5,
+      "peak_db": -13.2,
+      "ref": "param:break_threshold:min",
+      "rms_db": -17.6,
+      "seconds": 4.0,
+      "set": "param:break_threshold",
+      "source": "break_threshold = 0.1"
+    },
+    {
+      "file": "params/break_threshold/mid.opus",
+      "gain_db": -4.5,
+      "peak_db": -12.2,
+      "ref": "param:break_threshold:mid",
+      "rms_db": -17.7,
+      "seconds": 4.0,
+      "set": "param:break_threshold",
+      "source": "break_threshold = 0.85"
+    },
+    {
+      "file": "params/break_threshold/max.opus",
+      "gain_db": -4.5,
+      "peak_db": -10.8,
+      "ref": "param:break_threshold:max",
+      "rms_db": -15.7,
+      "seconds": 4.0,
+      "set": "param:break_threshold",
+      "source": "break_threshold = 1.6"
+    },
+    {
+      "file": "params/slip_stochasticity/min.opus",
+      "gain_db": -5.8,
+      "peak_db": -14.3,
+      "ref": "param:slip_stochasticity:min",
+      "rms_db": -19.7,
+      "seconds": 4.0,
+      "set": "param:slip_stochasticity",
+      "source": "slip_stochasticity = 0"
+    },
+    {
+      "file": "params/slip_stochasticity/mid.opus",
+      "gain_db": -5.8,
+      "peak_db": -13.2,
+      "ref": "param:slip_stochasticity:mid",
+      "rms_db": -17.7,
+      "seconds": 4.0,
+      "set": "param:slip_stochasticity",
+      "source": "slip_stochasticity = 0.5"
+    },
+    {
+      "file": "params/slip_stochasticity/max.opus",
+      "gain_db": -5.8,
+      "peak_db": -12.4,
+      "ref": "param:slip_stochasticity:max",
+      "rms_db": -18.2,
+      "seconds": 4.0,
+      "set": "param:slip_stochasticity",
+      "source": "slip_stochasticity = 1"
+    },
+    {
+      "file": "params/creak_sharpness/min.opus",
+      "gain_db": -5.1,
+      "peak_db": -14.0,
+      "ref": "param:creak_sharpness:min",
+      "rms_db": -20.9,
+      "seconds": 4.0,
+      "set": "param:creak_sharpness",
+      "source": "creak_sharpness = 0.2"
+    },
+    {
+      "file": "params/creak_sharpness/mid.opus",
+      "gain_db": -5.1,
+      "peak_db": -11.8,
+      "ref": "param:creak_sharpness:mid",
+      "rms_db": -17.7,
+      "seconds": 4.0,
+      "set": "param:creak_sharpness",
+      "source": "creak_sharpness = 0.8"
+    },
+    {
+      "file": "params/creak_sharpness/max.opus",
+      "gain_db": -5.1,
+      "peak_db": -10.4,
+      "ref": "param:creak_sharpness:max",
+      "rms_db": -17.1,
+      "seconds": 4.0,
+      "set": "param:creak_sharpness",
+      "source": "creak_sharpness = 1.4"
+    },
+    {
+      "file": "params/air_pressure/min.opus",
+      "gain_db": -6.0,
+      "peak_db": -49.6,
+      "quiet": "With no air pressure, Pneumatic Jet barely moves the object.",
+      "ref": "param:air_pressure:min",
+      "rms_db": -59.1,
+      "seconds": 2.4,
+      "set": "param:air_pressure",
+      "source": "air_pressure = 0.1"
+    },
+    {
+      "file": "params/air_pressure/mid.opus",
+      "gain_db": -6.0,
+      "peak_db": -13.1,
+      "ref": "param:air_pressure:mid",
+      "rms_db": -17.7,
+      "seconds": 4.0,
+      "set": "param:air_pressure",
+      "source": "air_pressure = 1.1"
+    },
+    {
+      "file": "params/air_pressure/max.opus",
+      "gain_db": -6.0,
+      "peak_db": -11.6,
+      "ref": "param:air_pressure:max",
+      "rms_db": -16.5,
+      "seconds": 4.0,
+      "set": "param:air_pressure",
+      "source": "air_pressure = 2.1"
+    },
+    {
+      "file": "params/nozzle_width/min.opus",
+      "gain_db": -6.0,
+      "peak_db": -15.1,
+      "ref": "param:nozzle_width:min",
+      "rms_db": -22.4,
+      "seconds": 4.0,
+      "set": "param:nozzle_width",
+      "source": "nozzle_width = 0.1"
+    },
+    {
+      "file": "params/nozzle_width/mid.opus",
+      "gain_db": -6.0,
+      "peak_db": -13.1,
+      "ref": "param:nozzle_width:mid",
+      "rms_db": -17.7,
+      "seconds": 4.0,
+      "set": "param:nozzle_width",
+      "source": "nozzle_width = 0.85"
+    },
+    {
+      "file": "params/nozzle_width/max.opus",
+      "gain_db": -6.0,
+      "peak_db": -11.6,
+      "ref": "param:nozzle_width:max",
+      "rms_db": -16.5,
+      "seconds": 4.0,
+      "set": "param:nozzle_width",
+      "source": "nozzle_width = 1.6"
+    },
+    {
+      "file": "params/turbulence_chaos/min.opus",
+      "gain_db": -4.7,
+      "peak_db": -10.2,
+      "ref": "param:turbulence_chaos:min",
+      "rms_db": -15.1,
+      "seconds": 4.0,
+      "set": "param:turbulence_chaos",
+      "source": "turbulence_chaos = 0"
+    },
+    {
+      "file": "params/turbulence_chaos/mid.opus",
+      "gain_db": -4.7,
+      "peak_db": -13.5,
+      "ref": "param:turbulence_chaos:mid",
+      "rms_db": -17.7,
+      "seconds": 4.0,
+      "set": "param:turbulence_chaos",
+      "source": "turbulence_chaos = 1"
+    },
+    {
+      "file": "params/turbulence_chaos/max.opus",
+      "gain_db": -4.7,
+      "peak_db": -14.1,
+      "ref": "param:turbulence_chaos:max",
+      "rms_db": -24.3,
+      "seconds": 3.8,
+      "set": "param:turbulence_chaos",
+      "source": "turbulence_chaos = 2"
+    },
+    {
+      "file": "params/mains_frequency/min.opus",
+      "gain_db": -6.9,
+      "peak_db": -14.6,
+      "ref": "param:mains_frequency:min",
+      "rms_db": -19.1,
+      "seconds": 4.0,
+      "set": "param:mains_frequency",
+      "source": "mains_frequency = 40"
+    },
+    {
+      "file": "params/mains_frequency/mid.opus",
+      "gain_db": -6.9,
+      "peak_db": -13.5,
+      "ref": "param:mains_frequency:mid",
+      "rms_db": -17.7,
+      "seconds": 4.0,
+      "set": "param:mains_frequency",
+      "source": "mains_frequency = 80"
+    },
+    {
+      "file": "params/mains_frequency/max.opus",
+      "gain_db": -6.9,
+      "peak_db": -14.9,
+      "ref": "param:mains_frequency:max",
+      "rms_db": -19.1,
+      "seconds": 4.0,
+      "set": "param:mains_frequency",
+      "source": "mains_frequency = 120"
+    },
+    {
+      "file": "params/coil_proximity/min.opus",
+      "gain_db": -6.9,
+      "peak_db": -200.0,
+      "quiet": "With the coil at its farthest, the hum doesn't reach the object.",
+      "ref": "param:coil_proximity:min",
+      "rms_db": -200.0,
+      "seconds": 0.1,
+      "set": "param:coil_proximity",
+      "source": "coil_proximity = 0"
+    },
+    {
+      "file": "params/coil_proximity/mid.opus",
+      "gain_db": -6.9,
+      "peak_db": -13.5,
+      "ref": "param:coil_proximity:mid",
+      "rms_db": -17.7,
+      "seconds": 4.0,
+      "set": "param:coil_proximity",
+      "source": "coil_proximity = 1"
+    },
+    {
+      "file": "params/coil_proximity/max.opus",
+      "gain_db": -6.9,
+      "peak_db": -11.7,
+      "ref": "param:coil_proximity:max",
+      "rms_db": -16.0,
+      "seconds": 4.0,
+      "set": "param:coil_proximity",
+      "source": "coil_proximity = 2"
+    },
+    {
+      "file": "params/voltage_sag/min.opus",
+      "gain_db": -7.7,
+      "peak_db": -16.2,
+      "ref": "param:voltage_sag:min",
+      "rms_db": -20.0,
+      "seconds": 3.8,
+      "set": "param:voltage_sag",
+      "source": "voltage_sag = 0"
+    },
+    {
+      "file": "params/voltage_sag/mid.opus",
+      "gain_db": -7.7,
+      "peak_db": -13.2,
+      "ref": "param:voltage_sag:mid",
+      "rms_db": -17.7,
+      "seconds": 4.0,
+      "set": "param:voltage_sag",
+      "source": "voltage_sag = 1"
+    },
+    {
+      "file": "params/voltage_sag/max.opus",
+      "gain_db": -7.7,
+      "peak_db": -12.4,
+      "ref": "param:voltage_sag:max",
+      "rms_db": -16.7,
+      "seconds": 4.0,
+      "set": "param:voltage_sag",
+      "source": "voltage_sag = 2"
+    },
+    {
+      "file": "params/pull_distance/min.opus",
+      "gain_db": -2.1,
+      "peak_db": -19.5,
+      "ref": "param:pull_distance:min",
+      "rms_db": -35.0,
+      "seconds": 2.2,
+      "set": "param:pull_distance",
+      "source": "pull_distance = 0.1"
+    },
+    {
+      "file": "params/pull_distance/mid.opus",
+      "gain_db": -2.1,
+      "peak_db": -9.0,
+      "ref": "param:pull_distance:mid",
+      "rms_db": -17.7,
+      "seconds": 2.6,
+      "set": "param:pull_distance",
+      "source": "pull_distance = 0.8"
+    },
+    {
+      "file": "params/pull_distance/max.opus",
+      "gain_db": -2.1,
+      "peak_db": -9.0,
+      "ref": "param:pull_distance:max",
+      "rms_db": -17.7,
+      "seconds": 2.6,
+      "set": "param:pull_distance",
+      "source": "pull_distance = 1.5"
+    },
+    {
+      "file": "params/hook_stiffness/min.opus",
+      "gain_db": -2.1,
+      "peak_db": -10.0,
+      "ref": "param:hook_stiffness:min",
+      "rms_db": -19.7,
+      "seconds": 2.3,
+      "set": "param:hook_stiffness",
+      "source": "hook_stiffness = 0.2"
+    },
+    {
+      "file": "params/hook_stiffness/mid.opus",
+      "gain_db": -2.1,
+      "peak_db": -9.0,
+      "ref": "param:hook_stiffness:mid",
+      "rms_db": -17.7,
+      "seconds": 2.6,
+      "set": "param:hook_stiffness",
+      "source": "hook_stiffness = 1.2"
+    },
+    {
+      "file": "params/hook_stiffness/max.opus",
+      "gain_db": -2.1,
+      "peak_db": -10.1,
+      "ref": "param:hook_stiffness:max",
+      "rms_db": -18.9,
+      "seconds": 2.4,
+      "set": "param:hook_stiffness",
+      "source": "hook_stiffness = 2.2"
+    },
+    {
+      "file": "params/snap_force/min.opus",
+      "gain_db": -3.1,
+      "peak_db": -25.5,
+      "ref": "param:snap_force:min",
+      "rms_db": -40.8,
+      "seconds": 2.2,
+      "set": "param:snap_force",
+      "source": "snap_force = 0.1"
+    },
+    {
+      "file": "params/snap_force/mid.opus",
+      "gain_db": -3.1,
+      "peak_db": -8.5,
+      "ref": "param:snap_force:mid",
+      "rms_db": -17.7,
+      "seconds": 2.8,
+      "set": "param:snap_force",
+      "source": "snap_force = 1.05"
+    },
+    {
+      "file": "params/snap_force/max.opus",
+      "gain_db": -3.1,
+      "peak_db": -8.5,
+      "ref": "param:snap_force:max",
+      "rms_db": -17.7,
+      "seconds": 2.8,
+      "set": "param:snap_force",
+      "source": "snap_force = 2"
+    },
+    {
+      "file": "params/flow_rate/min.opus",
+      "gain_db": -5.3,
+      "peak_db": -14.4,
+      "ref": "param:flow_rate:min",
+      "rms_db": -21.1,
+      "seconds": 4.0,
+      "set": "param:flow_rate",
+      "source": "flow_rate = 0.1"
+    },
+    {
+      "file": "params/flow_rate/mid.opus",
+      "gain_db": -5.3,
+      "peak_db": -13.6,
+      "ref": "param:flow_rate:mid",
+      "rms_db": -17.7,
+      "seconds": 4.0,
+      "set": "param:flow_rate",
+      "source": "flow_rate = 1.6"
+    },
+    {
+      "file": "params/flow_rate/max.opus",
+      "gain_db": -5.3,
+      "peak_db": -12.7,
+      "ref": "param:flow_rate:max",
+      "rms_db": -17.1,
+      "seconds": 4.0,
+      "set": "param:flow_rate",
+      "source": "flow_rate = 3.1"
+    },
+    {
+      "file": "params/particle_mass/min.opus",
+      "gain_db": -5.3,
+      "peak_db": -17.1,
+      "ref": "param:particle_mass:min",
+      "rms_db": -27.1,
+      "seconds": 3.7,
+      "set": "param:particle_mass",
+      "source": "particle_mass = 0.05"
+    },
+    {
+      "file": "params/particle_mass/mid.opus",
+      "gain_db": -5.3,
+      "peak_db": -13.6,
+      "ref": "param:particle_mass:mid",
+      "rms_db": -17.7,
+      "seconds": 4.0,
+      "set": "param:particle_mass",
+      "source": "particle_mass = 0.525"
+    },
+    {
+      "file": "params/particle_mass/max.opus",
+      "gain_db": -5.3,
+      "peak_db": -12.1,
+      "ref": "param:particle_mass:max",
+      "rms_db": -16.8,
+      "seconds": 4.0,
+      "set": "param:particle_mass",
+      "source": "particle_mass = 1"
+    },
+    {
+      "file": "params/mass_variance/min.opus",
+      "gain_db": -5.9,
+      "peak_db": -14.7,
+      "ref": "param:mass_variance:min",
+      "rms_db": -29.6,
+      "seconds": 4.0,
+      "set": "param:mass_variance",
+      "source": "mass_variance = 0"
+    },
+    {
+      "file": "params/mass_variance/mid.opus",
+      "gain_db": -5.9,
+      "peak_db": -12.9,
+      "ref": "param:mass_variance:mid",
+      "rms_db": -17.7,
+      "seconds": 4.0,
+      "set": "param:mass_variance",
+      "source": "mass_variance = 1"
+    },
+    {
+      "file": "params/mass_variance/max.opus",
+      "gain_db": -5.9,
+      "peak_db": -11.5,
+      "ref": "param:mass_variance:max",
+      "rms_db": -17.0,
+      "seconds": 4.0,
+      "set": "param:mass_variance",
+      "source": "mass_variance = 2"
+    },
+    {
+      "file": "params/strike_position/min.opus",
+      "gain_db": -2.3,
+      "peak_db": -11.2,
+      "ref": "param:strike_position:min",
+      "rms_db": -20.4,
+      "seconds": 2.2,
+      "set": "param:strike_position",
+      "source": "strike_position = 0"
+    },
+    {
+      "file": "params/strike_position/mid.opus",
+      "gain_db": -2.3,
+      "peak_db": -10.0,
+      "ref": "param:strike_position:mid",
+      "rms_db": -17.7,
+      "seconds": 2.7,
+      "set": "param:strike_position",
+      "source": "strike_position = 0.5"
+    },
+    {
+      "file": "params/strike_position/max.opus",
+      "gain_db": -2.3,
+      "peak_db": -11.2,
+      "ref": "param:strike_position:max",
+      "rms_db": -20.4,
+      "seconds": 2.2,
+      "set": "param:strike_position",
+      "source": "strike_position = 1"
+    },
+    {
+      "file": "params/coupling_stiffness/min.opus",
+      "gain_db": -2.3,
+      "peak_db": -9.3,
+      "ref": "param:coupling_stiffness:min",
+      "rms_db": -17.8,
+      "seconds": 2.8,
+      "set": "param:coupling_stiffness",
+      "source": "coupling_stiffness = 0"
+    },
+    {
+      "file": "params/coupling_stiffness/mid.opus",
+      "gain_db": -2.3,
+      "peak_db": -9.6,
+      "ref": "param:coupling_stiffness:mid",
+      "rms_db": -17.7,
+      "seconds": 2.7,
+      "set": "param:coupling_stiffness",
+      "source": "coupling_stiffness = 0.5"
+    },
+    {
+      "file": "params/coupling_stiffness/max.opus",
+      "gain_db": -2.3,
+      "peak_db": -9.9,
+      "ref": "param:coupling_stiffness:max",
+      "rms_db": -17.6,
+      "seconds": 2.7,
+      "set": "param:coupling_stiffness",
+      "source": "coupling_stiffness = 1"
+    },
+    {
+      "file": "params/position_wander/min.opus",
+      "gain_db": -1.5,
+      "peak_db": -9.2,
+      "ref": "param:position_wander:min",
+      "rms_db": -17.7,
+      "seconds": 3.2,
+      "set": "param:position_wander",
+      "source": "position_wander = 0"
+    },
+    {
+      "file": "params/position_wander/mid.opus",
+      "gain_db": -1.5,
+      "peak_db": -9.1,
+      "ref": "param:position_wander:mid",
+      "rms_db": -17.7,
+      "seconds": 3.2,
+      "set": "param:position_wander",
+      "source": "position_wander = 0.5"
+    },
+    {
+      "file": "params/position_wander/max.opus",
+      "gain_db": -1.5,
+      "peak_db": -9.1,
+      "ref": "param:position_wander:max",
+      "rms_db": -17.7,
+      "seconds": 3.2,
+      "set": "param:position_wander",
+      "source": "position_wander = 1"
+    },
+    {
+      "file": "params/position_wander_rate/min.opus",
+      "gain_db": -1.5,
+      "peak_db": -9.2,
+      "ref": "param:position_wander_rate:min",
+      "rms_db": -17.7,
+      "seconds": 3.2,
+      "set": "param:position_wander_rate",
+      "source": "position_wander_rate = 0.10 Hz"
+    },
+    {
+      "file": "params/position_wander_rate/mid.opus",
+      "gain_db": -1.5,
+      "peak_db": -9.2,
+      "ref": "param:position_wander_rate:mid",
+      "rms_db": -17.7,
+      "seconds": 3.2,
+      "set": "param:position_wander_rate",
+      "source": "position_wander_rate = 0.79 Hz"
+    },
+    {
+      "file": "params/position_wander_rate/max.opus",
+      "gain_db": -1.5,
+      "peak_db": -9.2,
+      "ref": "param:position_wander_rate:max",
+      "rms_db": -17.7,
+      "seconds": 3.2,
+      "set": "param:position_wander_rate",
+      "source": "position_wander_rate = 5.00 Hz"
+    },
+    {
+      "file": "params/position_envelope/min.opus",
+      "gain_db": -2.3,
+      "peak_db": -10.0,
+      "ref": "param:position_envelope:min",
+      "rms_db": -17.7,
+      "seconds": 2.7,
+      "set": "param:position_envelope",
+      "source": "position_envelope = 0"
+    },
+    {
+      "file": "params/position_envelope/mid.opus",
+      "gain_db": -2.3,
+      "peak_db": -10.0,
+      "ref": "param:position_envelope:mid",
+      "rms_db": -17.7,
+      "seconds": 2.7,
+      "set": "param:position_envelope",
+      "source": "position_envelope = 0.5"
+    },
+    {
+      "file": "params/position_envelope/max.opus",
+      "gain_db": -2.3,
+      "peak_db": -10.0,
+      "ref": "param:position_envelope:max",
+      "rms_db": -17.7,
+      "seconds": 2.7,
+      "set": "param:position_envelope",
+      "source": "position_envelope = 1"
+    },
+    {
+      "file": "params/fundamental_anchor/min.opus",
+      "gain_db": -2.3,
+      "peak_db": -10.0,
+      "ref": "param:fundamental_anchor:min",
+      "rms_db": -17.7,
+      "seconds": 2.7,
+      "set": "param:fundamental_anchor",
+      "source": "fundamental_anchor = 0"
+    },
+    {
+      "file": "params/fundamental_anchor/mid.opus",
+      "gain_db": -2.3,
+      "peak_db": -10.0,
+      "ref": "param:fundamental_anchor:mid",
+      "rms_db": -17.7,
+      "seconds": 2.7,
+      "set": "param:fundamental_anchor",
+      "source": "fundamental_anchor = 0.5"
+    },
+    {
+      "file": "params/fundamental_anchor/max.opus",
+      "gain_db": -2.3,
+      "peak_db": -10.0,
+      "ref": "param:fundamental_anchor:max",
+      "rms_db": -17.7,
+      "seconds": 2.7,
+      "set": "param:fundamental_anchor",
+      "source": "fundamental_anchor = 1"
+    },
+    {
+      "file": "params/res_damping/min.opus",
+      "gain_db": -7.5,
+      "peak_db": -14.8,
+      "ref": "param:res_damping:min",
+      "rms_db": -16.8,
+      "seconds": 4.0,
+      "set": "param:res_damping",
+      "source": "res_damping = 0"
+    },
+    {
+      "file": "params/res_damping/mid.opus",
+      "gain_db": -7.5,
+      "peak_db": -14.8,
+      "ref": "param:res_damping:mid",
+      "rms_db": -17.7,
+      "seconds": 4.0,
+      "set": "param:res_damping",
+      "source": "res_damping = 0.5"
+    },
+    {
+      "file": "params/res_damping/max.opus",
+      "gain_db": -7.5,
+      "peak_db": -14.8,
+      "ref": "param:res_damping:max",
+      "rms_db": -21.5,
+      "seconds": 3.9,
+      "set": "param:res_damping",
+      "source": "res_damping = 1"
+    },
+    {
+      "file": "params/res_brightness/min.opus",
+      "gain_db": -2.3,
+      "peak_db": -10.4,
+      "ref": "param:res_brightness:min",
+      "rms_db": -18.2,
+      "seconds": 2.6,
+      "set": "param:res_brightness",
+      "source": "res_brightness = 0"
+    },
+    {
+      "file": "params/res_brightness/mid.opus",
+      "gain_db": -2.3,
+      "peak_db": -10.0,
+      "ref": "param:res_brightness:mid",
+      "rms_db": -17.7,
+      "seconds": 2.7,
+      "set": "param:res_brightness",
+      "source": "res_brightness = 0.5"
+    },
+    {
+      "file": "params/res_brightness/max.opus",
+      "gain_db": -2.3,
+      "peak_db": -9.6,
+      "ref": "param:res_brightness:max",
+      "rms_db": -17.3,
+      "seconds": 2.8,
+      "set": "param:res_brightness",
+      "source": "res_brightness = 1"
+    },
+    {
+      "file": "params/thickness/min.opus",
+      "gain_db": -2.3,
+      "peak_db": -9.9,
+      "ref": "param:thickness:min",
+      "rms_db": -17.8,
+      "seconds": 2.7,
+      "set": "param:thickness",
+      "source": "thickness = 0"
+    },
+    {
+      "file": "params/thickness/mid.opus",
+      "gain_db": -2.3,
+      "peak_db": -10.0,
+      "ref": "param:thickness:mid",
+      "rms_db": -17.7,
+      "seconds": 2.7,
+      "set": "param:thickness",
+      "source": "thickness = 0.5"
+    },
+    {
+      "file": "params/thickness/max.opus",
+      "gain_db": -2.3,
+      "peak_db": -9.9,
+      "ref": "param:thickness:max",
+      "rms_db": -17.9,
+      "seconds": 2.7,
+      "set": "param:thickness",
+      "source": "thickness = 1"
+    },
+    {
+      "file": "params/heat/min.opus",
+      "gain_db": -2.7,
+      "peak_db": -10.4,
+      "ref": "param:heat:min",
+      "rms_db": -18.1,
+      "seconds": 2.7,
+      "set": "param:heat",
+      "source": "heat = 0"
+    },
+    {
+      "file": "params/heat/mid.opus",
+      "gain_db": -2.7,
+      "peak_db": -10.3,
+      "ref": "param:heat:mid",
+      "rms_db": -17.7,
+      "seconds": 2.7,
+      "set": "param:heat",
+      "source": "heat = 0.5"
+    },
+    {
+      "file": "params/heat/max.opus",
+      "gain_db": -2.7,
+      "peak_db": -10.3,
+      "ref": "param:heat:max",
+      "rms_db": -17.4,
+      "seconds": 2.7,
+      "set": "param:heat",
+      "source": "heat = 1"
+    },
+    {
+      "file": "params/sludge/min.opus",
+      "gain_db": -2.6,
+      "peak_db": -10.3,
+      "ref": "param:sludge:min",
+      "rms_db": -18.0,
+      "seconds": 2.7,
+      "set": "param:sludge",
+      "source": "sludge = 0"
+    },
+    {
+      "file": "params/sludge/mid.opus",
+      "gain_db": -2.6,
+      "peak_db": -10.0,
+      "ref": "param:sludge:mid",
+      "rms_db": -17.7,
+      "seconds": 2.0,
+      "set": "param:sludge",
+      "source": "sludge = 0.5"
+    },
+    {
+      "file": "params/sludge/max.opus",
+      "gain_db": -2.6,
+      "peak_db": -9.8,
+      "ref": "param:sludge:max",
+      "rms_db": -17.7,
+      "seconds": 1.4,
+      "set": "param:sludge",
+      "source": "sludge = 1"
+    },
+    {
+      "file": "params/pipe_diameter/min.opus",
+      "gain_db": -7.5,
+      "peak_db": -14.7,
+      "ref": "param:pipe_diameter:min",
+      "rms_db": -17.8,
+      "seconds": 4.0,
+      "set": "param:pipe_diameter",
+      "source": "pipe_diameter = 0"
+    },
+    {
+      "file": "params/pipe_diameter/mid.opus",
+      "gain_db": -7.5,
+      "peak_db": -14.8,
+      "ref": "param:pipe_diameter:mid",
+      "rms_db": -17.7,
+      "seconds": 4.0,
+      "set": "param:pipe_diameter",
+      "source": "pipe_diameter = 0.5"
+    },
+    {
+      "file": "params/pipe_diameter/max.opus",
+      "gain_db": -7.5,
+      "peak_db": -14.9,
+      "ref": "param:pipe_diameter:max",
+      "rms_db": -17.7,
+      "seconds": 4.0,
+      "set": "param:pipe_diameter",
+      "source": "pipe_diameter = 1"
+    },
+    {
+      "file": "params/plate_aspect/min.opus",
+      "gain_db": 4.5,
+      "peak_db": -2.9,
+      "ref": "param:plate_aspect:min",
+      "rms_db": -10.2,
+      "seconds": 2.6,
+      "set": "param:plate_aspect",
+      "source": "plate_aspect = 0.1"
+    },
+    {
+      "file": "params/plate_aspect/mid.opus",
+      "gain_db": 4.5,
+      "peak_db": -3.6,
+      "ref": "param:plate_aspect:mid",
+      "rms_db": -17.7,
+      "seconds": 2.6,
+      "set": "param:plate_aspect",
+      "source": "plate_aspect = 2.05"
+    },
+    {
+      "file": "params/plate_aspect/max.opus",
+      "gain_db": 4.5,
+      "peak_db": -7.0,
+      "ref": "param:plate_aspect:max",
+      "rms_db": -35.5,
+      "seconds": 1.9,
+      "set": "param:plate_aspect",
+      "source": "plate_aspect = 4"
+    },
+    {
+      "file": "params/plate_stiffness/min.opus",
+      "gain_db": -0.1,
+      "peak_db": -7.2,
+      "ref": "param:plate_stiffness:min",
+      "rms_db": -15.0,
+      "seconds": 2.6,
+      "set": "param:plate_stiffness",
+      "source": "plate_stiffness = 0.25"
+    },
+    {
+      "file": "params/plate_stiffness/mid.opus",
+      "gain_db": -0.1,
+      "peak_db": -8.1,
+      "ref": "param:plate_stiffness:mid",
+      "rms_db": -17.7,
+      "seconds": 2.7,
+      "set": "param:plate_stiffness",
+      "source": "plate_stiffness = 1.625"
+    },
+    {
+      "file": "params/plate_stiffness/max.opus",
+      "gain_db": -0.1,
+      "peak_db": -8.6,
+      "ref": "param:plate_stiffness:max",
+      "rms_db": -22.3,
+      "seconds": 2.6,
+      "set": "param:plate_stiffness",
+      "source": "plate_stiffness = 3"
+    },
+    {
+      "file": "params/tank_volume/min.opus",
+      "gain_db": -8.7,
+      "peak_db": -16.0,
+      "ref": "param:tank_volume:min",
+      "rms_db": -18.0,
+      "seconds": 4.0,
+      "set": "param:tank_volume",
+      "source": "tank_volume = 0"
+    },
+    {
+      "file": "params/tank_volume/mid.opus",
+      "gain_db": -8.7,
+      "peak_db": -16.0,
+      "ref": "param:tank_volume:mid",
+      "rms_db": -17.7,
+      "seconds": 4.0,
+      "set": "param:tank_volume",
+      "source": "tank_volume = 0.5"
+    },
+    {
+      "file": "params/tank_volume/max.opus",
+      "gain_db": -8.7,
+      "peak_db": -16.0,
+      "ref": "param:tank_volume:max",
+      "rms_db": -17.6,
+      "seconds": 4.0,
+      "set": "param:tank_volume",
+      "source": "tank_volume = 1"
+    },
+    {
+      "file": "params/tank_cavity_mix/min.opus",
+      "gain_db": -8.7,
+      "peak_db": -15.7,
+      "ref": "param:tank_cavity_mix:min",
+      "rms_db": -19.4,
+      "seconds": 4.0,
+      "set": "param:tank_cavity_mix",
+      "source": "tank_cavity_mix = 0"
+    },
+    {
+      "file": "params/tank_cavity_mix/mid.opus",
+      "gain_db": -8.7,
+      "peak_db": -16.0,
+      "ref": "param:tank_cavity_mix:mid",
+      "rms_db": -17.7,
+      "seconds": 4.0,
+      "set": "param:tank_cavity_mix",
+      "source": "tank_cavity_mix = 0.5"
+    },
+    {
+      "file": "params/tank_cavity_mix/max.opus",
+      "gain_db": -8.7,
+      "peak_db": -16.0,
+      "ref": "param:tank_cavity_mix:max",
+      "rms_db": -17.7,
+      "seconds": 4.0,
+      "set": "param:tank_cavity_mix",
+      "source": "tank_cavity_mix = 1"
+    },
+    {
+      "file": "params/chain_link_mass/min.opus",
+      "gain_db": -0.1,
+      "peak_db": -7.3,
+      "ref": "param:chain_link_mass:min",
+      "rms_db": -16.8,
+      "seconds": 1.8,
+      "set": "param:chain_link_mass",
+      "source": "chain_link_mass = 0.1"
+    },
+    {
+      "file": "params/chain_link_mass/mid.opus",
+      "gain_db": -0.1,
+      "peak_db": -6.8,
+      "ref": "param:chain_link_mass:mid",
+      "rms_db": -17.7,
+      "seconds": 1.9,
+      "set": "param:chain_link_mass",
+      "source": "chain_link_mass = 0.55"
+    },
+    {
+      "file": "params/chain_link_mass/max.opus",
+      "gain_db": -0.1,
+      "peak_db": -7.1,
+      "ref": "param:chain_link_mass:max",
+      "rms_db": -17.8,
+      "seconds": 1.9,
+      "set": "param:chain_link_mass",
+      "source": "chain_link_mass = 1"
+    },
+    {
+      "file": "params/chain_instability/min.opus",
+      "gain_db": -0.2,
+      "peak_db": -6.8,
+      "ref": "param:chain_instability:min",
+      "rms_db": -17.9,
+      "seconds": 1.9,
+      "set": "param:chain_instability",
+      "source": "chain_instability = 0"
+    },
+    {
+      "file": "params/chain_instability/mid.opus",
+      "gain_db": -0.2,
+      "peak_db": -7.5,
+      "ref": "param:chain_instability:mid",
+      "rms_db": -17.7,
+      "seconds": 1.9,
+      "set": "param:chain_instability",
+      "source": "chain_instability = 0.5"
+    },
+    {
+      "file": "params/chain_instability/max.opus",
+      "gain_db": -0.2,
+      "peak_db": -6.9,
+      "ref": "param:chain_instability:max",
+      "rms_db": -17.5,
+      "seconds": 1.9,
+      "set": "param:chain_instability",
+      "source": "chain_instability = 1"
+    },
+    {
+      "file": "params/beam_shear/min.opus",
+      "gain_db": -7.5,
+      "peak_db": -14.8,
+      "ref": "param:beam_shear:min",
+      "rms_db": -17.5,
+      "seconds": 4.0,
+      "set": "param:beam_shear",
+      "source": "beam_shear = 0"
+    },
+    {
+      "file": "params/beam_shear/mid.opus",
+      "gain_db": -7.5,
+      "peak_db": -15.0,
+      "ref": "param:beam_shear:mid",
+      "rms_db": -17.7,
+      "seconds": 4.0,
+      "set": "param:beam_shear",
+      "source": "beam_shear = 0.5"
+    },
+    {
+      "file": "params/beam_shear/max.opus",
+      "gain_db": -7.5,
+      "peak_db": -14.8,
+      "ref": "param:beam_shear:max",
+      "rms_db": -17.8,
+      "seconds": 4.0,
+      "set": "param:beam_shear",
+      "source": "beam_shear = 1"
+    },
+    {
+      "file": "params/cable_braid/min.opus",
+      "gain_db": -8.3,
+      "peak_db": -15.5,
+      "ref": "param:cable_braid:min",
+      "rms_db": -17.7,
+      "seconds": 4.0,
+      "set": "param:cable_braid",
+      "source": "cable_braid = 0"
+    },
+    {
+      "file": "params/cable_braid/mid.opus",
+      "gain_db": -8.3,
+      "peak_db": -15.5,
+      "ref": "param:cable_braid:mid",
+      "rms_db": -17.7,
+      "seconds": 4.0,
+      "set": "param:cable_braid",
+      "source": "cable_braid = 0.5"
+    },
+    {
+      "file": "params/cable_braid/max.opus",
+      "gain_db": -8.3,
+      "peak_db": -15.6,
+      "ref": "param:cable_braid:max",
+      "rms_db": -17.7,
+      "seconds": 4.0,
+      "set": "param:cable_braid",
+      "source": "cable_braid = 1"
+    },
+    {
+      "file": "params/cable_tension_drop/min.opus",
+      "gain_db": -8.3,
+      "peak_db": -15.5,
+      "ref": "param:cable_tension_drop:min",
+      "rms_db": -17.7,
+      "seconds": 4.0,
+      "set": "param:cable_tension_drop",
+      "source": "cable_tension_drop = 0"
+    },
+    {
+      "file": "params/cable_tension_drop/mid.opus",
+      "gain_db": -8.3,
+      "peak_db": -15.5,
+      "ref": "param:cable_tension_drop:mid",
+      "rms_db": -17.7,
+      "seconds": 4.0,
+      "set": "param:cable_tension_drop",
+      "source": "cable_tension_drop = 0.5"
+    },
+    {
+      "file": "params/cable_tension_drop/max.opus",
+      "gain_db": -8.3,
+      "peak_db": -15.5,
+      "ref": "param:cable_tension_drop:max",
+      "rms_db": -17.7,
+      "seconds": 4.0,
+      "set": "param:cable_tension_drop",
+      "source": "cable_tension_drop = 1"
+    },
+    {
+      "file": "params/spring_dispersion/min.opus",
+      "gain_db": -5.2,
+      "peak_db": -12.7,
+      "ref": "param:spring_dispersion:min",
+      "rms_db": -16.6,
+      "seconds": 4.0,
+      "set": "param:spring_dispersion",
+      "source": "spring_dispersion = 0"
+    },
+    {
+      "file": "params/spring_dispersion/mid.opus",
+      "gain_db": -5.2,
+      "peak_db": -12.2,
+      "ref": "param:spring_dispersion:mid",
+      "rms_db": -17.7,
+      "seconds": 4.0,
+      "set": "param:spring_dispersion",
+      "source": "spring_dispersion = 0.5"
+    },
+    {
+      "file": "params/spring_dispersion/max.opus",
+      "gain_db": -5.2,
+      "peak_db": -12.7,
+      "ref": "param:spring_dispersion:max",
+      "rms_db": -16.6,
+      "seconds": 4.0,
+      "set": "param:spring_dispersion",
+      "source": "spring_dispersion = 1"
+    },
+    {
+      "file": "params/spring_slosh/min.opus",
+      "gain_db": -5.2,
+      "peak_db": -12.4,
+      "ref": "param:spring_slosh:min",
+      "rms_db": -17.8,
+      "seconds": 4.0,
+      "set": "param:spring_slosh",
+      "source": "spring_slosh = 0"
+    },
+    {
+      "file": "params/spring_slosh/mid.opus",
+      "gain_db": -5.2,
+      "peak_db": -12.2,
+      "ref": "param:spring_slosh:mid",
+      "rms_db": -17.7,
+      "seconds": 4.0,
+      "set": "param:spring_slosh",
+      "source": "spring_slosh = 0.5"
+    },
+    {
+      "file": "params/spring_slosh/max.opus",
+      "gain_db": -5.2,
+      "peak_db": -12.2,
+      "ref": "param:spring_slosh:max",
+      "rms_db": -17.6,
+      "seconds": 4.0,
+      "set": "param:spring_slosh",
+      "source": "spring_slosh = 1"
+    },
+    {
+      "file": "params/sheet_thinness/min.opus",
+      "gain_db": -6.7,
+      "peak_db": -14.2,
+      "ref": "param:sheet_thinness:min",
+      "rms_db": -17.1,
+      "seconds": 4.0,
+      "set": "param:sheet_thinness",
+      "source": "sheet_thinness = 0"
+    },
+    {
+      "file": "params/sheet_thinness/mid.opus",
+      "gain_db": -6.7,
+      "peak_db": -14.3,
+      "ref": "param:sheet_thinness:mid",
+      "rms_db": -17.7,
+      "seconds": 4.0,
+      "set": "param:sheet_thinness",
+      "source": "sheet_thinness = 0.5"
+    },
+    {
+      "file": "params/sheet_thinness/max.opus",
+      "gain_db": -6.7,
+      "peak_db": -14.4,
+      "ref": "param:sheet_thinness:max",
+      "rms_db": -18.1,
+      "seconds": 4.0,
+      "set": "param:sheet_thinness",
+      "source": "sheet_thinness = 1"
+    },
+    {
+      "file": "params/cog_dissonance/min.opus",
+      "gain_db": -6.5,
+      "peak_db": -13.6,
+      "ref": "param:cog_dissonance:min",
+      "rms_db": -17.7,
+      "seconds": 4.0,
+      "set": "param:cog_dissonance",
+      "source": "cog_dissonance = 0"
+    },
+    {
+      "file": "params/cog_dissonance/mid.opus",
+      "gain_db": -6.5,
+      "peak_db": -13.6,
+      "ref": "param:cog_dissonance:mid",
+      "rms_db": -17.7,
+      "seconds": 4.0,
+      "set": "param:cog_dissonance",
+      "source": "cog_dissonance = 0.5"
+    },
+    {
+      "file": "params/cog_dissonance/max.opus",
+      "gain_db": -6.5,
+      "peak_db": -13.8,
+      "ref": "param:cog_dissonance:max",
+      "rms_db": -17.7,
+      "seconds": 4.0,
+      "set": "param:cog_dissonance",
+      "source": "cog_dissonance = 1"
+    },
+    {
+      "file": "params/filter_cutoff/min.opus",
+      "gain_db": -2.3,
+      "peak_db": -36.5,
+      "ref": "param:filter_cutoff:min",
+      "rms_db": -49.3,
+      "seconds": 0.6,
+      "set": "param:filter_cutoff",
+      "source": "filter_cutoff = 20"
+    },
+    {
+      "file": "params/filter_cutoff/mid.opus",
+      "gain_db": -2.3,
+      "peak_db": -10.0,
+      "ref": "param:filter_cutoff:mid",
+      "rms_db": -17.7,
+      "seconds": 2.7,
+      "set": "param:filter_cutoff",
+      "source": "filter_cutoff = 5015"
+    },
+    {
+      "file": "params/filter_cutoff/max.opus",
+      "gain_db": -2.3,
+      "peak_db": -10.0,
+      "ref": "param:filter_cutoff:max",
+      "rms_db": -17.7,
+      "seconds": 2.7,
+      "set": "param:filter_cutoff",
+      "source": "filter_cutoff = 20000"
+    },
+    {
+      "file": "params/filter_resonance/min.opus",
+      "gain_db": 6.7,
+      "peak_db": -1.0,
+      "ref": "param:filter_resonance:min",
+      "rms_db": -8.7,
+      "seconds": 2.7,
+      "set": "param:filter_resonance",
+      "source": "filter_resonance = 0"
+    },
+    {
+      "file": "params/filter_resonance/mid.opus",
+      "gain_db": 6.7,
+      "peak_db": -2.6,
+      "ref": "param:filter_resonance:mid",
+      "rms_db": -18.0,
+      "seconds": 2.5,
+      "set": "param:filter_resonance",
+      "source": "filter_resonance = 0.5"
+    },
+    {
+      "file": "params/filter_resonance/max.opus",
+      "gain_db": 6.7,
+      "peak_db": -11.0,
+      "ref": "param:filter_resonance:max",
+      "rms_db": -28.6,
+      "seconds": 4.0,
+      "set": "param:filter_resonance",
+      "source": "filter_resonance = 1"
+    },
+    {
+      "file": "params/component_tolerance/min.opus",
+      "gain_db": -0.6,
+      "peak_db": -8.3,
+      "ref": "param:component_tolerance:min",
+      "rms_db": -16.0,
+      "seconds": 2.7,
+      "set": "param:component_tolerance",
+      "source": "component_tolerance = 0"
+    },
+    {
+      "file": "params/component_tolerance/mid.opus",
+      "gain_db": -0.6,
+      "peak_db": -8.3,
+      "ref": "param:component_tolerance:mid",
+      "rms_db": -17.7,
+      "seconds": 4.0,
+      "set": "param:component_tolerance",
+      "source": "component_tolerance = 0.5"
+    },
+    {
+      "file": "params/component_tolerance/max.opus",
+      "gain_db": -0.6,
+      "peak_db": -8.3,
+      "ref": "param:component_tolerance:max",
+      "rms_db": -17.7,
+      "seconds": 4.0,
+      "set": "param:component_tolerance",
+      "source": "component_tolerance = 1"
+    },
+    {
+      "file": "params/drive_amount/min.opus",
+      "gain_db": -3.4,
+      "peak_db": -11.1,
+      "ref": "param:drive_amount:min",
+      "rms_db": -18.8,
+      "seconds": 2.7,
+      "set": "param:drive_amount",
+      "source": "drive_amount = 0"
+    },
+    {
+      "file": "params/drive_amount/mid.opus",
+      "gain_db": -3.4,
+      "peak_db": -10.1,
+      "ref": "param:drive_amount:mid",
+      "rms_db": -17.7,
+      "seconds": 2.7,
+      "set": "param:drive_amount",
+      "source": "drive_amount = 2.5"
+    },
+    {
+      "file": "params/drive_amount/max.opus",
+      "gain_db": -3.4,
+      "peak_db": -8.0,
+      "ref": "param:drive_amount:max",
+      "rms_db": -16.1,
+      "seconds": 2.7,
+      "set": "param:drive_amount",
+      "source": "drive_amount = 5"
+    },
+    {
+      "file": "params/bias_starvation/min.opus",
+      "gain_db": -2.3,
+      "peak_db": -10.0,
+      "ref": "param:bias_starvation:min",
+      "rms_db": -17.7,
+      "seconds": 2.7,
+      "set": "param:bias_starvation",
+      "source": "bias_starvation = 0"
+    },
+    {
+      "file": "params/bias_starvation/mid.opus",
+      "gain_db": -2.3,
+      "peak_db": -10.0,
+      "ref": "param:bias_starvation:mid",
+      "rms_db": -17.7,
+      "seconds": 2.7,
+      "set": "param:bias_starvation",
+      "source": "bias_starvation = 0.5"
+    },
+    {
+      "file": "params/bias_starvation/max.opus",
+      "gain_db": -2.3,
+      "peak_db": -10.0,
+      "ref": "param:bias_starvation:max",
+      "rms_db": -17.7,
+      "seconds": 2.7,
+      "set": "param:bias_starvation",
+      "source": "bias_starvation = 1"
+    },
+    {
+      "file": "params/chaos_depth/min.opus",
+      "gain_db": -2.3,
+      "peak_db": -10.0,
+      "ref": "param:chaos_depth:min",
+      "rms_db": -17.7,
+      "seconds": 2.7,
+      "set": "param:chaos_depth",
+      "source": "chaos_depth = 0"
+    },
+    {
+      "file": "params/chaos_depth/mid.opus",
+      "gain_db": -2.3,
+      "peak_db": -10.0,
+      "ref": "param:chaos_depth:mid",
+      "rms_db": -17.7,
+      "seconds": 2.7,
+      "set": "param:chaos_depth",
+      "source": "chaos_depth = 0.5"
+    },
+    {
+      "file": "params/chaos_depth/max.opus",
+      "gain_db": -2.3,
+      "peak_db": -10.0,
+      "ref": "param:chaos_depth:max",
+      "rms_db": -17.7,
+      "seconds": 2.7,
+      "set": "param:chaos_depth",
+      "source": "chaos_depth = 1"
+    },
+    {
+      "file": "params/spread_width/min.opus",
+      "gain_db": -2.3,
+      "peak_db": -6.3,
+      "ref": "param:spread_width:min",
+      "rms_db": -14.0,
+      "seconds": 2.7,
+      "set": "param:spread_width",
+      "source": "spread_width = 0"
+    },
+    {
+      "file": "params/spread_width/mid.opus",
+      "gain_db": -2.3,
+      "peak_db": -10.0,
+      "ref": "param:spread_width:mid",
+      "rms_db": -17.7,
+      "seconds": 2.7,
+      "set": "param:spread_width",
+      "source": "spread_width = 0.5"
+    },
+    {
+      "file": "params/spread_width/max.opus",
+      "gain_db": -2.3,
+      "peak_db": -10.0,
+      "ref": "param:spread_width:max",
+      "rms_db": -17.7,
+      "seconds": 2.7,
+      "set": "param:spread_width",
+      "source": "spread_width = 1"
+    },
+    {
+      "file": "params/listener_proximity/min.opus",
+      "gain_db": -2.3,
+      "peak_db": -12.3,
+      "ref": "param:listener_proximity:min",
+      "rms_db": -20.0,
+      "seconds": 2.7,
+      "set": "param:listener_proximity",
+      "source": "listener_proximity = 0"
+    },
+    {
+      "file": "params/listener_proximity/mid.opus",
+      "gain_db": -2.3,
+      "peak_db": -10.0,
+      "ref": "param:listener_proximity:mid",
+      "rms_db": -17.7,
+      "seconds": 2.7,
+      "set": "param:listener_proximity",
+      "source": "listener_proximity = 0.5"
+    },
+    {
+      "file": "params/listener_proximity/max.opus",
+      "gain_db": -2.3,
+      "peak_db": -8.3,
+      "ref": "param:listener_proximity:max",
+      "rms_db": -15.9,
+      "seconds": 2.7,
+      "set": "param:listener_proximity",
+      "source": "listener_proximity = 1"
+    },
+    {
+      "file": "params/chassis_material/min.opus",
+      "gain_db": -2.3,
+      "peak_db": -10.2,
+      "ref": "param:chassis_material:min",
+      "rms_db": -18.0,
+      "seconds": 2.7,
+      "set": "param:chassis_material",
+      "source": "chassis_material = 0"
+    },
+    {
+      "file": "params/chassis_material/mid.opus",
+      "gain_db": -2.3,
+      "peak_db": -10.0,
+      "ref": "param:chassis_material:mid",
+      "rms_db": -17.7,
+      "seconds": 2.7,
+      "set": "param:chassis_material",
+      "source": "chassis_material = 0.5"
+    },
+    {
+      "file": "params/chassis_material/max.opus",
+      "gain_db": -2.3,
+      "peak_db": -9.7,
+      "ref": "param:chassis_material:max",
+      "rms_db": -16.8,
+      "seconds": 2.7,
+      "set": "param:chassis_material",
+      "source": "chassis_material = 1"
+    },
+    {
+      "file": "params/chassis_volume/min.opus",
+      "gain_db": -2.3,
+      "peak_db": -9.6,
+      "ref": "param:chassis_volume:min",
+      "rms_db": -20.1,
+      "seconds": 2.7,
+      "set": "param:chassis_volume",
+      "source": "chassis_volume = 0"
+    },
+    {
+      "file": "params/chassis_volume/mid.opus",
+      "gain_db": -2.3,
+      "peak_db": -10.0,
+      "ref": "param:chassis_volume:mid",
+      "rms_db": -17.7,
+      "seconds": 2.7,
+      "set": "param:chassis_volume",
+      "source": "chassis_volume = 0.5"
+    },
+    {
+      "file": "params/chassis_volume/max.opus",
+      "gain_db": -2.3,
+      "peak_db": -10.1,
+      "ref": "param:chassis_volume:max",
+      "rms_db": -17.6,
+      "seconds": 2.7,
+      "set": "param:chassis_volume",
+      "source": "chassis_volume = 1"
+    },
+    {
+      "file": "params/space_amount/min.opus",
+      "gain_db": -4.4,
+      "peak_db": -12.1,
+      "ref": "param:space_amount:min",
+      "rms_db": -19.8,
+      "seconds": 2.7,
+      "set": "param:space_amount",
+      "source": "space_amount = 0"
+    },
+    {
+      "file": "params/space_amount/mid.opus",
+      "gain_db": -4.4,
+      "peak_db": -10.2,
+      "ref": "param:space_amount:mid",
+      "rms_db": -17.7,
+      "seconds": 2.8,
+      "set": "param:space_amount",
+      "source": "space_amount = 0.5"
+    },
+    {
+      "file": "params/space_amount/max.opus",
+      "gain_db": -4.4,
+      "peak_db": -8.3,
+      "ref": "param:space_amount:max",
+      "rms_db": -16.1,
+      "seconds": 2.9,
+      "set": "param:space_amount",
+      "source": "space_amount = 1"
+    },
+    {
+      "file": "params/factory_size/min.opus",
+      "gain_db": -4.4,
+      "peak_db": -12.1,
+      "ref": "param:factory_size:min",
+      "rms_db": -19.8,
+      "seconds": 2.7,
+      "set": "param:factory_size",
+      "source": "factory_size = 0"
+    },
+    {
+      "file": "params/factory_size/mid.opus",
+      "gain_db": -4.4,
+      "peak_db": -10.2,
+      "ref": "param:factory_size:mid",
+      "rms_db": -17.7,
+      "seconds": 2.8,
+      "set": "param:factory_size",
+      "source": "factory_size = 0.5"
+    },
+    {
+      "file": "params/factory_size/max.opus",
+      "gain_db": -4.4,
+      "peak_db": -8.7,
+      "ref": "param:factory_size:max",
+      "rms_db": -21.4,
+      "seconds": 3.0,
+      "set": "param:factory_size",
+      "source": "factory_size = 1"
+    },
+    {
+      "file": "params/machinery_clutter/min.opus",
+      "gain_db": -4.3,
+      "peak_db": -9.5,
+      "ref": "param:machinery_clutter:min",
+      "rms_db": -17.4,
+      "seconds": 3.0,
+      "set": "param:machinery_clutter",
+      "source": "machinery_clutter = 0"
+    },
+    {
+      "file": "params/machinery_clutter/mid.opus",
+      "gain_db": -4.3,
+      "peak_db": -10.3,
+      "ref": "param:machinery_clutter:mid",
+      "rms_db": -17.7,
+      "seconds": 2.7,
+      "set": "param:machinery_clutter",
+      "source": "machinery_clutter = 0.5"
+    },
+    {
+      "file": "params/machinery_clutter/max.opus",
+      "gain_db": -4.3,
+      "peak_db": -10.5,
+      "ref": "param:machinery_clutter:max",
+      "rms_db": -18.0,
+      "seconds": 2.7,
+      "set": "param:machinery_clutter",
+      "source": "machinery_clutter = 1"
+    },
+    {
+      "file": "params/wall_impedance/min.opus",
+      "gain_db": -4.4,
+      "peak_db": -10.5,
+      "ref": "param:wall_impedance:min",
+      "rms_db": -18.0,
+      "seconds": 2.7,
+      "set": "param:wall_impedance",
+      "source": "wall_impedance = 0"
+    },
+    {
+      "file": "params/wall_impedance/mid.opus",
+      "gain_db": -4.4,
+      "peak_db": -10.2,
+      "ref": "param:wall_impedance:mid",
+      "rms_db": -17.7,
+      "seconds": 2.8,
+      "set": "param:wall_impedance",
+      "source": "wall_impedance = 0.5"
+    },
+    {
+      "file": "params/wall_impedance/max.opus",
+      "gain_db": -4.4,
+      "peak_db": -8.8,
+      "ref": "param:wall_impedance:max",
+      "rms_db": -17.5,
+      "seconds": 3.4,
+      "set": "param:wall_impedance",
+      "source": "wall_impedance = 1"
+    },
+    {
+      "file": "params/spring_tension/min.opus",
+      "gain_db": -3.6,
+      "peak_db": -9.9,
+      "ref": "param:spring_tension:min",
+      "rms_db": -17.6,
+      "seconds": 2.8,
+      "set": "param:spring_tension",
+      "source": "spring_tension = 0"
+    },
+    {
+      "file": "params/spring_tension/mid.opus",
+      "gain_db": -3.6,
+      "peak_db": -9.2,
+      "ref": "param:spring_tension:mid",
+      "rms_db": -17.7,
+      "seconds": 2.9,
+      "set": "param:spring_tension",
+      "source": "spring_tension = 0.5"
+    },
+    {
+      "file": "params/spring_tension/max.opus",
+      "gain_db": -3.6,
+      "peak_db": -8.1,
+      "ref": "param:spring_tension:max",
+      "rms_db": -19.4,
+      "seconds": 4.0,
+      "set": "param:spring_tension",
+      "source": "spring_tension = 1"
+    },
+    {
+      "file": "params/wire_stiffness/min.opus",
+      "gain_db": -3.6,
+      "peak_db": -9.1,
+      "ref": "param:wire_stiffness:min",
+      "rms_db": -17.7,
+      "seconds": 2.9,
+      "set": "param:wire_stiffness",
+      "source": "wire_stiffness = 0"
+    },
+    {
+      "file": "params/wire_stiffness/mid.opus",
+      "gain_db": -3.6,
+      "peak_db": -9.2,
+      "ref": "param:wire_stiffness:mid",
+      "rms_db": -17.7,
+      "seconds": 2.9,
+      "set": "param:wire_stiffness",
+      "source": "wire_stiffness = 0.5"
+    },
+    {
+      "file": "params/wire_stiffness/max.opus",
+      "gain_db": -3.6,
+      "peak_db": -9.2,
+      "ref": "param:wire_stiffness:max",
+      "rms_db": -17.8,
+      "seconds": 2.9,
+      "set": "param:wire_stiffness",
+      "source": "wire_stiffness = 1"
+    },
+    {
+      "file": "params/spring_tank_size/min.opus",
+      "gain_db": -3.6,
+      "peak_db": -11.3,
+      "ref": "param:spring_tank_size:min",
+      "rms_db": -19.0,
+      "seconds": 2.7,
+      "set": "param:spring_tank_size",
+      "source": "spring_tank_size = 0"
+    },
+    {
+      "file": "params/spring_tank_size/mid.opus",
+      "gain_db": -3.6,
+      "peak_db": -9.2,
+      "ref": "param:spring_tank_size:mid",
+      "rms_db": -17.7,
+      "seconds": 2.9,
+      "set": "param:spring_tank_size",
+      "source": "spring_tank_size = 0.5"
+    },
+    {
+      "file": "params/spring_tank_size/max.opus",
+      "gain_db": -3.6,
+      "peak_db": -10.4,
+      "ref": "param:spring_tank_size:max",
+      "rms_db": -21.2,
+      "seconds": 3.3,
+      "set": "param:spring_tank_size",
+      "source": "spring_tank_size = 1"
+    },
+    {
+      "file": "params/delay_time/min.opus",
+      "gain_db": -1.7,
+      "peak_db": -7.5,
+      "ref": "param:delay_time:min",
+      "rms_db": -17.3,
+      "seconds": 2.7,
+      "set": "param:delay_time",
+      "source": "delay_time = 0"
+    },
+    {
+      "file": "params/delay_time/mid.opus",
+      "gain_db": -1.7,
+      "peak_db": -8.0,
+      "ref": "param:delay_time:mid",
+      "rms_db": -17.7,
+      "seconds": 3.2,
+      "set": "param:delay_time",
+      "source": "delay_time = 0.5"
+    },
+    {
+      "file": "params/delay_time/max.opus",
+      "gain_db": -1.7,
+      "peak_db": -8.7,
+      "ref": "param:delay_time:max",
+      "rms_db": -18.5,
+      "seconds": 4.0,
+      "set": "param:delay_time",
+      "source": "delay_time = 1"
+    },
+    {
+      "file": "params/machinery_movement/min.opus",
+      "gain_db": -2.6,
+      "peak_db": -8.5,
+      "ref": "param:machinery_movement:min",
+      "rms_db": -18.3,
+      "seconds": 2.9,
+      "set": "param:machinery_movement",
+      "source": "machinery_movement = 0"
+    },
+    {
+      "file": "params/machinery_movement/mid.opus",
+      "gain_db": -2.6,
+      "peak_db": -8.3,
+      "ref": "param:machinery_movement:mid",
+      "rms_db": -17.7,
+      "seconds": 2.9,
+      "set": "param:machinery_movement",
+      "source": "machinery_movement = 0.5"
+    },
+    {
+      "file": "params/machinery_movement/max.opus",
+      "gain_db": -2.6,
+      "peak_db": -8.4,
+      "ref": "param:machinery_movement:max",
+      "rms_db": -17.8,
+      "seconds": 3.0,
+      "set": "param:machinery_movement",
+      "source": "machinery_movement = 1"
+    },
+    {
+      "file": "params/high_frequency_damping/min.opus",
+      "gain_db": -2.0,
+      "peak_db": -8.0,
+      "ref": "param:high_frequency_damping:min",
+      "rms_db": -17.7,
+      "seconds": 2.9,
+      "set": "param:high_frequency_damping",
+      "source": "high_frequency_damping = 0"
+    },
+    {
+      "file": "params/high_frequency_damping/mid.opus",
+      "gain_db": -2.0,
+      "peak_db": -8.0,
+      "ref": "param:high_frequency_damping:mid",
+      "rms_db": -17.7,
+      "seconds": 2.9,
+      "set": "param:high_frequency_damping",
+      "source": "high_frequency_damping = 0.5"
+    },
+    {
+      "file": "params/high_frequency_damping/max.opus",
+      "gain_db": -2.0,
+      "peak_db": -8.1,
+      "ref": "param:high_frequency_damping:max",
+      "rms_db": -18.0,
+      "seconds": 2.9,
+      "set": "param:high_frequency_damping",
+      "source": "high_frequency_damping = 1"
+    },
+    {
+      "file": "params/analog_ceiling/min.opus",
+      "gain_db": -2.3,
+      "peak_db": -11.4,
+      "ref": "param:analog_ceiling:min",
+      "rms_db": -18.2,
+      "seconds": 2.7,
+      "set": "param:analog_ceiling",
+      "source": "analog_ceiling = 0.5"
+    },
+    {
+      "file": "params/analog_ceiling/mid.opus",
+      "gain_db": -2.3,
+      "peak_db": -10.2,
+      "ref": "param:analog_ceiling:mid",
+      "rms_db": -17.7,
+      "seconds": 2.7,
+      "set": "param:analog_ceiling",
+      "source": "analog_ceiling = 0.75"
+    },
+    {
+      "file": "params/analog_ceiling/max.opus",
+      "gain_db": -2.3,
+      "peak_db": -10.0,
+      "ref": "param:analog_ceiling:max",
+      "rms_db": -17.7,
+      "seconds": 2.7,
+      "set": "param:analog_ceiling",
+      "source": "analog_ceiling = 1"
+    },
+    {
+      "file": "params/diode_softness/min.opus",
+      "gain_db": -2.3,
+      "peak_db": -10.0,
+      "ref": "param:diode_softness:min",
+      "rms_db": -17.7,
+      "seconds": 2.7,
+      "set": "param:diode_softness",
+      "source": "diode_softness = 0"
+    },
+    {
+      "file": "params/diode_softness/mid.opus",
+      "gain_db": -2.3,
+      "peak_db": -10.0,
+      "ref": "param:diode_softness:mid",
+      "rms_db": -17.7,
+      "seconds": 2.7,
+      "set": "param:diode_softness",
+      "source": "diode_softness = 0.5"
+    },
+    {
+      "file": "params/diode_softness/max.opus",
+      "gain_db": -2.3,
+      "peak_db": -10.4,
+      "ref": "param:diode_softness:max",
+      "rms_db": -17.8,
+      "seconds": 2.7,
+      "set": "param:diode_softness",
+      "source": "diode_softness = 1"
+    },
+    {
+      "file": "params/diode_asymmetry/min.opus",
+      "gain_db": -2.3,
+      "peak_db": -10.1,
+      "ref": "param:diode_asymmetry:min",
+      "rms_db": -17.7,
+      "seconds": 2.7,
+      "set": "param:diode_asymmetry",
+      "source": "diode_asymmetry = 0"
+    },
+    {
+      "file": "params/diode_asymmetry/mid.opus",
+      "gain_db": -2.3,
+      "peak_db": -10.0,
+      "ref": "param:diode_asymmetry:mid",
+      "rms_db": -17.7,
+      "seconds": 2.7,
+      "set": "param:diode_asymmetry",
+      "source": "diode_asymmetry = 0.5"
+    },
+    {
+      "file": "params/diode_asymmetry/max.opus",
+      "gain_db": -2.3,
+      "peak_db": -10.2,
+      "ref": "param:diode_asymmetry:max",
+      "rms_db": -17.8,
+      "seconds": 2.7,
+      "set": "param:diode_asymmetry",
+      "source": "diode_asymmetry = 1"
+    },
+    {
+      "file": "params/macro_mass/min.opus",
+      "gain_db": -2.3,
+      "peak_db": -10.9,
+      "ref": "param:macro_mass:min",
+      "rms_db": -21.3,
+      "seconds": 2.4,
+      "set": "param:macro_mass",
+      "source": "macro_mass = 0"
+    },
+    {
+      "file": "params/macro_mass/mid.opus",
+      "gain_db": -2.3,
+      "peak_db": -10.0,
+      "ref": "param:macro_mass:mid",
+      "rms_db": -17.7,
+      "seconds": 2.7,
+      "set": "param:macro_mass",
+      "source": "macro_mass = 0.5"
+    },
+    {
+      "file": "params/macro_mass/max.opus",
+      "gain_db": -2.3,
+      "peak_db": -8.8,
+      "ref": "param:macro_mass:max",
+      "rms_db": -15.8,
+      "seconds": 2.8,
+      "set": "param:macro_mass",
+      "source": "macro_mass = 1"
+    },
+    {
+      "file": "params/macro_corrosion/min.opus",
+      "gain_db": -2.3,
+      "peak_db": -9.8,
+      "ref": "param:macro_corrosion:min",
+      "rms_db": -17.5,
+      "seconds": 3.3,
+      "set": "param:macro_corrosion",
+      "source": "macro_corrosion = 0"
+    },
+    {
+      "file": "params/macro_corrosion/mid.opus",
+      "gain_db": -2.3,
+      "peak_db": -10.0,
+      "ref": "param:macro_corrosion:mid",
+      "rms_db": -17.7,
+      "seconds": 2.7,
+      "set": "param:macro_corrosion",
+      "source": "macro_corrosion = 0.5"
+    },
+    {
+      "file": "params/macro_corrosion/max.opus",
+      "gain_db": -2.3,
+      "peak_db": -10.2,
+      "ref": "param:macro_corrosion:max",
+      "rms_db": -18.7,
+      "seconds": 2.0,
+      "set": "param:macro_corrosion",
+      "source": "macro_corrosion = 1"
+    },
+    {
+      "file": "params/macro_violence/min.opus",
+      "gain_db": -2.3,
+      "peak_db": -10.0,
+      "ref": "param:macro_violence:min",
+      "rms_db": -17.7,
+      "seconds": 2.7,
+      "set": "param:macro_violence",
+      "source": "macro_violence = 0"
+    },
+    {
+      "file": "params/macro_violence/mid.opus",
+      "gain_db": -2.3,
+      "peak_db": -10.0,
+      "ref": "param:macro_violence:mid",
+      "rms_db": -17.7,
+      "seconds": 2.7,
+      "set": "param:macro_violence",
+      "source": "macro_violence = 0.5"
+    },
+    {
+      "file": "params/macro_violence/max.opus",
+      "gain_db": -2.3,
+      "peak_db": -8.2,
+      "ref": "param:macro_violence:max",
+      "rms_db": -16.6,
+      "seconds": 2.4,
+      "set": "param:macro_violence",
+      "source": "macro_violence = 1"
+    },
+    {
+      "file": "params/macro_brightness/min.opus",
+      "gain_db": -2.3,
+      "peak_db": -10.3,
+      "ref": "param:macro_brightness:min",
+      "rms_db": -18.0,
+      "seconds": 2.6,
+      "set": "param:macro_brightness",
+      "source": "macro_brightness = 0"
+    },
+    {
+      "file": "params/macro_brightness/mid.opus",
+      "gain_db": -2.3,
+      "peak_db": -10.0,
+      "ref": "param:macro_brightness:mid",
+      "rms_db": -17.7,
+      "seconds": 2.7,
+      "set": "param:macro_brightness",
+      "source": "macro_brightness = 0.5"
+    },
+    {
+      "file": "params/macro_brightness/max.opus",
+      "gain_db": -2.3,
+      "peak_db": -9.8,
+      "ref": "param:macro_brightness:max",
+      "rms_db": -17.5,
+      "seconds": 2.7,
+      "set": "param:macro_brightness",
+      "source": "macro_brightness = 1"
+    },
+    {
+      "file": "exciters/hand-strike.opus",
+      "gain_db": -8.7,
+      "peak_db": -16.0,
+      "ref": "set:exciters:Hand Strike",
+      "rms_db": -17.7,
+      "seconds": 4.0,
+      "set": "set:exciters",
+      "source": "Hand Strike on Tank"
+    },
+    {
+      "file": "exciters/felt-mallet.opus",
+      "gain_db": -8.7,
+      "peak_db": -14.7,
+      "ref": "set:exciters:Felt Mallet",
+      "rms_db": -26.0,
+      "seconds": 4.0,
+      "set": "set:exciters",
+      "source": "Felt Mallet on Tank"
+    },
+    {
+      "file": "exciters/hard-mallet.opus",
+      "gain_db": -8.7,
+      "peak_db": -14.7,
+      "ref": "set:exciters:Hard Mallet",
+      "rms_db": -18.7,
+      "seconds": 4.0,
+      "set": "set:exciters",
+      "source": "Hard Mallet on Tank"
+    },
+    {
+      "file": "exciters/drumstick.opus",
+      "gain_db": -8.7,
+      "peak_db": -13.0,
+      "ref": "set:exciters:Drumstick",
+      "rms_db": -16.2,
+      "seconds": 4.0,
+      "set": "set:exciters",
+      "source": "Drumstick on Tank"
+    },
+    {
+      "file": "exciters/wire-brush.opus",
+      "gain_db": -8.7,
+      "peak_db": -15.8,
+      "ref": "set:exciters:Wire Brush",
+      "rms_db": -18.8,
+      "seconds": 4.0,
+      "set": "set:exciters",
+      "source": "Wire Brush on Tank"
+    },
+    {
+      "file": "exciters/metal-pipe.opus",
+      "gain_db": -8.7,
+      "peak_db": -14.1,
+      "ref": "set:exciters:Metal Pipe",
+      "rms_db": -30.4,
+      "seconds": 4.0,
+      "set": "set:exciters",
+      "source": "Metal Pipe on Tank"
+    },
+    {
+      "file": "exciters/metal-chain.opus",
+      "gain_db": -8.7,
+      "peak_db": -17.3,
+      "ref": "set:exciters:Metal Chain",
+      "rms_db": -23.1,
+      "seconds": 4.0,
+      "set": "set:exciters",
+      "source": "Metal Chain on Tank"
+    },
+    {
+      "file": "exciters/bow.opus",
+      "gain_db": -8.7,
+      "peak_db": -13.1,
+      "ref": "set:exciters:Bow",
+      "rms_db": -15.0,
+      "seconds": 4.0,
+      "set": "set:exciters",
+      "source": "Bow on Tank"
+    },
+    {
+      "file": "exciters/stiff-point-scrape.opus",
+      "gain_db": -8.7,
+      "peak_db": -13.0,
+      "ref": "set:exciters:Stiff Point Scrape",
+      "rms_db": -15.3,
+      "seconds": 4.0,
+      "set": "set:exciters",
+      "source": "Stiff Point Scrape on Tank"
+    },
+    {
+      "file": "exciters/heavy-grinding.opus",
+      "gain_db": -8.7,
+      "peak_db": -13.2,
+      "ref": "set:exciters:Heavy Grinding",
+      "rms_db": -15.4,
+      "seconds": 4.0,
+      "set": "set:exciters",
+      "source": "Heavy Grinding on Tank"
+    },
+    {
+      "file": "exciters/corrugated-drag.opus",
+      "gain_db": -8.7,
+      "peak_db": -12.9,
+      "ref": "set:exciters:Corrugated Drag",
+      "rms_db": -15.0,
+      "seconds": 4.0,
+      "set": "set:exciters",
+      "source": "Corrugated Drag on Tank"
+    },
+    {
+      "file": "exciters/tension-rise.opus",
+      "gain_db": -8.7,
+      "peak_db": -15.2,
+      "ref": "set:exciters:Tension Rise",
+      "rms_db": -17.4,
+      "seconds": 4.0,
+      "set": "set:exciters",
+      "source": "Tension Rise on Tank"
+    },
+    {
+      "file": "exciters/pneumatic-jet.opus",
+      "gain_db": -8.7,
+      "peak_db": -15.4,
+      "ref": "set:exciters:Pneumatic Jet",
+      "rms_db": -17.6,
+      "seconds": 4.0,
+      "set": "set:exciters",
+      "source": "Pneumatic Jet on Tank"
+    },
+    {
+      "file": "exciters/electromagnetic-hum.opus",
+      "gain_db": -8.7,
+      "peak_db": -15.0,
+      "ref": "set:exciters:Electromagnetic Hum",
+      "rms_db": -17.1,
+      "seconds": 4.0,
+      "set": "set:exciters",
+      "source": "Electromagnetic Hum on Tank"
+    },
+    {
+      "file": "exciters/tension-snap.opus",
+      "gain_db": -8.7,
+      "peak_db": -13.4,
+      "ref": "set:exciters:Tension Snap",
+      "rms_db": -16.4,
+      "seconds": 4.0,
+      "set": "set:exciters",
+      "source": "Tension Snap on Tank"
+    },
+    {
+      "file": "exciters/particle-rain.opus",
+      "gain_db": -8.7,
+      "peak_db": -15.1,
+      "ref": "set:exciters:Particle Rain",
+      "rms_db": -17.5,
+      "seconds": 4.0,
+      "set": "set:exciters",
+      "source": "Particle Rain on Tank"
+    },
+    {
+      "file": "objects/pipe.opus",
+      "gain_db": 4.6,
+      "peak_db": -1.4,
+      "ref": "set:objects:Pipe",
+      "rms_db": -20.7,
+      "seconds": 3.7,
+      "set": "set:objects",
+      "source": "Pipe with Felt Mallet"
+    },
+    {
+      "file": "objects/plate.opus",
+      "gain_db": 4.6,
+      "peak_db": -2.4,
+      "ref": "set:objects:Plate",
+      "rms_db": -17.6,
+      "seconds": 1.5,
+      "set": "set:objects",
+      "source": "Plate with Felt Mallet"
+    },
+    {
+      "file": "objects/tank.opus",
+      "gain_db": 4.6,
+      "peak_db": -1.5,
+      "ref": "set:objects:Tank",
+      "rms_db": -12.8,
+      "seconds": 4.0,
+      "set": "set:objects",
+      "source": "Tank with Felt Mallet"
+    },
+    {
+      "file": "objects/chain.opus",
+      "gain_db": 4.6,
+      "peak_db": -3.4,
+      "ref": "set:objects:Chain",
+      "rms_db": -15.5,
+      "seconds": 1.5,
+      "set": "set:objects",
+      "source": "Chain with Felt Mallet"
+    },
+    {
+      "file": "objects/i-beam.opus",
+      "gain_db": 4.6,
+      "peak_db": -1.5,
+      "ref": "set:objects:I-Beam",
+      "rms_db": -19.9,
+      "seconds": 4.0,
+      "set": "set:objects",
+      "source": "I-Beam with Felt Mallet"
+    },
+    {
+      "file": "objects/taut-cable.opus",
+      "gain_db": 4.6,
+      "peak_db": -1.4,
+      "ref": "set:objects:Taut Cable",
+      "rms_db": -20.5,
+      "seconds": 4.0,
+      "set": "set:objects",
+      "source": "Taut Cable with Felt Mallet"
+    },
+    {
+      "file": "objects/coil-spring.opus",
+      "gain_db": 4.6,
+      "peak_db": -3.2,
+      "ref": "set:objects:Coil Spring",
+      "rms_db": -15.9,
+      "seconds": 3.3,
+      "set": "set:objects",
+      "source": "Coil Spring with Felt Mallet"
+    },
+    {
+      "file": "objects/sheet-metal.opus",
+      "gain_db": 4.6,
+      "peak_db": -3.6,
+      "ref": "set:objects:Sheet Metal",
+      "rms_db": -20.5,
+      "seconds": 2.2,
+      "set": "set:objects",
+      "source": "Sheet Metal with Felt Mallet"
+    },
+    {
+      "file": "objects/industrial-cog.opus",
+      "gain_db": 4.6,
+      "peak_db": -1.0,
+      "ref": "set:objects:Industrial Cog",
+      "rms_db": -7.5,
+      "seconds": 4.0,
+      "set": "set:objects",
+      "source": "Industrial Cog with Felt Mallet"
+    },
+    {
+      "file": "exciter-presets/hand-strike.opus",
+      "gain_db": -0.0,
+      "peak_db": -14.3,
+      "ref": "set:exciter-presets:Hand Strike",
+      "rms_db": -17.7,
+      "seconds": 4.0,
+      "set": "set:exciter-presets:Hand Strike",
+      "source": "preset Palm Pipe Thump"
+    },
+    {
+      "file": "exciter-presets/felt-mallet.opus",
+      "gain_db": -0.7,
+      "peak_db": -1.0,
+      "ref": "set:exciter-presets:Felt Mallet",
+      "rms_db": -18.5,
+      "seconds": 4.0,
+      "set": "set:exciter-presets:Felt Mallet",
+      "source": "preset Felt Cable Upright"
+    },
+    {
+      "file": "exciter-presets/hard-mallet.opus",
+      "gain_db": -1.7,
+      "peak_db": -8.9,
+      "ref": "set:exciter-presets:Hard Mallet",
+      "rms_db": -17.7,
+      "seconds": 4.0,
+      "set": "set:exciter-presets:Hard Mallet",
+      "source": "preset Driven Beam Bass"
+    },
+    {
+      "file": "exciter-presets/drumstick.opus",
+      "gain_db": -0.4,
+      "peak_db": -13.6,
+      "ref": "set:exciter-presets:Drumstick",
+      "rms_db": -17.7,
+      "seconds": 4.0,
+      "set": "set:exciter-presets:Drumstick",
+      "source": "preset Driven Pipe Lead"
+    },
+    {
+      "file": "exciter-presets/wire-brush.opus",
+      "gain_db": -6.8,
+      "peak_db": -10.5,
+      "ref": "set:exciter-presets:Wire Brush",
+      "rms_db": -17.7,
+      "seconds": 2.2,
+      "set": "set:exciter-presets:Wire Brush",
+      "source": "preset Brush Plate Swish"
+    },
+    {
+      "file": "exciter-presets/metal-pipe.opus",
+      "gain_db": -1.4,
+      "peak_db": -1.7,
+      "ref": "set:exciter-presets:Metal Pipe",
+      "rms_db": -17.7,
+      "seconds": 4.0,
+      "set": "set:exciter-presets:Metal Pipe",
+      "source": "preset Metal Pipe Pluck"
+    },
+    {
+      "file": "exciter-presets/metal-chain.opus",
+      "gain_db": -0.0,
+      "peak_db": -9.0,
+      "ref": "set:exciter-presets:Metal Chain",
+      "rms_db": -17.7,
+      "seconds": 1.8,
+      "set": "set:exciter-presets:Metal Chain",
+      "source": "preset Chain Rattle Hit"
+    },
+    {
+      "file": "exciter-presets/bow.opus",
+      "gain_db": -16.6,
+      "peak_db": -16.9,
+      "ref": "set:exciter-presets:Bow",
+      "rms_db": -17.7,
+      "seconds": 4.0,
+      "set": "set:exciter-presets:Bow",
+      "source": "preset Bowed Cable Sub"
+    },
+    {
+      "file": "exciter-presets/stiff-point-scrape.opus",
+      "gain_db": -1.7,
+      "peak_db": -13.8,
+      "ref": "set:exciter-presets:Stiff Point Scrape",
+      "rms_db": -17.7,
+      "seconds": 4.0,
+      "set": "set:exciter-presets:Stiff Point Scrape",
+      "source": "preset Cable Scrape Drone"
+    },
+    {
+      "file": "exciter-presets/heavy-grinding.opus",
+      "gain_db": 0.5,
+      "peak_db": -14.7,
+      "ref": "set:exciter-presets:Heavy Grinding",
+      "rms_db": -17.7,
+      "seconds": 4.0,
+      "set": "set:exciter-presets:Heavy Grinding",
+      "source": "preset Grinding Beam"
+    },
+    {
+      "file": "exciter-presets/corrugated-drag.opus",
+      "gain_db": -3.6,
+      "peak_db": -10.1,
+      "ref": "set:exciter-presets:Corrugated Drag",
+      "rms_db": -17.7,
+      "seconds": 3.6,
+      "set": "set:exciter-presets:Corrugated Drag",
+      "source": "preset Chain Drag Drone"
+    },
+    {
+      "file": "exciter-presets/tension-rise.opus",
+      "gain_db": 3.2,
+      "peak_db": -11.7,
+      "ref": "set:exciter-presets:Tension Rise",
+      "rms_db": -17.7,
+      "seconds": 4.0,
+      "set": "set:exciter-presets:Tension Rise",
+      "source": "preset Plate Tension Swell"
+    },
+    {
+      "file": "exciter-presets/pneumatic-jet.opus",
+      "gain_db": 0.7,
+      "peak_db": -13.6,
+      "ref": "set:exciter-presets:Pneumatic Jet",
+      "rms_db": -17.7,
+      "seconds": 4.0,
+      "set": "set:exciter-presets:Pneumatic Jet",
+      "source": "preset Jet Pipe Flute"
+    },
+    {
+      "file": "exciter-presets/electromagnetic-hum.opus",
+      "gain_db": -2.2,
+      "peak_db": -14.1,
+      "ref": "set:exciter-presets:Electromagnetic Hum",
+      "rms_db": -17.7,
+      "seconds": 4.0,
+      "set": "set:exciter-presets:Electromagnetic Hum",
+      "source": "preset Smokestack Hum"
+    },
+    {
+      "file": "exciter-presets/tension-snap.opus",
+      "gain_db": -0.5,
+      "peak_db": -13.7,
+      "ref": "set:exciter-presets:Tension Snap",
+      "rms_db": -17.7,
+      "seconds": 4.0,
+      "set": "set:exciter-presets:Tension Snap",
+      "source": "preset Snapped Cable Bass"
+    },
+    {
+      "file": "exciter-presets/particle-rain.opus",
+      "gain_db": -0.6,
+      "peak_db": -14.5,
+      "ref": "set:exciter-presets:Particle Rain",
+      "rms_db": -17.7,
+      "seconds": 4.0,
+      "set": "set:exciter-presets:Particle Rain",
+      "source": "preset Particle Rain Tank"
+    },
+    {
+      "file": "object-presets/pipe.opus",
+      "gain_db": -0.0,
+      "peak_db": -14.3,
+      "ref": "set:object-presets:Pipe",
+      "rms_db": -17.7,
+      "seconds": 4.0,
+      "set": "set:object-presets:Pipe",
+      "source": "preset Palm Pipe Thump"
+    },
+    {
+      "file": "object-presets/plate.opus",
+      "gain_db": -1.7,
+      "peak_db": -2.2,
+      "ref": "set:object-presets:Plate",
+      "rms_db": -17.7,
+      "seconds": 2.0,
+      "set": "set:object-presets:Plate",
+      "source": "preset Plate Sub Mallet"
+    },
+    {
+      "file": "object-presets/tank.opus",
+      "gain_db": -0.1,
+      "peak_db": -1.1,
+      "ref": "set:object-presets:Tank",
+      "rms_db": -17.7,
+      "seconds": 4.0,
+      "set": "set:object-presets:Tank",
+      "source": "preset Tank Boom Bass"
+    },
+    {
+      "file": "object-presets/chain.opus",
+      "gain_db": -3.6,
+      "peak_db": -10.1,
+      "ref": "set:object-presets:Chain",
+      "rms_db": -17.7,
+      "seconds": 3.6,
+      "set": "set:object-presets:Chain",
+      "source": "preset Chain Drag Drone"
+    },
+    {
+      "file": "object-presets/i-beam.opus",
+      "gain_db": -1.7,
+      "peak_db": -8.9,
+      "ref": "set:object-presets:I-Beam",
+      "rms_db": -17.7,
+      "seconds": 4.0,
+      "set": "set:object-presets:I-Beam",
+      "source": "preset Driven Beam Bass"
+    },
+    {
+      "file": "object-presets/taut-cable.opus",
+      "gain_db": -0.7,
+      "peak_db": -1.0,
+      "ref": "set:object-presets:Taut Cable",
+      "rms_db": -18.5,
+      "seconds": 4.0,
+      "set": "set:object-presets:Taut Cable",
+      "source": "preset Felt Cable Upright"
+    },
+    {
+      "file": "object-presets/coil-spring.opus",
+      "gain_db": -0.6,
+      "peak_db": -1.0,
+      "ref": "set:object-presets:Coil Spring",
+      "rms_db": -17.9,
+      "seconds": 3.4,
+      "set": "set:object-presets:Coil Spring",
+      "source": "preset Coil Spring Bass"
+    },
+    {
+      "file": "object-presets/sheet-metal.opus",
+      "gain_db": 0.4,
+      "peak_db": -13.3,
+      "ref": "set:object-presets:Sheet Metal",
+      "rms_db": -17.7,
+      "seconds": 4.0,
+      "set": "set:object-presets:Sheet Metal",
+      "source": "preset Low Sheet Bow"
+    },
+    {
+      "file": "object-presets/industrial-cog.opus",
+      "gain_db": -0.0,
+      "peak_db": -14.2,
+      "ref": "set:object-presets:Industrial Cog",
+      "rms_db": -17.7,
+      "seconds": 4.0,
+      "set": "set:object-presets:Industrial Cog",
+      "source": "preset Cog Hum Drone"
+    },
+    {
+      "file": "kits/foundry-kit.opus",
+      "gain_db": -5.3,
+      "peak_db": -9.3,
+      "ref": "set:kits:Foundry Kit",
+      "rms_db": -17.7,
+      "seconds": 4.9,
+      "set": "set:kits:Foundry Kit",
+      "source": "kit Foundry Kit, 12 pads"
+    },
+    {
+      "file": "kits/scrapyard-kit.opus",
+      "gain_db": -5.5,
+      "peak_db": -8.9,
+      "ref": "set:kits:Scrapyard Kit",
+      "rms_db": -17.7,
+      "seconds": 4.8,
+      "set": "set:kits:Scrapyard Kit",
+      "source": "kit Scrapyard Kit, 12 pads"
+    },
+    {
+      "file": "kits/pipe-kit.opus",
+      "gain_db": -5.5,
+      "peak_db": -8.9,
+      "ref": "set:kits:Pipe Kit",
+      "rms_db": -17.7,
+      "seconds": 4.9,
+      "set": "set:kits:Pipe Kit",
+      "source": "kit Pipe Kit, 12 pads"
+    },
+    {
+      "file": "kits/rust-belt-kit.opus",
+      "gain_db": -4.9,
+      "peak_db": -7.9,
+      "ref": "set:kits:Rust Belt Kit",
+      "rms_db": -17.7,
+      "seconds": 4.9,
+      "set": "set:kits:Rust Belt Kit",
+      "source": "kit Rust Belt Kit, 12 pads"
+    },
+    {
+      "file": "kits/boiler-room-kit.opus",
+      "gain_db": -4.7,
+      "peak_db": -8.9,
+      "ref": "set:kits:Boiler Room Kit",
+      "rms_db": -17.7,
+      "seconds": 4.9,
+      "set": "set:kits:Boiler Room Kit",
+      "source": "kit Boiler Room Kit, 12 pads"
+    },
+    {
+      "file": "kits/rail-yard-kit.opus",
+      "gain_db": -5.5,
+      "peak_db": -9.3,
+      "ref": "set:kits:Rail Yard Kit",
+      "rms_db": -17.7,
+      "seconds": 4.9,
+      "set": "set:kits:Rail Yard Kit",
+      "source": "kit Rail Yard Kit, 12 pads"
+    },
+    {
+      "file": "kits/wire-kit.opus",
+      "gain_db": -5.6,
+      "peak_db": -9.0,
+      "ref": "set:kits:Wire Kit",
+      "rms_db": -17.7,
+      "seconds": 4.9,
+      "set": "set:kits:Wire Kit",
+      "source": "kit Wire Kit, 12 pads"
+    },
+    {
+      "file": "kits/sheet-storm-kit.opus",
+      "gain_db": -5.0,
+      "peak_db": -8.9,
+      "ref": "set:kits:Sheet Storm Kit",
+      "rms_db": -17.7,
+      "seconds": 4.9,
+      "set": "set:kits:Sheet Storm Kit",
+      "source": "kit Sheet Storm Kit, 12 pads"
+    },
+    {
+      "file": "kits/clockwork-kit.opus",
+      "gain_db": -6.0,
+      "peak_db": -8.9,
+      "ref": "set:kits:Clockwork Kit",
+      "rms_db": -17.7,
+      "seconds": 4.2,
+      "set": "set:kits:Clockwork Kit",
+      "source": "kit Clockwork Kit, 12 pads"
+    },
+    {
+      "file": "kits/junk-percussion-kit.opus",
+      "gain_db": -5.1,
+      "peak_db": -8.9,
+      "ref": "set:kits:Junk Percussion Kit",
+      "rms_db": -17.7,
+      "seconds": 4.9,
+      "set": "set:kits:Junk Percussion Kit",
+      "source": "kit Junk Percussion Kit, 12 pads"
+    },
+    {
+      "file": "demos/bass.opus",
+      "gain_db": -0.1,
+      "peak_db": -10.6,
+      "ref": "set:demos:bass",
+      "rms_db": -17.7,
+      "seconds": 5.9,
+      "set": "set:demos:bass",
+      "source": "preset Low Sheet Bow (bass)"
+    },
+    {
+      "file": "demos/lead.opus",
+      "gain_db": 1.5,
+      "peak_db": -12.2,
+      "ref": "set:demos:lead",
+      "rms_db": -17.7,
+      "seconds": 5.9,
+      "set": "set:demos:lead",
+      "source": "preset Driven Pipe Lead (lead)"
+    },
+    {
+      "file": "demos/chords.opus",
+      "gain_db": 4.5,
+      "peak_db": -2.5,
+      "ref": "set:demos:chords",
+      "rms_db": -17.7,
+      "seconds": 5.9,
+      "set": "set:demos:chords",
+      "source": "preset Glass Cable Choir (chords)"
+    },
+    {
+      "file": "demos/drones.opus",
+      "gain_db": -1.0,
+      "peak_db": -12.3,
+      "ref": "set:demos:drones",
+      "rms_db": -17.7,
+      "seconds": 7.5,
+      "set": "set:demos:drones",
+      "source": "preset Spring Bow Drone (drones)"
+    },
+    {
+      "file": "demos/percussion.opus",
+      "gain_db": -3.2,
+      "peak_db": -12.0,
+      "ref": "set:demos:percussion",
+      "rms_db": -17.7,
+      "seconds": 3.2,
+      "set": "set:demos:percussion",
+      "source": "preset Cog Tick (percussion)"
+    }
+  ],
+  "fingerprint": "bdcc2fbc63313c6b",
+  "generator_commit": "261d8c9",
+  "sample_rate": 48000
+}

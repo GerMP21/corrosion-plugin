@@ -1,0 +1,44 @@
+/* Starlight's dark palette mapped onto the site tokens (web/theme/tokens.css).
+   The guide is dark-only, so only the dark selectors matter; the light
+   palette is never applied (DarkThemeProvider). */
+:root,
+:root[data-theme='dark'] {
+  --sl-font: var(--font);
+  --sl-font-mono: var(--font-mono);
+
+  --sl-color-accent-low: #3a3005;
+  --sl-color-accent: var(--accent);
+  --sl-color-accent-high: #fde68a;
+  --sl-color-text-accent: var(--accent);
+  --sl-color-text-invert: var(--on-accent);
+
+  --sl-color-white: #ffffff;
+  --sl-color-gray-1: #ececec;
+  --sl-color-gray-2: var(--text);
+  --sl-color-gray-3: #a3a3a3;
+  --sl-color-gray-4: var(--muted);
+  --sl-color-gray-5: var(--line);
+  --sl-color-gray-6: var(--surface);
+  --sl-color-black: var(--bg);
+
+  --sl-color-bg: var(--bg);
+  --sl-color-bg-nav: var(--surface);
+  --sl-color-bg-sidebar: var(--bg);
+  --sl-color-bg-inline-code: var(--recessed);
+  --sl-color-hairline: var(--line);
+  --sl-color-hairline-light: var(--line);
+  --sl-color-hairline-shade: var(--fader-track-bg);
+}
+
+body {
+  background: var(--bg);
+}
+
+/* Headings like the editor's panel titles: caps with tracking. */
+.sl-markdown-content h2 {
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-caps);
+  font-size: var(--sl-text-xl);
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 0.25em;
+}

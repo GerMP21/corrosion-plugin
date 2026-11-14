@@ -1,0 +1,20 @@
+{
+  "name": "corrosion-guide",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.23.4"
+  },
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "check": "node scripts/check.mjs"
+  },
+  "dependencies": {
+    "@astrojs/starlight": "0.42.7",
+    "astro": "7.4.4",
+    "js-yaml": "4.3.2",
+    "starlight-links-validator": "0.27.0"
+  }
+}

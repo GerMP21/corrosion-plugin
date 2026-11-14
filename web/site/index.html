@@ -69,6 +69,18 @@
     </div>
   </section>
 
+  <section class="listen" aria-labelledby="listen-title">
+    <h2 id="listen-title">Hear it</h2>
+    <p class="listen-note">Five factory presets, rendered by the plugin itself. Every control has its own examples in the <a href="/wiki/reference/">guide</a>.</p>
+    <div class="demos">
+      <button type="button" class="demo" data-demo="/wiki/clips/demos/bass.opus" aria-pressed="false">Bass</button>
+      <button type="button" class="demo" data-demo="/wiki/clips/demos/lead.opus" aria-pressed="false">Lead</button>
+      <button type="button" class="demo" data-demo="/wiki/clips/demos/chords.opus" aria-pressed="false">Chords</button>
+      <button type="button" class="demo" data-demo="/wiki/clips/demos/drones.opus" aria-pressed="false">Drones</button>
+      <button type="button" class="demo" data-demo="/wiki/clips/demos/percussion.opus" aria-pressed="false">Percussion</button>
+    </div>
+  </section>
+
   <section class="specs" aria-labelledby="specs-title">
     <h2 id="specs-title">Requirements</h2>
     <dl>
@@ -79,6 +91,28 @@
     </dl>
   </section>
 </main>
+<script>
+  // Home demos (`add-user-guide`): the guide's generated demo clips
+  // (scripts/build-guide-clips.sh), one shared player, nothing loaded
+  // before a click.
+  (() => {
+    const player = new Audio();
+    player.preload = "none";
+    let current = null;
+    const reset = () => { if (current) current.setAttribute("aria-pressed", "false"); current = null; };
+    document.querySelectorAll("button[data-demo]").forEach((button) => {
+      button.addEventListener("click", () => {
+        if (button === current && !player.paused) { player.pause(); reset(); return; }
+        reset();
+        current = button;
+        button.setAttribute("aria-pressed", "true");
+        player.src = button.dataset.demo;
+        player.play().catch(reset);
+      });
+    });
+    player.addEventListener("ended", reset);
+  })();
+</script>
 
 <footer>
   <span>Corrosion is free software under the <a href="https://www.gnu.org/licenses/gpl-3.0.html">GPLv3</a></span>

@@ -1,0 +1,124 @@
+---
+// A row of buttons that play the guide's generated clips (`add-user-guide`
+// Decision 8). `<Clips param="rust" />` plays a parameter's Min, Mid and Max;
+// `<Clips set="exciters" item="Bow" />` one item of a set, and
+// `<Clips set="kits" />` every item of it. All rows on a page share one
+// `<audio preload="none">`, so nothing loads until a button is pressed.
+// The clips and clips.json come from scripts/build-guide-clips.sh.
+import manifest from '../../public/clips/clips.json';
+
+interface Props {
+  param?: string;
+  set?: string;
+  item?: string;
+}
+const { param, set, item } = Astro.props;
+const { t } = Astro.locals;
+const prefix = param ? `param:${param}:` : `set:${set}:${item ? `${item}` : ''}`;
+const clips = (manifest.clips as { ref: string; file: string; source: string }[]).filter((c) =>
+  item || param ? c.ref === prefix.replace(/:$/, '') || c.ref.startsWith(prefix) : c.ref.startsWith(prefix),
+);
+// Labels from the manifest's source, so they follow the plan.
+const label = (clip: { ref: string; source: string }) => {
+  const last = clip.ref.split(':').at(-1) ?? clip.ref;
+  if (param) return t(`guide.clips.${last}` as any);
+  if (!item) return last;
+  if (set === 'exciters') return t('guide.clips.on' as any, { name: clip.source.split(' on ').at(-1) });
+  if (set === 'objects') return t('guide.clips.with' as any, { name: clip.source.split(' with ').at(-1) });
+  if (set?.endsWith('-presets')) return t('guide.clips.preset' as any, { name: clip.source.replace(/^preset /, '') });
+  return last;
+};
+---
+
+{
+  clips.length > 0 && (
+    <div class="clips" role="group" aria-label={t('guide.clips.listen' as any)}>
+      {clips.map((clip) => (
+        <button
+          type="button"
+          class="clip"
+          data-clip={`/wiki/clips/${clip.file}`}
+          aria-pressed="false"
+          title={clip.source}
+          aria-label={t('guide.clips.play' as any, { name: label(clip) })}
+        >
+          <svg viewBox="0 0 16 16" aria-hidden="true" width="12" height="12">
+            <path class="play" d="M4 2.5v11l9-5.5z" />
+            <path class="stop" d="M4 3h8v10H4z" />
+          </svg>
+          {label(clip)}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+<script>
+  // One player for the whole page; a button toggles its clip.
+  const player = new Audio();
+  player.preload = 'none';
+  let current: HTMLButtonElement | null = null;
+  const reset = () => {
+    current?.setAttribute('aria-pressed', 'false');
+    current = null;
+  };
+  document.addEventListener('click', (event) => {
+    const button = (event.target as Element).closest<HTMLButtonElement>('button[data-clip]');
+    if (!button) return;
+    if (button === current && !player.paused) {
+      player.pause();
+      reset();
+      return;
+    }
+    reset();
+    current = button;
+    button.setAttribute('aria-pressed', 'true');
+    player.src = button.dataset.clip!;
+    player.play().catch(reset);
+  });
+  player.addEventListener('ended', reset);
+</script>
+
+<style>
+  .clips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 0.75rem;
+  }
+  .clip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    font: inherit;
+    font-size: var(--sl-text-sm);
+    color: var(--text);
+    background: var(--control);
+    border: 1px solid var(--control-border);
+    border-radius: var(--radius);
+    padding: 0.25rem 0.7rem;
+    cursor: pointer;
+  }
+  .clip:hover {
+    border-color: var(--accent);
+  }
+  .clip:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+  .clip[aria-pressed='true'] {
+    background: var(--accent);
+    color: var(--on-accent);
+    border-color: var(--accent);
+  }
+  .clip svg {
+    fill: currentColor;
+  }
+  .clip .stop,
+  .clip[aria-pressed='true'] .play {
+    display: none;
+  }
+  .clip[aria-pressed='true'] .stop {
+    display: inline;
+  }
+</style>

@@ -9,6 +9,7 @@
 //! No oscillator/filter/amp framing is used - all controls follow
 //! the industrial physical-modeling metaphor.
 
+pub mod controls;
 #[cfg(any(feature = "gui", feature = "web-gui"))]
 mod editor;
 pub mod palette;

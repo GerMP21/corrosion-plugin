@@ -131,6 +131,22 @@ h2 {
 .card p { margin: 0; color: var(--text); font-size: 15px; }
 .card p.figure { color: var(--accent); }
 
+/* Demos */
+.listen { padding: var(--space-7) 0 0; }
+.listen-note { margin: 0 0 var(--space-4); max-width: 60ch; }
+.demos { display: flex; flex-wrap: wrap; gap: var(--space-3); }
+.demo {
+  display: inline-flex; align-items: center; gap: var(--space-2);
+  font: 600 15px var(--font); color: var(--text);
+  background: var(--surface); border: 1px solid var(--control-border); border-radius: var(--radius);
+  padding: var(--space-3) var(--space-5); cursor: pointer;
+}
+.demo::before { content: ""; width: 0; height: 0; border-style: solid; border-width: 6px 0 6px 10px; border-color: transparent transparent transparent currentColor; }
+.demo:hover { border-color: var(--accent); }
+.demo:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.demo[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.demo[aria-pressed="true"]::before { width: 10px; height: 12px; border: 0; background: currentColor; }
+
 /* Requirements */
 .specs { padding: var(--space-7) 0; }
 .specs dl { margin: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3) var(--space-6); }

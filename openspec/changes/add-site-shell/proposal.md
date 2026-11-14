@@ -6,7 +6,7 @@ The web app is the whole site today: `preview.corrosion-vst.org` opens straight 
 
 ## What Changes
 
-- **Home page** at `https://corrosion-vst.org/`. It says what Corrosion is and has three calls to action: Play in the browser (`/play/`), Download (the GitHub releases), and Read the guide (`/wiki/`). It also has a short feature tour (exciters × objects, kits, presets) and the GPLv3, source and build notices. It loads no third-party scripts and has no analytics.
+- **Home page** at `https://corrosion-vst.org/`. It says what Corrosion is and has three calls to action: Play in the browser (`/play/`), Download (the GitHub releases), and Read the guide (`/wiki/`). It also has a short feature tour (exciters × objects, kits, presets) and the GPLv3, source and build notices. It loads no third-party scripts of its own; Cloudflare Web Analytics' cookie-free beacon, injected by the host, is kept (maintainer, 2026-11-13).
 - **The web app moves from `/` to `/play/`.** The app and its assets are unchanged; only the path changes. `/play` without a trailing slash redirects to `/play/`.
 - **One Worker serves everything.** The `corrosion-vst` Worker's static assets hold the home page at the root, the app under `play/` and (from `add-user-guide`) the guide under `wiki/`. `wrangler.toml` adds `corrosion-vst.org` as a custom domain.
 - **`preview.corrosion-vst.org` redirects** to `https://corrosion-vst.org/play/` with a 301, through a Cloudflare Redirect Rule set in the dashboard and documented in the repo. **BREAKING for browser storage:** sessions and user presets saved at `preview.` belong to that origin and are not carried over (the maintainer accepted this).

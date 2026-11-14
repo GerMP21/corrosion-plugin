@@ -1,0 +1,29 @@
+---
+// Header links back to the rest of the site, in place of social icons.
+const { t } = Astro.locals;
+const links = [
+  { href: '/', label: t('guide.site.home') },
+  { href: '/play/', label: t('guide.site.play') },
+];
+---
+
+<nav class="site-links" aria-label={t('guide.site.nav')}>
+  {links.map((link) => <a href={link.href}>{link.label}</a>)}
+</nav>
+
+<style>
+  .site-links {
+    display: flex;
+    gap: 1rem;
+  }
+  .site-links a {
+    color: var(--sl-color-gray-2);
+    text-decoration: none;
+    font-size: var(--sl-text-sm);
+    text-transform: uppercase;
+    letter-spacing: var(--tracking-caps);
+  }
+  .site-links a:hover {
+    color: var(--sl-color-accent);
+  }
+</style>
