@@ -9,7 +9,7 @@ import Clips from '../../../../components/Clips.astro';
 import ModelControls from '../../../../components/ModelControls.astro';
 import Data from '../../../../components/Data.astro';
 
-Una herramienta arrastrada sobre una superficie estriada: cada estría da un tick, y los ticks se funden en un zumbido al subir la velocidad.
+Una herramienta arrastrada por una superficie con estrías: cada estría da un tic, y los tics se funden en un zumbido al subir la velocidad. Es lo mismo que pasa al pasar un palo por una verja: despacio oyes cada barrote; rápido, oyes una nota.
 
 **Pruébalo:** carga **Drones → Chain Drag Drone**, mantén una nota y barre **Drag Speed**: despacio hace tic, rápido zumba.
 
@@ -40,6 +40,7 @@ Sobre **Chain** da un dron de cadena arrastrada; sobre **Plate** o **Sheet Metal
 
 - **Drag Speed** y **Ridge Spacing** juntos fijan el ritmo de los ticks: divide uno a la mitad o dobla el otro y tendrás el mismo ritmo.
 - **Chasquido al soltar:** El arrastre deja el objeto un poco fuera de su posición de reposo, y al soltarlo de golpe el objeto vuelve de un salto. Con Corrugated Drag sobre un Plate y el **Release** del MSEG por defecto de <Data param="mseg_release" field="default" /> s, el medio segundo después de soltar suena unos 15 dB más fuerte que la nota sostenida; con 0.5 s el chasquido desaparece. Consulta [Solución de problemas](/wiki/es/troubleshooting/).
+- Entre los tics sueltos y el zumbido hay un punto dulce de traqueteo. Barre **Drag Speed** despacio para encontrarlo con tu objeto.
 
 ## Presets para probar
 

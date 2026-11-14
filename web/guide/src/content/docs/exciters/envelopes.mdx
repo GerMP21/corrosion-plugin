@@ -7,7 +7,7 @@ sidebar:
 import Clips from '../../../components/Clips.astro';
 import Data from '../../../components/Data.astro';
 
-The force envelope shapes how hard the exciter pushes over the length of a note. It isn't a volume envelope: it changes the force going into the object, and the object keeps ringing after the force is gone. Each [family](/wiki/exciters/#families) has its own envelope, and the panel under **MODEL TYPE** shows the one for the current exciter.
+The force envelope shapes how hard the exciter pushes over the length of a note. It's worth pausing on that, because it's not a volume envelope like on most synths. It changes the force going *into* the object, and the object keeps ringing after the force is gone, the way a cymbal keeps ringing after the stick has left it. Each [family](/wiki/exciters/#families) has its own envelope, and the panel under **MODEL TYPE** shows the one for the current exciter.
 
 **Try it:** load **Drones → Grinding Beam**, set **Loop** to **Forward** and hold a note: the decay starts over and over, and the grinding pulses.
 
@@ -58,3 +58,9 @@ Specialty exciters use a classic ADSR: the force rises over **Attack**, falls ov
 
 <Clips param="env_decay" />
 <Clips param="env_sustain" />
+
+## Tips
+
+- **A note that rings too long isn't an envelope problem.** Shortening the force doesn't stop the object; reach for the object's damping, **Rust** or **Sludge** instead.
+- **For bowed pads,** a slow **Attack** and a **Release** of half a second or more give the gentlest entries and exits, and the long release also tames the release snap.
+- **For rhythmic friction,** loop the MSEG: a looping grinder is half a groove already.

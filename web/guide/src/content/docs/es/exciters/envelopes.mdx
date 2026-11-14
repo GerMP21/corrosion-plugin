@@ -7,7 +7,7 @@ sidebar:
 import Clips from '../../../../components/Clips.astro';
 import Data from '../../../../components/Data.astro';
 
-La envolvente de fuerza da forma a lo fuerte que empuja el excitador a lo largo de una nota. No es una envolvente de volumen: cambia la fuerza que entra en el objeto, y el objeto sigue resonando cuando la fuerza ya no está. Cada [familia](/wiki/es/exciters/#familias) tiene su envolvente, y el panel bajo **MODEL TYPE** muestra la del excitador actual.
+La envolvente de fuerza da forma a lo fuerte que empuja el excitador a lo largo de una nota. Merece la pena pararse aquí, porque no es una envolvente de volumen como en la mayoría de los sintetizadores. Cambia la fuerza que *entra* en el objeto, y el objeto sigue sonando cuando la fuerza ya no está, igual que un platillo sigue sonando cuando la baqueta ya se ha ido. Cada [familia](/wiki/es/exciters/#familias) tiene su envolvente, y el panel bajo **MODEL TYPE** muestra la del excitador actual.
 
 **Pruébalo:** carga **Drones → Grinding Beam**, pon **Loop** en **Forward** y mantén una nota: la caída empieza una y otra vez, y el desbaste late.
 
@@ -58,3 +58,9 @@ Los excitadores especiales usan un ADSR clásico: la fuerza sube durante **Attac
 
 <Clips param="env_decay" />
 <Clips param="env_sustain" />
+
+## Consejos
+
+- **Una nota que suena demasiado no es un problema de envolvente.** Acortar la fuerza no para el objeto; usa la amortiguación del objeto, **Rust** o **Sludge**.
+- **Para pads con arco,** un **Attack** lento y un **Release** de medio segundo o más dan las entradas y salidas más suaves, y el release largo además doma el chasquido al soltar.
+- **Para fricción rítmica,** pon el MSEG en bucle: una amoladora en bucle ya es medio groove.
