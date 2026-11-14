@@ -218,7 +218,7 @@ jobs:
         run: npm ci --no-audit --no-fund
 
       - name: Guide checks
-        run: npm run check
+        run: npm run check -- --complete
 
       - name: Guide check tests
         run: npm test

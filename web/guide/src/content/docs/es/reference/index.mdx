@@ -5,8 +5,27 @@ sidebar:
   label: Resumen
 ---
 
-import Stub from '../../../../components/Stub.astro';
+La referencia de parámetros es la enciclopedia que acompaña a los tutoriales del resto de la guía: una ficha para cada parámetro de Corrosion, generada a partir del propio plugin, así que siempre está al día con la versión que usas.
 
-<Stub />
+**Pruébalo:** abre [Parámetros del excitador](/wiki/es/reference/exciter/) y busca **Bow Pressure**. La ficha te dice su rango y su valor por defecto, y te deja oír sus extremos.
+
+Los parámetros se agrupan por panel, en el orden del editor:
+
+- [Cabecera](/wiki/es/reference/header/): salvo los presets, todo lo de la barra superior.
+- [Macros](/wiki/es/reference/macros/): MASS, CORROSION, VIOLENCE y BRIGHTNESS.
+- [Excitador](/wiki/es/reference/exciter/): el modelo, sus controles y sus envolventes.
+- [Resonador](/wiki/es/reference/resonator/): el objeto, su geometría, su exposición y su unión mecánica.
+- [Procesado](/wiki/es/reference/processing/): la cadena de salida.
+- [Pads del kit](/wiki/es/reference/kit/): qué guarda un pad del Kit y qué comparte el kit.
 
 ## Cómo leer una ficha
+
+- **El título** es el nombre del parámetro tal como lo muestra tu DAW en las pistas de automatización y en las listas de parámetros. Puede no coincidir con la etiqueta del panel: el **Cutoff** del Filter Bank aquí es **Filter Cutoff**.
+- **El código** de debajo es el ID del parámetro, el nombre con el que lo guardan los presets y los proyectos.
+- **La primera línea** dice qué hace, el mismo texto que la insignia ⓘ del editor.
+- **Rango** u **Opciones**: qué valores toma. **Por defecto**: dónde empieza una instancia nueva. **Unidad**, cuando la tiene.
+- **Se muestra**: cuando el control solo aparece en algunos casos (una familia de excitadores, un modo de Space).
+- **Por modelo**: en los controles cuyo significado cambia con el excitador o el objeto, una fila por modelo con su propia etiqueta, rango y ayuda.
+- **Clips**: el parámetro en su mínimo, su punto medio y su máximo, cada uno tocado sobre un patch de referencia, para que oigas lo que hace el rango antes de tocarlo. Unos pocos parámetros no tienen clips, y se indica por qué.
+
+Las fichas dicen *qué*; el resto de la guía dice *por qué* y *cómo usarlo*. Cuando una ficha te deje con ganas de más, sigue el enlace a la página del panel.

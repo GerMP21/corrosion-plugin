@@ -24,6 +24,6 @@
 ## 3. Close-out
 
 - [ ] 3.1 Review table in design.md: every page EN written, ES written, ES approved
-- [ ] 3.2 Turn on `--complete` in CI; the guide check and build pass
+- [x] 3.2 Turn on `--complete` in CI; the guide check and build pass
 - [ ] 3.3 CLAUDE.md rules: user-visible behaviour changes update their guide pages (EN and ES); editor changes regenerate screenshots
 - [ ] 3.4 Close-out lanes; commit and push to `dev`; update CLAUDE.md Current state

@@ -160,6 +160,7 @@ Every page, EN and ES (Decision 6). Approved means the maintainer approved the S
 | `recipes` | 2026-11-14 | 2026-11-14 | |
 | `troubleshooting` | 2026-11-14 | 2026-11-14 | |
 | `glossary` | 2026-11-14 | 2026-11-14 | |
+| `reference/index` | 2026-11-14 | 2026-11-14 | |
 | `objects/pipe` | 2026-11-14 | 2026-11-14 | |
 | `objects/plate` | 2026-11-14 | 2026-11-14 | |
 | `objects/tank` | 2026-11-14 | 2026-11-14 | |
