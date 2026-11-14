@@ -1,10 +1,17 @@
-> **Implementation status (2026-05): IMPLEMENTED, faithful.** The interaction bus
+> **Implementation status (checked 2026-11-14): IMPLEMENTED, faithful.** The interaction bus
 > (`src/dsp/interaction.rs`) implements per-mode strike coefficients
 > `c_n(P) = sin((n+1)·π·P)`, the `fundamental_anchor` minimum-coefficient clamp,
-> the `coupling_stiffness` feed-forward↔weighted blend, bounded `position_wander`,
-> and displacement/velocity feedback into the exciter. The 6-stage MSEG and the
-> AR/ADSR/MSEG family split described later in this file are implemented in
-> `src/dsp/envelopes/mod.rs` and `src/voice/mod.rs`. See `docs/ARCHITECTURE.md` §§6–7.
+> the `coupling_stiffness` feed-forward↔weighted blend, and displacement/velocity
+> feedback into the exciter. The effective strike position is
+> `clamp(strike_position + position_envelope·envelope·0.5 + wander, 0, 1)`:
+> Position Envelope sweeps it with the force envelope
+> (`h09-route-envelope-to-strike-position`), and `position_wander` adds a bounded
+> sine drift at Wander Rate (0.1–5 Hz). Contact exciters go further than this
+> file: they solve their contact implicitly against this sample's resonator
+> response (`ModalResonator::contact_prediction`, `dsp::utils::contact`). The
+> 6-stage MSEG and the AR/ADSR/MSEG family split described later in this file are
+> implemented in `src/dsp/envelopes/mod.rs` and `src/voice/mod.rs`. See
+> `docs/ARCHITECTURE.md` §§6–7.
 
 The interaction between the exciter and the resonator is the absolute core of physical modeling. It is the "glue" that turns isolated mathematical equations into a playable instrument. 
 

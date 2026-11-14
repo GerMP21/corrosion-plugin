@@ -2,15 +2,17 @@
 
 This document describes the **as-built** structure, signal flow, and engineering
 contracts of the Corrosion industrial physical-modeling synthesizer. It is
-written against the code in `src/` as of 2026-05 and is intended to be accurate
+written against the code in `src/` as of 2026-11-14 and is intended to be accurate
 to what actually ships, not to the aspirational DSP described in
 `docs/detailed-specs/`. Where the implementation is a deliberate approximation
 of a spec, that is called out explicitly.
 
 > Companion documents:
-> - `docs/code-review.md` — critical review and a doc-vs-code conformance matrix.
+> - `FABLE-CODE-REVIEW-2026-07-07.md` (repository root) — the current code review; each fixed finding names its OpenSpec change. The older review is `docs/archive/CODE-REVIEW-2026-05-27.md`.
 > - `docs/detailed-specs/` — DSP design notes (some aspirational; see status banners).
-> - `docs/corrosion_plugin_prd_and_specs.md` — product requirements (MVP-era, see status section).
+> - `docs/PRD.md` — product requirements (MVP-era, see its status section).
+> - `docs/BACKLOG.md` — open work only.
+> - `openspec/specs/` — the requirements of every archived change.
 
 ---
 
@@ -117,8 +119,9 @@ MIDI Note Event
 src/
   lib.rs              Plugin trait impls, MIDI routing, apply_drive, output limiter,
                       per-sample post-chain parameter updates
-  params.rs           127 host parameters; ExciterType (16), Object (9),
-                      QualityMode (Eco/Normal/High/Render), 14 per-object character params
+  params.rs           149 host parameters, one constructor each (`<id>_param`);
+                      ExciterType (16), Object (9), QualityMode (Eco/Normal/High/Render),
+                      14 per-object character params; `filter_state` migrations
   voice/
     mod.rs            Voice: 16 exciter slots + ModalResonator + 3 envelope models,
                       VoiceControls snapshot, midi_to_hz, tail/rendering lifecycle
@@ -142,11 +145,17 @@ src/
                       heavy_grinding, corrugated_drag, tension_rise, other_specialty
                       [pneumatic_jet, electromagnetic_hum, tension_snap, particle_rain])
     post_processing/  wdf_filter, lorenz_drive, fem_body, hrtf_spread, space
-                      (FactoryReverb/SpringReverb/FactoryEcho), oversampled_clipper,
+                      (FactoryReverb/SpringReverb/FactoryEcho), oversampled_clipper
+                      (diode stage) + half_band (polyphase IIR), lookahead_limiter,
                       post_chain (PostProcessingChain + PostQualityMode)
-    utils/            budget (mode-count estimates), body, dc_blocker (voice mix),
-                      deterministic_excitation
+    utils/            budget (mode-count estimates), body, contact (implicit contact
+                      solver), dc_blocker (voice mix), deterministic_excitation,
+                      noise (xorshift32), rate (48 kHz-reference conversions)
   gui/
+    controls.rs       Control tables, slot specs, selector options and `help_for`
+                      (ⓘ text) with no egui dependency, so the CI lane and the guide
+                      exporter reach them
+    palette.rs        Editor colours as `[u8; 3]`, mirrored by web/theme/tokens.css
     editor.rs         egui editor: knobs/faders, UI scale (50–150 % in 5 % steps, `UI_SCALE_CHOICES`; the original five keep indices 0–4, the added steps are 5–20; default 75%: 810×630,
                       of which 54 are the keyboard strip;
                       a change asks the host to resize; the layout never exceeds the
@@ -161,13 +170,21 @@ src/
   gui_notes.rs        Editor keyboard → audio thread: EditorNotes (lock-free SPSC
                       ring, release-all flag, held-note mask), NoteSender (GUI side),
                       EditorNoteState (audio side); no GUI dependency
+  kit/                Kit mode: KitPad / KitState (stored pads), Pad, seqlock KitTable
+  guide/              Guide data exporter (parameters.json, models.json), clip plan
+                      (clip_plan.rs, RECIPES), control-response measurement
+                      (control_response.rs)
+  web/                Browser host (`web-host` / `web-gui` features): WebEngine,
+                      command/report protocol, editor-side bridge
   presets/
-    mod.rs            Preset save/load + sanitization; user presets: recursive listing
-                      (UserPreset, ≤ 4 levels), folders, save into a subfolder (never
-                      outside the user folder), open_folder / open_folder_command
+    mod.rs            Preset save/load + sanitization + JSON migrations; user presets:
+                      recursive listing (UserPreset, ≤ 4 levels), folders, save into a
+                      subfolder (never outside the user folder), open_folder
+    browser.rs        In-memory user preset store (the web app's, same folder rules)
     factory/          The factory bank in code (reorganize-factory-presets):
       mod.rs          bank(), layout, levelling (TARGET_RMS 0.13), quality floor
       curated.rs      60 hand-designed presets (bass, lead, chords, drones, percussion)
+      drums.rs        10 factory drum kits (12 GM pads each)
       experimental.rs 16 × 9 generated presets, seeded, varied by parameter ID
       levels.rs       Output and seed try per preset, written by seed_presets
       measure.rs      Offline measurement helpers (FFT, peaks, flatness, RMS windows)
@@ -184,6 +201,9 @@ src/
   bin/
     render.rs         CLI: --suite family|rust|damage|all|aliasing
     render_presets.rs CLI: preset batch renderer → stereo WAVs via offline::render_preset
+    seed_presets.rs   Levels and writes the factory bank and levels.rs
+    export_guide_data.rs   Writes the guide's parameters.json and models.json
+    render_guide_clips.rs  Renders the guide's clips and clips.json
 ```
 
 
@@ -216,7 +236,8 @@ The audio callback guarantees:
   Verified by `tests/no_alloc.rs` in **debug** builds only — the checking
   allocator is installed under `debug_assertions`, so `--release` runs pass
   vacuously. The non-Windows build enables nih_plug's `assert_process_allocs`
-  feature (`Cargo.toml` target cfg).
+  feature (`Cargo.toml` target cfg); on Windows CI turns it on for `no_alloc`
+  alone, and `the_checker_is_armed` proves the checker is installed (§10).
 - **No locks / blocking / I/O / logging** in `process()`.
 - **Fixed voice array** — 16 `Voice` instances (`MAX_VOICES`), each owning all 16 exciter structs
   so dispatch is a `match` on an integer (no trait objects, no allocation).
@@ -225,15 +246,14 @@ The audio callback guarantees:
   resonator coefficients clamp `decay_seconds` to `f32::EPSILON`.
 - **NaN/Inf guards** — every voice output is checked with `is_finite()` and
   flushed to zero before leaving the voice.
-- **NaN-safe stealing** — within its stealing tier (released tails, then held
-  notes past the 100 ms protection window), a non-finite `peak_hold` sorts as the
+- **NaN-safe stealing** — within its stealing tier (released tails, then pedal-held
+  notes, then held notes past the 100 ms protection window), a non-finite `peak_hold` sorts as the
   quietest voice (`comparable_peak_hold`), so a corrupted voice is reclaimed rather
   than panicking. Young held notes are ordered by age only.
 
-> Caveat: parameter *application* is not control-rate. `lib.rs` calls every
-> `post_chain.set_*` setter once per sample, which recomputes coefficients at
-> audio rate. This is real-time-*safe* (no allocation) but wasteful, and it is
-> the proximate cause of the FactoryReverb delay bug (see `docs/code-review.md`).
+Post-chain parameters are applied once per buffer (`apply_post_chain_params`,
+called from `begin_block`); the filter, drive, echo and diode smoothers glide
+between them at audio rate.
 
 ---
 
@@ -254,8 +274,11 @@ Idle ──note_on──▶ Active(rendering) ──note_off──▶ Tail(rende
 - **Tail deactivation**: when `!active` and `peak_hold < TAIL_ENERGY_THRESHOLD`
   for `TAIL_DEACTIVATE_FRAMES`, both `active` and `rendering` go false and the
   voice stops costing CPU. (`is_rendering()` is the idle-CPU optimization.)
-- **Stealing**: `VoiceManager` prefers an inactive (`!is_rendering`) slot; if none,
-  it steals the lowest `peak_hold`, breaking ties toward the oldest `start_frame`.
+- **Stealing**: `VoiceManager` prefers a free (`!is_rendering`) slot. If none,
+  it steals by tier (`steal_index`): released tails, then pedal-held notes, then
+  held keys at least 100 ms old (`STEAL_PROTECTION_SECONDS`), each giving up the
+  quietest `peak_hold` (NaN counts as quietest, the oldest loses ties), then
+  younger held keys, oldest first.
 - **Sustain pedal** (`VoiceManager::set_sustain`, CC64 ≥ 64): a key-up while
   the pedal is down marks the voice `pedal_held` instead of releasing it, so it
   stays `active`; lifting the pedal releases every pedal-held voice. A re-strike
@@ -389,8 +412,7 @@ note; the Cable/Sheet **dynamic hooks** are the exception (see below).
 > Hz) are fixed, and the per-sample dynamic hooks (`TautCable` amplitude→pitch,
 > `SheetMetal` warp) run in `ModalResonator::process_sample[_stereo]`, scaling each
 > mode from its immutable base frequency (allocation-free). The default object
-> timbres changed as a result. See `docs/backlog.md` → "Algorithmic resonator
-> engine".
+> timbres changed as a result.
 
 Nine object profiles ship: **Pipe, Plate, Tank, Chain, IBeam, TautCable,
 CoilSpring, SheetMetal, IndustrialCog**.
@@ -655,8 +677,8 @@ the FEM body resonance (run once on the mono sum, mixed at BODY / 5) to both cha
 followed by HRTF spread → Space → oversampled clipper. Chassis Volume only retunes the
 body. Every quality mode runs every stage (C5, `fix-post-chain-body-routing`). These are
 **lightweight, real-time-safe approximations** of the high-fidelity algorithms in
-`docs/detailed-specs/post-processing.md`; the module docstrings say as much. See
-`docs/code-review.md` §"Post-processing conformance" for the exact gap per stage.
+`docs/detailed-specs/post-processing.md`; the module docstrings say as much, and
+the table below gives the gap per stage.
 
 > **Decision (2026-05-28).** The approximations described here are the shipped
 > contract. The detailed-specs files are aspirational design notes; promoting
@@ -888,7 +910,7 @@ The plugin also runs in a browser, with the same engine and editor, as two WebAs
 | `scripts/validate-plugins.sh` | optional `pluginval` + `clap-validator` wrapper |
 | `scripts/check_wav.py` / `analyze_wav.py` / `check_clicks.py` | offline artifact validation |
 | `benches/performance.rs` | Criterion harness (voice, dense excitation, post chain, idle, offline, the plugin's whole output path via `offline::PresetRenderer`) |
-| `tests/` | integration tests: no_alloc, automation_stress, preset_roundtrip, body, drive, stereo, velocity, chain distinctness, limiter, damage rattle, bow, plugin metrics |
+| `tests/` | integration tests: no_alloc (with `the_checker_is_armed`), automation_stress, preset_roundtrip, preset_loading, body, drive dynamics, stereo width, velocity brightness and expressivity, chain distinctness, limiter, damage rattle, bow, MSEG loop safety, post-chain default DC, tidy render hash, plugin metrics |
 | `src/bin/render.rs` | offline QA renderer incl. `--suite aliasing` → `aliasing_report.txt` |
 
 `.cargo/config.toml` defaults the target to `x86_64-pc-windows-gnu` (the maintainer's
@@ -911,9 +933,10 @@ and the Linux bundle/validator flow uses `x86_64-unknown-linux-gnu`.
 
 ## 12. Known Architectural Decisions & Gaps
 
-- **Per-sample everything.** The exciter↔resonator loop must be per-sample
-  (bidirectional coupling). The post chain is also per-sample today, including
-  parameter setters — block processing remains a future optimization.
+- **Per-sample audio, per-buffer parameters.** The exciter↔resonator loop must
+  be per-sample (bidirectional coupling), and the post chain runs per sample
+  too; its parameters are set once per buffer (`begin_block`). Block processing
+  of the post chain remains a possible optimization.
 - **All exciters resident per voice.** Trades memory (~all 16 structs × 16 voices)
   for allocation-free, branch-only dispatch.
 - **Resonator mode count scales with QualityMode.** Each profile reports a base
@@ -926,11 +949,12 @@ and the Linux bundle/validator flow uses `x86_64-unknown-linux-gnu`.
   target, not a description of shipped behavior.
 - **Only the clipper is oversampled.** The Lorenz drive and the WDF filter's
   soft clip run at the host rate, so their aliasing is part of the sound: the
-  whole-chain aliasing harness (drive 2.5) measures about −23 dB in every
-  oversampled mode, the drive's own figure, while the clipper alone reaches
-  −51 to −76 dB.
+  whole-chain aliasing harness (`render --suite aliasing`: Render, drive 2.5,
+  a 9 kHz tone) measures −20.5 dB (2026-11-14), the drive's own figure, while
+  the clipper alone reaches −67 dB Normal and −105 dB Render at its defaults
+  (−50.7 / −75.5 dB at Softness 0).
 - **Single algorithmic resonator path.** The former dual path was retired
-  (implemented 2026-05-27, see §5 and `docs/backlog.md`): `complex_algo` is gone,
+  (implemented 2026-05-27, see §5): `complex_algo` is gone,
   the per-object algorithmic generators are the sole engine, 14 per-object
   character params are exposed, and the profile tables are demoted to
   `mode_count`/budget/test metadata.

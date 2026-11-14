@@ -1,18 +1,19 @@
-> **Implementation status (2026-05).** This file originally described an
+> **Implementation status (checked 2026-11-14).** This file originally described an
 > "Unbound Fidelity Tier" of research-grade DSP. The **shipped** post chain is a
 > set of lightweight, real-time-safe *approximations* of those targets. Each
 > section below states what is **Implemented** today and keeps the original
 > **Design target** for reference. Verified against
-> `src/dsp/post_processing/` and `src/lib.rs`. See `docs/ARCHITECTURE.md` §9 and
-> `docs/code-review.md` for the conformance matrix and known defects.
+> `src/dsp/post_processing/` and `src/lib.rs`. See `docs/ARCHITECTURE.md` §9 for
+> the as-built reference, and `FABLE-CODE-REVIEW-2026-07-07.md` (repository root)
+> for the review findings and their fixes.
 >
 > Chain order (`PostProcessingChain::process`, updated 2026-10 for review
 > findings C1/C5/C6): per-channel WDF filter → per-channel Lorenz drive → FEM
 > body on the mono sum, added in parallel to both channels at BODY / 5 → HRTF
-> spread → Space → oversampled clipper. Every quality mode runs every stage. The
-> whole chain runs **per sample** today, and `lib.rs` currently sets every
-> stage's parameters once per sample (a known inefficiency — see code review
-> Finding 3).
+> spread → Space → oversampled clipper (the diode stage), then output gain and
+> the Hard or Lookahead limiter. Every quality mode runs every stage. The chain
+> runs **per sample**; `lib.rs` sets its parameters once per buffer
+> (`apply_post_chain_params`), and the stages' smoothers glide between them.
 
 ---
 
@@ -25,7 +26,9 @@ TPT one-pole stages (`g = tan(π·fc/fs)`, cutoff clamped to 0.49·fs) with a so
 solved against the linear cascade each sample) with a `1/(1+res·3.5)`
 compensation gain. Tails always decay below 90 % resonance; from 90 % up the
 filter self-oscillates at any cutoff, bounded by the clips. `component_tolerance`
-injects a tiny hash-noise jitter while there is input (silence stays silent). It
+drifts the cutoff by a slow random walk (0.3 s, up to 30 % deep at 1,
+`fix-inert-controls`) and adds a tiny noise jitter while there is input (silence
+stays silent). It
 is **not** a Newton-Raphson WDF circuit solver. Parameters: `filter_cutoff` (20 Hz–20 kHz, clamped), `filter_resonance`
 (0–1), `component_tolerance` (0–1).
 
@@ -34,19 +37,25 @@ with parasitic capacitance, thermal noise, and true electrical self-oscillation.
 
 ### 2. Drive (Soft Saturation to Fuzz Chaos)
 **Implemented (`lorenz_drive.rs`):** A genuine Lorenz attractor is integrated
-(σ=10, ρ=28, β=8/3, clamped state) but is used only as a **mild multiplicative
-gain modulator** (`1 + chaos·tanh(x·0.02)·0.5`) on top of a soft tube curve.
-`bias_starvation` gates the signal via a crude threshold on the attractor's z
-state. Output is dry/wet mixed and clamped. Parameters: `drive_amount` (0–5),
+(σ=10, ρ=28, β=8/3, clamped state) but is used only as a **multiplicative gain
+modulator** (`1 + chaos·tanh(0.1·x)·0.9`, so Chaos Depth swings the level,
+`fix-inert-controls`) on top of a soft tube curve. `bias_starvation` starves the
+input gain to 0.3 while the attractor's `z` is above `38 − 22·starvation`,
+through a 5 ms one-pole follower, so it sags instead of clicking; at 0 the stage
+is bit-identical to no starvation (`m06-m09-smooth-starvation-and-oversample-clipper`).
+Output is dry/wet mixed and clamped. Parameters: `drive_amount` (0–5),
 `bias_starvation` (0–1), `chaos_depth` (0–1).
 
 **Design target:** Component-level tube/diode cascade coupled into a bifurcating
 Lorenz system that drives the audio into true analog chaos.
 
 ### 3. Stereo Spread
-**Implemented (`hrtf_spread.rs`):** Up to ~1 ms interaural delay + a one-pole
-low-pass/high-pass split shaped by `listener_proximity`, plus width-based
-crossfeed. There is **no HRIR convolution and no azimuth/elevation model**.
+**Implemented (`hrtf_spread.rs`):** The mid (L+R) is delayed up to ~1 ms with
+Width, the same for both channels (not an interaural delay), through a one-pole
+low-pass/high-pass split shaped by `listener_proximity`; the undelayed side is
+added back, then width-based crossfeed. One delay buffer
+(`m07-m08-interpolate-echo-and-tidy-spread`). There is **no HRIR convolution and
+no azimuth/elevation model**.
 Parameters: `spread_width` (0–1), `listener_proximity` (0–1).
 
 **Design target:** Per-mode 3D radiation pattern convolved with measured HRIR
@@ -109,19 +118,29 @@ torsional waves.
 
 ### 7. Factory Echo
 **Implemented (`space.rs::FactoryEcho`):** A modulated stereo delay;
-`machinery_movement` modulates the read position for a gentle Doppler/detune,
-`high_frequency_damping` rolls off the wet path. This is a reasonable match to the
-design intent. Parameters: `delay_time`, `machinery_movement`, `high_frequency_damping`.
+`machinery_movement` modulates the read position for a gentle Doppler/detune, its
+depth smoothed (τ 20 ms). Unmodulated reads are whole samples; modulated reads use
+4-point Hermite interpolation (`m07-m08-interpolate-echo-and-tidy-spread`).
+`high_frequency_damping` is a one-pole low-pass in the feedback loop (20 kHz,
+bypassed, at 0 → 1.5 kHz at 1), so each repeat is darker. Wet level fixed at 0.7.
+This is a reasonable match to the design intent. Parameters: `delay_time`, `machinery_movement`, `high_frequency_damping`.
 
 **Design target:** Doppler-shifted spatial multi-path delay off moving objects.
 
 ### 8. Output Block (Clipper + Limiter)
-**Implemented (`oversampled_clipper.rs` + `lib.rs`):** A soft diode-style clip
-with adjustable `analog_ceiling` (default 0.9661 ≈ −0.3 dBFS) and `diode_softness`.
-The final output limiter (`apply_output_limiter`) hard-clamps to ±0.9661.
+**Implemented (`oversampled_clipper.rs`, `half_band.rs`, `lib.rs`):** the diode
+stage (`add-asymmetric-diode-stage`). Per polarity, a curve linear below
+`K = L·(1 − w)` and `K + (L − K)·tanh((x − K)/(L − K))` above, where the limit is
+`L = analog_ceiling / 1.3` in every quality mode, the knee width is
+`w = 0.8·diode_softness`, and `diode_asymmetry` lowers the negative limit to
+`L·2^(−a)`. It runs at 4/8/16× through cascaded 2× polyphase half-band IIR stages
+(Eco runs it at the host rate), followed by a 2 Hz DC blocker faded in by the
+asymmetry. After output gain the selected limiter stops at `analog_ceiling`
+(default 0.9661 ≈ −0.3 dBFS): **Hard** clamps, **Lookahead** limits with a delay
+reported to the host as latency. Alias at a 5 kHz tone twice the ceiling:
+−19.7 dB Eco, −67.0 dB Normal, −94.2 dB High, −105.0 dB Render (defaults).
 > ✅ The old zero-order-hold "oversampling" no-op (code review 2026-05,
-> Finding 1) is fixed: the clipper interpolates between samples, so the
-> 1×/4×/8×/16× factors give different, progressively less aliased output.
+> Finding 1) is fixed (`m06-m09-smooth-starvation-and-oversample-clipper`).
 
 **Design target:** 16× polyphase upsample → analog diode clip → linear-phase
 anti-aliasing decimation, guaranteeing a true-peak ceiling.
@@ -132,12 +151,12 @@ anti-aliasing decimation, guaranteeing a true-peak ceiling.
 
 `QualityMode` (`Eco`/`Normal`/`High`/`Render`) maps to `PostQualityMode`:
 
-| Mode | Clipper oversample | Chain |
-|---|---|---|
-| Eco | 1× | full |
-| Normal (default) | 4× | full |
-| High | 8× | full |
-| Render | 16× | full |
+| Mode | Clipper oversample | Modal density (at note-on) | Chain |
+|---|---|---|---|
+| Eco | 1× | 0.5× | full |
+| Normal (default) | 4× (2 half-band stages) | 1× | full |
+| High | 8× (3 stages) | 1.5× | full |
+| Render | 16× (4 stages) | 2× | full |
 
 Since 2026-10 (review finding C5) Eco no longer bypasses the body, spread or
 Space; quality modes trade fidelity and CPU (oversampling and, at the voice
