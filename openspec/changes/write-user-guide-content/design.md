@@ -107,16 +107,24 @@ Every page, EN and ES (Decision 6). Approved means the maintainer approved the S
 | `getting-started/first-note` | 2026-11-14 | 2026-11-14 | |
 | `getting-started/web-app` | 2026-11-14 | 2026-11-14 | |
 | `getting-started/tour` | 2026-11-14 | 2026-11-14 | |
+| `how-it-sounds` | 2026-11-14 | 2026-11-14 | |
+| `editor` | 2026-11-14 | 2026-11-14 | |
 
 ### Batch 2.1 notes: Getting started (2026-11-14)
 - **Sources checked:** install folders, zip names and the macOS quarantine step against `README.md` and `ci.yml`'s package step; the default sound, labels (MODEL TYPE, MATERIAL, NOTE MODE, the header's MODE) and help texts against `parameters.json`; the piano strip and computer keys against `src/gui/editor.rs` (C3–C6, `A`…`K` = C4–C5); the web app's bar against `web/www/index.html`; counts through `<Data>` (16 exciters, 9 objects, 214 presets, 10 kits).
 - **Rendered:** pitch against size, Hand Strike at C4, Render quality: Pipe 533 / 268 / 134 Hz and Taut Cable 528 / 264 / 132 Hz at size 0.5 / 1 / 2. Raising the size lowers the pitch on every object.
 - **Reported to the maintainer, not changed here:**
   - **Cable Tension's ⓘ text said "Higher sounds higher"**, but it is the cable's size and raising it lowers the pitch (above). Fixed 2026-11-14 in its own commit: the control is labelled **Cable Length**, its help says longer cables sound lower, and the tour says lengthening it drops the pitch. The parameter ID (`object_size`'s slot) and saved values are unchanged, so no migration.
-  - The web editor's canvas at device pixel ratios above 1 (task 1.3 note).
-  - The preset bank's startup label (task 1.3 note).
-  - The README lists UI Scale as 50/75/100/125/150 %; the selector has every 5 % from 50 to 150 %.
+  - The web editor's canvas at device pixel ratios above 1 (task 1.3 note): in `docs/BACKLOG.md`.
+  - The preset bank's startup label (task 1.3 note): in `docs/BACKLOG.md`.
+  - The README listed UI Scale as 50/75/100/125/150 %; the selector has every 5 % from 50 to 150 %. Fixed in the README.
+- **Review:** the maintainer delegated the Spanish review and the open choices to Claude (2026-11-14, "Lo dejo a tu autoridad"). The ES approved column stays empty until the maintainer approves; the final PR to main waits for it.
 - **Check change:** the bare-number heuristic skips the name "Corrosion" (the product's name is also the macro's).
+
+### Batch 2.2 notes: How it sounds and The editor (2026-11-14)
+- **Signal flow** drawn by a new `<Flow>` component (boxes and arrows, labels passed by the page so each language writes its own, a two-way arrow for the exciter–object coupling, an `aria-label` for screen readers). No image to translate.
+- **Sources checked:** the chain order against `docs/ARCHITECTURE.md` §1 and §9 and `Corrosion::begin_block` (voices → mix DC blocker → Legacy Drive → Filter Bank → Overdrive Unit → BODY → spread → Space → diode → Output → limiter); a note-off releases only the exciter (`Voice::note_off`); voice stealing (`VoiceManager::steal_index`: quietest tail, then pedal-held, then quietest held note past 100 ms); the macros are neutral at 0.5 and reach exciter mass, object damping, brightness, rust, damage, drive and filter (`resolve_macro_bias`); Speed and Roughness are inert on Hand Strike (ARCHITECTURE §6); the envelope per family (AD, MSEG, ADSR; `controls.rs`); knobs drag vertically, faders jump to the click (`knob_drag_value`, `industrial_fader`); the header scrolls with the panels in the plugin and only the strip is pinned (`render_window_body`); the kit zone is 36–59, C2–B3 (`KIT_ZONE`).
+- **Screenshots:** the whole editor and each column carry numbered callouts, placed and checked in the built page (EN and ES). The header has none: at the page's width its labels are too small for callouts not to cover them, so its list names the labels instead.
 
 ## Risks / Trade-offs
 

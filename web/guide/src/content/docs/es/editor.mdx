@@ -2,20 +2,123 @@
 title: "El editor, panel por panel"
 ---
 
-import Stub from '../../../components/Stub.astro';
+import Screenshot from '../../../components/Screenshot.astro';
+import editor from '../../../assets/screenshots/editor.webp';
+import header from '../../../assets/screenshots/header.webp';
+import macros from '../../../assets/screenshots/macros.webp';
+import exciter from '../../../assets/screenshots/exciter.webp';
+import resonator from '../../../assets/screenshots/resonator.webp';
+import processing from '../../../assets/screenshots/processing.webp';
+import keyboard from '../../../assets/screenshots/keyboard.webp';
+import kit from '../../../assets/screenshots/kit.webp';
 
-<Stub />
+El editor muestra todos los controles que cambian el sonido, ordenados como fluye el sonido: lo que toca, lo que resuena y lo que le pasa después.
+
+**Pruébalo:** abre la [app web](https://corrosion-vst.org/play/) junto a esta página y busca cada parte numerada mientras lees.
+
+<Screenshot
+  src={editor}
+  alt="El editor completo: la cabecera, las Macros, las columnas Exciter, Resonator y Processing, y el teclado de piano"
+  width={640}
+  callouts={[[0.27, 0.018], [0.09, 0.116], [0.15, 0.211], [0.475, 0.211], [0.82, 0.211], [0.03, 0.94]]}
+/>
+
+1. La **cabecera**: presets, el Randomizer y los ajustes que afectan a todo el plugin.
+2. Las **Macros**: cuatro perillas que mueven cada una un grupo de controles.
+3. La columna **EXCITER**: lo que toca el objeto.
+4. La columna **RESONATOR**: el objeto que resuena.
+5. La columna **PROCESSING**: la cadena de salida.
+6. El **teclado de piano**, para tocar sin un teclado MIDI.
 
 ## Cabecera
 
+<Screenshot
+  src={header}
+  alt="La cabecera: logo, banco de presets, Randomizer, los menús SCALE, MODE, NOTE MODE y LIMITER, y los faders OUTPUT, WIDTH y BODY"
+/>
+
+De izquierda a derecha:
+
+- **PRESET BANK:** la carpeta y el nombre del preset actual. Haz clic en el nombre para abrir el menú de presets, con un submenú por carpeta; las flechas **‹ ›** recorren los presets de la carpeta actual. Ver [Explorar y guardar](/wiki/es/presets/browse-and-save/).
+- **Save:** elige una carpeta en el menú de la izquierda, escribe un nombre en **Preset name** y haz clic en **Save**.
+- **Randomizer:** elige qué puede cambiar en el menú de la izquierda (**Safe**, **Object**, **Damage** o **Full**) y haz clic en **Randomize**. Ver [Randomizer](/wiki/es/randomizer/).
+- **SCALE:** el tamaño de la ventana del editor. Ver [Escala de la interfaz](/wiki/es/ui-scale/).
+- **MODE:** el modo de calidad, de **Eco** a **Render**. Los modos más altos gastan más CPU. Ver [Calidad y CPU](/wiki/es/quality/).
+- **NOTE MODE:** **Tonal** toca el teclado como un instrumento, **Drone** sostiene las notas y **Kit** da a cada tecla su propio sonido. Ver [Modos de nota](/wiki/es/note-modes/).
+- **LIMITER:** un recorte duro (**Hard**) o un limitador con anticipación (**Lookahead**) a la salida.
+- **OUTPUT:** el nivel final, en dB.
+- **WIDTH:** cuánto se separan las voces en el campo estéreo.
+- **BODY:** cuánto se oye el cuerpo resonante bajo el sonido.
+
 ## Macros
+
+<Screenshot src={macros} alt="El panel Macros: las perillas MASS, CORROSION, VIOLENCE y BRIGHTNESS" />
+
+**MASS**, **CORROSION**, **VIOLENCE** y **BRIGHTNESS** mueven cada una varios controles a la vez, repartidos entre el excitador, el objeto y la cadena de salida. En la mitad de su recorrido no cambian nada; gíralas hacia un lado u otro para volver todo el sonido más pesado, más viejo, más áspero o más brillante. Ver [Macros](/wiki/es/macros/).
 
 ## Columna Exciter
 
+<Screenshot
+  src={exciter}
+  alt="La columna Exciter: MODEL TYPE, las perillas Pressure, Speed y Roughness, el panel propio del modelo, la envolvente de fuerza y los Gesture Modifiers"
+  width={438}
+  callouts={[[0.285, 0.054], [0.106, 0.146], [0.365, 0.231], [0.457, 0.496], [0.342, 0.766]]}
+/>
+
+1. **MODEL TYPE:** el excitador, con una descripción de una línea debajo.
+2. **PRESSURE, SPEED, ROUGHNESS:** tres controles presentes en todos los excitadores, que actúan sobre sus propios ajustes: cuánto empuja, a qué velocidad se mueve y cuánta aspereza tiene. Los excitadores que no se mueven o no tienen aspereza, como este Hand Strike, ignoran Speed o Roughness. Ver [Controles comunes](/wiki/es/exciters/common-controls/).
+3. **El panel propio del modelo**, con su nombre (aquí **Hand strike physics**): cuatro controles que solo tiene este excitador. Cambia cuando cambias de modelo.
+4. **Force Envelope:** cómo sube y baja la fuerza del excitador a lo largo de una nota. Los excitadores de golpe tienen una envolvente **AD** sencilla (Attack, Release), los de fricción (Bow y los raspadores) una **MSEG** de seis etapas que puede repetirse en bucle, y el resto una **ADSR**. Ver [Envolvente de fuerza y MSEG](/wiki/es/exciters/envelopes/).
+5. **Gesture Modifiers:** cuánto cambia la velocidad la fuerza, su pico y su tiempo, y la velocidad y la curva generales de la envolvente. Ver [Modificadores de gesto](/wiki/es/exciters/gesture-modifiers/).
+
 ## Columna Resonator
+
+<Screenshot
+  src={resonator}
+  alt="La columna Resonator: MATERIAL, el panel de geometría del objeto y Brightness, Environmental Exposure y Mechanical Linkage"
+  width={432}
+  callouts={[[0.234, 0.07], [0.28, 0.171], [0.695, 0.371], [0.43, 0.424], [0.35, 0.691]]}
+/>
+
+1. **MATERIAL:** el objeto, con una descripción de una línea debajo.
+2. **El panel de geometría del objeto** (aquí **Pipe geometry**): su tamaño, con un nombre que le va, y los controles que solo tiene este objeto. Ver [Geometría y afinación](/wiki/es/objects/geometry/).
+3. **BRIGHTNESS:** cuánto se oyen los parciales agudos del objeto.
+4. **Environmental Exposure:** **Rust**, **Damage**, **Heat**, **Sludge** y **Thickness**, el desgaste y la intemperie sobre el metal. Ver [Environmental Exposure](/wiki/es/objects/environmental-exposure/).
+5. **Mechanical Linkage:** dónde y con qué firmeza toca el excitador el objeto, y si ese punto se desplaza. Ver [Mechanical Linkage](/wiki/es/objects/mechanical-linkage/).
 
 ## Columna Processing
 
+<Screenshot
+  src={processing}
+  alt="La columna Processing: Filter Bank, Overdrive Unit, Dispersion, Space y el Brickwall Limiter"
+  width={436}
+  callouts={[[0.232, 0.067], [0.289, 0.327], [0.261, 0.516], [0.167, 0.704], [0.365, 0.845]]}
+/>
+
+La cadena de salida, de arriba abajo en el orden en que la recorre el sonido (salvo **Legacy Drive**, que va primero; ver [Cómo suena](/wiki/es/how-it-sounds/#la-cadena-de-salida)).
+
+1. **Filter Bank:** un filtro paso bajo resonante. Ver [Filter Bank](/wiki/es/output-chain/filter-bank/).
+2. **Overdrive Unit:** una saturación caótica, más el Legacy Drive sobre la mezcla de voces. Ver [Overdrive Unit](/wiki/es/output-chain/overdrive/).
+3. **Dispersion:** el material y el tamaño del cuerpo resonante, y la apertura estéreo. Ver [Dispersion y BODY](/wiki/es/output-chain/dispersion/).
+4. **Space:** una nave de fábrica, un tanque de muelles o un eco. Sus controles cambian con **MODE**. Ver [Space](/wiki/es/output-chain/space/).
+5. **Brickwall Limiter:** el techo y la suavidad y asimetría de la etapa de diodo. El punto rojo se enciende cuando la etapa de diodo recorta. Ver [Diodo y limitador](/wiki/es/output-chain/diode-limiter/).
+
 ## Teclado y barra de kit
 
-## Badges de ayuda y gestos
+<Screenshot src={keyboard} alt="El teclado de piano en la parte inferior del editor, con las teclas del ordenador marcadas de C4 a C5" />
+
+El teclado de piano toca tres octavas, de C3 a C6. Haz clic más abajo en una tecla para tocar más fuerte, y arrastra sobre las teclas para hacer un glissando. Las letras sobre las teclas son las [teclas del ordenador](/wiki/es/midi/computer-keyboard/) que las tocan.
+
+En el modo de nota **Kit** aparece una barra de kit sobre el teclado, y el teclado cambia: va de C2 a C6, las teclas que tienen un pad aparecen marcadas, y las que quedan fuera de la zona del kit (de C2 a B3) se ven en gris hasta que activas **Full keyboard**. Haz clic en una tecla para seleccionarla y editar su pad. Ver [Modo Kit](/wiki/es/note-modes/kit/).
+
+<Screenshot src={kit} alt="Modo Kit: la barra de kit con KEY, Tune, Assign, Clear y Full keyboard sobre el teclado, con las teclas que tienen pad marcadas en amarillo" />
+
+## Insignias ⓘ y gestos
+
+- **Insignias ⓘ:** pasa el ratón por la insignia junto al nombre de un control para leer en una o dos frases qué le hace al sonido.
+- **Perillas:** arrastra hacia arriba para subir y hacia abajo para bajar.
+- **Faders:** haz clic en un punto de la pista para saltar ahí, o arrastra a lo largo de ella.
+- **Menús:** haz clic para abrir y en una opción para elegirla.
+- **Desplazamiento:** en el plugin, cuando la ventana es más baja que el editor, los paneles se desplazan y el teclado de piano se queda abajo. En la app web se desplaza la página.
+
+La automatización y la lista de parámetros de tu DAW muestran cada control con su nombre de parámetro, que puede no coincidir con la etiqueta del panel: **Legacy Drive** es **Drive**, y el **Cutoff** del Filter Bank es **Filter Cutoff**. La [referencia de parámetros](/wiki/es/reference/) recoge los dos.

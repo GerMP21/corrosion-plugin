@@ -1,0 +1,73 @@
+---
+// A signal-flow diagram: boxes joined by arrows, in reading order
+// (`write-user-guide-content` 2.2). The page passes the labels, so each
+// language writes its own; the diagram has no image to translate.
+//   <Flow steps={[{ title: 'Exciter', note: 'pushes the object' }, …]} />
+// A step with `loop` draws a two-way arrow before it (the exciter and the
+// object push each other every sample). Wraps on narrow screens.
+interface Step {
+  title: string;
+  note?: string;
+  /** A two-way arrow before this step instead of a one-way one. */
+  loop?: boolean;
+}
+interface Props {
+  steps: Step[];
+  /** Read by screen readers in place of the boxes. */
+  label: string;
+}
+const { steps, label } = Astro.props;
+if (steps.length === 0) throw new Error('<Flow>: no steps');
+---
+
+<figure class="flow" role="img" aria-label={label}>
+  {
+    steps.map((step, i) => (
+      <>
+        {i > 0 && (
+          <span class={step.loop ? 'arrow loop' : 'arrow'} aria-hidden="true">
+            {step.loop ? '⇄' : '→'}
+          </span>
+        )}
+        <span class="box" aria-hidden="true">
+          <strong>{step.title}</strong>
+          {step.note && <small>{step.note}</small>}
+        </span>
+      </>
+    ))
+  }
+</figure>
+
+<style>
+  .flow {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.4rem;
+    margin: 1rem 0;
+  }
+  .box {
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+    padding: 0.45rem 0.7rem;
+    border: 1px solid var(--sl-color-gray-5);
+    border-left: 3px solid var(--sl-color-accent);
+    background: var(--sl-color-gray-6);
+    line-height: 1.3;
+  }
+  .box strong {
+    font-size: 0.9rem;
+  }
+  .box small {
+    color: var(--sl-color-gray-3);
+    font-size: 0.78rem;
+  }
+  .arrow {
+    color: var(--sl-color-gray-3);
+    font-size: 1.1rem;
+  }
+  .arrow.loop {
+    color: var(--sl-color-accent);
+  }
+</style>
