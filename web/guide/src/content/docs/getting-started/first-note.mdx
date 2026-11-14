@@ -8,7 +8,7 @@ import Data from '../../../components/Data.astro';
 import Screenshot from '../../../components/Screenshot.astro';
 import browser from '../../../assets/screenshots/preset-browser.webp';
 
-Your first note takes a minute: load Corrosion on an instrument track, pick a preset and play.
+Your first note takes about a minute: load Corrosion on an instrument track, pick a preset and play. The next few minutes are the fun part.
 
 **Try it:** in the [web app](https://corrosion-vst.org/play/), the same steps work without a host. Skip to [Pick a preset](#pick-a-preset).
 
@@ -38,3 +38,14 @@ What happens next depends on the exciter:
 
 - **Struck sounds** (a mallet, a stick, a hand) ring on after the hit and fade by themselves. Pipes, beams and cables can ring for seconds.
 - **Bowed, scraped and dragged sounds** follow their envelope: in the default Tonal note mode they fade even while you hold the key. Letting go snaps the object free, and that release can be louder than the held note. It's part of the sound; [Troubleshooting](/wiki/troubleshooting/) explains it. The Drone note mode keeps them going until you let go.
+
+## If you hear nothing
+
+- **Check the track is armed or monitored**, and that MIDI is reaching it. Most hosts show incoming notes on the track's meter.
+- **Friction sounds take a moment.** A bow needs time to grab the metal, so a very short tap on a bowed preset can sound like nothing. Hold the key.
+- **In Kit mode, only keys with pads play.** If **NOTE MODE** says **Kit**, try a key between C2 and B3, or load a Bass or Lead preset.
+- **Check OUTPUT** in the header. At its bottom it's silent.
+
+## Where to go from here
+
+You've made a sound; now make it yours. The [10-minute tour](/wiki/getting-started/tour/) walks through changing every part of it, and it's the fastest way to get a feel for the instrument.

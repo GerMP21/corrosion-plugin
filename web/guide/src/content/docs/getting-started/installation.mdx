@@ -55,6 +55,15 @@ Move the bundle into your home plugin folder, creating it if needed:
 
 The Linux build is for 64-bit Intel and AMD processors.
 
+## If Corrosion doesn't show up
+
+A missing plugin is almost always a folder or a scan:
+
+1. Check the bundle landed in the folder above for your system and format, as `Corrosion.vst3` or `Corrosion.clap`, not inside another folder from the zip.
+2. Rescan plugins in your host. Some hosts only scan custom folders you've added in their preferences.
+3. On macOS, run the quarantine command above; a quarantined bundle is silently skipped.
+4. Look for it under **Synaptech Solutions** as well as under **Corrosion**: hosts sort by maker or by name.
+
 ## VST3 or CLAP
 
 Both formats are the same plugin, with the same sound, editor and presets. Use the one your host supports. If it supports both, either is fine. Both accept per-note expression from hosts that send it, such as tuning or choking a single note (see [Expression](/wiki/midi/expression/)).

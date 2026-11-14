@@ -5,7 +5,7 @@ title: "How it sounds"
 import Data from '../../components/Data.astro';
 import Flow from '../../components/Flow.astro';
 
-Every note in Corrosion is a small physical event: something hits, scrapes or blows on a metal object, the object rings, and the output chain shapes the result.
+Every note in Corrosion is a small physical event. Something hits, scrapes or blows on a metal object, the object rings, and the output chain shapes the result. Once you know which part does what, you always know which knob to reach for: a note that's the wrong *kind* of sound needs a different exciter or object; a note that's the right sound in the wrong place needs the output chain.
 
 **Try it:** in the [web app](https://corrosion-vst.org/play/), hold the `A` key, then switch the **EXCITER**'s **MODEL TYPE** to **Bow** and hold it again. Same object, same chain: only what drives the object changed.
 
@@ -50,6 +50,8 @@ A few things change what the voice does from note to note:
 - **The pitch** comes from the key and the object's size: the larger the object, the lower it sounds.
 
 Up to 16 notes play at once. When you play more, Corrosion takes over the quietest voice that is already fading out, then one the sustain pedal holds, then the quietest held note.
+
+**A sound designer's rule of thumb:** fix a sound as early in the chain as you can. If a plate is too bright, try **Brightness**, a softer exciter or a different **Strike Pos** before you reach for the filter. Changes at the source sound natural, because the physics stays consistent; changes at the end are a coat of paint.
 
 ## The output chain
 

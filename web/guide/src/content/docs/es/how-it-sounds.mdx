@@ -5,7 +5,7 @@ title: "Cómo suena"
 import Data from '../../../components/Data.astro';
 import Flow from '../../../components/Flow.astro';
 
-Cada nota de Corrosion es un pequeño suceso físico: algo golpea, raspa o sopla sobre un objeto de metal, el objeto resuena y la cadena de salida da forma al resultado.
+Cada nota de Corrosion es un pequeño suceso físico. Algo golpea, raspa o sopla sobre un objeto de metal, el objeto resuena y la cadena de salida da forma al resultado. Cuando sabes qué parte hace qué, siempre sabes qué mando tocar: una nota que es el *tipo* de sonido equivocado necesita otro excitador u otro objeto; una nota que es el sonido correcto en el sitio equivocado necesita la cadena de salida.
 
 **Pruébalo:** en la [app web](https://corrosion-vst.org/play/), mantén pulsada la tecla `A`; luego cambia el **MODEL TYPE** del **EXCITER** a **Bow** y vuelve a mantenerla. Mismo objeto, misma cadena: solo cambió lo que mueve el objeto.
 
@@ -50,6 +50,8 @@ Algunas cosas cambian lo que hace la voz de una nota a otra:
 - **La altura** sale de la tecla y del tamaño del objeto: cuanto más grande el objeto, más grave suena.
 
 Suenan hasta 16 notas a la vez. Si tocas más, Corrosion reutiliza la voz más silenciosa de las que ya se están apagando, luego una que sostiene el pedal y luego la nota sostenida más silenciosa.
+
+**Una regla de diseñador de sonido:** arregla el sonido lo antes posible en la cadena. Si una placa es demasiado brillante, prueba **Brightness**, un excitador más blando u otro **Strike Pos** antes de recurrir al filtro. Los cambios en el origen suenan naturales, porque la física sigue siendo coherente; los cambios al final son una mano de pintura.
 
 ## La cadena de salida
 
