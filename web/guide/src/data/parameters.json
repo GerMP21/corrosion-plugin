@@ -2312,8 +2312,8 @@
         },
         {
           "group": "Cable tension",
-          "help": "Tension of the cable. Higher sounds higher.",
-          "label": "Cable Tension",
+          "help": "Length of the cable. Longer cables sound lower.",
+          "label": "Cable Length",
           "max": "10",
           "min": "0.05",
           "model": "Taut Cable"

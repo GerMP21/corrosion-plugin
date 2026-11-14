@@ -112,7 +112,7 @@ Every page, EN and ES (Decision 6). Approved means the maintainer approved the S
 - **Sources checked:** install folders, zip names and the macOS quarantine step against `README.md` and `ci.yml`'s package step; the default sound, labels (MODEL TYPE, MATERIAL, NOTE MODE, the header's MODE) and help texts against `parameters.json`; the piano strip and computer keys against `src/gui/editor.rs` (C3–C6, `A`…`K` = C4–C5); the web app's bar against `web/www/index.html`; counts through `<Data>` (16 exciters, 9 objects, 214 presets, 10 kits).
 - **Rendered:** pitch against size, Hand Strike at C4, Render quality: Pipe 533 / 268 / 134 Hz and Taut Cable 528 / 264 / 132 Hz at size 0.5 / 1 / 2. Raising the size lowers the pitch on every object.
 - **Reported to the maintainer, not changed here:**
-  - **Cable Tension's ⓘ text says "Higher sounds higher"**, but it is the cable's size and raising it lowers the pitch (above). The pages say only that the pitch moves with it, until it's settled.
+  - **Cable Tension's ⓘ text said "Higher sounds higher"**, but it is the cable's size and raising it lowers the pitch (above). Fixed 2026-11-14 in its own commit: the control is labelled **Cable Length**, its help says longer cables sound lower, and the tour says lengthening it drops the pitch. The parameter ID (`object_size`'s slot) and saved values are unchanged, so no migration.
   - The web editor's canvas at device pixel ratios above 1 (task 1.3 note).
   - The preset bank's startup label (task 1.3 note).
   - The README lists UI Scale as 50/75/100/125/150 %; the selector has every 5 % from 50 to 150 %.

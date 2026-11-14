@@ -532,7 +532,7 @@
       "Plate": "Tamaño de la placa. Las placas más grandes suenan más graves.",
       "Sheet Metal": "Tamaño de la chapa. Las chapas más grandes suenan más graves.",
       "Tank": "Tamaño del tanque. Los tanques más grandes suenan más graves.",
-      "Taut Cable": "Tensión del cable. Más alto suena más agudo."
+      "Taut Cable": "Longitud del cable. Los cables más largos suenan más graves."
     }
   },
   "slip_curve": {

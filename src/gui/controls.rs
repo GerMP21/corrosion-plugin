@@ -638,7 +638,7 @@ pub(crate) const IBEAM_RESONATOR_CONTROLS: &[ResonatorControlSpec] = &[
 pub(crate) const TAUT_CABLE_RESONATOR_CONTROLS: &[ResonatorControlSpec] = &[
     ResonatorControlSpec {
         id: ResonatorControlId::Size,
-        label: "Cable Tension",
+        label: "Cable Length",
         min: 0.05,
         max: 10.0,
     },
@@ -1038,7 +1038,7 @@ pub(crate) fn help_for(label: &str) -> &'static str {
         "rigidity damping" => "Damping of the beam's stiffness. Higher shortens the high modes.",
         "braid stiffness" => "Stiffness of the cable's braid. Higher sounds brighter and less harmonic.",
         "tension drop" => "How much the pitch drops on loud notes. Higher bends loud notes down further.",
-        "cable tension" => "Tension of the cable. Higher sounds higher.",
+        "cable length" => "Length of the cable. Longer cables sound lower.",
         "dispersion chirp" => "How much the spring smears high frequencies. Higher gives a stronger springy chirp.",
         "spring slosh" => "Wobble of the spring. Higher sounds looser and more liquid.",
         "coil length" => "Length of the coil. Longer coils sound lower.",
