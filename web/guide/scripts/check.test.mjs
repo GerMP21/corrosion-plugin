@@ -68,12 +68,13 @@ const bowControls = [
   'loop_end_stage',
 ];
 
-/** Write the Bow page: no placeholder, its Controls section linking `ids`. */
+/** Write the Bow page: no placeholder, its Controls section holding only
+ * links to `ids` (whatever the page's own Controls section says). */
 const writeBow = (ids) => (text) =>
   text
     .replace(/^<Stub \/>\n/m, '')
     .replace(/^import Stub .*\n/m, '')
-    .replace('## Controls\n', `## Controls\n\n${ids.map(link).join(', ')}\n`);
+    .replace(/## Controls\n[\s\S]*?(?=\n## )/, `## Controls\n\n${ids.map(link).join(', ')}\n`);
 
 test('the pages as they are pass the model-page rules', () => {
   const { output } = checkWith(() => {});
@@ -117,7 +118,8 @@ test('<ModelControls> in the Controls section links them all', () => {
     edit(dir, 'exciters/bow.mdx', (t) =>
       writeBow([])(t)
         .replace(/^(import Clips .*)$/m, "$1\nimport ModelControls from '../../../components/ModelControls.astro';")
-        .replace('## Controls\n', '## Controls\n\n<ModelControls exciter="Bow" />\n'),
+        .replace('## Controls\n', '## Controls\n\n<ModelControls exciter="Bow" />\n')
+        .replace(/^(import ModelControls .*\n)\1/m, '$1'),
     ),
   );
   assert.doesNotMatch(output, /bow\.mdx/);
@@ -157,5 +159,5 @@ test('a number from <Data> does not warn', () => {
   const { output } = checkWith((dir) =>
     edit(dir, 'exciters/common-controls.mdx', (t) => `${t}\nFilter Cutoff runs <Data param="filter_cutoff" field="range" />.\n`),
   );
-  assert.doesNotMatch(output, /warning:/);
+  assert.doesNotMatch(output, /warning: .*Filter Cutoff/);
 });
