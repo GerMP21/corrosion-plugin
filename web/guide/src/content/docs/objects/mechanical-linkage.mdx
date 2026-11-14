@@ -7,7 +7,7 @@ sidebar:
 import Clips from '../../../components/Clips.astro';
 import Data from '../../../components/Data.astro';
 
-Mechanical Linkage sets where and how the exciter touches the object: the point it strikes, how firmly the two are coupled, and how that point moves while a note plays.
+Mechanical Linkage decides where and how the exciter touches the object: the point it plays, how firmly the two are coupled, and how that point moves while a note sounds. A guitarist picking near the bridge or over the neck is doing exactly this, and it's one of the most musical controls you have.
 
 All six controls act on held notes.
 
@@ -54,3 +54,7 @@ How much the force envelope sweeps the strike point. As the envelope rises, the 
 How firmly the fundamental keeps its level wherever the strike point is, from <Data param="fundamental_anchor" field="min" /> to <Data param="fundamental_anchor" field="max" />. Near an end of the object, or on a node of the fundamental, the note would lose its pitch; the anchor holds the fundamental at a minimum level. Higher keeps notes more in tune. Away from the ends it changes little.
 
 <Clips param="fundamental_anchor" />
+
+**Tips:**
+- **Strike Pos** is the first control to reach for when a sound is "nearly right". It changes the tone without changing the character.
+- A slow **Pos Wander** on a bowed drone is a free chorus: the timbre keeps moving, and nothing is detuned.

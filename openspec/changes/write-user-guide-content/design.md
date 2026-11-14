@@ -251,6 +251,24 @@ The 13 pages are written in EN and ES. Each object page lists its controls with 
 - `space_mode` has no clip set, so the Mode section has no clip; each Space mode's controls have their clips.
 - The bare-number warnings left are walkthrough values ("about 1.5", "about 2") and Delay Time's display range in milliseconds, which the data holds only as 0–1.
 
+### Task 2.11 notes: restyle to `guide-writing-style` (2026-11-14)
+Every page written before the style spec was revised in both languages (paragraph-level edits, so the earlier accuracy fixes stay):
+- **Getting started, How it sounds, The editor:**
+  - warmer openings and why physical modelling behaves as it does;
+  - a "fix it at the source" rule of thumb;
+  - "If Corrosion doesn't show up" (Install) and "If you hear nothing" (First note).
+- **Exciters:**
+  - each model page opens with what the exciter is like to play and why, and gains a tip;
+  - the overview gains "Choosing an exciter";
+  - common controls, envelopes and gesture modifiers gain tips.
+- **Objects:** the same treatment: a new lead and a tip per model page, "Choosing an object", and tips on the panel pages.
+- **Claims checked while restyling:**
+  - **Cog beating scales with pitch:** its pairs are `f(1 ± ε)` (`industrial_cog.rs`).
+  - **Taut Cable's pitch dips, then climbs back** (not the reverse; caught in the draft).
+  - **Bow:** described by its friction curve, not as stick-slip, which the backlog holds.
+  - **Coil Spring:** its dispersion stated without a direction.
+  - **MSEG loops:** not tempo-synced, so no tip claims they are.
+
 ## Risks / Trade-offs
 
 - [Volume: about 70 pages × 2 languages] → Batches by section, so review keeps pace with writing. The strict check is turned on only in the last task, so earlier batches can merge to `dev` with placeholders left.
