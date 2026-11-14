@@ -9,6 +9,16 @@
 use crate::dsp::utils::noise::Noise;
 use crate::dsp::utils::{contact, rate};
 use crate::dsp::ContactPrediction;
+/// The Chain Mass control's default (`VoiceControls::default`). A link's
+/// momentum sets how far it dents the surface: the contact is solved against
+/// the surface pushing back, so without this the impulse was the same for any
+/// mass (`fix-inert-controls`). At the default the factor is exactly 1.
+const DEFAULT_CHAIN_MASS: f32 = 0.8;
+/// Hertzian stiffness of a link's impact.
+const IMPACT_STIFFNESS: f32 = 2.0e5;
+/// How far a link dents the surface, per unit of its travel in a sample.
+const IMPACT_DENT: f32 = 3.0;
+
 /// Multi-link impact exciter with stochastic rattle.
 #[derive(Clone, Debug)]
 pub struct MetalChain {
@@ -179,6 +189,7 @@ impl MetalChain {
         let striking =
             |link: &ChainLink| !link.impacted && link.fall(time_ms / 1000.0).0 > free_surface;
         let links = &self.links;
+        let reach = self.chain_mass / DEFAULT_CHAIN_MASS;
         let impacts = |surface: f32| -> f32 {
             // A link strikes on the sample its tip passes the unloaded
             // surface. Its penetration on that sample depends on where the
@@ -190,8 +201,9 @@ impl MetalChain {
                 .iter()
                 .filter(|link| striking(link))
                 .map(|link| {
-                    let penetration = (0.5 * link.travel(time_ms / 1000.0) - push).max(0.0);
-                    rate::impulse(2.0 * penetration.powf(1.5) * link.mass, ratio)
+                    let penetration =
+                        (0.5 * link.travel(time_ms / 1000.0) * reach * IMPACT_DENT - push).max(0.0);
+                    rate::impulse(IMPACT_STIFFNESS * penetration.powf(1.5) * link.mass, ratio)
                 })
                 .sum()
         };

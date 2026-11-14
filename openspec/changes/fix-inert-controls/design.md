@@ -87,6 +87,39 @@ Unit tests: `chatter_pitch_raises_the_chatter`, `chatter_damping_shortens_the_ri
 
 After: `every_factory_preset_meets_the_quality_floor` and `generated_bank_equals_the_files_on_disk` pass; full CI lane 463 passed, 0 failed.
 
+### Task 2.2: Metal Chain, Chain Mass (and Link Count) (2026-11-14)
+
+**Cause (not the one 1.1 guessed).** Neither the governor nor its ceiling flattened Chain Mass: the link impacts were inaudible. With Internal Rattle 0 a default note (pipe, C4, velocity 100) was at −78 dB against −17 dB with the rattle, so the sound was all rattle noise (the backlog's "Metal Chain at Internal Rattle 0"). And the contact solve limits an impact by the surface pushing back, so mass alone didn't change it.
+
+**As built (maintainer: make the links audible).** A link dents the surface by `0.5 · travel · (chain_mass / 0.8) · IMPACT_DENT` (dent 3; the factor is exactly 1 at the default mass), with `IMPACT_STIFFNESS` 2e5 (was 2), which puts the impact in the displacement-limited regime. Drive level 1.4146 → 0.44: the impacts no longer scale with drive, so bracketing stops at a median of 0.3679 (+0.4 dB over 0.35; 1.41 gave 0.61, 0.81 gave 0.47, 0.39 gave 0.373). Velocity now matters more: the default velocity-100 note is −23.2 dB (was −17.2), impact-led at 127.
+
+| Probe (pipe C4 v100) | Before | After |
+|---|---|---|
+| Rattle 0 | −78.0 dB | −26.2 dB |
+| Chain Mass 0.1 / 2.0 (rattle 0.3) | −17.1 / −17.2 dB | −27.8 / −19.4 dB |
+
+| Control | Level dB | Ring | Bands dB | Width dB | Env dB | Acts |
+|---|---|---|---|---|---|---|
+| Chain Mass | 0.00 → 3.02 | 21 % | 2.51 | 1.45 | 6.52 | yes |
+| Link Count | under floor → 4.52 | 28 % | 3.01 | 2.11 | 7.47 | yes |
+| Drop Spread | 4.57 | 31 % | 3.30 | 3.25 | 8.47 | yes |
+| Internal Rattle | 1.66 | 8 % | 2.35 | 13.65 | 2.36 | yes |
+| Rattle Color | 3.90 | 21 % | 2.55 | 3.78 | 5.63 | yes |
+
+Tests: `metal_chain_tests::the_links_are_heard_without_the_rattle` (links alone −89.0 dB before) and `chain_mass_changes_the_strike` (0.1 and 2.0 both −27.3 dB before), red then green.
+
+**Presets.** Chain Rattle Hit and the kit pads stay on the floor and in character. Five experimental Metal Chain presets left the floor. Four were re-levelled (stored Output only); Plate could not reach the floor by level (−7.9 dB at the headroom cap), so the maintainer chose to re-draw it (seed try 2, as the seeder would; `redraw_named_preset`, ignored):
+
+| Preset | Before | Output before → after | Instability |
+|---|---|---|---|
+| experimental/metal_chain/plate | −10.7 dB | 11.9 (try 0) → 8.836 (try 2, new parameters) | 0.13 dB |
+| experimental/metal_chain/chain | +6.3 dB | 2.097 → 1.017 | 0.63 dB |
+| experimental/metal_chain/i_beam | +16.4 dB | 5.527 → 0.7548 | 0.02 dB |
+| experimental/metal_chain/coil_spring | +8.6 dB | 1.154 → 0.4308 | 0.06 dB |
+| experimental/metal_chain/industrial_cog | +9.8 dB | 1.013 → 0.3274 | 0.01 dB |
+
+After: full CI lane 465 passed, 0 failed.
+
 ## Goals / Non-Goals
 
 - Goal: every sound-shaping control audible in its context, in the direction its help says, guarded by a test.

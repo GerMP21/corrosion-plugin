@@ -643,7 +643,7 @@ const EXCITER_DRIVE_LEVEL: [f32; 17] = [
     9.2944e-01,
     5.3012e-01,
     5.4100e-01,
-    1.4146e+00,
+    4.4000e-01,
     2.1089e-02,
     2.6216e-03,
     1.9438e-02,
@@ -4253,5 +4253,60 @@ mod material_transform_tests {
         println!("WARBLE heat 0: {cold:.3} cents, heat 1: {hot:.3} cents");
         assert_eq!(cold, 0.0, "the pitch wanders at Heat 0");
         assert!(hot >= 4.0, "Heat 1 wanders only {hot:.2} cents");
+    }
+}
+
+/// `fix-inert-controls` 2.2: Metal Chain's links strike the object audibly,
+/// so Chain Mass acts.
+#[cfg(test)]
+mod metal_chain_tests {
+    use super::*;
+
+    /// RMS in dB of a Metal Chain note on a pipe, C4 velocity 100: one
+    /// second held, one released.
+    fn chain_note_db(chain_mass: f32, internal_rattle: f32) -> f32 {
+        let mut voice = Voice::new();
+        let controls = VoiceControls {
+            chain_mass,
+            internal_rattle,
+            ..VoiceControls::default()
+        };
+        voice.note_on_with_controls(
+            60,
+            100.0,
+            ModalProfileId::Pipe,
+            0,
+            1.0,
+            0.0,
+            0.0,
+            8,
+            controls,
+        );
+        let mut energy = 0.0f64;
+        for i in 0..96_000 {
+            if i == 48_000 {
+                voice.note_off();
+            }
+            energy += f64::from(voice.process_sample(48_000)).powi(2);
+        }
+        (10.0 * (energy / 96_000.0).log10()) as f32
+    }
+
+    #[test]
+    fn the_links_are_heard_without_the_rattle() {
+        let (full, bare) = (chain_note_db(0.8, 0.3), chain_note_db(0.8, 0.0));
+        assert!(
+            bare > full - 12.0,
+            "links alone {bare:.1} dB, with the rattle {full:.1} dB"
+        );
+    }
+
+    #[test]
+    fn chain_mass_changes_the_strike() {
+        let (light, heavy) = (chain_note_db(0.1, 0.3), chain_note_db(2.0, 0.3));
+        assert!(
+            heavy - light > 3.0,
+            "Chain Mass 0.1: {light:.1} dB, 2.0: {heavy:.1} dB"
+        );
     }
 }

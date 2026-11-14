@@ -242,10 +242,14 @@ const LEVELS: &[(&str, u32, f32)] = &[
         0.3582,
     ),
     ("experimental/metal_chain/pipe.corrosion-preset", 0, 1.986),
-    ("experimental/metal_chain/plate.corrosion-preset", 0, 11.9),
+    ("experimental/metal_chain/plate.corrosion-preset", 2, 8.836),
     ("experimental/metal_chain/tank.corrosion-preset", 0, 0.7211),
-    ("experimental/metal_chain/chain.corrosion-preset", 0, 2.097),
-    ("experimental/metal_chain/i_beam.corrosion-preset", 0, 5.527),
+    ("experimental/metal_chain/chain.corrosion-preset", 0, 1.017),
+    (
+        "experimental/metal_chain/i_beam.corrosion-preset",
+        0,
+        0.7548,
+    ),
     (
         "experimental/metal_chain/taut_cable.corrosion-preset",
         0,
@@ -254,7 +258,7 @@ const LEVELS: &[(&str, u32, f32)] = &[
     (
         "experimental/metal_chain/coil_spring.corrosion-preset",
         0,
-        1.154,
+        0.4308,
     ),
     (
         "experimental/metal_chain/sheet_metal.corrosion-preset",
@@ -264,7 +268,7 @@ const LEVELS: &[(&str, u32, f32)] = &[
     (
         "experimental/metal_chain/industrial_cog.corrosion-preset",
         0,
-        1.013,
+        0.3274,
     ),
     (
         "experimental/stiff_point_scrape/pipe.corrosion-preset",
