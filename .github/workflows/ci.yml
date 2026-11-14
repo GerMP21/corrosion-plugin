@@ -113,6 +113,15 @@ jobs:
         if: runner.os != 'Windows'
         run: cargo test --no-default-features --test no_alloc --target ${{ matrix.native }}
 
+      # Trial (extend-ci-windows-linux-macos 3.1): does the checking allocator
+      # still hang on MSVC? The feature is turned on for this step only, with
+      # a timeout, and a failure doesn't fail the job.
+      - name: Real-time safety (no_alloc) trial on Windows
+        if: runner.os == 'Windows'
+        continue-on-error: true
+        timeout-minutes: 10
+        run: cargo test --no-default-features --features nih-plug/assert_process_allocs --test no_alloc --target ${{ matrix.native }}
+
       - name: Docs (warnings denied)
         if: runner.os == 'Linux'
         env:
