@@ -188,4 +188,5 @@ When a parameter's meaning changes, migrate both paths:
 
 - **Branch:** `dev` only (see "Branch: USE `dev`, ALWAYS" at the top). PR state lives on GitHub, not in this file.
 - Commit messages: imperative subject naming the finding, e.g. "Skip redundant mode retunes (H12)", and a body saying what changed and why. Add measurements when relevant. Don't put model identifiers in commits, code or PRs.
-- Don't create a PR unless asked. There's no PR template: use Summary / Behaviour changes / Testing sections and say plainly what wasn't tested (Windows build, pluginval, clap-validator, DAW smoke tests haven't been run in these sessions).
+- Don't create a PR unless asked. There's no PR template: use Summary / Behaviour changes / Testing sections and say plainly what wasn't tested (CI covers the Windows and macOS builds, pluginval and clap-validator; DAW smoke tests haven't been run in these sessions).
+- **Never mention the Claude session in a PR** (no session link or session ID in its title, description or comments; maintainer, 2026-11-14).
