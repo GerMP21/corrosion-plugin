@@ -84,6 +84,12 @@ Before each batch is offered for review, every behavioural claim is checked agai
 - **Bare-number warning** (check rule 7): a number in the same sentence as a parameter's name (four letters or more), outside code, links and `<Data>`, prints `warning:` and doesn't fail. None on the current pages.
 - **Tests:** `scripts/data.test.mjs` (4 cases, red before the module existed) and 2 more in `check.test.mjs` (warns without failing; `<Data>` doesn't warn), all under `npm test`. A build with a temporary `<Data>` line rendered "214 presets", "20–20000" and "Off, Factory, Spring, Echo".
 
+### As built: task 1.3 (2026-11-14)
+- **`web/scripts/screenshots.cjs`** captures 10 WebP images (320 KB in all) into `web/guide/src/assets/screenshots/` from the local web app: `editor`, `header`, `macros`, `exciter`, `resonator`, `processing`, `keyboard`, `preset-browser` (the bank's folder menu open), `randomizer` (its mode menu open) and `kit` (the Foundry Kit loaded through `open_preset_file`: the kit bar and the zone). Regions are CSS pixels of a 1280 px editor, measured on the default patch. Needs ImageMagick's `convert`. A run takes about 3 minutes (software WebGL at 2560 px).
+- **Not deviceScaleFactor 2**, as the design said: at a device pixel ratio of 1.5 or 2 the web editor's canvas comes out 939 or 705 CSS px tall instead of 1408, with a 1280-pixel backing store. The bottom of the editor is cut off and it draws blurry. The script uses a 3200 px window at ratio 1 instead (a 2560 px editor; the layout scales with the width). **Reported to the maintainer**: it affects HiDPI screens (`add-web-app`), not this change.
+- **Also found:** at startup the preset bank shows "Bass / Bowed Cable Sub" (the first entry of its list, `selected_factory_preset: 0`) while the default patch, Hand Strike on Pipe, is what plays. It's in the plugin's editor too. Reported to the maintainer; the screenshots show it as it is.
+- **`<Screenshot src={…} alt="…" callouts={[[x, y], …]} />`** (`src/components/Screenshot.astro`): the image through `astro:assets` (1280 and 2560 px WebP), numbered callouts at fractions of the image, explained by an ordered list in the page. A callout outside the image fails the build. Checked in a build and in the browser with a temporary use on the editor page.
+
 ## Risks / Trade-offs
 
 - [Volume: about 70 pages × 2 languages] → Batches by section, so review keeps pace with writing. The strict check is turned on only in the last task, so earlier batches can merge to `dev` with placeholders left.
