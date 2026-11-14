@@ -157,6 +157,7 @@ Every page, EN and ES (Decision 6). Approved means the maintainer approved the S
 | `midi/expression` | 2026-11-14 | 2026-11-14 | |
 | `quality` | 2026-11-14 | 2026-11-14 | |
 | `ui-scale` | 2026-11-14 | 2026-11-14 | |
+| `recipes` | 2026-11-14 | 2026-11-14 | |
 | `objects/pipe` | 2026-11-14 | 2026-11-14 | |
 | `objects/plate` | 2026-11-14 | 2026-11-14 | |
 | `objects/tank` | 2026-11-14 | 2026-11-14 | |
@@ -329,6 +330,38 @@ Every page written before the style spec was revised in both languages (paragrap
   - Mode counts ×0.5 / 1 / 1.5 / 2 (`quality_mode_count_scale`); oversampling 1× / 4× / 8× / 16×.
   - The two switching times and the unreported delay of 4–5 samples (ARCHITECTURE §9).
 - **UI scale:** 50–150 % in 5 % steps, with 810 × 630 at the 75 % default.
+
+### Batch 2.8 notes: Recipes (2026-11-14)
+- **As built: ten recipes in `RECIPES`, applying the proposed list (standing instruction: take the recommended option).** Two proposals were replaced: "a kit from scratch" and "turning a preset into a kit pad". A pad isn't a parameter change, so the clip plan can't render them; the Kit page's Assign walkthrough covers both. Their places went to:
+  - a dying-battery lead;
+  - a distant snare.
+- **"Taming a loud friction release":**
+  - On Chain Drag Drone, the release has no snap at all (the before and after peaks after note-off were identical), so the recipe uses **Experimental → Corrugated Drag · Plate** instead.
+  - That preset ships with a 0.419 s Release and still snaps; it needs about 2 s. The page says so, while Envelopes and Troubleshooting keep "half a second" for the base patch, where it was measured.
+- **"Metallic bass":** the first draft (Felt Softness 0.3, Core Hardness 4) came out 4 dB quieter and no brighter, so it was replaced by Hard Mallet. The page says what was measured: about 4 dB louder and a much longer tail, and no claim of brightness.
+- **Measurements:** `print_recipe_measurements` (ignored), raw renders, before → after.
+
+  | Recipe | RMS dB | Last 0.5 s dB | Peak after note-off vs held, dB | 20 ms level s.d., dB |
+  |---|---|---|---|---|
+  | metallic-bass | −9.4 → −5.3 | −20.5 → −7.5 | | 4.1 → 1.2 |
+  | industrial-drone | −17.2 → −18.2 | | | 0.4 → 0.6 |
+  | singing-bowed-lead | −12.9 → −13.7 | | | 1.1 → 1.4 |
+  | impact | −14.5 → −6.3 | −45.6 → −24.7 | | |
+  | rusted-bell | −15.8 → −16.9 | | | |
+  | glitch-percussion | −15.7 → −16.1 | | | 13.4 → 14.5 |
+  | spring-pad | −25.9 → −26.2 | | | |
+  | dying-battery-lead | −21.4 → −22.9 | | | 2.2 → 3.5 |
+  | distant-hit | −12.2 → −11.9 | −174.6 → −86.6 (hall tail) | | |
+  | gentle-release | | | +6.5 → +1.1 | |
+
+- **What the numbers don't show:**
+  - The brightness proxy (first-difference RMS over RMS) follows the fundamental's level, so no recipe text claims "brighter" from it.
+  - Several recipes are changes of character, not of level: the Spring tail, the echo and the wandering bow. The page describes those, not numbers.
+  - The industrial drone's and glitch percussion's movement is small by these metrics. Their text stays modest: "keeps the texture from sitting perfectly still", "each tick a little different".
+- **Clips:**
+  - Regenerated: 511 (491 + 20), 16 MB; clips.json gains the recipes and the new fingerprint.
+  - The 491 existing `.opus` files were restored from git. Their audio is unchanged (same plan, same engine), but opusenc writes a random stream serial, so a regeneration rewrites every file.
+- **Listening:** the maintainer should listen to the recipe clips. They were checked by measurement only.
 
 ## Risks / Trade-offs
 

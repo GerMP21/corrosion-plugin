@@ -397,3 +397,78 @@ fn print_slot_effects() {
         );
     }
 }
+
+/// The numbers behind each recipe's text (task 2.8): level, brightness and
+/// the level after the last note-off, before and after.
+#[test]
+#[ignore = "measurement table; run with --ignored --nocapture"]
+fn print_recipe_measurements() {
+    let bank = factory::bank();
+    let db = |x: f32| 20.0 * x.max(1e-9).log10();
+    let rms = |s: &[(f32, f32)]| {
+        (s.iter().map(|(l, r)| l * l + r * r).sum::<f32>() / (2 * s.len().max(1)) as f32).sqrt()
+    };
+    // Brightness proxy: RMS of the first difference over RMS, in Hz
+    // (for a sine, rate · |2 sin(πf/rate)| / 2π ≈ f).
+    let centroid = |s: &[(f32, f32)]| {
+        let mono: Vec<f32> = s.iter().map(|(l, r)| l + r).collect();
+        let d: f32 = mono.windows(2).map(|w| (w[1] - w[0]).powi(2)).sum();
+        let e: f32 = mono.iter().map(|x| x * x).sum();
+        (d / e.max(1e-12)).sqrt() * SAMPLE_RATE as f32 / std::f32::consts::TAU
+    };
+    // Movement: standard deviation, in dB, of 20 ms RMS over 0.5–3 s.
+    let wobble = |s: &[(f32, f32)]| {
+        let w = SAMPLE_RATE as usize / 50;
+        let start = (SAMPLE_RATE as usize / 2).min(s.len());
+        let end = (SAMPLE_RATE as usize * 3).min(s.len());
+        let levels: Vec<f32> = s[start..end]
+            .chunks(w)
+            .map(|c| 20.0 * rms(c).max(1e-9).log10())
+            .collect();
+        let mean = levels.iter().sum::<f32>() / levels.len().max(1) as f32;
+        (levels.iter().map(|x| (x - mean).powi(2)).sum::<f32>() / levels.len().max(1) as f32).sqrt()
+    };
+    println!("| clip | RMS dB | bright Hz | attack bright Hz | wobble dB | last 0.5 s dB | max after off dB | max before off dB |");
+    for clip in recipe_clips(RECIPES, &bank) {
+        let out = render_clip(&clip);
+        let off = clip
+            .notes
+            .iter()
+            .filter(|n| matches!(n.kind, crate::offline::OfflineNoteKind::Off))
+            .map(|n| n.frame)
+            .max()
+            .unwrap_or(0);
+        let peak = |s: &[(f32, f32)]| {
+            s.iter()
+                .map(|(l, r)| l.abs().max(r.abs()))
+                .fold(0.0, f32::max)
+        };
+        let half = SAMPLE_RATE as usize / 2;
+        let before_off = &out[off.saturating_sub(half).min(out.len())..off.min(out.len())];
+        let after_off = &out[off.min(out.len())..(off + half).min(out.len())];
+        let tail = &out[out.len().saturating_sub(half)..];
+        println!(
+            "| {} | {:.1} | {:.0} | {:.0} | {:.1} | {:.1} | {:.1} | {:.1} |",
+            clip.reference,
+            db(rms(&out)),
+            centroid(&out),
+            {
+                let w = SAMPLE_RATE as usize * 3 / 100;
+                let ons: Vec<usize> = clip
+                    .notes
+                    .iter()
+                    .filter(|n| !matches!(n.kind, crate::offline::OfflineNoteKind::Off))
+                    .map(|n| n.frame)
+                    .collect();
+                ons.iter()
+                    .map(|&f| centroid(&out[f.min(out.len())..(f + w).min(out.len())]))
+                    .sum::<f32>()
+                    / ons.len().max(1) as f32
+            },
+            wobble(&out),
+            db(rms(tail)),
+            db(peak(after_off)),
+            db(peak(before_off)),
+        );
+    }
+}

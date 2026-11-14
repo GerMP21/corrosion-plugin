@@ -241,8 +241,139 @@ pub struct Recipe {
     pub changes: &'static [(&'static str, f32)],
 }
 
-/// The guide's recipes. The list is chosen with the maintainer (task 2.8).
-pub const RECIPES: &[Recipe] = &[];
+/// The guide's recipes (task 2.8): the proposed list, with the two Kit
+/// workflows left to the Kit page, since a pad isn't a parameter change.
+pub const RECIPES: &[Recipe] = &[
+    Recipe {
+        slug: "metallic-bass",
+        folder: "bass",
+        preset: "Felt Cable Upright",
+        root: NOTE - 12,
+        phrase: DemoPhrase::Notes,
+        changes: &[
+            ("exciter", 4.0),
+            ("filter_cutoff", 4_000.0),
+            ("drive_amount", 0.8),
+            ("diode_asymmetry", 0.6),
+        ],
+    },
+    Recipe {
+        slug: "industrial-drone",
+        folder: "drones",
+        preset: "Grinding Beam",
+        root: NOTE - 12,
+        phrase: DemoPhrase::Held,
+        changes: &[
+            ("drive_amount", 0.8),
+            ("bias_starvation", 0.4),
+            ("chaos_depth", 0.4),
+            ("space_mode", 1.0),
+            ("space_amount", 0.4),
+            ("factory_size", 0.8),
+        ],
+    },
+    Recipe {
+        slug: "singing-bowed-lead",
+        folder: "lead",
+        preset: "Pipe Bow Lead",
+        root: NOTE + 12,
+        phrase: DemoPhrase::Notes,
+        changes: &[
+            ("strike_position", 0.2),
+            ("position_wander", 0.3),
+            ("space_mode", 3.0),
+            ("space_amount", 0.3),
+            ("delay_time", 0.4),
+            ("high_frequency_damping", 0.7),
+        ],
+    },
+    Recipe {
+        slug: "impact",
+        folder: "percussion",
+        preset: "Beam Anvil",
+        root: NOTE - 12,
+        phrase: DemoPhrase::Held,
+        changes: &[
+            ("macro_mass", 0.9),
+            ("body", 4.5),
+            ("drive", 1.0),
+            ("space_mode", 1.0),
+            ("space_amount", 0.5),
+            ("factory_size", 0.9),
+        ],
+    },
+    Recipe {
+        slug: "rusted-bell",
+        folder: "lead",
+        preset: "Felt Plate Bell",
+        root: NOTE + 12,
+        phrase: DemoPhrase::Notes,
+        changes: &[("rust", 1.0), ("damage", 0.8), ("heat", 0.3)],
+    },
+    Recipe {
+        slug: "glitch-percussion",
+        folder: "percussion",
+        preset: "Cog Tick",
+        root: NOTE,
+        phrase: DemoPhrase::Notes,
+        changes: &[
+            ("drive_amount", 1.5),
+            ("bias_starvation", 0.7),
+            ("chaos_depth", 0.8),
+            ("space_mode", 3.0),
+            ("space_amount", 0.3),
+            ("delay_time", 0.1),
+            ("machinery_movement", 0.6),
+        ],
+    },
+    Recipe {
+        slug: "spring-pad",
+        folder: "chords",
+        preset: "Bowed Cable Pad",
+        root: NOTE + 12,
+        phrase: DemoPhrase::Triads,
+        changes: &[
+            ("space_mode", 2.0),
+            ("space_amount", 0.45),
+            ("spring_tension", 0.6),
+            ("spring_tank_size", 0.6),
+        ],
+    },
+    Recipe {
+        slug: "dying-battery-lead",
+        folder: "lead",
+        preset: "Bowed Cable Lead",
+        root: NOTE + 12,
+        phrase: DemoPhrase::Notes,
+        changes: &[
+            ("drive_amount", 3.0),
+            ("bias_starvation", 1.0),
+            ("chaos_depth", 1.0),
+        ],
+    },
+    Recipe {
+        slug: "distant-hit",
+        folder: "percussion",
+        preset: "Plate Snare Crack",
+        root: NOTE,
+        phrase: DemoPhrase::Notes,
+        changes: &[
+            ("listener_proximity", 0.15),
+            ("filter_cutoff", 3_000.0),
+            ("space_mode", 1.0),
+            ("space_amount", 0.4),
+            ("factory_size", 0.7),
+        ],
+    },
+    Recipe {
+        slug: "gentle-release",
+        folder: "experimental/corrugated_drag",
+        preset: "Corrugated Drag · Plate",
+        root: NOTE,
+        phrase: DemoPhrase::Held,
+        changes: &[("mseg_release", 2.0)],
+    },
+];
 
 /// Refuse a recipe whose preset, parameters or values don't exist.
 pub fn check_recipe(recipe: &Recipe, bank: &[factory::FactoryPreset]) -> Result<(), String> {

@@ -4864,6 +4864,206 @@
       "source": "kit Junk Percussion Kit, 12 pads"
     },
     {
+      "file": "recipes/metallic-bass/before.opus",
+      "gain_db": -8.3,
+      "peak_db": -8.6,
+      "ref": "set:recipes:metallic-bass:before",
+      "rms_db": -17.7,
+      "seconds": 4.0,
+      "set": "set:recipes:metallic-bass",
+      "source": "preset Felt Cable Upright (before)"
+    },
+    {
+      "file": "recipes/metallic-bass/after.opus",
+      "gain_db": -8.3,
+      "peak_db": -8.6,
+      "ref": "set:recipes:metallic-bass:after",
+      "rms_db": -13.6,
+      "seconds": 4.0,
+      "set": "set:recipes:metallic-bass",
+      "source": "preset Felt Cable Upright (after)"
+    },
+    {
+      "file": "recipes/industrial-drone/before.opus",
+      "gain_db": 0.0,
+      "peak_db": -14.9,
+      "ref": "set:recipes:industrial-drone:before",
+      "rms_db": -17.7,
+      "seconds": 5.5,
+      "set": "set:recipes:industrial-drone",
+      "source": "preset Grinding Beam (before)"
+    },
+    {
+      "file": "recipes/industrial-drone/after.opus",
+      "gain_db": 0.0,
+      "peak_db": -13.7,
+      "ref": "set:recipes:industrial-drone:after",
+      "rms_db": -18.8,
+      "seconds": 5.5,
+      "set": "set:recipes:industrial-drone",
+      "source": "preset Grinding Beam (after)"
+    },
+    {
+      "file": "recipes/singing-bowed-lead/before.opus",
+      "gain_db": -4.8,
+      "peak_db": -12.2,
+      "ref": "set:recipes:singing-bowed-lead:before",
+      "rms_db": -17.7,
+      "seconds": 4.0,
+      "set": "set:recipes:singing-bowed-lead",
+      "source": "preset Pipe Bow Lead (before)"
+    },
+    {
+      "file": "recipes/singing-bowed-lead/after.opus",
+      "gain_db": -4.8,
+      "peak_db": -11.9,
+      "ref": "set:recipes:singing-bowed-lead:after",
+      "rms_db": -18.5,
+      "seconds": 4.0,
+      "set": "set:recipes:singing-bowed-lead",
+      "source": "preset Pipe Bow Lead (after)"
+    },
+    {
+      "file": "recipes/impact/before.opus",
+      "gain_db": -2.8,
+      "peak_db": -3.1,
+      "ref": "set:recipes:impact:before",
+      "rms_db": -17.7,
+      "seconds": 4.4,
+      "set": "set:recipes:impact",
+      "source": "preset Beam Anvil (before)"
+    },
+    {
+      "file": "recipes/impact/after.opus",
+      "gain_db": -2.8,
+      "peak_db": -3.1,
+      "ref": "set:recipes:impact:after",
+      "rms_db": -10.4,
+      "seconds": 5.4,
+      "set": "set:recipes:impact",
+      "source": "preset Beam Anvil (after)"
+    },
+    {
+      "file": "recipes/rusted-bell/before.opus",
+      "gain_db": -3.8,
+      "peak_db": -4.6,
+      "ref": "set:recipes:rusted-bell:before",
+      "rms_db": -17.7,
+      "seconds": 2.6,
+      "set": "set:recipes:rusted-bell",
+      "source": "preset Felt Plate Bell (before)"
+    },
+    {
+      "file": "recipes/rusted-bell/after.opus",
+      "gain_db": -3.8,
+      "peak_db": -4.9,
+      "ref": "set:recipes:rusted-bell:after",
+      "rms_db": -18.8,
+      "seconds": 2.6,
+      "set": "set:recipes:rusted-bell",
+      "source": "preset Felt Plate Bell (after)"
+    },
+    {
+      "file": "recipes/glitch-percussion/before.opus",
+      "gain_db": -3.1,
+      "peak_db": -11.7,
+      "ref": "set:recipes:glitch-percussion:before",
+      "rms_db": -17.7,
+      "seconds": 3.2,
+      "set": "set:recipes:glitch-percussion",
+      "source": "preset Cog Tick (before)"
+    },
+    {
+      "file": "recipes/glitch-percussion/after.opus",
+      "gain_db": -3.1,
+      "peak_db": -10.7,
+      "ref": "set:recipes:glitch-percussion:after",
+      "rms_db": -18.1,
+      "seconds": 3.2,
+      "set": "set:recipes:glitch-percussion",
+      "source": "preset Cog Tick (after)"
+    },
+    {
+      "file": "recipes/spring-pad/before.opus",
+      "gain_db": 8.2,
+      "peak_db": -4.7,
+      "ref": "set:recipes:spring-pad:before",
+      "rms_db": -17.7,
+      "seconds": 4.0,
+      "set": "set:recipes:spring-pad",
+      "source": "preset Bowed Cable Pad (before)"
+    },
+    {
+      "file": "recipes/spring-pad/after.opus",
+      "gain_db": 8.2,
+      "peak_db": -4.2,
+      "ref": "set:recipes:spring-pad:after",
+      "rms_db": -18.0,
+      "seconds": 4.0,
+      "set": "set:recipes:spring-pad",
+      "source": "preset Bowed Cable Pad (after)"
+    },
+    {
+      "file": "recipes/dying-battery-lead/before.opus",
+      "gain_db": 3.7,
+      "peak_db": -9.9,
+      "ref": "set:recipes:dying-battery-lead:before",
+      "rms_db": -17.7,
+      "seconds": 4.0,
+      "set": "set:recipes:dying-battery-lead",
+      "source": "preset Bowed Cable Lead (before)"
+    },
+    {
+      "file": "recipes/dying-battery-lead/after.opus",
+      "gain_db": 3.7,
+      "peak_db": -9.2,
+      "ref": "set:recipes:dying-battery-lead:after",
+      "rms_db": -19.2,
+      "seconds": 4.0,
+      "set": "set:recipes:dying-battery-lead",
+      "source": "preset Bowed Cable Lead (after)"
+    },
+    {
+      "file": "recipes/distant-hit/before.opus",
+      "gain_db": -6.5,
+      "peak_db": -10.5,
+      "ref": "set:recipes:distant-hit:before",
+      "rms_db": -17.7,
+      "seconds": 3.2,
+      "set": "set:recipes:distant-hit",
+      "source": "preset Plate Snare Crack (before)"
+    },
+    {
+      "file": "recipes/distant-hit/after.opus",
+      "gain_db": -6.5,
+      "peak_db": -8.9,
+      "ref": "set:recipes:distant-hit:after",
+      "rms_db": -17.5,
+      "seconds": 3.2,
+      "set": "set:recipes:distant-hit",
+      "source": "preset Plate Snare Crack (after)"
+    },
+    {
+      "file": "recipes/gentle-release/before.opus",
+      "gain_db": -2.6,
+      "peak_db": -2.9,
+      "ref": "set:recipes:gentle-release:before",
+      "rms_db": -17.7,
+      "seconds": 5.5,
+      "set": "set:recipes:gentle-release",
+      "source": "preset Corrugated Drag · Plate (before)"
+    },
+    {
+      "file": "recipes/gentle-release/after.opus",
+      "gain_db": -2.6,
+      "peak_db": -2.9,
+      "ref": "set:recipes:gentle-release:after",
+      "rms_db": -16.3,
+      "seconds": 5.5,
+      "set": "set:recipes:gentle-release",
+      "source": "preset Corrugated Drag · Plate (after)"
+    },
+    {
       "file": "demos/bass.opus",
       "gain_db": 0.0,
       "peak_db": -10.0,
@@ -4914,7 +5114,7 @@
       "source": "preset Cog Tick (percussion)"
     }
   ],
-  "fingerprint": "0321d47d350d28ef",
-  "generator_commit": "b7a5f09",
+  "fingerprint": "24b8261a2ebf02e2",
+  "generator_commit": "8d26c42",
   "sample_rate": 48000
 }

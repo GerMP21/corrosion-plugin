@@ -16,7 +16,7 @@
 - [x] 2.5 Output chain: Filter Bank, Overdrive Unit, Dispersion and BODY, Space and Echo, diode and limiter, Output and Width
 - [x] 2.6 Macros, Randomizer, note modes (Tonal, Drone, Kit and the kit editor, factory kits)
 - [x] 2.7 Presets (factory bank, user presets, files, old presets and projects, BREAKING automation notes), MIDI and expression, quality and CPU, UI scale
-- [ ] 2.8 Recipes (the list agreed with the maintainer) with before and after clips
+- [x] 2.8 Recipes (the list agreed with the maintainer) with before and after clips
 - [ ] 2.9 Troubleshooting (including the documented surprises) and Glossary
 - [ ] 2.10 `parameters.es.json` review corrections
 - [x] 2.11 Restyle batches 2.1–2.4 to the `guide-writing-style` spec (EN and ES): why, tips, walkthroughs
