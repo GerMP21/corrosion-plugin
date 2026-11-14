@@ -152,6 +152,10 @@ struct EditorUiState {
     save_name: String,
     confirm_overwrite: bool,
     save_message: Option<(String, bool)>,
+    /// The Import or Export dialog while it is open
+    /// (`add-preset-import-export`).
+    #[cfg(feature = "gui")]
+    file_dialog: Option<super::file_dialog::Pending>,
     /// The randomizer's mode (editor state: it shapes the next click, not the
     /// sound) and its randomness, seeded when the editor opens.
     randomizer_mode: crate::randomizer::RandomizerMode,
@@ -219,6 +223,8 @@ impl EditorUiState {
             save_name: String::new(),
             confirm_overwrite: false,
             save_message: None,
+            #[cfg(feature = "gui")]
+            file_dialog: None,
             diode_meter: Arc::new(crate::dsp::DiodeMeter::new()),
             diode_dot_db: 0.0,
             diode_dot_time: None,
@@ -382,6 +388,130 @@ impl EditorUiState {
         if let Err(error) = crate::presets::open_folder(&dir) {
             self.save_message = Some((format!("Couldn't open the folder: {error}"), true));
         }
+    }
+
+    /// Import the picked files into the Save row's folder: report what
+    /// happened on the message line, select the last imported preset, and
+    /// return it for the caller to load (`add-preset-import-export`).
+    #[cfg(feature = "gui")]
+    fn finish_import(&mut self, answer: super::file_dialog::Answer) -> Option<Preset> {
+        use super::file_dialog::Answer;
+        let paths = match answer {
+            Answer::Picked(paths) => paths,
+            Answer::Cancelled => return None,
+            Answer::Unavailable => {
+                self.save_message = Some((NO_DIALOG_IMPORT.to_string(), true));
+                return None;
+            }
+        };
+        let Some(dir) = self.user_preset_dir.clone() else {
+            self.save_message = Some(("No user preset folder on this system".to_string(), true));
+            return None;
+        };
+        let report = match crate::presets::import_preset_files(&paths, &dir, &self.save_folder) {
+            Ok(report) => report,
+            Err(error) => {
+                self.save_message = Some((format!("Couldn't import: {error}"), true));
+                return None;
+            }
+        };
+        self.save_message = Some(import_message(&report));
+        self.refresh_user_presets();
+        let preset = report.last?;
+        let folder = user_display_folder(&self.save_folder);
+        if let Some(user) = self
+            .user_presets
+            .iter()
+            .rposition(|p| p.name == preset.name && p.folder == folder)
+        {
+            self.selected_factory_preset = self.factory_presets.len() + user;
+        }
+        Some(preset)
+    }
+
+    /// Write the current sound where the Export dialog pointed, named after
+    /// the file the user chose (`add-preset-import-export`).
+    #[cfg(feature = "gui")]
+    fn finish_export(&mut self, answer: super::file_dialog::Answer, params: &CorrosionParams) {
+        use super::file_dialog::Answer;
+        let path = match answer {
+            Answer::Picked(mut paths) if !paths.is_empty() => paths.swap_remove(0),
+            Answer::Picked(_) | Answer::Cancelled => return,
+            Answer::Unavailable => {
+                self.save_message = Some((NO_DIALOG_EXPORT.to_string(), true));
+                return;
+            }
+        };
+        let name = export_name(&path);
+        self.save_message = Some(match crate::presets::export_preset(&name, params, &path) {
+            Ok(written) => (
+                format!("Exported \"{name}\" to {}", written.display()),
+                false,
+            ),
+            Err(error) => (format!("Couldn't export: {error}"), true),
+        });
+    }
+
+    /// The name the Export dialog proposes: the typed Save name, else the
+    /// selected preset's.
+    #[cfg(feature = "gui")]
+    fn export_file_name(&self) -> String {
+        let typed = self.save_name.trim();
+        let name = if typed.is_empty() && self.preset_count() > 0 {
+            self.preset_name(self.selected_factory_preset.min(self.preset_count() - 1))
+        } else {
+            typed
+        };
+        crate::presets::sanitize_file_name(name)
+    }
+}
+
+/// The message line when Import has no file dialog to show.
+#[cfg(feature = "gui")]
+const NO_DIALOG_IMPORT: &str =
+    "No file dialog on this system: copy preset files into Open folder instead";
+/// The message line when Export has no file dialog to show.
+#[cfg(feature = "gui")]
+const NO_DIALOG_EXPORT: &str =
+    "No file dialog on this system: Save the preset, then find it with Open folder";
+
+/// What the message line says after an import.
+#[cfg(feature = "gui")]
+fn import_message(report: &crate::presets::ImportReport) -> (String, bool) {
+    let skipped = match report.skipped {
+        0 => String::new(),
+        1 => ", 1 file skipped (not a preset)".to_string(),
+        n => format!(", {n} files skipped (not presets)"),
+    };
+    match (report.imported.len(), &report.last) {
+        (0, _) => (
+            match report.skipped {
+                1 => "That file isn't a preset".to_string(),
+                _ => "None of those files is a preset".to_string(),
+            },
+            true,
+        ),
+        (1, Some(preset)) => (format!("Imported \"{}\"{skipped}", preset.name), false),
+        (n, _) => (format!("Imported {n} presets{skipped}"), false),
+    }
+}
+
+/// A preset name from the file the Export dialog chose: its stem.
+#[cfg(feature = "gui")]
+fn export_name(path: &std::path::Path) -> String {
+    let stem = path
+        .file_name()
+        .map(|f| f.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    let stem = stem
+        .strip_suffix(&format!(".{}", crate::presets::PRESET_EXTENSION))
+        .unwrap_or(&stem)
+        .trim()
+        .to_string();
+    if stem.is_empty() {
+        "Untitled".to_string()
+    } else {
+        stem
     }
 }
 
@@ -2135,6 +2265,79 @@ fn render_preset_menu(
     }
 }
 
+/// Import… and Export… next to Open folder (`add-preset-import-export`):
+/// each opens the system file dialog; both stay disabled while one is open,
+/// and the answer is handled on the frame it arrives.
+#[cfg(feature = "gui")]
+fn render_import_export(
+    ui: &mut egui::Ui,
+    params: &CorrosionParams,
+    setter: &ParamSetter,
+    state: &mut EditorUiState,
+    text_size: f32,
+) {
+    use super::file_dialog::{self, Request};
+    if let Some(answer) = state.file_dialog.as_ref().and_then(|p| p.poll()) {
+        let request = state.file_dialog.take().map(|p| p.request);
+        match request {
+            Some(Request::Import) => {
+                if let Some(preset) = state.finish_import(answer) {
+                    apply_preset(params, setter, &preset);
+                }
+            }
+            Some(Request::Export { .. }) => state.finish_export(answer, params),
+            None => {}
+        }
+    }
+    let idle = state.file_dialog.is_none();
+    if !idle {
+        // Keep polling while the dialog is open, even with no input here.
+        ui.ctx()
+            .request_repaint_after(std::time::Duration::from_millis(100));
+    }
+    let (import_enabled, import_tip) = import_button(idle, state.user_preset_dir.is_some());
+    let import = ui
+        .add_enabled(
+            import_enabled,
+            egui::Button::new(egui::RichText::new("Import…").size(text_size)),
+        )
+        .on_hover_text(import_tip)
+        .on_disabled_hover_text(import_tip);
+    if import.clicked() {
+        state.save_message = None;
+        state.file_dialog = Some(file_dialog::open(Request::Import));
+    }
+    let export_tip = "Save the current sound as a preset file anywhere you like";
+    let export = ui
+        .add_enabled(
+            idle,
+            egui::Button::new(egui::RichText::new("Export…").size(text_size)),
+        )
+        .on_hover_text(export_tip)
+        .on_disabled_hover_text("A file dialog is already open");
+    if export.clicked() {
+        state.save_message = None;
+        let file_name = state.export_file_name();
+        state.file_dialog = Some(file_dialog::open(Request::Export { file_name }));
+    }
+}
+
+/// Whether Import… is enabled, and its tooltip.
+#[cfg(feature = "gui")]
+fn import_button(idle: bool, has_user_folder: bool) -> (bool, &'static str) {
+    match (idle, has_user_folder) {
+        (false, _) => (false, "A file dialog is already open"),
+        (true, false) => (
+            false,
+            "No user preset folder: this system doesn't set the variables it lives under",
+        ),
+        (true, true) => (
+            true,
+            "Copy preset files into the Save folder above, then load the last one",
+        ),
+    }
+}
+
 fn render_preset_loader(
     ui: &mut egui::Ui,
     params: &CorrosionParams,
@@ -2293,6 +2496,8 @@ fn render_preset_loader(
                 if open.clicked() {
                     state.open_user_folder();
                 }
+                #[cfg(feature = "gui")]
+                render_import_export(ui, params, setter, state, text_size);
             });
             let notice = match (&state.save_message, state.unreadable_user_presets) {
                 (Some((message, is_error)), _) => Some((message.clone(), *is_error)),
@@ -5779,6 +5984,153 @@ mod tests {
             super::open_folder_button(Some(std::path::Path::new("/home/me/presets")));
         assert!(enabled);
         assert!(tooltip.contains("/home/me/presets"), "{tooltip}");
+    }
+
+    // ---- Import and Export (`add-preset-import-export`) ----
+
+    /// A preset file called `name` in `dir`, as Export or the web app writes it.
+    fn preset_file(dir: &std::path::Path, file: &str, name: &str) -> std::path::PathBuf {
+        let path = dir.join(file);
+        crate::Preset::from_params(name, &crate::CorrosionParams::default())
+            .save(&path)
+            .unwrap();
+        path
+    }
+
+    #[test]
+    fn import_is_disabled_without_a_user_folder_or_while_a_dialog_is_open() {
+        assert!(super::import_button(true, true).0);
+        let (enabled, tip) = super::import_button(true, false);
+        assert!(!enabled && tip.contains("No user preset folder"), "{tip}");
+        let (enabled, tip) = super::import_button(false, true);
+        assert!(!enabled && tip.contains("already open"), "{tip}");
+    }
+
+    #[test]
+    fn no_file_dialog_points_to_open_folder() {
+        use super::super::file_dialog::Answer;
+        let (mut state, dir) = state_with_user_dir("nodialog");
+        assert!(state.finish_import(Answer::Unavailable).is_none());
+        let (message, is_error) = state.save_message.clone().unwrap();
+        assert!(is_error && message.contains("Open folder"), "{message}");
+        state.save_message = None;
+        state.finish_export(Answer::Unavailable, &crate::CorrosionParams::default());
+        let (message, is_error) = state.save_message.clone().unwrap();
+        assert!(is_error && message.contains("Open folder"), "{message}");
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn a_cancelled_dialog_says_nothing() {
+        use super::super::file_dialog::Answer;
+        let (mut state, dir) = state_with_user_dir("cancel");
+        assert!(state.finish_import(Answer::Cancelled).is_none());
+        state.finish_export(Answer::Cancelled, &crate::CorrosionParams::default());
+        assert_eq!(state.save_message, None);
+        assert_eq!(std::fs::read_dir(&dir).unwrap().count(), 0);
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn import_lists_selects_and_returns_the_last_preset() {
+        use super::super::file_dialog::Answer;
+        let (mut state, dir) = state_with_user_dir("import");
+        let downloads = dir
+            .join("..")
+            .join(format!("{}-dl", dir.file_name().unwrap().to_string_lossy()));
+        std::fs::create_dir_all(&downloads).unwrap();
+        std::fs::create_dir_all(dir.join("Basses")).unwrap();
+        state.refresh_user_presets();
+        state.save_folder = "Basses".to_string();
+        let files = vec![
+            preset_file(&downloads, "a.corrosion-preset", "First"),
+            preset_file(&downloads, "b.corrosion-preset", "Deep Sub"),
+        ];
+        let preset = state.finish_import(Answer::Picked(files)).expect("imports");
+        assert_eq!(preset.name, "Deep Sub");
+        let entry = state.entry(state.selected_factory_preset);
+        assert_eq!(
+            (entry.name.as_str(), entry.folder.clone()),
+            ("Deep Sub", vec!["User".to_string(), "Basses".to_string()])
+        );
+        assert_eq!(
+            state.save_message,
+            Some(("Imported 2 presets".to_string(), false))
+        );
+        std::fs::remove_dir_all(downloads).unwrap();
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn import_reports_skipped_files() {
+        use crate::presets::ImportReport;
+        let one = crate::Preset::from_params("One", &crate::CorrosionParams::default());
+        let report = |imported: usize, skipped: usize| ImportReport {
+            imported: vec![std::path::PathBuf::new(); imported],
+            last: (imported > 0).then(|| one.clone()),
+            skipped,
+        };
+        assert_eq!(
+            super::import_message(&report(1, 0)),
+            ("Imported \"One\"".to_string(), false)
+        );
+        assert_eq!(
+            super::import_message(&report(1, 1)),
+            (
+                "Imported \"One\", 1 file skipped (not a preset)".to_string(),
+                false
+            )
+        );
+        assert_eq!(
+            super::import_message(&report(3, 2)),
+            (
+                "Imported 3 presets, 2 files skipped (not presets)".to_string(),
+                false
+            )
+        );
+        assert_eq!(
+            super::import_message(&report(0, 1)),
+            ("That file isn't a preset".to_string(), true)
+        );
+        assert_eq!(
+            super::import_message(&report(0, 2)),
+            ("None of those files is a preset".to_string(), true)
+        );
+    }
+
+    #[test]
+    fn export_writes_the_sound_named_after_the_chosen_file() {
+        use super::super::file_dialog::Answer;
+        let (mut state, dir) = state_with_user_dir("export");
+        let louder = crate::Preset {
+            output: 3.0,
+            ..crate::Preset::from_params("x", &crate::CorrosionParams::default())
+        }
+        .into_params();
+        state.finish_export(Answer::Picked(vec![dir.join("Night Shift")]), &louder);
+        let written = dir.join("Night Shift.corrosion-preset");
+        let back = crate::Preset::load(&written).unwrap();
+        assert_eq!(back.name, "Night Shift");
+        assert_eq!(back.output, 3.0);
+        let (message, is_error) = state.save_message.clone().unwrap();
+        assert!(
+            !is_error && message.starts_with("Exported \"Night Shift\""),
+            "{message}"
+        );
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn export_proposes_the_typed_name_else_the_selected_preset() {
+        let (mut state, dir) = state_with_user_dir("exportname");
+        state.selected_factory_preset = 0;
+        assert_eq!(
+            state.export_file_name(),
+            crate::presets::sanitize_file_name(state.preset_name(0))
+        );
+        state.save_name = "  My: Sound ".to_string();
+        assert_eq!(state.export_file_name(), "My_ Sound");
+        std::fs::remove_dir_all(dir).unwrap();
     }
 
     #[test]

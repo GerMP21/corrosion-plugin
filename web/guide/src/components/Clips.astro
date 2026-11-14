@@ -6,18 +6,21 @@
 // `<audio preload="none">`, so nothing loads until a button is pressed.
 // The clips and clips.json come from scripts/build-guide-clips.sh.
 import manifest from '../../public/clips/clips.json';
+import data from '../data/parameters.json';
+import { clipsFor, clipValue, rowCaption } from '../lib/clip-labels.mjs';
 
 interface Props {
   param?: string;
   set?: string;
   item?: string;
+  /** Overrides the computed caption (`refine-wiki-naming-and-clips`). */
+  caption?: string;
 }
 const { param, set, item } = Astro.props;
 const { t } = Astro.locals;
-const prefix = param ? `param:${param}:` : `set:${set}:${item ? `${item}` : ''}`;
-const clips = (manifest.clips as { ref: string; file: string; source: string }[]).filter((c) =>
-  item || param ? c.ref === prefix.replace(/:$/, '') || c.ref.startsWith(prefix) : c.ref.startsWith(prefix),
-);
+const clips = clipsFor(Astro.props, manifest) as { ref: string; file: string; source: string }[];
+// Every row says what it plays: the control's label, or what the set compares.
+const caption = rowCaption(Astro.props, clips, data.parameters, t as any);
 // Labels from the manifest's source, so they follow the plan.
 const label = (clip: { ref: string; source: string }) => {
   const last = clip.ref.split(':').at(-1) ?? clip.ref;
@@ -29,27 +32,37 @@ const label = (clip: { ref: string; source: string }) => {
   if (set?.endsWith('-presets')) return t('guide.clips.preset' as any, { name: clip.source.replace(/^preset /, '') });
   return last;
 };
+// A parameter button names its value ("Onset, Min: 0.001"); others their source.
+const described = (clip: { ref: string; source: string }) => {
+  const value = clipValue(clip, data.parameters);
+  return value === null
+    ? { title: clip.source, name: `${caption}, ${label(clip)}` }
+    : { title: value, name: t('guide.clips.value' as any, { name: `${caption}, ${label(clip)}`, value }) };
+};
 ---
 
 {
   clips.length > 0 && (
-    <div class="clips" role="group" aria-label={t('guide.clips.listen' as any)}>
-      {clips.map((clip) => (
-        <button
-          type="button"
-          class="clip"
-          data-clip={`/wiki/clips/${clip.file}`}
-          aria-pressed="false"
-          title={clip.source}
-          aria-label={t('guide.clips.play' as any, { name: label(clip) })}
-        >
-          <svg viewBox="0 0 16 16" aria-hidden="true" width="12" height="12">
-            <path class="play" d="M4 2.5v11l9-5.5z" />
-            <path class="stop" d="M4 3h8v10H4z" />
-          </svg>
-          {label(clip)}
-        </button>
-      ))}
+    <div class="clips" role="group" aria-label={caption}>
+      <span class="clips-caption">{caption}</span>
+      <span class="clips-buttons">
+        {clips.map((clip) => (
+          <button
+            type="button"
+            class="clip"
+            data-clip={`/wiki/clips/${clip.file}`}
+            aria-pressed="false"
+            title={described(clip).title}
+            aria-label={t('guide.clips.play' as any, { name: described(clip).name })}
+          >
+            <svg viewBox="0 0 16 16" aria-hidden="true" width="12" height="12">
+              <path class="play" d="M4 2.5v11l9-5.5z" />
+              <path class="stop" d="M4 3h8v10H4z" />
+            </svg>
+            {label(clip)}
+          </button>
+        ))}
+      </span>
     </div>
   )
 }
@@ -81,11 +94,37 @@ const label = (clip: { ref: string; source: string }) => {
 </script>
 
 <style>
+  /* Caption cell, then the buttons; stacked rows line up like a table. */
   .clips {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.5rem;
+    align-items: center;
+    gap: 0.25rem 0.75rem;
     margin-top: 0.75rem;
+  }
+  .clips + .clips {
+    margin-top: 0.5rem;
+  }
+  .clips-caption {
+    flex: 0 0 11rem;
+    color: var(--sl-color-gray-2);
+    font-size: var(--sl-text-sm);
+  }
+  .clips-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  /* Starlight spaces sibling blocks in prose; the row spaces its own. */
+  .clips > *,
+  .clips-buttons > * {
+    margin: 0;
+  }
+  @media (max-width: 40rem) {
+    .clips-caption {
+      flex-basis: 100%;
+    }
   }
   .clip {
     display: inline-flex;

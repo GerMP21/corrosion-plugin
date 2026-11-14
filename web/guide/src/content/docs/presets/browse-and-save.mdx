@@ -34,3 +34,14 @@ Subfolders of your preset folder show up as submenus under **User**, and in the 
 ## Open the folder
 
 **Open folder** shows your preset folder in the system's file manager, creating it if it doesn't exist yet. Use it to back up your presets, share them, or copy in presets someone sent you.
+
+## Import and export
+
+Next to **Open folder** sit two buttons that move presets in and out without hunting for folders:
+
+- **Import…** opens your system's file dialog. Pick one or more `.corrosion-preset` files, from the web app, a friend or a backup, and Corrosion copies them into the folder chosen next to **Save**, then loads the last one. Nothing is ever overwritten: if that folder already has a "Deep Sub", the newcomer becomes "Deep Sub (2)". A file that isn't a preset is skipped, and the line under the box says how many were.
+- **Export…** saves the sound you're hearing as a preset file wherever you like: your desktop, a USB stick, a project folder. The dialog suggests the name typed in **Preset name**, or the current preset's, and whatever name you give the file becomes the preset's name. It's the same file **Save** writes, so it opens in the web app and imports back here.
+
+**Tip:** Export is the quickest way to send someone a sound. Mail them the file; they click **Import…**, and it plays exactly as it did for you, as long as their Corrosion is the same version or newer.
+
+If your system has no file dialog to offer (some minimal Linux desktops run without the "desktop portal" that provides one), both buttons say so, and the old way still works: **Open folder**, and copy the files in by hand.

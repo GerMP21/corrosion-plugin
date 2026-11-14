@@ -38,5 +38,13 @@
   "guide.clips.with": "Con {{name}}",
   "guide.clips.preset": "Preset: {{name}}",
   "guide.clips.before": "Antes",
-  "guide.clips.after": "Después"
+  "guide.clips.after": "Después",
+  "guide.clips.caption.exciter": "{{name}}, sobre {{object}}",
+  "guide.clips.caption.exciters": "Todos los excitadores, sobre {{object}}",
+  "guide.clips.caption.object": "{{name}}, con {{exciter}}",
+  "guide.clips.caption.objects": "Todos los objetos, con {{exciter}}",
+  "guide.clips.caption.preset": "Preset de fábrica",
+  "guide.clips.caption.recipe": "{{name}}: antes y después",
+  "guide.clips.caption.kits": "Kits de batería",
+  "guide.clips.value": "{{name}}: {{value}}"
 }

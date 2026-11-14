@@ -78,16 +78,32 @@ const check = (ok, what) => {
 
   // The guide (`add-user-guide`): both languages, dark, with search, and
   // its own 404 under /wiki/.
-  for (const [path, title] of [["/wiki/", "Corrosion guide"], ["/wiki/es/", "Guía de Corrosion"]]) {
+  for (const [path, title, links] of [
+    ["/wiki/", "Corrosion Wiki", ["Home", "Play"]],
+    ["/wiki/es/", "Wiki de Corrosion", ["Inicio", "Tocar"]],
+  ]) {
     const guide = await page.goto(at(path));
     check(guide && guide.status() === 200, `${path} returns 200 (${guide && guide.status()})`);
-    check((await page.title()).includes(title), `${path} is the guide (${await page.title()})`);
+    check((await page.title()).endsWith(title), `${path} is the Wiki (${await page.title()})`);
+    // Header links in their own casing (`refine-wiki-naming-and-clips`).
+    const shown = await page.locator(".site-links a:visible").evaluateAll((as) => as.map((a) => a.innerText));
+    check(JSON.stringify(shown) === JSON.stringify(links), `${path} header links read ${links.join(" / ")} (${shown.join(" / ")})`);
     check(await page.evaluate(() => document.documentElement.dataset.theme === "dark"), `${path} is dark`);
     check((await page.locator("site-search, button[data-open-modal]").count()) >= 1, `${path} has search`);
   }
   const guideMissing = await page.goto(at("/wiki/no-such-page/"));
   check(guideMissing && guideMissing.status() === 404, `unknown guide path returns 404 (${guideMissing && guideMissing.status()})`);
   check(/not found/i.test(await page.title()), `unknown guide path shows the guide's 404 (${await page.title()})`);
+
+  // The Wiki's name (`refine-wiki-naming-and-clips`): the site's links to
+  // /wiki/ say Wiki, and no visible text calls it the guide.
+  for (const path of ["/", "/play/", "/no-such-page-here/"]) {
+    await page.goto(at(path));
+    const names = await page.locator('nav a[href="/wiki/"], header a[href="/wiki/"]').evaluateAll((as) => as.map((a) => a.innerText.trim()));
+    check(names.length >= 1 && names.every((n) => n === "Wiki"), `${path} links the Wiki as "Wiki" (${names.join(", ")})`);
+    const text = await page.evaluate(() => document.body.innerText);
+    check(!/\bguide\b/i.test(text), `${path} doesn't call the Wiki "guide"`);
+  }
 
   // Phone width.
   const phone = await browser.newPage({ viewport: { width: 375, height: 740 } });

@@ -36,7 +36,7 @@ The Wiki home page and the parameter reference SHALL each carry a short note, in
 
 #### Scenario: Reference page
 - **WHEN** a reader opens `/wiki/reference/` or `/wiki/es/reference/`
-- **THEN** the note is shown before the first parameter card, with links to the recipes and the presets
+- **THEN** the note is shown near the top, before the list of panels, with links to the recipes and the presets
 
 ### Requirement: Moving presets between the web app and the plugin
 The Wiki SHALL explain, in both languages, how to move a preset between the web app and the plugin, with the means each one has:

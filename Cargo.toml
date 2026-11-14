@@ -32,6 +32,10 @@ nih_plug_egui = { git = "https://github.com/robbert-vdh/nih-plug", optional = tr
 # The editor's egui without baseview, for the web build (`web-gui`). The same
 # version nih_plug_egui uses.
 egui = { version = "=0.31.1", optional = true }
+# The native file dialogs behind the editor's Import and Export
+# (`add-preset-import-export`), plugin GUI only. On Linux the XDG desktop
+# portal, not GTK, so the bundle links no GTK and doesn't fight the host's.
+rfd = { version = "0.18", optional = true, default-features = false, features = ["xdg-portal"] }
 clap = { version = "4", features = ["derive"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
@@ -51,7 +55,7 @@ nih-plug = { package = "nih_plug", git = "https://github.com/robbert-vdh/nih-plu
 
 [features]
 default = ["gui"]
-gui = ["nih_plug_egui"]
+gui = ["nih_plug_egui", "dep:rfd"]
 # The browser build's engine (`src/web.rs`). Builds only in the `web/`
 # workspace, whose patched NIH-plug makes the parameter setters public.
 web-host = []

@@ -80,3 +80,22 @@ The capabilities this change adds to (`user-guide`, `guide-audio-clips`) exist o
 - **Caption text for set rows depends on the manifest's `source` wording.** Mitigation: the check from Decision 4 catches empty or duplicated captions. A unit test in `check.mjs` parses one example of each `source` form.
 - **Raw values for choices and unitless times:** the tooltip shows what the plugin shows, which for times has no unit. This is accepted and matches the plugin. Giving times a unit is a plugin change, out of scope.
 - **The archive order matters** (after `add-user-guide` and `write-user-guide-content`), as the proposal notes.
+
+## As built
+
+- **Where the rules live (Decisions 1, 2, 4).** The caption and value logic is one module, `web/guide/src/lib/clip-labels.mjs`, used by `<Clips>` and by `scripts/check.mjs`. The check reads the page sources (it never walked built pages, as Decision 4 assumed): for each `<Clips>` tag it computes the caption the page will show and fails on an empty caption, two rows on a page that share a caption over different clips, or a parameter clip without a value. Tests:
+  - `scripts/clips.test.mjs` (9 tests): captions, values, the duplicate rule. They failed with the module missing, then passed.
+  - three new cases in `scripts/check.test.mjs`: duplicate captions fail, a repeated row passes, an empty caption fails.
+
+  `npm test` now runs all three files (27 tests).
+- **Shared labels.** The envelope page showed the problem the change was for: the AD/ADSR envelope and the MSEG both label their faders Attack, Decay, Sustain and Release. A parameter whose editor label another parameter also shows uses its host name, which is unique: the MSEG rows read **MSEG Attack** and **MSEG Release**, the AD/ADSR rows **Attack** and **Release**. The same rule turns Wire Stiffness into Spring / Brush Wire Stiffness and Tank Size into Spring Tank Size. A parameter whose model slots carry different labels (Size: "Pipe Length" on a Pipe, other names on other objects) uses its host name too. The spec's scenario was updated to match.
+- **Values.** The button titles show the manifest's text, as the plugin formats it. Choices are mapped to option names (Loop: Off / Forward / Ping-Pong). Times have no unit (`0.001`), as in the plugin.
+- **Layout.** A caption cell of 11rem, then the buttons. At phone width the caption wraps above the buttons. Starlight's sibling margin made the first button of each row taller, so the row resets its children's margins. Checked by screenshot at 1280 and 375 px.
+- **Site check.** `web/scripts/site.cjs` (CI `web` job) now checks:
+  - the Wiki titles ("Corrosion Wiki", "Wiki de Corrosion");
+  - the visible header links (Home / Play, Inicio / Tocar);
+  - that `/`, `/play/` and the 404 link `/wiki/` as "Wiki" and nowhere call it "guide".
+
+  It passed locally against `serve.cjs` with the rebuilt guide and the updated site and app pages copied into `web/dist`. The wasm was not rebuilt; no Rust changed.
+- **Combinations note.** A Starlight `:::note` on the Wiki home (after "Where to start") and the reference overview (after "Try it"). The overview has no cards, so the note sits before the panel list.
+- **Preset transfer.** A section "Between the web app and the plugin" on the preset files page (EN + ES). The menu re-reads the user folder each time it opens (`refresh_user_presets_keeping_selection`), so no restart is needed. Troubleshooting got a bullet for a copied preset that doesn't show up.

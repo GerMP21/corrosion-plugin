@@ -8,7 +8,9 @@
 //      something that doesn't exist;
 //   3. the IDs of parameters.json and parameters.es.json differ, or a
 //      Spanish entry lacks a text the English one has;
-//   4. a page references a clip that isn't in clips.json or on disk;
+//   4. a page references a clip that isn't in clips.json or on disk, a clip
+//      row has no caption, two rows on a page share a caption but play
+//      different clips, or a parameter clip has no value to show;
 //   5. with --complete, a page still has a <Stub /> placeholder;
 //   6. an exciter or object page lacks the seven model sections in order,
 //      its Listen section lacks the model's clips, or, once written, its
@@ -20,6 +22,7 @@ import { join, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import yaml from 'js-yaml';
 import { modelControls } from '../src/lib/model-controls.mjs';
+import { clipsFor, clipValue, duplicateCaptions, rowCaption, rowGroup, translator } from '../src/lib/clip-labels.mjs';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 const args = process.argv.slice(2);
@@ -218,19 +221,29 @@ if (!existsSync(esPath)) {
 const manifestPath = join(clipsDir, 'clips.json');
 const manifest = existsSync(manifestPath) ? readJson(manifestPath) : null;
 for (const lang of ['en', 'es']) {
+  const t = translator(readJson(join(root, `src/content/i18n/${lang}.json`)));
   for (const page of pages[lang].values()) {
+    const rows = [];
     for (const tag of page.body.matchAll(/<Clips\b([^>]*)\/?>/g)) {
-      const attr = (name) => new RegExp(`${name}="([^"]+)"`).exec(tag[1])?.[1];
-      const group = attr('param') ? `param:${attr('param')}` : `set:${attr('set')}${attr('item') ? `:${attr('item')}` : ''}`;
+      const attr = (name) => new RegExp(`${name}="([^"]*)"`).exec(tag[1])?.[1];
+      const props = { param: attr('param'), set: attr('set'), item: attr('item'), caption: attr('caption') };
+      const group = rowGroup(props);
       if (!manifest) {
         fail(`${rel(page.path)} references clips (${group}) but public/clips/clips.json doesn't exist`);
         continue;
       }
-      const clips = manifest.clips.filter((c) => c.ref === group || c.ref.startsWith(`${group}:`));
+      const clips = clipsFor(props, manifest);
       if (clips.length === 0) fail(`${rel(page.path)}: no clips for ${group} in clips.json`);
       for (const clip of clips) {
         if (!existsSync(join(clipsDir, clip.file))) fail(`${rel(page.path)}: clip file ${clip.file} is missing`);
+        if (props.param && !clipValue(clip, parameters)) fail(`${rel(page.path)}: clip ${clip.ref} has no value to show`);
       }
+      const caption = rowCaption(props, clips, parameters, t);
+      if (!caption || /guide\.clips\.|\{\{/.test(caption)) fail(`${rel(page.path)}: the clip row ${group} has no caption`);
+      rows.push({ caption, group });
+    }
+    for (const caption of duplicateCaptions(rows)) {
+      fail(`${rel(page.path)}: two clip rows share the caption "${caption}" but play different clips`);
     }
   }
 }

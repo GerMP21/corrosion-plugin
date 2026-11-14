@@ -2,7 +2,7 @@
 
 Corrosion is an industrial physical-modeling instrument built as a VST3 and CLAP plugin. MIDI notes strike, bow, scrape or blow modal models of metal objects (pipes, plates, tanks, chains, beams, cables, springs, sheets, cogs), and a post chain shapes them. It is tuned for damaged metal, friction, weight and mechanical tension, not for synth-style oscillators.
 
-**Try it in your browser, no install: <https://corrosion-vst.org/play/>** (see [Try it in the browser](#try-it-in-the-browser)). The project's site is <https://corrosion-vst.org>, and the user guide, in English and Spanish, is at <https://corrosion-vst.org/wiki/> (being written: every page, the parameter reference and audio examples of each control are up; the prose comes next).
+**Try it in your browser, no install: <https://corrosion-vst.org/play/>** (see [Try it in the browser](#try-it-in-the-browser)). The project's site is <https://corrosion-vst.org>, and the Corrosion Wiki, the user guide in English and Spanish, is at <https://corrosion-vst.org/wiki/>: every control explained, with audio examples, recipes and troubleshooting.
 
 Package version: `0.2.0`. Preset schema version: `4`; files from schemas 1–3 are migrated on load (`src/presets/mod.rs::migrate_preset_json`).
 
@@ -138,7 +138,7 @@ Every factory preset is levelled so a held middle C sits at the same loudness (�
 
 ### User Presets and Randomizer
 
-The editor's **Save** writes the current sound as a named preset (every parameter except UI Scale, and the kit if there is one) into your user preset folder, or one of its subfolders, picked in the selector next to the name. You can't save into the factory bank. Saving over an existing name asks first. The browser's **User** submenu mirrors the folder's subfolders (up to four levels deep), and picks up folders you add while the plugin is open. The **‹ ›** arrows step through the presets of the current folder. **Open folder** shows the user folder in your file manager (it is created if missing), so you can add, rename or delete folders and presets there. The folder:
+The editor's **Save** writes the current sound as a named preset (every parameter except UI Scale, and the kit if there is one) into your user preset folder, or one of its subfolders, picked in the selector next to the name. You can't save into the factory bank. Saving over an existing name asks first. The browser's **User** submenu mirrors the folder's subfolders (up to four levels deep), and picks up folders you add while the plugin is open. The **‹ ›** arrows step through the presets of the current folder. **Open folder** shows the user folder in your file manager (it is created if missing), so you can add, rename or delete folders and presets there. **Import…** copies preset files (from the web app, a friend, a backup) into the selected folder through the system file dialog, numbering a clashing name instead of overwriting, and loads the last one; **Export…** writes the current sound as a preset file anywhere you choose. The folder:
 
 - Windows: `%APPDATA%\Corrosion\Presets`
 - macOS: `~/Library/Application Support/Corrosion/Presets`

@@ -156,6 +156,10 @@ src/
                       (ⓘ text) with no egui dependency, so the CI lane and the guide
                       exporter reach them
     palette.rs        Editor colours as `[u8; 3]`, mirrored by web/theme/tokens.css
+    file_dialog.rs    Import/Export's system file dialogs (`rfd`, plugin GUI only;
+                      XDG portal then zenity on Linux, no GTK): own thread polled
+                      per frame (modal on the main thread on macOS); an empty answer
+                      under 250 ms means no dialog was shown
     editor.rs         egui editor: knobs/faders, UI scale (50–150 % in 5 % steps, `UI_SCALE_CHOICES`; the original five keep indices 0–4, the added steps are 5–20; default 75%: 810×630,
                       of which 54 are the keyboard strip;
                       a change asks the host to resize; the layout never exceeds the
@@ -179,7 +183,10 @@ src/
   presets/
     mod.rs            Preset save/load + sanitization + JSON migrations; user presets:
                       recursive listing (UserPreset, ≤ 4 levels), folders, save into a
-                      subfolder (never outside the user folder), open_folder
+                      subfolder (never outside the user folder), open_folder;
+                      import_preset_files (copies files that load, numbered on a
+                      name clash, never overwrites) and export_preset (what Save
+                      writes, to any path)
     browser.rs        In-memory user preset store (the web app's, same folder rules)
     factory/          The factory bank in code (reorganize-factory-presets):
       mod.rs          bank(), layout, levelling (TARGET_RMS 0.13), quality floor
@@ -220,7 +227,7 @@ src/
   - chords: the first six partials within 15 cents of harmonics, ≥ −20 dB at 2 s, flatness < 0.1;
   - drones: the 8th second within 6 dB of the 2nd;
   - percussion: ≤ −30 dB at 1.5 s while held.
-- **Browser.** The editor walks the embedded `include_dir!` tree into entries with a display folder (`["Experimental", "Bow"]`). A pure `menu_tree` turns them into nested `ui.menu_button` submenus. The arrows step within the current preset's folder. The user list is re-read when the menu or the Save folder selector opens, because the editor state outlives the window.
+- **Browser.** The editor walks the embedded `include_dir!` tree into entries with a display folder (`["Experimental", "Bow"]`). A pure `menu_tree` turns them into nested `ui.menu_button` submenus. The arrows step within the current preset's folder. The user list is re-read when the menu or the Save folder selector opens, because the editor state outlives the window. **Import…** and **Export…** (`add-preset-import-export`, plugin only: the web app has its own Open preset… and Download preset) open the system file dialog through `gui::file_dialog`, disabled while one is open; Import copies into the Save row's folder and loads the last preset, Export names the preset after the chosen file. A missing dialog (some Linux desktops have no portal or zenity) shows a message pointing to Open folder.
 
 ---
 
@@ -889,12 +896,12 @@ The plugin also runs in a browser, with the same engine and editor, as two WebAs
   |---|---|---|
   | `/` | `web/site/index.html`, `home.css` | home page |
   | `/play/` | `web/www/` + the two wasm builds | the web app (relative asset paths, so it moved unchanged) |
-  | `/wiki/`, `/wiki/es/` | `web/guide/` (Astro Starlight) | the user guide, English and Spanish (below) |
+  | `/wiki/`, `/wiki/es/` | `web/guide/` (Astro Starlight) | the Corrosion Wiki ("Wiki de Corrosion"), the user guide in English and Spanish (below) |
   | `/theme/tokens.css` | `web/theme/tokens.css` | shared design tokens |
   | any other | `web/site/404.html` | themed 404 |
 
   `web/scripts/build.sh` assembles `web/dist` in this layout and stamps the build commit into each page's `#build`. `wrangler.toml` sets `html_handling = "auto-trailing-slash"` (`/play` → `/play/`) and `not_found_handling = "404-page"`; `web/scripts/serve.cjs` follows the same two rules for CI and local checks. `site/_headers` covers every path (one-hour revalidating cache, `nosniff`).
-- **Guide** (`add-user-guide`). `web/guide/` is an Astro Starlight project (exact pins and lockfile; Node ≥ 22.23.4), `base: '/wiki'`, built by `npm run build` straight into `web/dist/wiki/`. English is the root locale (`src/content/docs/`), Spanish mirrors it under `src/content/docs/es/`. It's dark-only (the theme provider is overridden to always set `data-theme="dark"`, the theme switch is empty, `src/styles/guide.css` maps Starlight's variables to `web/theme/tokens.css`), with Pagefind search per language, the header linking back to `/` and `/play/`, and its own `wiki/404.html`. `sidebar.mjs` is the sitemap. Pages declare what they document in `covers:` front matter; pages not yet written show `<Stub />`. Components: `ParamReference` (one card per parameter, anchored by ID, `/wiki/reference/<panel>/#<id>`), `Clips` (buttons over one shared lazy `Audio`), `Stub`, `SiteLinks`; their UI strings are in `src/content/i18n/`.
+- **Guide** (`add-user-guide`; shown to readers as "Corrosion Wiki" / "Wiki de Corrosion", `refine-wiki-naming-and-clips`). `web/guide/` is an Astro Starlight project (exact pins and lockfile; Node ≥ 22.23.4), `base: '/wiki'`, built by `npm run build` straight into `web/dist/wiki/`. English is the root locale (`src/content/docs/`), Spanish mirrors it under `src/content/docs/es/`. It's dark-only (the theme provider is overridden to always set `data-theme="dark"`, the theme switch is empty, `src/styles/guide.css` maps Starlight's variables to `web/theme/tokens.css`), with Pagefind search per language, the header linking back to `/` and `/play/`, and its own `wiki/404.html`. `sidebar.mjs` is the sitemap. Pages declare what they document in `covers:` front matter; pages not yet written show `<Stub />`. Components: `ParamReference` (one card per parameter, anchored by ID, `/wiki/reference/<panel>/#<id>`), `Clips` (buttons over one shared lazy `Audio`; every row opens with a caption, the control's editor label or its unique host name when two parameters share a label, or what a set compares, and each parameter button's title and accessible name give the value it plays, choices by option name, all from `src/lib/clip-labels.mjs`, which `npm run check` also uses to fail on an uncaptioned row or two rows on a page sharing a caption over different clips), `Stub`, `SiteLinks`; their UI strings are in `src/content/i18n/`.
   - **Data from the plugin.** `src/gui/controls.rs` holds the editor's control tables, `FIXED_CONTROLS`, the selector option lists and `help_for` without egui, so the CI lane reaches them. `corrosion::guide` builds `web/guide/src/data/parameters.json` (every host parameter in editor order: display range, default, unit, fixed controls or per-model slots, options, ⓘ help) and `models.json` (models, modes, factory folders and presets, drum kits, kit facts); `cargo run --bin export_guide_data` writes them, and `guide::tests::guide_data_equals_the_files_on_disk` fails on drift, naming the parameter. `parameters.es.json` is hand-written Spanish help keyed by ID.
   - **Clips.** `src/guide/clip_plan.rs` plans every clip: Min/Mid/Max per sound-shaping parameter over the base patch (Hand Strike on Plate, Space off, Render quality, C3 at velocity 100, note-off at 2 s; every clip renders `RELEASE_TAIL` (2 s; `DEMO_RELEASE_TAIL`, 4 s, for the home demos) past its last note-off and is cut sooner where its tail falls 60 dB under its peak (`trim_to_silence`, 50 ms fade at either cut), so releases are heard and silences dropped; velocity pairs, long notes and a 120 BPM Echo Sync demo where the effect needs them), exclusions and quiet points with reasons, exciters compared on Tank and objects with Felt Mallet, a representative preset per model, the drum kits and the home demos (`HOME_DEMOS`: a preset per curated folder, as notes, triads or a held note). `render_guide_clips` renders through `offline::render_preset_at_tempo`, levels each set (its reference at `TARGET_RMS`, peaks ≤ −1 dBFS) and writes WAVs and `clips.json`; `scripts/build-guide-clips.sh` encodes them with `opusenc --bitrate 48` into `web/guide/public/clips/` (committed; regenerate after a plan change or an engine-wide sound change). `guide_clip_plan_covers_every_parameter` and `guide_clip_manifest_is_complete_and_audible` (CI lane) fail on an unplanned parameter, a missing or silent clip, or a fingerprint that no longer matches the plan.
   - **Checks.** `npm run check` (`scripts/check.mjs`): EN/ES twins with the same heading levels, coverage of every model, mode, factory folder, feature and reference panel in both languages, Spanish text for every parameter, slot and option, clip references against `clips.json`; `--complete` also rejects `<Stub />` (turned on by `write-user-guide-content`). `starlight-links-validator` fails the build on a broken internal link. CI's `guide` job runs `npm ci`, the check and the build.
