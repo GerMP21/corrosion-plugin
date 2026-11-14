@@ -4,7 +4,7 @@
 > section below states what is **Implemented** today and keeps the original
 > **Design target** for reference. Verified against
 > `src/dsp/post_processing/` and `src/lib.rs`. See `docs/ARCHITECTURE.md` §9 for
-> the as-built reference, and `FABLE-CODE-REVIEW-2026-07-07.md` (repository root)
+> the as-built reference, and `docs/archive/FABLE-CODE-REVIEW-2026-07-07.md`
 > for the review findings and their fixes.
 >
 > Chain order (`PostProcessingChain::process`, updated 2026-10 for review

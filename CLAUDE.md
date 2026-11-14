@@ -57,7 +57,7 @@ The guide's voice is the maintainer's choice (2026-11-14), set as the `guide-wri
 
 ## Current state (2026-11-14)
 
-The work follows the code review in `FABLE-CODE-REVIEW-2026-07-07.md`. Each fixed finding there is struck through, with a `Status: FIXED` note naming its OpenSpec change.
+The current code review is `FABLE-CODE-REVIEW-2026-11-14.md` (the plugin; its open findings are also in `docs/BACKLOG.md`). The previous one, `docs/archive/FABLE-CODE-REVIEW-2026-07-07.md`, is closed: each fixed finding there is struck through, with a `Status: FIXED` note naming its OpenSpec change. The table below follows that previous review.
 
 | Findings | State |
 |---|---|
@@ -95,7 +95,7 @@ No clips regenerated. |
 - Checked in REAPER (Linux) with zenity and with no dialog; the portal, Windows and macOS dialogs are not checked here.
 - Zenity ignores the proposed export name (a zenity limit).
 - Wiki: Browse and save, Preset files, Editor, Troubleshooting (EN + ES). |
-| Backlog | `docs/BACKLOG.md`, open items only (2026-11-14): Release Snap, real Bow stick-slip, Env Amount, Gesture Modifiers, default-patch decay, MSEG PingPong, web canvas DPR, browser name; deferred features (mod matrix, sequencer, effect mode, output meter); DAW smoke automation, visual GUI tests, benchmark baselines |
+| Backlog | `docs/BACKLOG.md`, open items only (2026-11-14): the open findings of `FABLE-CODE-REVIEW-2026-11-14.md` (C1, R1–R8, O1–O10, N1–N11), the three items the 2026-07-07 review left open (M14, M17, the HRTF mono remix), and Release Snap, real Bow stick-slip, Env Amount, Gesture Modifiers, default-patch decay, MSEG PingPong, web canvas DPR, browser name; deferred features (mod matrix, sequencer, effect mode, output meter); DAW smoke automation, visual GUI tests, benchmark baselines |
 
 **Archived:** `h01`–`h14`, `resolve-exciter-tradeoffs` and `stabilize-mallet-and-grinding-contact` (2026-11-08); `m03-m20-start-at-host-rate-and-report-latency`, `m13-sustain-pedal-and-panic`, `m07-m08-interpolate-echo-and-tidy-spread`, `m06-m09-smooth-starvation-and-oversample-clipper` and `fix-rust-damage-heat-response` (2026-11-09); `m01-m04-m05-clarify-parameters`, `block-voice-mix-dc`, `add-asymmetric-diode-stage`, `add-parameter-tooltips`, `m12-per-note-expression`, `m10-m18-tidy-dead-code-and-docs`, `add-editor-keyboard`, `reorganize-factory-presets`, `fix-pneumatic-jet-saturation` and `per-key-kits` (2026-11-10). They are in `openspec/changes/archive/`, and their delta specs are synced into `openspec/specs/` (31 capabilities; `voice-mix-dc`, `diode-stage`, `host-parameters`, `note-expression`, `editor-keyboard` and `factory-preset-bank` new on 2026-11-10). **Pending from the diode stage:** the maintainer judges the knee by ear and may adjust the Softness/Asymmetry defaults (a small follow-up change if so). Every review finding's change is archived. **Active:** `extend-ci-windows-linux-macos`, `add-web-app`, `add-site-shell`, `add-user-guide` and `fix-inert-controls` (done, to archive; CI run times in extend-ci's `design.md`, and `no_alloc` now runs on Windows too, with `the_checker_is_armed` proving the checker is installed), `write-user-guide-content` (written, waiting on the maintainer's Spanish review), `refine-wiki-naming-and-clips` and `add-preset-import-export` (done, to archive). A new change syncs its specs on archive as usual (`/opsx:archive`).
 
@@ -143,7 +143,7 @@ How each change has been done, and what the maintainer expects:
 1. **Tests first.** Write the spec scenarios as tests and verify they fail on the current code (or that a reference test passes), before implementing.
 2. **Implement**, keeping changes scoped to the tasks. Mark each task `- [x]` as soon as it is done and verified.
 3. **Record numbers in the change's `design.md`** (a `## Measurements` section): before/after values, benchmark tables, anything the proposal guessed wrong. When the implementation differs from a design decision, add an *As built* note rather than leaving the design stale.
-4. **Docs:** update `docs/ARCHITECTURE.md` (and the README when users see the change), and mark the finding FIXED in `FABLE-CODE-REVIEW-2026-07-07.md` with date, change link and what proves it.
+4. **Docs:** update `docs/ARCHITECTURE.md` (and the README when users see the change), and mark the finding FIXED in `FABLE-CODE-REVIEW-2026-11-14.md` (and remove its item from `docs/BACKLOG.md`) with date, change link and what proves it.
 5. **Close out:** `cargo fmt --check`, clippy with `-D warnings`, the full test suite, then commit and push.
 6. **Update "Current state" in this file** when a change is finished, without being asked: the date in its heading, the change's row (fixed or done), what is next, and the archive note. Don't record PR numbers, branches or merge status here: GitHub and git already hold them. Commit it with the change's close-out.
 

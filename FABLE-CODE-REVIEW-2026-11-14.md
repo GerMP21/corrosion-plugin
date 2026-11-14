@@ -10,7 +10,7 @@
 
 **Baseline:** `dev` at `c20393e`. Every finding is a defect that already exists in the base. None is a regression from the last changes (`add-preset-import-export`, `refine-wiki-naming-and-clips`, the `nih_log` patch).
 
-**Previous review:** `FABLE-CODE-REVIEW-2026-07-07.md`. All of its findings are closed. This review does not repeat them.
+**Previous review:** `docs/archive/FABLE-CODE-REVIEW-2026-07-07.md`. Its findings are closed except three it left open on purpose, now in `docs/BACKLOG.md`: M14, M17 and the HRTF spread's mono remix noted under C5. This review does not repeat them.
 
 **Severity labels** (as in `agent-skills:code-review-and-quality`):
 

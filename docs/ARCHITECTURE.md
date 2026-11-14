@@ -4,12 +4,12 @@ This document describes the **as-built** structure, signal flow, and engineering
 contracts of the Corrosion industrial physical-modeling synthesizer. It is
 written against the code in `src/` as of 2026-11-14 and is intended to be accurate
 to what actually ships, not to the aspirational DSP described in
-`docs/detailed-specs/`. Where the implementation is a deliberate approximation
+`docs/original-specs/`. Where the implementation is a deliberate approximation
 of a spec, that is called out explicitly.
 
 > Companion documents:
-> - `FABLE-CODE-REVIEW-2026-07-07.md` (repository root) — the current code review; each fixed finding names its OpenSpec change. The older review is `docs/archive/CODE-REVIEW-2026-05-27.md`.
-> - `docs/detailed-specs/` — DSP design notes (some aspirational; see status banners).
+> - `FABLE-CODE-REVIEW-2026-11-14.md` (repository root) — the current code review of the plugin; its open findings are tracked in `docs/BACKLOG.md`. The earlier reviews, every finding closed, are `docs/archive/FABLE-CODE-REVIEW-2026-07-07.md` (each fixed finding names its OpenSpec change) and `docs/archive/CODE-REVIEW-2026-05-27.md`.
+> - `docs/original-specs/` — DSP design notes (some aspirational; see status banners).
 > - `docs/PRD.md` — product requirements (MVP-era, see its status section).
 > - `docs/BACKLOG.md` — open work only.
 > - `openspec/specs/` — the requirements of every archived change.
@@ -448,7 +448,7 @@ host state (`Plugin::filter_state`) without Onset Level get
 `legacy_onset_level(mseg_onset)`, the level they had.
 
 The per-exciter DSP models implement the formulas in
-`docs/detailed-specs/exciter-algorithms.md` (Kelvin–Voigt, Hertzian contact,
+`docs/original-specs/exciter-algorithms.md` (Kelvin–Voigt, Hertzian contact,
 micro-bouncing, Poisson impulse clusters, Stribeck friction, etc.).
 
 ### Global exciter controls
@@ -632,7 +632,7 @@ note.
 ## 7. Interaction Bus
 
 `BidirectionalInteractionBus` / `InteractionState` implement the spec in
-`docs/detailed-specs/exciter-resonator-interaction.md`:
+`docs/original-specs/exciter-resonator-interaction.md`:
 
 - Per-mode 1D strike coefficients `c_n(P) = sin((n+1)·π·P)`.
 - `fundamental_anchor` clamps `c_0` to a minimum so the pitch never fully nulls.
@@ -661,7 +661,7 @@ note.
 ## 8. Transformations
 
 `profile.rs` implements all six transforms from
-`docs/detailed-specs/transformation-algorithms.md`, applied to mode specs:
+`docs/original-specs/transformation-algorithms.md`, applied to mode specs:
 
 | Transform | Effect (implemented) |
 |---|---|
@@ -684,11 +684,11 @@ the FEM body resonance (run once on the mono sum, mixed at BODY / 5) to both cha
 followed by HRTF spread → Space → oversampled clipper. Chassis Volume only retunes the
 body. Every quality mode runs every stage (C5, `fix-post-chain-body-routing`). These are
 **lightweight, real-time-safe approximations** of the high-fidelity algorithms in
-`docs/detailed-specs/post-processing.md`; the module docstrings say as much, and
+`docs/original-specs/post-processing.md`; the module docstrings say as much, and
 the table below gives the gap per stage.
 
 > **Decision (2026-05-28).** The approximations described here are the shipped
-> contract. The detailed-specs files are aspirational design notes; promoting
+> contract. The original-specs files are aspirational design notes; promoting
 > any single stage to its full PDE/FDTD / HRIR description would be a feature
 > proposal, not a finish-the-partial task. The cutoff/drive smoothers added in
 > the P1 sweep live inside `WdfLadderFilter` and `LorenzDrive` and ramp at
@@ -952,7 +952,7 @@ and the Linux bundle/validator flow uses `x86_64-unknown-linux-gnu`.
   multiplier is snapshotted into `VoiceControls.mode_count_scale` and only
   re-evaluates on the next note-on.
 - **Approximate post DSP.** The post/space/output stages are intentionally
-  cheaper than `detailed-specs/post-processing.md`. Treat that spec as a design
+  cheaper than `original-specs/post-processing.md`. Treat that spec as a design
   target, not a description of shipped behavior.
 - **Only the clipper is oversampled.** The Lorenz drive and the WDF filter's
   soft clip run at the host rate, so their aliasing is part of the sound: the

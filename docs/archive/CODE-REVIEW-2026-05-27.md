@@ -1,11 +1,11 @@
-> **Superseded.** This review (2026-05-27) is kept for history only and no longer matches the code. The current review is [`FABLE-CODE-REVIEW-2026-07-07.md`](../../FABLE-CODE-REVIEW-2026-07-07.md), whose findings are tracked as OpenSpec changes.
+> **Superseded.** This review (2026-05-27) is kept for history only and no longer matches the code. It was followed by [`FABLE-CODE-REVIEW-2026-07-07.md`](FABLE-CODE-REVIEW-2026-07-07.md) (also archived) and then by the current review, [`FABLE-CODE-REVIEW-2026-11-14.md`](../../FABLE-CODE-REVIEW-2026-11-14.md). The 2026-07-07 review's findings were tracked as OpenSpec changes.
 
 # Corrosion — Critical Code Review & Doc Conformance
 
 **Scope:** full `src/` tree except `src/presets/` (excluded by request).
 **Date:** 2026-05-27.
 **Method:** read of every module in the audio path plus build/test infra, cross-checked
-against `docs/detailed-specs/`, `docs/corrosion_plugin_prd_and_specs.md`, and
+against `docs/original-specs/`, `docs/corrosion_plugin_prd_and_specs.md`, and
 `docs/master-prompt.md`.
 
 **Headline:** The *core* synthesis engine (modal resonator, interaction bus,
@@ -51,7 +51,7 @@ polyphase filtering, and no anti-aliasing decimation**; `upsample_state` /
 
 - Eco (1×), Normal (4×), High (8×), Render (16×) produce **identical** clipper output.
 - The advertised "16× oversampled true-peak clipper with linear-phase AA filter"
-  (`detailed-specs/post-processing.md`, `signal-chain.md`) does not exist.
+  (`original-specs/post-processing.md`, `signal-chain.md`) does not exist.
 - The aliasing harness therefore measures *unmitigated* nonlinear aliasing.
 - The test `quality_mode_changes_oversample_factor` passes for the **wrong reason**:
   Eco differs from Render only because of the chain's Eco *stage bypass*
@@ -150,7 +150,7 @@ them in or remove them.
 
 Legend: ✅ matches code · ⚠️ partial/aspirational · ❌ contradicted by code.
 
-| Spec area (`detailed-specs/`) | Conformance | Notes |
+| Spec area (`original-specs/`) | Conformance | Notes |
 |---|---|---|
 | `exciter-algorithms.md` (16 exciters, models, params) | ✅ | All 16 implemented with the documented per-exciter parameters and DSP families. Category labels differ cosmetically (spec "Hit/Scrape/Other" vs code "Hit/Friction/Specialty"; Bow is Friction). |
 | `exciter-resonator-interaction.md` (interaction bus, MSEG) | ✅ | Spatial coefficients, fundamental anchor, coupling, wander, and the 6-stage MSEG (with looping) all present. |
@@ -186,7 +186,7 @@ Legend: ✅ matches code · ⚠️ partial/aspirational · ❌ contradicted by c
 
 **Medium**
 5. Remove or wire up the dead fields/functions in Finding 5.
-6. Align the `detailed-specs/post-processing.md` and `signal-chain.md` claims with
+6. Align the `original-specs/post-processing.md` and `signal-chain.md` claims with
    the shipped approximations (done in this pass — see status banners there).
 7. Update `params.rs` docstring "70+" → 127.
 

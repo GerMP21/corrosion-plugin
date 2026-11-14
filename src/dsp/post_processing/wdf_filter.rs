@@ -22,7 +22,7 @@
 //! filter latch to a DC rail for `fc ≥ fs/4`, including the 20 kHz default —
 //! review finding C1, OpenSpec change `fix-ladder-filter-prewarp`.)
 //!
-//! See `docs/detailed-specs/post-processing.md` for the contractual
+//! See `docs/original-specs/post-processing.md` for the contractual
 //! intended response; this file describes the shipped approximation
 //! (P1.7 decision banner in `docs/ARCHITECTURE.md` §9).
 #[derive(Clone, Debug)]

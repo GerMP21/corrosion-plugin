@@ -15,7 +15,8 @@
 > MVP-first plan. The shipped instrument has moved **well beyond the MVP** and a
 > number of MVP-era specifics below are now superseded. For an accurate picture of
 > what exists today, see `docs/ARCHITECTURE.md` (the as-built reference) and
-> `FABLE-CODE-REVIEW-2026-07-07.md` (the code review, every finding fixed). This
+> `FABLE-CODE-REVIEW-2026-11-14.md` (the current code review; the previous one,
+> `docs/archive/FABLE-CODE-REVIEW-2026-07-07.md`, has every finding fixed). This
 > section reconciles the two.
 
 **Where the product is now (verified in `src/`):**
@@ -32,7 +33,7 @@
 | MIDI | note on/off, velocity | plus sustain pedal, mod wheel, channel and poly pressure, pitch bend, per-note tuning and choke by voice ID, All Sound Off / All Notes Off / Reset All Controllers |
 | Note modes | — | Tonal, Drone and Kit (each key plays its own pad) |
 | Post/space | "MVP may omit" | full chain: WDF-style filter, Lorenz drive, FEM-style body, HRTF-style spread, Factory/Spring/Echo space, diode stage (all **approximations**; `docs/ARCHITECTURE.md` §9) |
-| Body/space DSP | algorithmic body resonator | shipped, but lightweight approximations of the high-fidelity `detailed-specs/post-processing.md` targets |
+| Body/space DSP | algorithmic body resonator | shipped, but lightweight approximations of the high-fidelity `original-specs/post-processing.md` targets |
 | Presets | "20 factory presets" | **214** factory presets (bass, lead, chords, drones and percussion, 12 each by hand; 144 experimental, one per exciter × object; 10 drum kits), levelled to one target; user presets in folders; preset and project migrations |
 | Editor | — | egui editor with ⓘ help on every control, a playable keyboard strip, UI scale 50–150 % |
 | Beyond the plugin | — | a browser version at `https://corrosion-vst.org/play/` and a user guide at `/wiki/` (English and Spanish) |

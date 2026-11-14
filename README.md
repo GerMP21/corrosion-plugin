@@ -188,7 +188,7 @@ A kit is saved with presets and with your DAW project. Loading a pad moves every
 .
 ├── Cargo.toml
 ├── .github/workflows/     ci.yml: checks, bundles and the nightly (Linux, Windows, macOS)
-├── docs/                  ARCHITECTURE.md, BACKLOG.md, PRD.md, detailed-specs/, archive/
+├── docs/                  ARCHITECTURE.md, BACKLOG.md, PRD.md, original-specs/, archive/
 ├── openspec/              specs/ (31 capabilities) and changes/ (active and archived)
 ├── presets/factory/       214 .corrosion-preset files in folders (written by seed_presets)
 ├── scripts/               bundle.sh, check_bundle.sh, validate-plugins.sh, verify-local.sh,
@@ -301,14 +301,14 @@ Active design and implementation references:
 - `docs/ARCHITECTURE.md`: as-built architecture, signal chain, and status of claimed work.
 - `docs/BACKLOG.md`: open work only (sound and behaviour items, deferred features, testing and release infrastructure), each with an acceptance check.
 - `openspec/specs/`: the behaviour contract, one spec per capability; `openspec/changes/archive/` holds every change's proposal, design, measurements and tasks.
-- `FABLE-CODE-REVIEW-2026-11-14.md`: the current code review of the plugin (findings open, listed under Roadmap below).
-- `FABLE-CODE-REVIEW-2026-07-07.md`: the previous code review, all findings fixed; each names its OpenSpec change. The earlier review (2026-05-27) is in `docs/archive/CODE-REVIEW-2026-05-27.md`, superseded.
+- `FABLE-CODE-REVIEW-2026-11-14.md`: the current code review of the plugin; its open findings are in `docs/BACKLOG.md` and under Roadmap below.
+- `docs/archive/FABLE-CODE-REVIEW-2026-07-07.md`: the previous code review, closed; each fixed finding names its OpenSpec change, and the three items it left open are in the backlog. The earlier review (2026-05-27) is in `docs/archive/CODE-REVIEW-2026-05-27.md`, superseded.
 - `docs/PRD.md`: product requirements (see §0 for current-state reconciliation).
-- `docs/detailed-specs/`: DSP design notes (each file carries an implementation-status banner; treat them as design targets, not descriptions of shipped behaviour; see ARCHITECTURE.md §9).
+- `docs/original-specs/`: DSP design notes (each file carries an implementation-status banner; treat them as design targets, not descriptions of shipped behaviour; see ARCHITECTURE.md §9).
 
 ## Roadmap
 
-From `docs/BACKLOG.md`, which has the details and acceptance checks for each item, and from the 2026-11-14 code review (`FABLE-CODE-REVIEW-2026-11-14.md`), which has the measurements, file references and suggested fixes.
+From `docs/BACKLOG.md`, which has the details and acceptance checks for each item. That includes the open findings of the 2026-11-14 code review (`FABLE-CODE-REVIEW-2026-11-14.md`), which has the measurements, file references and suggested fixes.
 
 **Planned features:**
 
@@ -325,6 +325,12 @@ From `docs/BACKLOG.md`, which has the details and acceptance checks for each ite
 - **Real stick-slip for the Bow**: today the bow never sticks; a real stick-slip needs the bowed chord presets re-voiced by ear.
 - **The preset browser's name at startup** shows a factory preset the editor hasn't loaded, while the default patch plays.
 - **The web editor at a device pixel ratio above 1** (HiDPI laptops, phones): the canvas is cut off and blurry.
+
+**Left open by the 2026-07-07 review:**
+
+- **Quality and held notes** (M14): changing Quality changes the clipper's oversampling at once, but a held note keeps the mode count it started with; rebuilding held notes is a possible later change.
+- **The damage rattle** (M17) is shared mono white noise; high-passing or decorrelating it would change the sound, so it was left as is.
+- **HRTF spread's mono remix** (noted under C5): the spread rebuilds its output from a filtered mid plus a scaled side, so it narrows the voices' stereo image as Width rises.
 
 **From the 2026-11-14 code review:**
 

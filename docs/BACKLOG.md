@@ -1,9 +1,11 @@
 # Corrosion — Work Backlog
 
 What is still open. Finished items are removed: their history is in the
-OpenSpec archive (`openspec/changes/archive/`), the code reviews
-(`docs/archive/CODE-REVIEW-2026-05-27.md`, `FABLE-CODE-REVIEW-2026-07-07.md`)
-and git.
+OpenSpec archive (`openspec/changes/archive/`), the archived code reviews
+(`docs/archive/CODE-REVIEW-2026-05-27.md`,
+`docs/archive/FABLE-CODE-REVIEW-2026-07-07.md`) and git. The open findings of
+the current review, `FABLE-CODE-REVIEW-2026-11-14.md`, are listed below with
+their IDs; the review has the measurements and suggested fixes.
 
 Status key: **[BUG]** broken behavior · **[PARTIAL]** wired but incomplete ·
 **[MISSING]** specced but absent · **[CHORE]** cleanup/quality · **[VERIFY]**
@@ -73,6 +75,108 @@ Each item notes the relevant file(s) and an acceptance check.
   (`selected_factory_preset: 0`, `src/gui/editor.rs`) while the default patch
   plays. *Accept:* the header shows the default patch (e.g. "Init") until a
   preset is loaded, and a restored project shows its own name or none.
+
+## From the 2026-11-14 code review
+
+IDs are the review's (`FABLE-CODE-REVIEW-2026-11-14.md`). When one is fixed,
+mark it FIXED there and remove it here.
+
+- [ ] **[BUG] C1. The specialty ADSR never releases with Sustain 0.** Pneumatic
+  Jet, Electromagnetic Hum and Particle Rain released during Attack or Decay
+  with Env Sustain 0 hold their level forever (the release slope is
+  `sustain / release`); with a low sustain, Release lasts level ÷ sustain times
+  longer than set (`src/voice/mod.rs:931-951`). *Accept:* the release ramps from
+  the level at note-off; a note released in Decay with Sustain 0 ends within
+  Release plus a margin, with a test; bank tests pass; Wiki ADSR and
+  Troubleshooting updated.
+- [ ] **[BUG] R1. Switching Space mode replays a stale tail and cuts the wet
+  signal.** Inactive Space processors keep their buffers; Factory came back at
+  −25 dBFS from silence (`src/dsp/post_processing/post_chain.rs:224-257`).
+  *Accept:* a mode re-entered after silence starts silent, and the switch
+  crossfades or clears, with a test.
+- [ ] **[BUG] R2. Space Amount steps once per block.** It has no smoother, unlike
+  BODY, Drive, Output and the filter (`post_chain.rs:160`). *Accept:* a 20 ms
+  smoother, identical output when static, with a test.
+- [ ] **[BUG] R3. Width is discontinuous at 0.** A 100 Hz mono tone drops
+  3.7 dB between Width 0 and 0.001 (`src/dsp/post_processing/hrtf_spread.rs:59`).
+  *Accept:* the level and tone move continuously from 0, with a test; Wiki
+  Width text updated.
+- [ ] **[BUG] R4. Rate-dependent filter constants.** The HRTF proximity
+  one-poles (`hrtf_spread.rs:88-93`) and the spring's dispersion
+  (`src/dsp/post_processing/space.rs:253`) use raw per-sample constants.
+  *Accept:* converted with `dsp::utils::rate`, bit-identical at 48 kHz, covered
+  by the rate-invariance tests.
+- [ ] **[BUG] R5. Corrugated Drag's ridge position loses precision.** It grows
+  without wrapping in `f32`, so the ridge rate drifts on notes held a minute or
+  more (`src/dsp/exciters/corrugated_drag.rs:68`). *Accept:* the position wraps
+  by the ridge spacing; bank tests pass.
+- [ ] **[VERIFY] R6. Drone mode's forced loop steps the friction envelope.** The
+  Decay→Sustain loop restarts Decay at peak: 0.5 → 0.75 every 0.3 s at the
+  defaults (`src/lib.rs:716`, `src/dsp/envelopes/mod.rs:309`). *Accept:*
+  decided by ear (smooth restart, ramp, or no forced loop), bank tests and Wiki
+  Drone page updated.
+- [ ] **[BUG] R7. A kit pad's level is unclamped from files.** `"level_db": 800`
+  gives an infinite gain (`src/kit/mod.rs:197`). *Accept:* clamped on load,
+  with a test in `kit/tests.rs`.
+- [ ] **[VERIFY] R8. The Lorenz drive's saturator is non-monotonic.** Above 1.5
+  in, more input gives less output (1.0 at 1.5, 0.71 at 5)
+  (`src/dsp/post_processing/lorenz_drive.rs:193`). *Accept:* kept as a
+  documented foldback (ARCHITECTURE, Wiki Drive page), or made monotonic with
+  bank tests and a reseed.
+- [ ] **[CHORE] O1–O4. Per-block and per-sample waste.**
+  - O1: the post chain is reconfigured every block (`src/lib.rs:1052`).
+  - O2: the FEM body divides per sample and runs at BODY 0.
+  - O3: the filter calls `tan()` every sample while Component Tolerance is on.
+  - O4: strike-position wander recomputes every mode's `sin` per sample.
+
+  *Accept:* each change is bit-identical (render hashes) or measured, with
+  `scripts/bench_ratios.py`, medians of 5.
+- [ ] **[BUG] O5. Delay-length controls click when moved.** Echo Delay Time,
+  Factory Size and Spring Tank Size jump their read heads (`space.rs:108`,
+  `:231`, `:402`). *Accept:* the delay glides (the echo already interpolates);
+  no step above the dry signal's in a sweep test.
+- [ ] **[CHORE] O6. Split the largest files.** `editor.rs`, `voice/mod.rs`,
+  `lib.rs`, `params.rs` and `core.rs` are 2 700–6 900 lines; move test modules
+  to sibling files and split the editor by panel. *Accept:* no behaviour
+  change, render hashes unchanged.
+- [ ] **[CHORE] O7. Merge the duplicated mono and stereo render paths**
+  (`voice/mod.rs:1832`/`:1908`, the loops in `core.rs`). *Accept:* one inner
+  function, bit-identical output, CPU within noise.
+- [ ] **[CHORE] O8. Enum mapping in `apply_post_chain_params`.** Move the
+  `SpaceMode` and `PostQualityMode` integer mapping beside the enums
+  (`src/lib.rs:1077-1092`).
+- [ ] **[VERIFY] O9. Changing Quality clears the clipper's filters**, a short
+  discontinuity. *Accept:* a short crossfade, or a line in the Quality tooltip.
+- [ ] **[VERIFY] O10. The Factory reverb is mono** (`post_chain.rs:247`).
+  *Accept:* kept by choice, or offset right-channel combs (a sound change).
+- [ ] **[CHORE] N1–N11. Tidy-ups:**
+  - N1: the dead `match self.profile` in `core.rs:1753`.
+  - N2: the misleading defaults written by `rebuild_in_place`.
+  - N3: the test-only `calculate_mode_coefficients` and the P3.1 comments.
+  - N4: the `process_exciter_stereo` wrapper and its stale comment.
+  - N5: the redundant `set_sample_rate` calls at note-on.
+  - N6: the unreachable ADSR Sustain branch.
+  - N7: the MSEG doc order and the per-sample `dt`.
+  - N8: the empty plugin URL and EMAIL.
+  - N9: `expect` on pad data.
+  - N10: document the safety clamps.
+  - N11: bound the size of imported files.
+
+## Left open by the 2026-07-07 review
+
+- [ ] **[VERIFY] M14. Quality changes don't reach held notes.** The clipper's
+  oversampling changes at once, but a voice keeps the mode count it started
+  with (documented). *Accept:* rebuild held notes on a Quality change without a
+  click, or keep it documented by choice.
+- [ ] **[VERIFY] M17. The damage rattle is shared mono white noise.**
+  High-passing or decorrelating it was left undone because it changes the sound
+  (`src/voice/mod.rs`, `rattle_noise`). *Accept:* decided by ear.
+- [ ] **[VERIFY] HRTF spread's mono remix (noted under C5).** The spread rebuilds
+  both channels from a filtered mid plus the side scaled by `1 − width/2`, with
+  crossfeed growing with Width, so raising Width narrows the voices' own stereo
+  image (`src/dsp/post_processing/hrtf_spread.rs:83-107`). *Accept:* Width
+  widens or keeps the dry image, with a test (a sound change: bank tests), or
+  the behaviour is documented in the Wiki.
 
 ## Features (deferred)
 
