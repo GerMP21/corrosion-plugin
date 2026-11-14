@@ -301,13 +301,14 @@ Active design and implementation references:
 - `docs/ARCHITECTURE.md`: as-built architecture, signal chain, and status of claimed work.
 - `docs/BACKLOG.md`: open work only (sound and behaviour items, deferred features, testing and release infrastructure), each with an acceptance check.
 - `openspec/specs/`: the behaviour contract, one spec per capability; `openspec/changes/archive/` holds every change's proposal, design, measurements and tasks.
-- `FABLE-CODE-REVIEW-2026-07-07.md`: the current code review; each fixed finding names its OpenSpec change. The earlier review (2026-05-27) is in `docs/archive/CODE-REVIEW-2026-05-27.md`, superseded.
+- `FABLE-CODE-REVIEW-2026-11-14.md`: the current code review of the plugin (findings open, listed under Roadmap below).
+- `FABLE-CODE-REVIEW-2026-07-07.md`: the previous code review, all findings fixed; each names its OpenSpec change. The earlier review (2026-05-27) is in `docs/archive/CODE-REVIEW-2026-05-27.md`, superseded.
 - `docs/PRD.md`: product requirements (see §0 for current-state reconciliation).
 - `docs/detailed-specs/`: DSP design notes (each file carries an implementation-status banner; treat them as design targets, not descriptions of shipped behaviour; see ARCHITECTURE.md §9).
 
 ## Roadmap
 
-From `docs/BACKLOG.md`, which has the details and acceptance checks for each item, plus the two larger features planned next.
+From `docs/BACKLOG.md`, which has the details and acceptance checks for each item, and from the 2026-11-14 code review (`FABLE-CODE-REVIEW-2026-11-14.md`), which has the measurements, file references and suggested fixes.
 
 **Planned features:**
 
@@ -321,6 +322,22 @@ From `docs/BACKLOG.md`, which has the details and acceptance checks for each ite
 - **Gesture Modifiers** act only on the friction exciters' envelope, but the panel shows for every exciter.
 - **The default patch's decay**: a struck Pipe, I-Beam or Taut Cable rings at the voice's safety clamp for 2–3 s; decide by ear whether it should decay sooner.
 - **MSEG PingPong** loops between the chosen loop stages instead of always Decay → Sustain.
+- **Real stick-slip for the Bow**: today the bow never sticks; a real stick-slip needs the bowed chord presets re-voiced by ear.
+- **The preset browser's name at startup** shows a factory preset the editor hasn't loaded, while the default patch plays.
+- **The web editor at a device pixel ratio above 1** (HiDPI laptops, phones): the canvas is cut off and blurry.
+
+**From the 2026-11-14 code review:**
+
+- **Critical (C1):** Pneumatic Jet, Electromagnetic Hum and Particle Rain never stop if Env Sustain is 0 and the note is released before the decay ends; with a low sustain, Release also lasts longer than set.
+- **Space** (R1, R2): switching the Space mode away and back replays a stale Factory tail and cuts the wet signal at once; Space Amount steps once per block instead of gliding.
+- **Width** (R3) drops 3.7 dB as it leaves 0.
+- **Sample rate** (R4): Listener Proximity and the spring's dispersion sound different at 44.1, 48 and 96 kHz.
+- **Corrugated Drag** (R5) loses ridge-rate precision on notes held for a minute or more.
+- **To decide by ear:** Drone mode's forced loop steps the friction envelope from sustain to peak every MSEG Decay (R6); the Lorenz drive folds loud peaks back down (R8).
+- **Input hardening** (R7, N9, N11): clamp a kit pad's level from files, skip a bad pad instead of panicking, and limit the size of imported files.
+- **Clicks and zipper** (O5, O9): Echo Delay Time, Factory Size and Spring Tank Size jump their delays; changing Quality clears the clipper's filters.
+- **Performance** (O1–O4): the post chain is reconfigured every block, and the FEM body, the filter's drift and the strike-position wander compute per sample what could be cached.
+- **Code health** (O6–O8, N1–N8, N10): split the largest files, merge the duplicated mono and stereo render paths, and the smaller tidy-ups the review lists.
 
 **Deferred features:**
 
