@@ -4400,3 +4400,96 @@ mod adsr_release_tests {
         );
     }
 }
+
+/// `fix-inert-controls` 2.2: the contact exciters' own controls shape the
+/// strike.
+#[cfg(test)]
+mod contact_control_tests {
+    use super::*;
+
+    /// Level (dB) of the first 0.5 s of a note on a plate, C4 velocity 100,
+    /// without its mean.
+    fn strike_db(exciter: i32, controls: VoiceControls) -> f32 {
+        let mut voice = Voice::new();
+        voice.note_on_with_controls(
+            60,
+            100.0,
+            ModalProfileId::Plate,
+            0,
+            1.0,
+            0.0,
+            0.0,
+            exciter,
+            controls,
+        );
+        let samples: Vec<f64> = (0..24_000)
+            .map(|_| f64::from(voice.process_sample(48_000)))
+            .collect();
+        // Without the static deflection: the voice mix blocks it.
+        let mean = samples.iter().sum::<f64>() / samples.len() as f64;
+        let energy: f64 = samples.iter().map(|x| (x - mean).powi(2)).sum();
+        (10.0 * (energy / 24_000.0).log10()) as f32
+    }
+
+    /// The strike's level at each end of a control's range, which must be at
+    /// least 1 dB apart.
+    fn assert_acts(
+        name: &str,
+        exciter: i32,
+        set: impl Fn(&mut VoiceControls, f32),
+        ends: (f32, f32),
+    ) {
+        let at = |value| {
+            let mut controls = VoiceControls::default();
+            set(&mut controls, value);
+            strike_db(exciter, controls)
+        };
+        let (low, high) = (at(ends.0), at(ends.1));
+        assert!(
+            (high - low).abs() >= 1.0,
+            "{name} {}: {low:.2} dB, {}: {high:.2} dB",
+            ends.0,
+            ends.1
+        );
+    }
+
+    #[test]
+    fn core_hardness_shapes_the_felt_mallet() {
+        assert_acts("Core Hardness", 3, |c, v| c.core_hardness = v, (0.5, 4.5));
+    }
+
+    #[test]
+    fn impact_damping_shapes_the_hard_mallet() {
+        assert_acts("Impact Damping", 4, |c, v| c.impact_damping = v, (0.1, 1.3));
+    }
+
+    #[test]
+    fn flesh_stiffness_shapes_the_hand_strike() {
+        assert_acts(
+            "Flesh Stiffness",
+            2,
+            |c, v| c.flesh_stiffness = v,
+            (0.05, 0.8),
+        );
+    }
+
+    #[test]
+    fn grind_pressure_shapes_the_heavy_grinding() {
+        assert_acts(
+            "Grind Pressure",
+            10,
+            |c, v| c.grind_pressure = v,
+            (0.1, 1.9),
+        );
+    }
+
+    #[test]
+    fn compression_curve_shapes_the_felt_mallet() {
+        assert_acts(
+            "Compression Curve",
+            3,
+            |c, v| c.compression_curve = v,
+            (2.0, 5.0),
+        );
+    }
+}

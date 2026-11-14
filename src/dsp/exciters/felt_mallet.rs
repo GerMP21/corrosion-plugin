@@ -6,6 +6,13 @@
 use crate::dsp::utils::{contact, rate};
 use crate::dsp::ContactPrediction;
 
+/// Core Hardness and Compression Curve's defaults (`VoiceControls::default`):
+/// the core the mallet's deceleration is measured against.
+const DEFAULT_CORE_HARDNESS: f32 = 2.5;
+const DEFAULT_COMPRESSION_CURVE: f32 = 2.9;
+/// The compression where the core starts to dominate the felt.
+const CORE_ONSET: f32 = 0.05;
+
 /// Soft mallet with a non-linear compression curve.
 #[derive(Clone, Debug)]
 pub struct FeltMallet {
@@ -89,7 +96,17 @@ impl FeltMallet {
         let compression = (position - resonator.displacement(force)).max(0.0);
 
         if compression > 0.01 {
-            self.mallet_velocity -= compression * rate::step(0.5, self.ratio);
+            // The mallet feels the felt and the core: its deceleration is
+            // scaled by their stiffness over the stiffness with the default
+            // core, exactly 1 there (`fix-inert-controls`; before, it slowed
+            // by the compression alone, so the core never shaped the strike).
+            let felt = softness * compression;
+            let core = |hardness: f32, curve: f32| {
+                hardness * CORE_ONSET * (compression / CORE_ONSET).powf(curve)
+            };
+            let core_ratio = (felt + core(hardness, curve))
+                / (felt + core(DEFAULT_CORE_HARDNESS, DEFAULT_COMPRESSION_CURVE));
+            self.mallet_velocity -= compression * core_ratio * rate::step(0.5, self.ratio);
         }
 
         self.mallet_velocity += rate::step(0.01, self.ratio);

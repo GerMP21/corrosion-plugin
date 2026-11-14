@@ -8,8 +8,8 @@
 ## 2. Fix
 
 - [x] 2.1 Stiff Point Scrape: Chatter Pitch and Chatter Damping shape the force
-- [ ] 2.2 Force controls normalised away (Chain Mass ✓ with Metal Chain's audible links, Grind Pressure, Flesh Stiffness, Core Hardness, Tip Stiffness and others from 1.1)
-- [ ] 2.3 Bounce and count controls (Restitution Bounciness, Micro Bounce Limit, Link Count ✓ by 2.2, Slip Curve, Compression Curve)
+- [ ] 2.2 Force controls normalised away (Chain Mass ✓ with Metal Chain's audible links; Grind Pressure ✓, Flesh Stiffness ✓, Core Hardness ✓, Impact Damping ✓; Grind Pressure, Flesh Stiffness, Core Hardness, Tip Stiffness and others from 1.1)
+- [ ] 2.3 Bounce and count controls (Restitution Bounciness, Micro Bounce Limit, Link Count ✓ by 2.2, Compression Curve ✓; Slip Curve, Compression Curve)
 - [ ] 2.4 Object and envelope controls found inert in 1.1 (Release ✓, MSEG Release ✓)
 - [ ] 2.5 Help texts: Mute Decay, Flesh Damping, Rattle Color, Stick Mass, Pipe Mass, Voltage Sag, and any other 1.1 finds (EN and ES)
 

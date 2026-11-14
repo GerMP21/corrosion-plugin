@@ -146,6 +146,53 @@ Tests: `adsr_release_tests::a_longer_release_keeps_the_jet_blowing` (4.4 dB at b
 
 To judge by ear. No preset left the floor or its character, so no file changed; full CI lane 467 passed.
 
+### Task 2.2: Felt Mallet, Hard Mallet, Hand Strike, Heavy Grinding (2026-11-14)
+
+**Cause.** The same in all four: the contact is solved against the surface it meets, so the force is set by geometry, and what these controls scaled never reached the strike.
+- Felt Mallet: the mallet slowed by the compression alone, and the core term `hardness · c^curve` is about 1 % of the felt's at the compressions reached.
+- Hard Mallet: the Hunt–Crossley damping `(1 + λ·v)` multiplies a force the surface already fixes.
+- Hand Strike: on landing the hand is pinned to the surface at half its speed, so Flesh Stiffness only shaped the approach.
+- Heavy Grinding: Grind Pressure scales the friction, a static push the voice mix's DC blocker removes. The tearing noise, which is what is heard, ignored it.
+
+**As built.** Each fix is exactly the old code at the control's default. The 48 kHz render hashes of all 16 exciters are unchanged.
+- **Felt Mallet:** the deceleration is scaled by `(felt + core(h, k)) / (felt + core(2.5, 2.9))`, where `core(h, k) = h · C0 · (c / C0)^k` with `C0 = 0.05`, the compression where the core takes over. C0 0.2 left Core Hardness under the floor (0.13 dB); C0 0.01 made Compression Curve swing 12.4 dB.
+- **Hard Mallet:** on the way out the reaction is scaled by `0.46 / damping`, so a damped mallet gives less back and leaves late. Exponent 1 (2 gave 2.71 dB of level).
+- **Hand Strike:** on landing the hand keeps `(1 − stiffness / 0.425)` of its incoming speed, clamped to ±1: soft flesh keeps pressing, stiff flesh throws the hand back. Scale 1 (0.5 gave 0.69 dB).
+- **Heavy Grinding:** the tearing noise is scaled by `(pressure / 1.0)^0.5`.
+
+| Control | Level dB | Ring | Bands dB | Width dB | Env dB | Acts |
+|---|---|---|---|---|---|---|
+| Core Hardness | 0.01 → 1.54 | 21 % | 9.38 | 2.86 | 6.58 | yes |
+| Compression Curve | 0.12 → 1.29 | 9 % | 10.81 | 3.38 | 4.82 | yes |
+| Impact Damping | 0.02 → 0.52 | 52 % | 6.47 | 1.90 | 10.44 | yes |
+| Flesh Stiffness | 0.05 → 1.93 | 10 % | 1.34 | 5.07 | 3.77 | yes |
+| Grind Pressure | 0.10 → 3.87 | 10 % | 2.88 | 8.92 | 4.67 | yes |
+
+**Tests.** `contact_control_tests` (5 tests) check that the first 0.5 s on a plate, without its mean, moves ≥ 1 dB between the control's ends.
+
+| Control | Before (each end) | After |
+|---|---|---|
+| Core Hardness | −26.62 / −26.60 dB | ≥ 1 dB apart |
+| Compression Curve | −26.18 / −26.62 dB | ≥ 1 dB apart |
+| Impact Damping | −27.42 / −27.42 dB | ≥ 1 dB apart |
+| Flesh Stiffness | −19.93 / −20.13 dB | ≥ 1 dB apart |
+| Grind Pressure | −32.29 / −32.13 dB | ≥ 1 dB apart |
+
+**Presets.** Manual presets keep these controls at their defaults, except two, whose files are unchanged:
+
+| Preset | Value | Floor RMS before → after |
+|---|---|---|
+| bass/hand_slap_cable | Flesh Stiffness 0.7 | −17.72 → −17.34 dB (+0.38) |
+| drones/grinding_beam | Grind Pressure 0.8 | −17.72 → −17.80 dB (−0.08) |
+
+No preset left the floor or its character; the full CI lane passes (472).
+
+### Found, not fixed: Bow and Drumstick (2026-11-14)
+
+- **Bow (Slip Curve).** The bow never sticks. The resonator moves at most 0.0007 against a bow speed of 0.94, and the relative speed never drops under 0.094, above the Stribeck width (0.02). So the friction sits on its sliding branch and Slip Curve, which only shapes the sticking side, does nothing.
+- **Drumstick (Restitution Bounciness, Micro Bounce Limit).** Every sample on the way out of one contact counts as a bounce, and it flips the stick back in. The limit is used up within about 4 consecutive samples; the stick never flies and comes back.
+- **Both** need a change to the model that moves the default sound, and so every manual Bow and Drumstick preset (Drumstick: pads in all 10 kits). They wait for the maintainer.
+
 ## Goals / Non-Goals
 
 - Goal: every sound-shaping control audible in its context, in the direction its help says, guarded by a test.
