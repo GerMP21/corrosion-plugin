@@ -463,19 +463,21 @@ fn allocation_aborts_under_the_checker() {
 #[test]
 fn the_checker_is_armed() {
     let exe = std::env::current_exe().expect("test binary path");
-    let status = std::process::Command::new(exe)
+    let output = std::process::Command::new(exe)
         .args([
             "allocation_aborts_under_the_checker",
             "--exact",
             "--ignored",
             "--test-threads=1",
         ])
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null())
-        .status()
+        .output()
         .expect("run the test binary");
     assert!(
-        !status.success(),
-        "an allocation under assert_no_alloc did not abort: the checking allocator is not installed"
+        !output.status.success(),
+        "an allocation under assert_no_alloc did not abort: the checking allocator is not installed\n\
+         child status: {:?}\nchild stdout:\n{}\nchild stderr:\n{}",
+        output.status,
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr),
     );
 }
