@@ -277,3 +277,123 @@ fn every_recipe_in_the_plan_is_valid() {
     let slugs: BTreeSet<&str> = RECIPES.iter().map(|r| r.slug).collect();
     assert_eq!(slugs.len(), RECIPES.len(), "recipe slugs are unique");
 }
+
+/// Level, attack brightness and ring length of one note.
+fn note_features(frames: &[(f32, f32)]) -> (f32, f32, f32) {
+    let mono: Vec<f32> = frames.iter().map(|(l, r)| 0.5 * (l + r)).collect();
+    let db = |x: f32| 20.0 * x.max(1e-9).log10();
+    let rms = (mono.iter().map(|x| x * x).sum::<f32>() / mono.len() as f32).sqrt();
+    let peak = mono.iter().fold(0.0f32, |m, x| m.max(x.abs()));
+    let onset = mono.iter().position(|x| x.abs() > 0.05 * peak).unwrap_or(0);
+    // Attack brightness: zero-crossing rate of the first 30 ms's
+    // first difference over its own, a cheap centroid proxy in hertz.
+    let attack = &mono[onset..(onset + 1440).min(mono.len())];
+    let energy: f32 = attack.iter().map(|x| x * x).sum();
+    let diff: f32 = attack.windows(2).map(|w| (w[1] - w[0]).powi(2)).sum();
+    let bright =
+        (diff / energy.max(1e-12)).sqrt() * SAMPLE_RATE as f32 / (2.0 * std::f32::consts::PI);
+    // Ring: the last 10 ms window within 40 dB of the loudest window.
+    let windows: Vec<f32> = mono
+        .chunks(480)
+        .map(|w| (w.iter().map(|x| x * x).sum::<f32>() / w.len() as f32).sqrt())
+        .collect();
+    let loudest = windows.iter().cloned().fold(0.0, f32::max);
+    let last = windows
+        .iter()
+        .rposition(|w| *w > loudest * 0.01)
+        .unwrap_or(0);
+    (db(rms), bright, (last + 1) as f32 * 0.01)
+}
+
+/// Prints, for every exciter and object slot, one note at the slot's
+/// minimum and maximum on its clip patch: RMS (dB), attack brightness (Hz,
+/// a centroid proxy) and ring length (s, to −40 dB). The guide's accuracy
+/// pass (`write-user-guide-content` 2.3) compares it with the help texts.
+#[test]
+#[ignore = "measurement table; run with --ignored --nocapture"]
+fn print_slot_effects() {
+    let clips = plan();
+    let one_note = vec![
+        OfflineNote::on(0, NOTE, 100.0 / 127.0),
+        OfflineNote::off(2 * SAMPLE_RATE as usize, NOTE),
+    ];
+    let render = |reference: String| {
+        let clip = clips.iter().find(|c| c.reference == reference)?;
+        Some(note_features(&render_preset_at_tempo(
+            &clip.preset,
+            &one_note,
+            SAMPLE_RATE,
+            4.0,
+            None,
+        )))
+    };
+    // Mean absolute difference of the first second's octave-band levels
+    // (63 Hz to 16 kHz, each band's energy from a direct DFT of
+    // 4096-sample frames), so a control that only reshapes the spectrum
+    // still shows.
+    let bands = |frames: &[(f32, f32)]| -> Vec<f32> {
+        let mono: Vec<f32> = frames
+            .iter()
+            .take(SAMPLE_RATE as usize)
+            .map(|(l, r)| 0.5 * (l + r))
+            .collect();
+        let n = 4096;
+        let mut energy = [1e-12f32; 9];
+        for frame in mono.chunks_exact(n) {
+            for (b, e) in energy.iter_mut().enumerate() {
+                let (lo, hi) = (44.0 * 2f32.powi(b as i32), 88.0 * 2f32.powi(b as i32));
+                let (k0, k1) = (
+                    (lo * n as f32 / SAMPLE_RATE as f32) as usize,
+                    (hi * n as f32 / SAMPLE_RATE as f32) as usize,
+                );
+                for k in k0.max(1)..=k1 {
+                    let (mut re, mut im) = (0.0f32, 0.0f32);
+                    for (i, x) in frame.iter().enumerate() {
+                        let w = 2.0 * std::f32::consts::PI * (k * i) as f32 / n as f32;
+                        re += x * w.cos();
+                        im -= x * w.sin();
+                    }
+                    *e += re * re + im * im;
+                }
+            }
+        }
+        energy.iter().map(|e| 10.0 * e.log10()).collect()
+    };
+    let shape = |reference: String| {
+        let clip = clips.iter().find(|c| c.reference == reference)?;
+        Some(bands(&render_preset_at_tempo(
+            &clip.preset,
+            &one_note,
+            SAMPLE_RATE,
+            1.0,
+            None,
+        )))
+    };
+    println!(
+        "{:26} {:>26} {:>26} {:>9}",
+        "parameter", "min: dB / Hz / s", "max: dB / Hz / s", "bands dB"
+    );
+    for plan in parameter_plans() {
+        let (Some(lo), Some(hi)) = (
+            render(format!("param:{}:min", plan.id)),
+            render(format!("param:{}:max", plan.id)),
+        ) else {
+            continue;
+        };
+        let (a, b) = (
+            shape(format!("param:{}:min", plan.id)).unwrap_or_default(),
+            shape(format!("param:{}:max", plan.id)).unwrap_or_default(),
+        );
+        let level = (lo.0 - hi.0).abs();
+        let spread = a
+            .iter()
+            .zip(&b)
+            .map(|(x, y)| ((x - y).abs() - level).abs())
+            .sum::<f32>()
+            / a.len().max(1) as f32;
+        println!(
+            "{:26} {:8.1} {:8.0} {:6.2}   {:8.1} {:8.0} {:6.2} {:9.2}",
+            plan.id, lo.0, lo.1, lo.2, hi.0, hi.1, hi.2, spread
+        );
+    }
+}
