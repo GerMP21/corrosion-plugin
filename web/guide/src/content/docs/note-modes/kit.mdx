@@ -6,18 +6,51 @@ covers: {"modes": {"note": ["Kit"]}, "features": ["kit-editor"]}
 ---
 
 import Clips from '../../../components/Clips.astro';
-import Stub from '../../../components/Stub.astro';
 
-<Stub />
+**Kit** turns the keyboard into a drum machine: every key can hold its own sound (a *pad*), with its own exciter, object and settings. A kick on C2, a snare on D2, a clang on F#2, all in one instance of Corrosion. Keys without a pad stay silent.
+
+**Try it:** load **Drums → Scrapyard Kit** and play C2 to B3. Then click a key on the piano strip and look at the editor: it now shows that pad's sound.
 
 ## Pads
 
+A pad stores everything about a voice: the exciter and its controls, the object and its controls, the envelopes, the exposure and linkage settings, plus a tuning and a level. What a pad doesn't store is the output chain: the Filter Bank, the drives, BODY, Space, the diode stage and OUTPUT are shared by the whole kit, like the master bus of a drum machine.
+
+In Kit mode the piano strip spans C2 to C6, and keys that hold a pad are marked. Your computer keys play C2 to C3, the heart of a General MIDI kit.
+
+Assigned pads don't follow the knobs. Once a sound is on a pad, moving a knob changes the editor, not the pad, until you assign it again. The shared output chain is the exception: it acts on every pad at once.
+
 ## Assign and Clear
+
+To put a sound on a key:
+
+1. In **Tonal** or **Drone**, make the sound you want.
+2. Play it once on the piano strip or the computer keys, at the pitch you want the pad to have.
+3. Switch **NOTE MODE** to **Kit**.
+4. Click the key that should hold the pad. The kit bar shows it under **KEY**.
+5. Click **Assign**. The key now plays your sound at the pitch you last played.
+
+To change a pad, click its key: its sound loads into the editor. Tweak it and click **Assign** again. **Clear** empties the selected key.
 
 ## Tune and level
 
+**Tune**, in the kit bar, shifts the selected pad by up to four octaves either way, in semitones. Assign sets it for you from the last note you played; change it afterwards to retune the pad without touching its sound.
+
+Each pad also has a level. The factory kits set it pad by pad so every drum sits at a sensible loudness; there's no level control in the editor, and **Assign** keeps a pad's existing level when you replace its sound. A brand-new pad starts at 0 dB.
+
+**Tip:** pitch is roughly the key divided by the object's size, so a pad played far from where it was designed can ring at an odd pitch. That's why the factory kits tune each role: kicks an octave down, snares and claps an octave up, hats three to four octaves up.
+
 ## Full keyboard
+
+The kit's home zone is C2 to B3, where the General MIDI drum sounds live. Keys outside it are greyed out and can't be selected or played from the editor. Click **Full keyboard** to unlock the whole strip for more pads; MIDI from your host plays every key either way.
 
 ## Factory kits
 
+The **Drums** folder holds ten kits on the General MIDI layout, so drum patterns from other instruments play the right sounds. Every kit has the same twelve pads: kick (C2), side stick (C#2), snare (D2), clap (D#2), low, mid and high toms (F2, A2, C3), closed, pedal and open hats (F#2, G#2, A#2), crash (C#3) and ride (D#3).
+
+Each kit picks a different corner of the metal shop, from the boiler room to the rail yard:
+
 <Clips set="kits" />
+
+Your own kits are saved with your presets and with your host project.
+
+Old presets and projects that used the previous Kit mode, which mapped keys to objects, load in **Tonal**: that mode no longer exists.

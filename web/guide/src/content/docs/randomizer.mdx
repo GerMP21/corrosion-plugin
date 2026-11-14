@@ -3,18 +3,36 @@ title: "Randomizer"
 covers: {"features": ["randomizer"], "modes": {"randomizer": ["Safe", "Object", "Damage", "Full"]}}
 ---
 
-import Stub from '../../components/Stub.astro';
+The Randomizer rolls the dice on a sound. Pick a mode in the menu next to **Randomize**, click the button, and it draws new values for a handful of controls that change a sound's size, wear, grit and stereo picture.
 
-<Stub />
+It's deliberately modest. It never changes the exciter, the object or your envelope, so the result is always recognisably a variation of what you had, not a random noise. Think of it as a sound designer's "what if": what if this were bigger, older, dirtier?
+
+**Try it:** load any Lead preset, set the menu to **Safe** and click **Randomize** a few times, playing a note after each click.
+
+Each click sets, at most, these seven controls: the object's size, **Rust**, **Damage**, **Legacy Drive**, **WIDTH**, **BODY** and **OUTPUT**. Every result is checked: a draw that would be silent, wildly out of range, or both very damaged and very driven is thrown away and drawn again.
 
 ## Modes
 
 ### Safe
 
+Small moves around a usable middle: size between 0.5 and 1.5, a little rust, damage and drive, a moderate width and some body. The default, and the one to reach for first.
+
 ### Object
+
+Explores the object's size alone, over a wide range (0.25 to 2), and wipes the wear and colour: no rust, damage, drive or BODY, and WIDTH back to 0.5. Good for hearing an object "clean" at sizes you might not have tried.
 
 ### Damage
 
+Keeps the size close (0.8 to 1.2) and explores the wear: rust and damage up to 1, and a little drive. BODY goes to 0 and WIDTH to 0.5. Use it to age a sound without losing its pitch area.
+
 ### Full
 
+Everything, over the widest ranges: size 0.25 to 2, rust, damage and drive up to 1, any width from mono to wide, and BODY across its whole range. The wildest results live here, and so do the happy accidents.
+
 ## Tips
+
+- **The size moves the pitch.** Every mode changes the object's size, so the note's pitch moves too, by an octave or more in Object and Full. For a tuned part, set the size back by ear or by the [tuning table](/wiki/objects/#how-objects-are-tuned) once you like the colour.
+- **Object and Damage reset BODY and WIDTH.** If a preset relied on BODY, expect it to sound thinner after those modes.
+- **It sets OUTPUT too.** Safe and Full put it between about −6 and 0 dB, Object and Damage at about −3 dB, so a draw can sound quieter than the preset. Judge the colour, not the loudness.
+- **Save the keepers.** There's no undo for a draw. When you hear something you like, save it right away under a new name.
+- **Randomize, then refine.** The Randomizer only touches seven controls. Its best results usually come one or two knob moves later: try **Strike Pos** and **Brightness** next.

@@ -5,10 +5,22 @@ sidebar:
 covers: {"modes": {"note": ["Tonal"]}}
 ---
 
-import Stub from '../../../components/Stub.astro';
+**Tonal** plays the keyboard like an instrument: each key is a pitch, every note uses the sound in the editor, and up to 16 notes sound at once. It's the default, and most of the factory bank uses it.
 
-<Stub />
+**Try it:** load **Lead → Pipe Bow Lead** and play a melody. Every key is a note, every note the same bowed pipe.
 
 ## Pitch and objects
 
+The key and the object's size set the pitch together: roughly, the key's frequency divided by the size. Play higher and the note goes up; make the object bigger and every note goes down. Each object sits at a different pitch for the same size, so for in-tune playing set the size from the [tuning table](/wiki/objects/#how-objects-are-tuned).
+
+Pitch bend, per-note tuning from hosts that send it, and the sustain pedal all work as you'd expect. See [MIDI and expression](/wiki/midi/).
+
 ## Struck and bowed exciters
+
+What a held key does depends on the exciter:
+
+- **Struck exciters** hit once. The object rings on and dies away on its own, whether you hold the key or not; letting go early doesn't cut the ring. Long-ringing objects (Pipe, I-Beam, Taut Cable) can sing for seconds.
+- **Friction exciters** (Bow and the scrapers) follow their [MSEG](/wiki/exciters/envelopes/#mseg-friction). Unless it loops, a friction note can settle and fade while you still hold the key, like a bow stroke that runs out of bow. How soon depends on the preset. When you let go, the object is released, and that release can be louder than the held note (the [release snap](/wiki/troubleshooting/)).
+- **Specialty exciters** (jet, hum, snap, particles) follow a classic ADSR: they hold at their sustain level while you hold the key.
+
+**Tip:** if a bowed sound fades too soon in Tonal, you have two choices. Reshape the MSEG for a longer stroke, or switch to [Drone](/wiki/note-modes/drone/) to hold it as long as the key.

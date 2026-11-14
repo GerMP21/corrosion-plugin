@@ -3,18 +3,36 @@ title: "Randomizer"
 covers: {"features": ["randomizer"], "modes": {"randomizer": ["Safe", "Object", "Damage", "Full"]}}
 ---
 
-import Stub from '../../../components/Stub.astro';
+El Randomizer tira los dados sobre un sonido. Elige un modo en el menú junto a **Randomize**, pulsa el botón, y saca valores nuevos para un puñado de controles que cambian el tamaño, el desgaste, la aspereza y la imagen estéreo del sonido.
 
-<Stub />
+Es modesto a propósito. Nunca cambia el excitador, el objeto ni tu envolvente, así que el resultado siempre se reconoce como una variación de lo que tenías, no como un ruido al azar. Piensa en él como el «¿y si…?» del diseñador de sonido: ¿y si esto fuera más grande, más viejo, más sucio?
+
+**Pruébalo:** carga cualquier preset de Lead, pon el menú en **Safe** y pulsa **Randomize** unas cuantas veces, tocando una nota después de cada clic.
+
+Cada clic cambia, como mucho, estos siete controles: el tamaño del objeto, **Rust**, **Damage**, **Legacy Drive**, **WIDTH**, **BODY** y **OUTPUT**. Cada resultado se comprueba: una tirada que quedaría en silencio, totalmente fuera de rango, o a la vez muy dañada y muy saturada, se descarta y se vuelve a tirar.
 
 ## Modos
 
 ### Safe
 
+Movimientos pequeños alrededor de un centro útil: tamaño entre 0.5 y 1.5, un poco de óxido, daño y saturación, una anchura moderada y algo de cuerpo. Es el modo por defecto y el primero que deberías probar.
+
 ### Object
+
+Explora solo el tamaño del objeto, en un rango amplio (de 0.25 a 2), y borra el desgaste y el color: sin óxido, daño, saturación ni BODY, y WIDTH de vuelta a 0.5. Va bien para oír un objeto «limpio» a tamaños que quizá no habías probado.
 
 ### Damage
 
+Mantiene el tamaño cerca (de 0.8 a 1.2) y explora el desgaste: óxido y daño hasta 1, y algo de saturación. BODY pasa a 0 y WIDTH a 0.5. Úsalo para envejecer un sonido sin que se vaya de su zona de altura.
+
 ### Full
 
+Todo, en los rangos más amplios: tamaño de 0.25 a 2, óxido, daño y saturación hasta 1, cualquier anchura de mono a ancho, y BODY en todo su recorrido. Aquí viven los resultados más salvajes, y también los accidentes felices.
+
 ## Consejos
+
+- **El tamaño mueve la altura.** Todos los modos cambian el tamaño del objeto, así que la altura de la nota también se mueve, una octava o más en Object y Full. Para una parte afinada, vuelve a poner el tamaño de oído o con la [tabla de afinación](/wiki/es/objects/#cómo-se-afinan-los-objetos) cuando te guste el color.
+- **Object y Damage reinician BODY y WIDTH.** Si un preset dependía de BODY, espera que suene más delgado después de esos modos.
+- **También cambia OUTPUT.** Safe y Full lo dejan entre unos −6 y 0 dB, Object y Damage en unos −3 dB, así que una tirada puede sonar más baja que el preset. Juzga el color, no el volumen.
+- **Guarda los buenos.** No hay deshacer para una tirada. Cuando oigas algo que te guste, guárdalo enseguida con otro nombre.
+- **Primero el azar, luego el detalle.** El Randomizer solo toca siete controles. Sus mejores resultados suelen llegar uno o dos mandos después: prueba luego **Strike Pos** y **Brightness**.

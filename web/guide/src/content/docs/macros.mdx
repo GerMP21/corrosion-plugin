@@ -3,14 +3,54 @@ title: "Macros"
 covers: {"features": ["macros"]}
 ---
 
-import Stub from '../../components/Stub.astro';
+import Clips from '../../components/Clips.astro';
 
-<Stub />
+The four Macros are the big friendly knobs at the top of the editor. Each one moves a whole group of controls at once, across the exciter, the object and the output chain, so you can push a sound in a direction without hunting for the six knobs that would get you there.
+
+They all start in the middle, and in the middle they do nothing. Turn one either way and it nudges its controls up or down from wherever the preset left them. That makes them safe to grab on any preset: the sound you loaded is always one click (back to the middle) away.
+
+**Try it:** load **Bass → Felt Cable Upright**, play a few notes and turn **MASS** up. The bass gets heavier and drops in pitch. Now turn **CORROSION** up: the same bass, twenty years older.
 
 ## MASS
 
+Makes everything heavier. It changes the weight of the exciter (the hand, mallet, stick, pipe, chain, drag tool or particles) by up to half again, and the size of the object by up to a quarter.
+
+A heavier exciter hits louder and stays in contact longer, which brings out the low modes. A bigger object rings lower, and that's the catch: **MASS changes the pitch**. At the top of its travel notes drop by about four semitones; at the bottom they rise by about five. Great for sound design, but retune with the object's size control (or the host) if the part has to stay in key.
+
+MASS acts on the next note you play.
+
+<Clips param="macro_mass" />
+
 ## CORROSION
+
+Wears the object down. Turning it up adds damping (shorter rings), takes away brightness and adds **Rust**. Turning it down does the opposite: it removes damping and rust the preset already had, so a corroded preset comes back cleaner and longer.
+
+The damping and brightness parts act on held notes; the rust part on the next note.
+
+<Clips param="macro_corrosion" />
+
+**Tip:** CORROSION is the quickest way to turn a long, ringing patch into percussion. A struck pipe with CORROSION up becomes a dull, short knock.
 
 ## VIOLENCE
 
+Pushes the dirt. It adds **Damage** to the object (up to 2 more at the top of its travel), and drive and chaos to the output chain: **Legacy Drive**, **Drive Amt** and **Chaos**. Turning it down takes the same amounts away, which can clean up a preset that has a little too much grit.
+
+The drive and chaos parts act at once; the damage part on the next note.
+
+<Clips param="macro_violence" />
+
+**Tip:** VIOLENCE adds level as well as grit. If the red dot in the **Brickwall Limiter** panel stays lit, bring **OUTPUT** down.
+
 ## BRIGHTNESS
+
+Opens up the top end. It raises the object's **Brightness** and moves the Filter Bank's **Cutoff** up or down by as much as an octave. Both act on held notes, so you can sweep it while you play.
+
+<Clips param="macro_brightness" />
+
+One thing to know: the filter part can only open a filter that's already partly closed. Most presets leave **Cutoff** wide open, so turning BRIGHTNESS up only brightens the object; turning it down darkens both.
+
+## Using the Macros
+
+- **Automate them.** They're ordinary host parameters, and a slow move on one macro sounds more natural than the same change made knob by knob.
+- **Make variations.** Load a preset, push one macro, save under a new name. Four macros, two directions: eight variations in a couple of minutes.
+- **Kit pads remember them.** When you assign a sound to a Kit pad, the macros' effect on the voice goes into the pad. See [Kit](/wiki/note-modes/kit/).

@@ -5,10 +5,22 @@ sidebar:
 covers: {"modes": {"note": ["Tonal"]}}
 ---
 
-import Stub from '../../../../components/Stub.astro';
+**Tonal** toca el teclado como un instrumento: cada tecla es una altura, cada nota usa el sonido del editor y suenan hasta 16 notas a la vez. Es el modo por defecto, y la mayor parte del banco de fábrica lo usa.
 
-<Stub />
+**Pruébalo:** carga **Lead → Pipe Bow Lead** y toca una melodía. Cada tecla es una nota, cada nota el mismo tubo con arco.
 
 ## Altura y objetos
 
+La tecla y el tamaño del objeto fijan juntos la altura: más o menos, la frecuencia de la tecla dividida por el tamaño. Toca más agudo y la nota sube; haz el objeto más grande y todas las notas bajan. Cada objeto queda a una altura distinta con el mismo tamaño, así que para tocar afinado pon el tamaño de la [tabla de afinación](/wiki/es/objects/#cómo-se-afinan-los-objetos).
+
+El pitch bend, la afinación por nota de los DAW que la envían y el pedal de sustain funcionan como esperas. Consulta [MIDI y expresión](/wiki/es/midi/).
+
 ## Excitadores golpeados y frotados
+
+Lo que hace una tecla mantenida depende del excitador:
+
+- **Los excitadores de golpe** golpean una vez. El objeto sigue sonando y se apaga solo, mantengas la tecla o no; soltarla antes no corta la resonancia. Los objetos de resonancia larga (Pipe, I-Beam, Taut Cable) pueden cantar varios segundos.
+- **Los excitadores de fricción** (Bow y los raspadores) siguen su [MSEG](/wiki/es/exciters/envelopes/#mseg-fricción). Salvo que esté en bucle, una nota de fricción puede asentarse y apagarse aunque sigas manteniendo la tecla, como un golpe de arco que se queda sin arco. Cuánto tarda depende del preset. Al soltar, el objeto queda libre, y esa suelta puede sonar más fuerte que la nota sostenida (el [chasquido al soltar](/wiki/es/troubleshooting/)).
+- **Los excitadores especiales** (chorro, zumbido, chasquido, partículas) siguen un ADSR clásico: se quedan en su nivel de sustain mientras mantienes la tecla.
+
+**Consejo:** si un sonido con arco se apaga demasiado pronto en Tonal, tienes dos opciones. Remodela el MSEG para un golpe de arco más largo, o cambia a [Drone](/wiki/es/note-modes/drone/) para que dure lo que la tecla.

@@ -141,6 +141,12 @@ Every page, EN and ES (Decision 6). Approved means the maintainer approved the S
 | `output-chain/space` | 2026-11-14 | 2026-11-14 | |
 | `output-chain/diode-limiter` | 2026-11-14 | 2026-11-14 | |
 | `output-chain/output-width` | 2026-11-14 | 2026-11-14 | |
+| `macros` | 2026-11-14 | 2026-11-14 | |
+| `randomizer` | 2026-11-14 | 2026-11-14 | |
+| `note-modes/index` | 2026-11-14 | 2026-11-14 | |
+| `note-modes/tonal` | 2026-11-14 | 2026-11-14 | |
+| `note-modes/drone` | 2026-11-14 | 2026-11-14 | |
+| `note-modes/kit` | 2026-11-14 | 2026-11-14 | |
 | `objects/pipe` | 2026-11-14 | 2026-11-14 | |
 | `objects/plate` | 2026-11-14 | 2026-11-14 | |
 | `objects/tank` | 2026-11-14 | 2026-11-14 | |
@@ -268,6 +274,30 @@ Every page written before the style spec was revised in both languages (paragrap
   - **Bow:** described by its friction curve, not as stick-slip, which the backlog holds.
   - **Coil Spring:** its dispersion stated without a direction.
   - **MSEG loops:** not tempo-synced, so no tip claims they are.
+
+### Batch 2.6 notes: Macros, Randomizer, note modes (2026-11-14)
+- **Macros** (`resolve_macro_bias`):
+  - **MASS:** exciter mass ×(1 ± 0.5) and size ×(1 ± 0.25). At the rails that is −3.9 / +5.0 semitones; the page warns that MASS moves the pitch.
+  - **CORROSION:** damping ±0.2, brightness ∓0.2 and rust ±1.
+  - **VIOLENCE:** damage ±2, Legacy Drive ±0.5, Drive Amt and Chaos ±0.2.
+  - **BRIGHTNESS:** object brightness ±0.3 and cutoff ×2^(±1), i.e. ±1 octave. The code comment says ±2 octaves, but `2^(b·2)` with b = ±0.5 is ±1. The cutoff clamps at 20 kHz, so above the middle the filter part does nothing on an open filter.
+  - **When each part acts:** live for damping, brightness, the drives and the cutoff (`apply_post_chain_params`, the per-block live controls); at note-on for size, rust and damage.
+- **Randomizer** (`randomizer/mod.rs`, `randomizer_assignments`):
+  - It sets only seven parameters: size, rust, damage, Legacy Drive, width, BODY and OUTPUT. The exciter, object and envelopes never change.
+  - Per-mode ranges as in `*_ranges`. OUTPUT is a linear gain: 0.5–1.0 is −6..0 dB, and Object and Damage fix it at 0.7 (−3.1 dB).
+  - Object and Damage set BODY to 0 and width to 0.5.
+  - Safety redraws and the final clamp: `randomize`.
+  - The guide's earlier "Safe draws within safe limits" holds.
+- **Drone:** forces the MSEG Forward loop over stages 3–4 (`note_setup`), so only friction exciters change, and the note pulses at the Decay's rate (as the envelopes page says).
+- **Kit:**
+  - A pad keeps every parameter except the post chain, master, quality, sync and UI ones (`NON_PAD_PARAMS`).
+  - Pads don't follow the knobs (`pad_voice`).
+  - Tune is a semitone drag value in ±48 (`MAX_TUNE`).
+  - The level can't be edited: Assign keeps a pad's level, and a new pad starts at 0 dB.
+  - Assign's tune comes from the last note auditioned outside Kit mode.
+  - Computer keys play 36–48; the zone is 36–59; the strip spans 36–84.
+  - The GM layout of the 12 pads is from `drums.rs`.
+- **Wording to watch:** "a friction note can settle and fade while held" in Tonal. The MSEG's Sustain stage holds the force; the fading is the object's response, and how much depends on the preset. The page doesn't claim a mechanism.
 
 ## Risks / Trade-offs
 
