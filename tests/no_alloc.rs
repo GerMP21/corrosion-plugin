@@ -457,11 +457,15 @@ fn allocation_aborts_under_the_checker() {
     });
 }
 
-/// Proves the checking allocator is installed on this platform: the
-/// deliberate allocation above must kill its process. Without it every
-/// other test here would pass vacuously.
+/// Proves the checking allocator is installed: the deliberate allocation
+/// above must kill its process. Without it every other test here would pass
+/// vacuously. `Cargo.toml` leaves the checker off on Windows, so there it is
+/// required only where CI turns it on and sets `CORROSION_EXPECT_ALLOC_CHECKER`.
 #[test]
 fn the_checker_is_armed() {
+    if cfg!(windows) && std::env::var_os("CORROSION_EXPECT_ALLOC_CHECKER").is_none() {
+        return;
+    }
     let exe = std::env::current_exe().expect("test binary path");
     let output = std::process::Command::new(exe)
         .args([
