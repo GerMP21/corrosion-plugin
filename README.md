@@ -317,7 +317,8 @@ From `docs/BACKLOG.md`, which has the details and acceptance checks for each ite
 **Sound and behaviour:**
 
 - **Release Snap** control for the friction exciters, to bound the snap when a bowed, scraped or dragged note is released.
-- **Env Amount at 0** silences the friction exciters while its help says it flattens the envelope: decide whether to fix the text or the behaviour.
+- **Env Amount at 0** silences the friction exciters (its help now says so): decide whether it should blend toward a flat envelope instead.
+- **Gesture Modifiers** act only on the friction exciters' envelope, but the panel shows for every exciter.
 - **The default patch's decay**: a struck Pipe, I-Beam or Taut Cable rings at the voice's safety clamp for 2–3 s; decide by ear whether it should decay sooner.
 - **MSEG PingPong** loops between the chosen loop stages instead of always Decay → Sustain.
 

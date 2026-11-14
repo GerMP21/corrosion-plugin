@@ -119,7 +119,7 @@
     }
   },
   "curve_tension": {
-    "help": "Forma de los tramos de la envolvente. Cuanto más te alejas del centro, más se curvan."
+    "help": "Forma de los tramos de la envolvente de fricción. Cuanto más te alejas del centro, más se curvan."
   },
   "damage": {
     "help": "Abolla y agrieta el objeto: desafina sus modos y añade compañeros que zumban. Más alto suena más roto."
@@ -155,7 +155,7 @@
     }
   },
   "env_amount": {
-    "help": "Cuánto moldea la envolvente la excitación. Más bajo la aplana."
+    "help": "Escala la fuerza de la envolvente de fricción. Más bajo suena más flojo, y 0 silencia los excitadores de fricción."
   },
   "env_attack": {
     "help": "Tiempo que tarda la nota en llegar a su nivel máximo. Más alto entra más despacio."
@@ -164,7 +164,7 @@
     "help": "Tiempo para bajar del pico al nivel de sustain. Más alto decae más despacio."
   },
   "env_release": {
-    "help": "Tiempo de desvanecimiento al soltar la nota. Más alto se apaga más despacio."
+    "help": "Tiempo que tarda la fuerza en apagarse: desde su pico en un golpe, al soltar la nota en los demás. Más alto se apaga más despacio."
   },
   "env_sustain": {
     "help": "Nivel que se mantiene mientras la tecla está pulsada. Más alto suena más fuerte."
@@ -231,7 +231,7 @@
     "help": "Con cuánta firmeza mantiene el fundamental su altura mientras los otros modos se mueven. Más alto mantiene las notas más afinadas."
   },
   "global_time_scale": {
-    "help": "Escala todos los tiempos de la envolvente. Más alto ralentiza toda la envolvente."
+    "help": "Velocidad de toda la envolvente de fricción. Más alto recorre cada etapa más deprisa."
   },
   "grind_pressure": {
     "slots": {
@@ -289,13 +289,13 @@
     "help": "Lo cerca que está el oyente. Más alto suena más cercano y más lleno."
   },
   "loop_end_stage": {
-    "help": "La etapa donde termina el bucle de la envolvente."
+    "help": "Al llegar a esta etapa, el bucle vuelve a Start."
   },
   "loop_mode": {
     "options": {
-      "Forward": "La envolvente se repite entre las etapas Start y End.",
+      "Forward": "La envolvente vuelve a la etapa Start cada vez que llega a la etapa End.",
       "Off": "La envolvente se reproduce una vez.",
-      "Ping-Pong": "La envolvente va y viene entre las etapas Start y End."
+      "Ping-Pong": "Por ahora igual que Forward de la etapa 3 a la 4, digan lo que digan Start y End."
     }
   },
   "loop_start_stage": {
@@ -366,7 +366,7 @@
     "help": "Nivel de la etapa de arranque de la envolvente de fricción. Más alto empieza la nota con más fuerza."
   },
   "mseg_release": {
-    "help": "Tiempo de desvanecimiento al soltar la nota. Más alto se apaga más despacio."
+    "help": "Tiempo que tarda la fuerza en apagarse al soltar la nota. Más alto se apaga más despacio."
   },
   "mseg_sustain": {
     "help": "Nivel que se mantiene mientras la tecla está pulsada. Más alto suena más fuerte."
@@ -631,13 +631,13 @@
     "help": "Tamaño de la ventana del editor."
   },
   "velocity_to_level": {
-    "help": "Cuánto cambia la velocity el nivel de la nota. Más alto da más rango dinámico."
+    "help": "Cuánto cambia la velocity el nivel de la envolvente de fricción. Más alto hace más suaves las notas flojas, hasta la mitad."
   },
   "velocity_to_peak": {
-    "help": "Cuánto cambia la velocity el pico de la envolvente. Más alto hace que las notas suaves suenen más bajas."
+    "help": "Nivel del pico de la envolvente de fricción, de la mitad al máximo. Más alto da un ataque más marcado sobre el sostenido."
   },
   "velocity_to_time": {
-    "help": "Cuánto acorta la velocity la envolvente. Más alto hace más rápidas las notas fuertes."
+    "help": "Cuánto ralentizan las notas suaves la envolvente de fricción. Más alto hace las notas suaves más lentas que las fuertes."
   },
   "voltage_sag": {
     "slots": {

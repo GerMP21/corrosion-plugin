@@ -1745,7 +1745,7 @@
       "controls": [
         {
           "group": "Gesture Modifiers",
-          "help": "How much the envelope shapes the excitation. Lower flattens it.",
+          "help": "Scales the friction envelope's force. Lower is quieter, and 0 silences the friction exciters.",
           "label": "Env Amount",
           "shown": "always"
         }
@@ -1764,7 +1764,7 @@
       "controls": [
         {
           "group": "Gesture Modifiers",
-          "help": "How much velocity changes the envelope's peak. Higher makes soft notes quieter.",
+          "help": "Peak level of the friction envelope, from half to full. Higher gives a stronger attack over the sustain.",
           "label": "Vel To Peak",
           "shown": "always"
         }
@@ -1783,7 +1783,7 @@
       "controls": [
         {
           "group": "Gesture Modifiers",
-          "help": "Scales every envelope time. Higher slows the whole envelope.",
+          "help": "Speed of the whole friction envelope. Higher plays every stage faster.",
           "label": "Global Time",
           "shown": "always"
         }
@@ -1802,7 +1802,7 @@
       "controls": [
         {
           "group": "Gesture Modifiers",
-          "help": "How much velocity changes the note's level. Higher gives more dynamic range.",
+          "help": "How much velocity changes the friction envelope's level. Higher makes soft notes quieter, down to half.",
           "label": "Vel To Level",
           "shown": "always"
         }
@@ -1821,7 +1821,7 @@
       "controls": [
         {
           "group": "Gesture Modifiers",
-          "help": "How much velocity shortens the envelope. Higher makes hard notes snappier.",
+          "help": "How much soft notes slow the friction envelope. Higher makes soft notes slower than hard ones.",
           "label": "Vel To Time",
           "shown": "always"
         }
@@ -1840,7 +1840,7 @@
       "controls": [
         {
           "group": "Gesture Modifiers",
-          "help": "Shape of the envelope's segments. Turning it away from the middle bends them more.",
+          "help": "Shape of the friction envelope's segments. Turning it away from the middle bends them more.",
           "label": "Curve",
           "shown": "always"
         }
@@ -1884,13 +1884,13 @@
       "controls": [
         {
           "group": "Force Envelope (AD)",
-          "help": "Time to fade after the note ends. Higher fades longer.",
+          "help": "Time the force takes to fade: from its peak on a strike, after the note ends otherwise. Higher fades longer.",
           "label": "Release",
           "shown": "family:hit"
         },
         {
           "group": "Force Envelope (ADSR)",
-          "help": "Time to fade after the note ends. Higher fades longer.",
+          "help": "Time the force takes to fade: from its peak on a strike, after the note ends otherwise. Higher fades longer.",
           "label": "Release",
           "shown": "family:specialty"
         }
@@ -2023,7 +2023,7 @@
       "controls": [
         {
           "group": "Force Envelope (MSEG)",
-          "help": "Time to fade after the note ends. Higher fades longer.",
+          "help": "Time the force takes to fade: from its peak on a strike, after the note ends otherwise. Higher fades longer.",
           "label": "Release",
           "shown": "family:friction"
         }
@@ -2059,12 +2059,12 @@
           "value": 0
         },
         {
-          "help": "The envelope repeats between the Start and End stages.",
+          "help": "The envelope jumps back to the Start stage each time it reaches the End stage.",
           "name": "Forward",
           "value": 1
         },
         {
-          "help": "The envelope runs back and forth between the Start and End stages.",
+          "help": "For now the same as Forward from stage 3 to 4, whatever Start and End say.",
           "name": "Ping-Pong",
           "value": 2
         }
@@ -2119,7 +2119,7 @@
       "controls": [
         {
           "group": "Force Envelope (MSEG)",
-          "help": "The stage where the envelope loop ends.",
+          "help": "Reaching this stage sends the loop back to Start.",
           "label": "End",
           "shown": "family:friction"
         }

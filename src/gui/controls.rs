@@ -1064,18 +1064,18 @@ pub(crate) fn help_for(label: &str) -> &'static str {
         "attack" => "Time the note takes to reach full level. Higher fades in slower.",
         "decay" => "Time to fall from the peak to the sustain level. Higher decays slower.",
         "sustain" => "Level held while the note is down. Higher stays louder.",
-        "release" => "Time to fade after the note ends. Higher fades longer.",
+        "release" => "Time the force takes to fade: from its peak on a strike, after the note ends otherwise. Higher fades longer.",
         "hold" => "Time the envelope holds at its peak before decaying. Higher holds longer.",
         "onset" => "Length of the onset stage that starts the friction envelope. Higher eases the note in slower.",
         "onset lvl" => "Level of the friction envelope's onset stage. Higher starts the note stronger.",
         "sustain time" => "How long the friction envelope sustains in Drone and looped modes. Higher sustains longer.",
         "friction decay" => "Decay time of the friction envelope. Higher fades the friction slower.",
-        "env amount" => "How much the envelope shapes the excitation. Lower flattens it.",
-        "vel to peak" => "How much velocity changes the envelope's peak. Higher makes soft notes quieter.",
-        "vel to level" => "How much velocity changes the note's level. Higher gives more dynamic range.",
-        "vel to time" => "How much velocity shortens the envelope. Higher makes hard notes snappier.",
-        "curve" => "Shape of the envelope's segments. Turning it away from the middle bends them more.",
-        "global time" => "Scales every envelope time. Higher slows the whole envelope.",
+        "env amount" => "Scales the friction envelope's force. Lower is quieter, and 0 silences the friction exciters.",
+        "vel to peak" => "Peak level of the friction envelope, from half to full. Higher gives a stronger attack over the sustain.",
+        "vel to level" => "How much velocity changes the friction envelope's level. Higher makes soft notes quieter, down to half.",
+        "vel to time" => "How much soft notes slow the friction envelope. Higher makes soft notes slower than hard ones.",
+        "curve" => "Shape of the friction envelope's segments. Turning it away from the middle bends them more.",
+        "global time" => "Speed of the whole friction envelope. Higher plays every stage faster.",
         // Processing
         "cutoff" => "Cutoff of the low-pass filter after the voices. Lower sounds darker.",
         "resonance" => "Resonant peak at the cutoff. Higher rings and whistles more.",
@@ -1150,12 +1150,12 @@ pub(crate) fn selector_help(label: &str, selected: &str) -> &'static str {
             "Turns peaks down smoothly ahead of time. Adds about 1 ms of latency."
         }
         ("loop", "Off") => "The envelope plays once.",
-        ("loop", "Forward") => "The envelope repeats between the Start and End stages.",
+        ("loop", "Forward") => "The envelope jumps back to the Start stage each time it reaches the End stage.",
         ("loop", "Ping-Pong") => {
-            "The envelope runs back and forth between the Start and End stages."
+            "For now the same as Forward from stage 3 to 4, whatever Start and End say."
         }
         ("start", _) => "The stage where the envelope loop begins.",
-        ("end", _) => "The stage where the envelope loop ends.",
+        ("end", _) => "Reaching this stage sends the loop back to Start.",
         ("scale", _) => "Size of the editor window.",
         _ => "",
     }

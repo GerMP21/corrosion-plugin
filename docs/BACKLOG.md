@@ -27,10 +27,19 @@ Each item notes the relevant file(s) and an acceptance check.
   one; the default keeps today's snap or a bounded one, by ear.
 - [ ] **[VERIFY] Env Amount 0 silences the friction exciters.** The MSEG output
   is multiplied by Env Amount (`mseg-envelope` spec), so at 0 Bow, Stiff Point
-  Scrape, Heavy Grinding, Corrugated Drag and Tension Rise make no sound, but
-  the tooltip says "Lower flattens it". Decide which is right: fix the tooltip,
-  or make Env Amount blend toward a flat envelope (a sound change for presets
-  below 1). Found by `print_velocity_sweep` (`fix-pneumatic-jet-saturation`).
+  Scrape, Heavy Grinding, Corrugated Drag and Tension Rise make no sound. The
+  tooltip said "Lower flattens it"; since 2026-11-14 it says what it does
+  (`write-user-guide-content`). Left to decide: keep it, or make Env Amount
+  blend toward a flat envelope (a sound change for presets below 1). Found by
+  `print_velocity_sweep` (`fix-pneumatic-jet-saturation`).
+- [ ] **[PARTIAL] Gesture Modifiers show for every exciter but act only on the
+  friction ones.** Env Amount, Vel To Peak, Global Time, Vel To Level, Vel To
+  Time and Curve configure the friction MSEG only (`Voice::configure_envelope`);
+  the struck exciters' AD and the specialty exciters' ADSR ignore them, yet the
+  panel is drawn for all 16. Found while writing the guide's exciter pages
+  (`write-user-guide-content`; the help texts now say "friction envelope").
+  *Accept:* the panel shows only for friction exciters, or the modifiers act
+  on the AD and ADSR envelopes too (a sound change), with a test either way.
 - [ ] **[VERIFY] The default patch sits at the voice clamp for ~3 s.** A struck
   Pipe, I-Beam or Taut Cable rings at the voice's safety clamp (~0.31 RMS) for
   2–3 s, the default patch included (`reorganize-factory-presets` design).
@@ -45,7 +54,7 @@ Each item notes the relevant file(s) and an acceptance check.
   at Internal Rattle 0 is audible (over the guide's silence floor) or the
   tooltip says that 0 mutes it; the clip's quiet declaration goes either way.
 - [ ] **[PARTIAL] MSEG PingPong loop ignores the loop stages.** It always loops
-  Decay → Sustain, like Forward 3 → 4 (`src/params.rs` `loop_mode` doc,
+  Decay → Sustain, like Forward 3 → 4 (its help says so since 2026-11-14) (`src/params.rs` `loop_mode` doc,
   `src/dsp/envelopes/mod.rs`). *Accept:* PingPong runs forward then backward
   between Loop Start and Loop End, with a test; or the mode is removed with a
   preset and host migration.
