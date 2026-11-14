@@ -1,16 +1,20 @@
-> **Implementation status (2026-05-27): IMPLEMENTED — algorithmic-only.** All 9
+> **Implementation status (checked 2026-11-14): IMPLEMENTED — algorithmic-only.** All 9
 > modal objects below ship through a single construction path: the per-object
 > algorithmic generators in `src/dsp/resonators/`, configured by the object's
-> curated character params. They feed a bank of second-order modes
-> (`y[n] = b0·x − a1·y1 − a2·y2`) in `src/dsp/resonators/core.rs`. Mode counts come
-> from the profile tables (`src/dsp/profiles/`), which are now **metadata only**
-> (`mode_count`/budget/tests) and no longer drive sound. Mode counts are fixed per
-> profile (~6–12 base modes) and are **not** scaled by quality mode.
+> curated character params. They feed a bank of second-order modes in
+> `src/dsp/resonators/core.rs`, run in coupled (complex one-pole) form with the
+> direct-form biquad's poles, ring amplitude `b0/ω` and a `(48 000/fs)²` input
+> scale (`docs/ARCHITECTURE.md` §5). Base mode counts come from the profile tables
+> (`src/dsp/profiles/`, ~6–12 modes), which are **metadata only**
+> (`mode_count`/budget/tests) and don't drive sound. The quality mode scales the
+> count at note-on (Eco 0.5×, Normal 1×, High 1.5×, Render 2×); damage adds
+> companions (at most 96 modes per voice, `MAX_MODES`). At note-on, modes that can
+> never sound are pruned (`h11-prune-unsoundable-modes`) and the bank is
+> normalized to one strike level (`STRIKE_LEVEL_REF`).
 >
 > **Consolidation (implemented 2026-05-27):** the algorithmic path is the **only**
 > path, `complex_algo` was removed, and a **curated subset** of each object's
-> parameters below is exposed to the user (full list and IDs in
-> `docs/backlog.md` → "Algorithmic resonator engine"): Pipe `tube_diameter`; Plate
+> parameters below is exposed to the user (host IDs in `src/params.rs`): Pipe `tube_diameter`; Plate
 > `aspect_ratio` + `metal_stiffness` (UI id `plate_stiffness`); Tank `tank_volume` +
 > `cavity_mix`; Chain `link_mass` + `instability`; IBeam `shear_density`; TautCable
 > `braid_stiffness` + `tension_drop`; CoilSpring `dispersion_chirp` + `spring_slosh`;

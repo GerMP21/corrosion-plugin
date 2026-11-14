@@ -133,7 +133,7 @@ W=$(xdotool search --onlyvisible --name 'CLAPi: Corrosion' | head -1); xdotool w
 import -window root -crop 810x658+0+0 +repage /tmp/claude-0/reaper-75.png
 ```
 
-At the default 75 % UI Scale, the window is 810 × 658, so the crop above holds it exactly. Open the PNG with the Read tool to look at it. For a screenshot the maintainer will see, copy it to the session's scratchpad and send it.
+At the default 75 % UI Scale, the window is 810 × 658 (the editor's 810 × 630 plus REAPER's title bar), so the crop above holds it exactly. Open the PNG with the Read tool to look at it. For a screenshot the maintainer will see, copy it to the session's scratchpad and send it.
 
 Driving the editor:
 - **Click:** `xdotool mousemove X Y click 1`. Coordinates are screen pixels, and the window sits at 0,0.

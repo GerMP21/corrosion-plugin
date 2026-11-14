@@ -1,11 +1,22 @@
-> **Implementation status (2026-05): IMPLEMENTED, faithful.** All six transforms
-> (Size, Rust, Damage, Thickness, Heat, Sludge) plus the velocity-expressiveness
-> pass ship in `src/dsp/profile.rs` (`scaled_for_size`, `corroded`, `thickened`,
-> `heated`, `sludge_loaded`, `damaged`) operating on bounded newtypes in
-> `src/dsp/transforms.rs`. The formulas below match the code closely (e.g. heat
-> `·(1 − heat·0.05)`, sludge mass loading `·√(1/(1+sludge))`). Damage mode-splitting
-> happens in the profile; the amplitude-gated rattle injection happens in the voice.
-> Transforms are applied at note-on and fixed for the note. See `docs/ARCHITECTURE.md` §8.
+> **Implementation status (checked 2026-11-14): IMPLEMENTED, with three
+> deviations.** All six transforms (Size, Rust, Damage, Thickness, Heat, Sludge)
+> plus the velocity-expressiveness pass ship in `src/dsp/profile.rs`
+> (`scaled_for_size`, `corroded`, `thickened`, `heated`, `sludge_loaded`,
+> `damaged`) operating on bounded newtypes in `src/dsp/transforms.rs`. Size,
+> Thickness and Sludge match the formulas below (e.g. sludge mass loading
+> `·√(1/(1+sludge))`). `fix-rust-damage-heat-response` changed the other three so
+> they never silence a note or lose its fundamental:
+> - **Rust:** `decay /= 1 + rust·(0.2 + 0.54·w²)`, `gain /= 1 + rust·0.6·w^1.5`
+>   (`w` = mode position, 0 at the fundamental, 1 at the top): highs die first.
+> - **Damage:** the splitting is driven by a saturating amount `3·(1 − e^(−d/3))`,
+>   so the fundamental keeps its note and no decay reaches zero. The
+>   amplitude-gated rattle injection happens in the voice.
+> - **Heat:** besides the pitch drop `·(1 − heat·0.05)`, it darkens the spectrum
+>   (`gain /= 1 + heat·2·w^1.5`, `decay /= 1 + heat·0.5·w`) and adds a thermal
+>   warble (up to about ±8 cents at Heat 1, LFOs at 0.37 and 0.83 Hz).
+>
+> Transforms are applied at note-on and fixed for the note, except Heat's warble,
+> which moves during it. See `docs/ARCHITECTURE.md` §8.
 
 Transformations are where a physical modeling synth truly comes alive. Unlike a standard EQ or pitch-shifter, physical transformations alter the intrinsic physics of the object. 
 

@@ -1,6 +1,24 @@
-> **Implementation status (2026-05): IMPLEMENTED, faithful.** All 16 exciters
-> below ship in `src/dsp/exciters/` with the documented DSP models and tunable
-> parameters, dispatched per-voice by integer in `src/voice/mod.rs`. Naming note:
+> **Implementation status (checked 2026-11-14): IMPLEMENTED, with noted
+> deviations.** All 16 exciters below ship in `src/dsp/exciters/` with the
+> documented DSP models and tunable parameters, dispatched per-voice by integer in
+> `src/voice/mod.rs`. Where the code differs from this file:
+> - **Bow** never sticks. It uses a friction curve (Slip Curve sets how far the
+>   grip carries into sliding), not true stick-slip; real stick-slip broke the
+>   bowed chords and is in `docs/BACKLOG.md` (`fix-inert-controls`).
+> - **Contact exciters** (Hand Strike, Felt Mallet, Hard Mallet, Drumstick, Metal
+>   Pipe, Metal Chain, Heavy Grinding, Particle Rain, Tension Snap) solve their
+>   contact implicitly against this sample's resonator response.
+> - **Drumstick** re-strikes Micro Bounce Limit − 1 times after its first contact
+>   and its micro-bounces.
+> - **Pneumatic Jet** holds its force at its peak above `2/(3·chaos)` instead of
+>   stalling (`fix-pneumatic-jet-saturation`).
+> - **Global controls** Pressure, Speed and Roughness scale every exciter's
+>   force, motion speeds and grit on top of the parameters below.
+> - Every exciter's force passes a drive level and a per-voice drive governor.
+>
+> `docs/ARCHITECTURE.md` §6 has the details and the controls each change made audible.
+>
+> Naming note:
 > the code groups exciters by *envelope family* — **Hit** (one-shot AR), **Friction**
 > (6-stage MSEG), **Specialty** (ADSR) — so the spec's "Hit / Scrape / Other"
 > categories map to Hit / Friction / Specialty, and **Bow** lives in the Friction

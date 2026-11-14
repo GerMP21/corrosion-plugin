@@ -9,44 +9,43 @@
 
 ---
 
-# 0. Current Implementation Status (2026-05)
+# 0. Current Implementation Status (checked 2026-11-14)
 
 > **Read this first.** This PRD captures the original product vision and an
 > MVP-first plan. The shipped instrument has moved **well beyond the MVP** and a
 > number of MVP-era specifics below are now superseded. For an accurate picture of
-> what exists today, see `docs/ARCHITECTURE.md` and `docs/code-review.md`. This
+> what exists today, see `docs/ARCHITECTURE.md` (the as-built reference) and
+> `FABLE-CODE-REVIEW-2026-07-07.md` (the code review, every finding fixed). This
 > section reconciles the two.
 
 **Where the product is now (verified in `src/`):**
 
 | Area | PRD MVP text | Shipped today |
 |---|---|---|
-| Objects | Pipe, Plate, Tank (3) | **9**: Pipe, Plate, Tank, Chain, IBeam, TautCable, CoilSpring, SheetMetal, IndustrialCog |
+| Objects | Pipe, Plate, Tank (3) | **9**: Pipe, Plate, Tank, Chain, IBeam, TautCable, CoilSpring, SheetMetal, IndustrialCog, each with its curated character controls (14 in all) |
 | Exciters | enum `Hit, Scrape, Motor`; "Hit" MVP | **16** named models across Hit / Friction / Specialty families. **No "Motor"** — the rotating-machine role is "Electromagnetic Hum" |
-| Parameters | ~6 MVP params | **127** host parameters with stable IDs (the §11 tables are an MVP subset) |
+| Parameters | ~6 MVP params | **149** host parameters with stable IDs (the §11 tables are an MVP subset); every sound-shaping control audibly changes its note (`fix-inert-controls`) |
 | Drive | `tanh(asymmetric·drive)` | master `apply_drive` (asymmetric waveshaper) **plus** a Lorenz-modulated post drive |
-| Output safety | `clamp(out, −1.0, 1.0)` | hard limiter at **±0.9661 (≈ −0.3 dBFS)**; soft diode clipper before it |
-| Quality modes | listed as future | **implemented**: Eco/Normal/High/Render (clipper oversampling + per-voice modal density; every mode runs the full post chain) |
-| Polyphony | 8 voices | 16 voices; tails stolen before held notes, held notes under 100 ms protected; idle voices skip rendering |
-| Post/space | "MVP may omit" | full chain: WDF-style filter, Lorenz drive, FEM-style body, HRTF-style spread, Factory/Spring/Echo space, oversampled clipper (all **approximations** — see code review) |
+| Output safety | `clamp(out, −1.0, 1.0)` | diode stage (per-polarity tanh knee, Softness and Asymmetry, oversampled, limits at the ceiling ÷ 1.3), then the Hard or Lookahead limiter at the **Analog Ceiling** (default 0.9661 ≈ −0.3 dBFS) |
+| Quality modes | listed as future | **implemented**: Eco/Normal/High/Render (clipper oversampling 1/4/8/16× through half-band IIR stages + per-voice modal density 0.5–2×; every mode runs the full post chain) |
+| Polyphony | 8 voices | 16 voices; stolen by tier (tails, pedal-held notes, held notes ≥ 100 ms, then younger ones); idle voices skip rendering |
+| MIDI | note on/off, velocity | plus sustain pedal, mod wheel, channel and poly pressure, pitch bend, per-note tuning and choke by voice ID, All Sound Off / All Notes Off / Reset All Controllers |
+| Note modes | — | Tonal, Drone and Kit (each key plays its own pad) |
+| Post/space | "MVP may omit" | full chain: WDF-style filter, Lorenz drive, FEM-style body, HRTF-style spread, Factory/Spring/Echo space, diode stage (all **approximations**; `docs/ARCHITECTURE.md` §9) |
 | Body/space DSP | algorithmic body resonator | shipped, but lightweight approximations of the high-fidelity `detailed-specs/post-processing.md` targets |
-| Presets | "20 factory presets" | preset system exists (out of scope for the current review) |
+| Presets | "20 factory presets" | **214** factory presets (bass, lead, chords, drones and percussion, 12 each by hand; 144 experimental, one per exciter × object; 10 drum kits), levelled to one target; user presets in folders; preset and project migrations |
+| Editor | — | egui editor with ⓘ help on every control, a playable keyboard strip, UI scale 50–150 % |
+| Beyond the plugin | — | a browser version at `https://corrosion-vst.org/play/` and a user guide at `/wiki/` (English and Spanish) |
 
-**Known defects to track (from `docs/code-review.md`):**
-- The oversampled clipper does **not** actually oversample (factor is a no-op), so
-  the quality modes are sonically identical at the clipper.
-- `FactoryReverb` comb delays are mutated cumulatively per sample, so `factory_size`
-  does not behave correctly.
-- Post-chain parameters are applied per-sample rather than at control rate.
+**Known defects listed here in 2026-05 are fixed:** the clipper oversamples for
+real (`m06-m09-smooth-starvation-and-oversample-clipper`), `FactoryReverb`'s delays
+no longer compound, and post-chain parameters are applied once per buffer. Open
+work is in `docs/BACKLOG.md`.
 
-**Planned engine change (approved 2026-05, not yet implemented):** the resonator
-will move to a **single algorithmic engine** — the `complex_algo` toggle is being
-removed, the per-object physics generators become the only path, and a curated set
-of per-object "character" parameters is exposed (profile tables demoted to
-mode-count/budget metadata). Chain/Tank pitch-tracking gaps get fixed and the
-TautCable/SheetMetal dynamic behaviors get wired in. This will change the default
-object timbres. Full breakdown and parameter table: `docs/backlog.md` →
-"Algorithmic resonator engine"; design in `docs/ARCHITECTURE.md` §5.
+**The single algorithmic engine (approved 2026-05) is implemented** (2026-05-27):
+`complex_algo` is gone, the per-object generators are the only path, the curated
+character parameters are exposed, Chain and Tank track pitch, and the
+TautCable/SheetMetal dynamic hooks run per sample (`docs/ARCHITECTURE.md` §5).
 
 **Sections of this PRD that remain valid:** product vision (§§2–6), target users,
 non-goals, MIDI/velocity philosophy, real-time-safety requirements (§19, met),
