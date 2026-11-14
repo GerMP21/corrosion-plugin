@@ -4,10 +4,22 @@ sidebar:
   order: 4
 ---
 
-import Stub from '../../../../components/Stub.astro';
+Tu DAW guarda el estado de Corrosion con el proyecto: todos los controles, los pads del kit, todo. Vuelve a abrir el proyecto y el sonido está ahí, sin ningún preset a la vista.
 
-<Stub />
+**Pruébalo:** retoca un sonido, guarda el proyecto del DAW, ciérralo y vuelve a abrirlo. El editor vuelve exactamente como lo dejaste.
 
 ## Proyectos guardados
 
+Los proyectos guardados con versiones anteriores de Corrosion reciben las mismas conversiones que los [presets antiguos](/wiki/es/presets/files/#presets-antiguos), así que conservan su sonido: la etapa de diodo, Onset Level, Wander Rate y el modo Kit antiguo se migran al abrir el proyecto.
+
+El proyecto recuerda si usaba la versión VST3 o la CLAP. Sigue usando la misma para ese proyecto.
+
 ## Cambios en la automatización
+
+La automatización es lo único que no se puede convertir. El DAW reproduce los valores grabados parámetro a parámetro, y donde un parámetro ha cambiado de significado, la automatización antigua significa ahora otra cosa. Estos cambios son **incompatibles**:
+
+- **Output** está ahora en dB, con 0 dB un poco por encima del centro de su recorrido. La automatización de Output grabada antes de ese cambio suena a otros niveles. Si un proyecto antiguo pega un salto de volumen, vuelve a grabar la pista de Output.
+- **Diode Softness** apenas movía el recortador antiguo; ahora da forma a una rodilla de verdad. La automatización antigua de Softness suena distinta; vuelve a grabarla si importa.
+- La automatización de **Note Mode** que cambiaba al modo Kit antiguo cambia ahora al nuevo, donde las teclas sin pad no suenan.
+
+Si nunca automatizaste estos controles, no hay nada que hacer.

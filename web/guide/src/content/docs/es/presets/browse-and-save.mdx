@@ -5,14 +5,32 @@ sidebar:
 covers: {"features": ["user-presets"]}
 ---
 
-import Stub from '../../../../components/Stub.astro';
+Navegar y guardar se hacen en el recuadro **PRESET BANK** de la cabecera.
 
-<Stub />
+**Pruébalo:** carga un preset, cambia algo que te guste, escribe un nombre en **Preset name** y pulsa **Save**. Luego abre el menú de presets: tu sonido está en **User**.
 
 ## Navegar
 
+Haz clic en el nombre del preset para abrir el menú. Cada carpeta de fábrica es un submenú (Experimental tiene uno por excitador), y después viene **User** con tus presets. Las flechas **‹ ›** pasan al preset anterior o siguiente de la carpeta en la que estás, así que puedes escuchar una carpeta entera sin volver a abrir el menú.
+
+Cargar un preset reemplaza todos los controles del editor, salvo la escala de la interfaz.
+
 ## Guardar
+
+1. Elige una carpeta en el menú a la izquierda del nombre: **User**, o una de sus subcarpetas.
+2. Escribe un nombre en **Preset name**.
+3. Pulsa **Save**.
+
+Si ya existe un preset con ese nombre en esa carpeta, Corrosion pregunta antes de reemplazarlo. El nombre puede ser el que quieras; los caracteres que no caben en un nombre de archivo se cambian por otros seguros en el disco, y el preset conserva el nombre que escribiste.
+
+Guardar nunca escribe en el banco de fábrica, así que un preset de fábrica modificado se guarda como un preset de usuario nuevo.
 
 ## Carpetas de usuario
 
+Las subcarpetas de tu carpeta de presets aparecen como submenús bajo **User**, y en el menú de carpetas junto al nombre. Para crear una, haz una carpeta en tu explorador de archivos (**Open folder** te lleva allí) y aparecerá en el editor.
+
+**Consejo:** organiza por lo que vas a buscar después, no por cómo lo hiciste. «Bajos», «Golpes», «Tema – Turno de noche» gana a «Pruebas con arco».
+
 ## Abrir la carpeta
+
+**Open folder** muestra tu carpeta de presets en el explorador de archivos del sistema, y la crea si todavía no existe. Úsalo para hacer copias de seguridad, compartir tus presets o copiar presets que te hayan enviado.

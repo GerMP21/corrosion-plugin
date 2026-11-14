@@ -5,12 +5,32 @@ sidebar:
 covers: {"folders": ["bass", "lead", "chords", "drones", "percussion", "drums", "experimental"]}
 ---
 
-import Stub from '../../../components/Stub.astro';
+import Data from '../../../components/Data.astro';
 
-<Stub />
+The factory bank is <Data count="factoryPresets" /> presets in seven folders. The first five were designed by hand for a job; the last two are drum kits and a map of the whole engine.
+
+Every preset is levelled: a middle C at velocity 100 comes out at about the same loudness from any of them, with headroom left for velocity 127. So when one preset sounds better than another, it's the sound, not the volume.
+
+**Try it:** open **Drones**, pick one, hold a chord and let it breathe. Then open **Percussion** and play the same keys.
 
 ## Curated folders
 
+Twelve presets in each, each checked to do what its folder promises:
+
+- **Bass:** the weight stays low, so a bassline sits under everything else.
+- **Lead:** clear, playable melodic sounds, from flutes to driven pipes.
+- **Chords:** sounds whose partials line up well enough to play as chords, mostly bowed cables and plates with **BODY** at 0.
+- **Drones:** sustained sounds, most in the **Drone** note mode, that hold as long as you do.
+- **Percussion:** hits that die away on their own, made from objects that would otherwise ring for seconds.
+
+These are the best place to learn the instrument: load one, see which exciter and object it uses, and change one thing at a time.
+
 ## Drums
 
+<Data count="drumKits" /> drum kits in **Kit** note mode, each with twelve pads on the General MIDI layout, so drum patterns from other instruments play the right sounds. See [Kit](/wiki/note-modes/kit/#factory-kits) for the layout.
+
 ## The experimental grid
+
+**Experimental** holds one preset for every exciter on every object: 16 × 9 = 144 combinations, filed by exciter. Each was drawn at random within playable ranges and kept only if it passed the same level and quality checks as the rest of the bank.
+
+They're not polished sounds; they're raw material. Use them to hear what a pairing can do before you build your own, and expect a few beautiful surprises.

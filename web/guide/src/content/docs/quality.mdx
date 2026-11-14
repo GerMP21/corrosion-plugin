@@ -3,12 +3,38 @@ title: "Quality and CPU"
 covers: {"modes": {"quality": ["Eco", "Normal", "High", "Render"]}}
 ---
 
-import Stub from '../../components/Stub.astro';
+Physical modelling is hungry work: every note is dozens of resonating modes, each computed every sample, for up to 16 voices. **MODE**, in the header, trades detail for CPU.
 
-<Stub />
+**Try it:** play a dense chord on **Chords → Bowed Cable Pad** in **Normal**, then switch **MODE** to **Render** and play it again. Listen for the extra shimmer in the upper partials, and watch your host's CPU meter.
 
 ## Modes
 
+Two things change with the mode: how many modes each voice gets, and how much the diode stage oversamples to keep its clipping clean.
+
+| Mode | Modes per voice | Diode oversampling | Use it for |
+|---|---|---|---|
+| **Eco** | half | none | Big projects, slow computers, sketching |
+| **Normal** (default) | the standard set | 4× | Everyday playing and mixing |
+| **High** | 1.5× | 8× | Detailed sounds, exposed solos |
+| **Render** | 2× | 16× | Bouncing and final mixdown |
+
+More modes mean richer, more detailed upper partials, most audible on bright objects like **Plate** and **Sheet Metal**. More oversampling means less aliasing (the harsh, inharmonic fizz a clipper can fold back into the audio) when the diode stage is working hard.
+
+The two parts switch at different times. The oversampling changes immediately. The mode count is set when a note starts, so notes already sounding keep theirs and the next notes get the new one.
+
+Presets store a mode, and the factory presets all use **Normal**: loading one sets **MODE** back to Normal.
+
 ## Latency
 
+- The **Hard** limiter adds no latency.
+- The **Lookahead** limiter adds about 1 ms, which Corrosion reports to your host so the track stays in time.
+- The diode stage's oversampling delays the sound by a few samples (a tenth of a millisecond or less), which is too small to matter and isn't reported.
+
 ## Saving CPU
+
+Corrosion only spends CPU on voices that are still sounding, so silence is cheap and dense, long-ringing chords are expensive. If your computer struggles:
+
+1. **Switch to Eco while you write,** and back to Render for the final bounce. Remember that loading a preset sets Normal again.
+2. **Play fewer overlapping notes,** or shorten tails: long-ringing objects (Pipe, I-Beam, Taut Cable) keep voices busy for seconds, and **Rust** or **Sludge** frees them sooner.
+3. **Freeze or bounce** finished parts in your host.
+4. **In the web app,** everything runs on one core of the browser's audio thread, so the heaviest presets with many notes can be too much for a slower computer. The CPU figure in the web app's bar turns red near the limit.

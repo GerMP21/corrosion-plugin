@@ -147,6 +147,16 @@ Every page, EN and ES (Decision 6). Approved means the maintainer approved the S
 | `note-modes/tonal` | 2026-11-14 | 2026-11-14 | |
 | `note-modes/drone` | 2026-11-14 | 2026-11-14 | |
 | `note-modes/kit` | 2026-11-14 | 2026-11-14 | |
+| `presets/index` | 2026-11-14 | 2026-11-14 | |
+| `presets/factory-bank` | 2026-11-14 | 2026-11-14 | |
+| `presets/browse-and-save` | 2026-11-14 | 2026-11-14 | |
+| `presets/files` | 2026-11-14 | 2026-11-14 | |
+| `presets/daw-projects` | 2026-11-14 | 2026-11-14 | |
+| `midi/index` | 2026-11-14 | 2026-11-14 | |
+| `midi/computer-keyboard` | 2026-11-14 | 2026-11-14 | |
+| `midi/expression` | 2026-11-14 | 2026-11-14 | |
+| `quality` | 2026-11-14 | 2026-11-14 | |
+| `ui-scale` | 2026-11-14 | 2026-11-14 | |
 | `objects/pipe` | 2026-11-14 | 2026-11-14 | |
 | `objects/plate` | 2026-11-14 | 2026-11-14 | |
 | `objects/tank` | 2026-11-14 | 2026-11-14 | |
@@ -298,6 +308,27 @@ Every page written before the style spec was revised in both languages (paragrap
   - Computer keys play 36–48; the zone is 36–59; the strip spans 36–84.
   - The GM layout of the 12 pads is from `drums.rs`.
 - **Wording to watch:** "a friction note can settle and fade while held" in Tonal. The MSEG's Sustain stage holds the force; the fading is the object's response, and how much depends on the preset. The page doesn't claim a mechanism.
+
+### Batch 2.7 notes: presets, MIDI, quality, UI scale (2026-11-14)
+- **Presets:**
+  - The user folder comes from `user_preset_dir`. The factory bank is built in (`include_dir!` in `editor.rs`).
+  - A preset holds everything but `ui_scale` (`PRESET_SKIPPED_PARAMS`), quality mode included. All 214 factory files store Normal, so loading one resets MODE to Normal; the quality page says so.
+  - Save, overwrite confirmation, user subfolders and Open folder follow the `user-presets` spec.
+  - Migrations on both paths (`migrate_preset_json`, `filter_state`): diode stage, Onset Level, Wander Rate, old Kit mode.
+  - The BREAKING automation notes cover Output (dB), Diode Softness and Note Mode → Kit.
+- **MIDI:**
+  - Pitch bend is ±2 semitones (`PITCH_BEND_RANGE_SEMITONES`).
+  - Pressure (the larger of channel and poly) and CC1 scale the voice gain by `1 + 0.5·p + 0.3·m` (about +3.5 dB and +2 dB).
+  - CC64, CC120, CC121 and CC123 are as in ARCHITECTURE §4; other CCs are ignored (README).
+  - Computer keys play at velocity 100 (`KEY_VELOCITY`), from 60 in Tonal and Drone and from 36 in Kit, matched by letter.
+- **Expression:**
+  - Notes are addressed by voice ID, else by key and channel.
+  - PolyTuning goes on top of the channel bend; Choke is a 2 ms fade; channel MPE is out of scope.
+  - No host is named as supporting per-note editing: none was checked in these sessions.
+- **Quality:**
+  - Mode counts ×0.5 / 1 / 1.5 / 2 (`quality_mode_count_scale`); oversampling 1× / 4× / 8× / 16×.
+  - The two switching times and the unreported delay of 4–5 samples (ARCHITECTURE §9).
+- **UI scale:** 50–150 % in 5 % steps, with 810 × 630 at the 75 % default.
 
 ## Risks / Trade-offs
 

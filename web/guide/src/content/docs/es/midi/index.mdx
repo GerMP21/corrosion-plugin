@@ -6,12 +6,28 @@ sidebar:
 covers: {"features": ["midi"]}
 ---
 
-import Stub from '../../../../components/Stub.astro';
+Corrosion se toca con MIDI: notas, claro, pero también velocidad, pitch bend, presión, la rueda de modulación y el pedal de sustain. A los modelos físicos les encanta que toques con expresión, porque todo esto llega a la física, no solo al volumen.
 
-<Stub />
+**Pruébalo:** carga **Lead → Pipe Bow Lead** y toca la misma nota suave y luego fuerte. La nota fuerte no solo suena más alta; muerde de otra manera.
 
 ## Velocity y pitch bend
 
+**La velocidad** es lo fuerte que el excitador golpea, empuja o sopla. Un golpe más fuerte mueve más el objeto, lo que saca más de sus parciales agudos, así que las notas fuertes suenan más brillantes, como pasa con el metal de verdad. En los excitadores de fricción, los [modificadores de gesto](/wiki/es/exciters/gesture-modifiers/) deciden cuánto cambia además la velocidad el nivel y los tiempos de la envolvente.
+
+**El pitch bend** reafina todas las notas que suenan, hasta 2 semitonos arriba o abajo. Mueve los modos del objeto con suavidad en lugar de reiniciarlos, así que un bend sobre una nota que resuena se desliza como uno de verdad.
+
+**La presión** (aftertouch de canal, o aftertouch polifónico por nota) y **la rueda de modulación** (CC1) hinchan las voces de las notas sostenidas: la presión hasta unos 3.5 dB y la rueda unos 2 dB. La presión va por nota cuando tu teclado envía aftertouch polifónico; si no, la comparten todas las notas.
+
+Los demás controladores se ignoran por ahora. Para manejar un mando desde tu hardware, usa el MIDI learn o la automatización de tu DAW.
+
 ## Pedal de sustain
 
+El pedal de sustain (CC64) funciona como el de un piano: las notas que sueltas mientras está pisado siguen sonando hasta que lo levantas. Una nota que vuelves a tocar mientras el pedal la sostiene reemplaza a la sostenida, así que las notas repetidas no se amontonan.
+
+Si tocas más de 16 notas, Corrosion reutiliza la voz más silenciosa que ya se esté apagando, luego una sostenida por el pedal, y solo después una nota que sigues manteniendo.
+
 ## Pánico y all notes off
+
+- **All Notes Off** (CC123) suelta todas las teclas pulsadas. Si el pedal de sustain está pisado, las sigue sosteniendo.
+- **All Sound Off** (CC120) lleva todo al silencio en 5 ms, colas de reverb y eco incluidas. Es el mensaje de «pánico» que envían muchos DAW al parar o al pulsar su botón de pánico.
+- **Reset All Controllers** (CC121) levanta el pedal de sustain y devuelve a reposo la rueda de modulación, el pitch bend y la presión.

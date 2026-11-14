@@ -6,12 +6,28 @@ sidebar:
 covers: {"features": ["midi"]}
 ---
 
-import Stub from '../../../components/Stub.astro';
+Corrosion is played with MIDI: notes, of course, but also velocity, pitch bend, pressure, the mod wheel and the sustain pedal. Physical models love expressive playing, because every one of these reaches the physics, not just the volume.
 
-<Stub />
+**Try it:** load **Lead → Pipe Bow Lead** and play the same note softly, then hard. The hard note isn't only louder; it bites differently.
 
 ## Velocity and pitch bend
 
+**Velocity** is how hard the exciter hits, pushes or blows. A harder hit drives the object further, which brings out more of its upper partials, so loud notes sound brighter, the way real metal does. On the friction exciters, the [gesture modifiers](/wiki/exciters/gesture-modifiers/) decide how much velocity also changes the envelope's level and timing.
+
+**Pitch bend** retunes every sounding note, by up to 2 semitones either way. It moves the object's modes smoothly rather than restarting them, so a bend on a ringing note glides like a real one.
+
+**Pressure** (channel aftertouch, or polyphonic aftertouch per note) and the **mod wheel** (CC1) both swell the voices on held notes: pressure by up to about 3.5 dB, the mod wheel by about 2 dB. Pressure is per note when your keyboard sends polyphonic aftertouch; otherwise it's shared by all notes.
+
+Other controllers are ignored for now. To control a knob from your hardware, use your host's MIDI learn or automation.
+
 ## Sustain pedal
 
+The sustain pedal (CC64) works like a piano's: notes you release while it's down keep going until you lift it. A note you play again while it's held by the pedal replaces the held one, so repeated notes don't pile up.
+
+If you play more than 16 notes, Corrosion takes over the quietest voice that's already fading, then a pedal-held one, and only then a note you're still holding.
+
 ## Panic and all notes off
+
+- **All Notes Off** (CC123) releases every held key. A sustain pedal that's down still holds them.
+- **All Sound Off** (CC120) fades everything to silence in 5 ms, reverb and echo tails included. This is the "panic" message many hosts send when you stop or hit their panic button.
+- **Reset All Controllers** (CC121) lifts the sustain pedal and puts the mod wheel, pitch bend and pressure back to rest.

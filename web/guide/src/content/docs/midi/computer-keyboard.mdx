@@ -4,10 +4,22 @@ sidebar:
   order: 2
 ---
 
-import Stub from '../../../components/Stub.astro';
+No MIDI keyboard to hand? Your computer keyboard plays Corrosion, in the plugin and in the web app, laid out like one octave of a piano.
 
-<Stub />
+**Try it:** move the mouse over the editor and press `A`, then `W`, `S`, `E`, `D`: C, C#, D, D#, E.
+
+The keys play while the editor's window has focus **and** the mouse pointer is over it, so typing in your host doesn't play notes by accident. They don't play while you're typing a preset name. Holding a key holds the note; your system's key repeat doesn't retrigger it. Every key plays at velocity 100.
+
+The letters are marked on the piano strip, so you can always see which key plays what.
 
 ## Tonal and Drone
 
+`A W S E D F T G Y H U J K` play C4 to C5: the white keys on the middle row (`A S D F G H J K`), the black keys above them (`W E T Y U`).
+
+For other octaves, click the piano strip: it spans C3 to C6, and clicking lower on a key plays louder.
+
 ## Kit
+
+In Kit mode the same keys play C2 to C3, the kick, snares, claps, toms and hats of a General MIDI kit, so you can finger-drum the factory kits straight away.
+
+The keys follow the letters printed on them, so on keyboards with another layout (AZERTY, QWERTZ) the notes are under different physical keys.

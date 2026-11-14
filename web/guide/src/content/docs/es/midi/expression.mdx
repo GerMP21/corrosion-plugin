@@ -5,10 +5,20 @@ sidebar:
 covers: {"features": ["expression"]}
 ---
 
-import Stub from '../../../../components/Stub.astro';
+Algunos DAW pueden hablar con una nota cada vez en lugar de con todo el instrumento. Corrosion escucha: en los DAW CLAP y VST3 que envían eventos por nota, puedes reafinar o cortar una sola nota mientras las demás siguen sonando.
 
-<Stub />
+**Pruébalo:** en un DAW que edite la expresión por nota (varios DAW con CLAP lo hacen), dibuja una curva de afinación en una nota de un acorde. Solo esa nota se dobla.
+
+Las notas se identifican por el ID que les da el DAW, así que dos notas superpuestas en la misma tecla siguen separadas. Los DAW que envían MIDI normal identifican las notas por tecla y canal, y todo sigue funcionando de la forma habitual.
 
 ## Afinación por nota
 
+Reafina una nota, en semitonos, encima del pitch bend, que sigue moviendo todas las notas. Como el pitch bend, desliza los modos del objeto con suavidad en lugar de reiniciar la nota, así que los glissandos por nota sobre un cable que resuena o una placa con arco suenan naturales.
+
+**Consejo:** la afinación por nota es una forma preciosa de desafinar unos cents una voz de un acorde con arco y conseguir un brillo con batido lento.
+
 ## Choke
+
+Un choke corta una nota en seco, con un fundido de 2 ms para que no haga clic. Es lo que hacen las cajas de ritmos para cortar un charles abierto cuando suena el cerrado; un DAW que envíe chokes puede hacer lo mismo con los pads del Kit de Corrosion.
+
+El MPE por canal, en el que cada nota tiene su propio canal MIDI para el bend y la presión, no está soportado: los mensajes de canal se aplican a todas las notas.
