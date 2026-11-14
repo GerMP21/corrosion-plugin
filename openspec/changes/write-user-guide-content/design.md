@@ -71,6 +71,13 @@ The clip plan gains a `Recipe { preset, changes }` entry, so the after clip is r
 ### 7. Accuracy pass
 Before each batch is offered for review, every behavioural claim is checked against the code, a test or a render. Claims that needed a render are listed in the batch's notes. Any mismatch between a tooltip and the behaviour goes to the maintainer as a question, with the numbers.
 
+### As built: task 1.1 (2026-11-14)
+- **Sections:** `check.mjs` rule 6 asks every exciter and object page (one model in `covers:`, not the folder's index) for the seven `##` sections in order. EN: What it is, How it sounds, Controls, Pairings, Tips, Presets to try, Listen; ES: Qué es, Cómo suena, Controles, Combinaciones, Consejos, Presets para probar, Escúchalo. The stubs said "Factory presets" / "Presets de fábrica", which the spec doesn't; renamed. Run against the stubs before the rename, the rule failed all 50 model pages.
+- **Which controls a model shows** (`src/lib/model-controls.mjs`, shared by the check and the component): its slots, its panel's shared controls except the model selector, and for an exciter its family's envelope (AD for hit, MSEG for friction, ADSR for specialty). Bow: 23 controls.
+- **Links:** checked only once a page is written (no `<Stub />`), so placeholder pages still pass until `--complete`. A link is `reference/<panel>/#<id>` in the Controls section. As an alternative, `<ModelControls exciter="Bow" />` (or `object=`) renders the whole list from the data, grouped as the editor groups it; the check accepts it, since it can't miss a control.
+- **Listen:** must have `<Clips set="exciters|objects" item="<model>" />` and the `-presets` set.
+- **Tests:** `scripts/check.test.mjs` (`npm test`, new CI step "Guide check tests"), 9 cases on copies of the real pages: shape, Spanish headings, the spec's Bow Pressure scenario, a complete page, `<ModelControls>`, Hand Strike's AD envelope, an object page, a missing clip. Six were red before the rule (the other three expect no error).
+
 ## Risks / Trade-offs
 
 - [Volume: about 70 pages × 2 languages] → Batches by section, so review keeps pace with writing. The strict check is turned on only in the last task, so earlier batches can merge to `dev` with placeholders left.

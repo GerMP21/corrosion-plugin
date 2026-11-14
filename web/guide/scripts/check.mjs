@@ -9,12 +9,16 @@
 //   3. the IDs of parameters.json and parameters.es.json differ, or a
 //      Spanish entry lacks a text the English one has;
 //   4. a page references a clip that isn't in clips.json or on disk;
-//   5. with --complete, a page still has a <Stub /> placeholder.
+//   5. with --complete, a page still has a <Stub /> placeholder;
+//   6. an exciter or object page lacks the seven model sections in order,
+//      its Listen section lacks the model's clips, or, once written, its
+//      Controls section doesn't link every control the model shows.
 // Internal links are checked at build by starlight-links-validator.
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import yaml from 'js-yaml';
+import { modelControls } from '../src/lib/model-controls.mjs';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 const args = process.argv.slice(2);
@@ -226,6 +230,66 @@ for (const lang of ['en', 'es']) {
       for (const clip of clips) {
         if (!existsSync(join(clipsDir, clip.file))) fail(`${rel(page.path)}: clip file ${clip.file} is missing`);
       }
+    }
+  }
+}
+
+// 6. Model pages (`write-user-guide-content` Decision 2): the seven
+// sections in order; once written (no <Stub />), a Controls section that
+// links every control the model shows, or renders them with
+// <ModelControls>; a Listen section with the model's two clips.
+const MODEL_SECTIONS = {
+  en: ['What it is', 'How it sounds', 'Controls', 'Pairings', 'Tips', 'Presets to try', 'Listen'],
+  es: ['Qué es', 'Cómo suena', 'Controles', 'Combinaciones', 'Consejos', 'Presets para probar', 'Escúchalo'],
+};
+/** The body of each `##` section, by heading. */
+function sections(body) {
+  const out = new Map();
+  let current = null;
+  let fence = false;
+  for (const line of body.split(/\r?\n/)) {
+    if (/^\s*(```|~~~)/.test(line)) fence = !fence;
+    const h = !fence && /^##\s+(.+?)\s*#*\s*$/.exec(line);
+    if (h) {
+      current = h[1];
+      out.set(current, '');
+    } else if (current) {
+      out.set(current, `${out.get(current)}${line}\n`);
+    }
+  }
+  return out;
+}
+for (const lang of ['en', 'es']) {
+  const names = MODEL_SECTIONS[lang];
+  for (const [key, page] of pages[lang]) {
+    const [dir, file] = key.split('/');
+    const kind = { exciters: 'exciters', objects: 'objects' }[dir];
+    const model = kind && file !== 'index' && page.data.covers?.[kind]?.length === 1 && page.data.covers[kind][0];
+    if (!model) continue;
+    const got = page.headings.filter((h) => h.level === 2).map((h) => h.text);
+    if (got.join('|') !== names.join('|')) {
+      fail(`${rel(page.path)}: a model page needs the sections ${names.join(', ')}, in order (has ${got.join(', ') || 'none'})`);
+      continue;
+    }
+    const body = sections(page.body);
+    const listen = body.get(names[6]);
+    const clipSets = kind === 'exciters' ? ['exciters', 'exciter-presets'] : ['objects', 'object-presets'];
+    for (const set of clipSets) {
+      if (!new RegExp(`<Clips\\s+set="${set}"\\s+item="${model}"`).test(listen)) {
+        fail(`${rel(page.path)}: the ${names[6]} section has no clip for <Clips set="${set}" item="${model}" />`);
+      }
+    }
+    if (/<Stub\b/.test(page.body)) continue;
+    const controls = body.get(names[2]);
+    const attr = kind === 'exciters' ? 'exciter' : 'object';
+    if (new RegExp(`<ModelControls\\s+${attr}="${model}"`).test(controls)) continue;
+    const missing = modelControls(kind, model, parameters, models).filter(
+      (p) => !new RegExp(`reference/${p.panel}/#${p.id}(?![\\w-])`).test(controls),
+    );
+    if (missing.length) {
+      fail(
+        `${rel(page.path)}: the ${names[2]} section does not link ${missing.map((p) => `${p.name} (${p.id})`).join(', ')}`,
+      );
     }
   }
 }

@@ -2,7 +2,7 @@
 
 ## 1. Tooling for content
 
-- [ ] 1.1 Test first: `check.mjs` rules for model-page shape (seven headings, EN/ES mapping) and control links; run red against the stub pages
+- [x] 1.1 Test first: `check.mjs` rules for model-page shape (seven headings, EN/ES mapping) and control links; run red against the stub pages
 - [ ] 1.2 `<Data>` component (counts, ranges, defaults from the generated JSON) and the bare-number warning
 - [ ] 1.3 `web/scripts/screenshots.cjs` and the callout component; capture the editor and every panel
 - [ ] 1.4 `Recipe` entries in the clip plan; the manifest test covers them

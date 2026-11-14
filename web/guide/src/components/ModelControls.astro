@@ -1,0 +1,47 @@
+---
+// The controls an exciter or object shows, as links to their reference
+// cards, grouped as the editor groups them (`write-user-guide-content`
+// Decision 2). `<ModelControls exciter="Bow" />` or
+// `<ModelControls object="Pipe" />`. The list comes from the generated data
+// (src/lib/model-controls.mjs), the same list the guide check asks a model
+// page's Controls section to link.
+import parametersData from '../data/parameters.json';
+import modelsData from '../data/models.json';
+import { modelControls } from '../lib/model-controls.mjs';
+
+interface Props {
+  exciter?: string;
+  object?: string;
+}
+const { exciter, object } = Astro.props;
+const kind = exciter ? 'exciters' : 'objects';
+const name = (exciter ?? object)!;
+const prefix = Astro.locals.starlightRoute.locale === 'es' ? '/wiki/es/reference/' : '/wiki/reference/';
+const list = modelControls(kind, name, parametersData.parameters as any[], modelsData);
+const label = (p: any) => p.slots?.find((s: any) => s.model === name)?.label ?? p.name;
+const group = (p: any) => p.slots?.find((s: any) => s.model === name)?.group ?? p.group;
+const groups: [string, any[]][] = [];
+for (const p of list) {
+  const last = groups.at(-1);
+  if (last && last[0] === group(p)) last[1].push(p);
+  else groups.push([group(p), [p]]);
+}
+---
+
+<dl class="model-controls">
+  {
+    groups.map(([title, items]) => (
+      <>
+        <dt>{title}</dt>
+        <dd>
+          {items.map((p, i) => (
+            <>
+              {i > 0 && ', '}
+              <a href={`${prefix}${p.panel}/#${p.id}`}>{label(p)}</a>
+            </>
+          ))}
+        </dd>
+      </>
+    ))
+  }
+</dl>

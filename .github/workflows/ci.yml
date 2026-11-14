@@ -220,6 +220,9 @@ jobs:
       - name: Guide checks
         run: npm run check
 
+      - name: Guide check tests
+        run: npm test
+
       - name: Build the guide
         run: npm run build
 
