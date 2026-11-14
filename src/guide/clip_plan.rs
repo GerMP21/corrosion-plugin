@@ -229,6 +229,88 @@ fn demo_notes(root: u8, phrase: DemoPhrase) -> Vec<OfflineNote> {
     notes
 }
 
+/// A recipe of the guide (`write-user-guide-content` Decision 5): a factory
+/// preset and the settings it changes, heard before and after.
+#[derive(Clone, Copy, Debug)]
+pub struct Recipe {
+    /// The page anchor and the clip folder, `recipes/<slug>/`.
+    pub slug: &'static str,
+    /// The factory folder and preset it starts from.
+    pub folder: &'static str,
+    pub preset: &'static str,
+    /// What it plays, as the home demos do.
+    pub root: u8,
+    pub phrase: DemoPhrase,
+    /// Every setting it changes, as plain values (what the editor displays,
+    /// for the parameters whose display has no unit conversion).
+    pub changes: &'static [(&'static str, f32)],
+}
+
+/// The guide's recipes. The list is chosen with the maintainer (task 2.8).
+pub const RECIPES: &[Recipe] = &[];
+
+/// Refuse a recipe whose preset, parameters or values don't exist.
+pub fn check_recipe(recipe: &Recipe, bank: &[factory::FactoryPreset]) -> Result<(), String> {
+    if !bank
+        .iter()
+        .any(|e| e.folder == recipe.folder && e.preset.name == recipe.preset)
+    {
+        return Err(format!(
+            "no factory preset {}/{}",
+            recipe.folder, recipe.preset
+        ));
+    }
+    if recipe.changes.is_empty() {
+        return Err("the recipe changes nothing".to_string());
+    }
+    let params = CorrosionParams::default();
+    let map = params.param_map();
+    for &(id, value) in recipe.changes {
+        let Some((_, ptr, _)) = map.iter().find(|(i, _, _)| i == id) else {
+            return Err(format!("`{id}` is not a parameter"));
+        };
+        // SAFETY: `ptr` points into `params`, alive for this call.
+        let back = unsafe { ptr.preview_plain(ptr.preview_normalized(value)) };
+        if (back - value).abs() > 1e-3 * value.abs().max(1.0) {
+            return Err(format!("`{id}` = {value} is outside its range"));
+        }
+    }
+    Ok(())
+}
+
+/// The before and after clips of each recipe, in one set so they share a
+/// gain and the comparison stays fair.
+pub fn recipe_clips(recipes: &[Recipe], bank: &[factory::FactoryPreset]) -> Vec<ClipSpec> {
+    let mut clips = Vec::new();
+    for recipe in recipes {
+        let preset = &bank
+            .iter()
+            .find(|e| e.folder == recipe.folder && e.preset.name == recipe.preset)
+            .unwrap_or_else(|| panic!("no factory preset {}/{}", recipe.folder, recipe.preset))
+            .preset;
+        let set = format!("set:recipes:{}", recipe.slug);
+        let notes = demo_notes(recipe.root, recipe.phrase);
+        for (point, patch) in [
+            ("before", preset.clone()),
+            ("after", with_values(preset, recipe.changes)),
+        ] {
+            clips.push(ClipSpec {
+                reference: format!("{set}:{point}"),
+                file: format!("recipes/{}/{point}", recipe.slug),
+                set: set.clone(),
+                is_reference: point == "before",
+                source: format!("preset {} ({point})", recipe.preset),
+                preset: patch,
+                notes: notes.clone(),
+                seconds: 4.0,
+                tempo_bpm: None,
+                quiet: None,
+            });
+        }
+    }
+    clips
+}
+
 /// The tempo of the tempo-synced demos.
 const DEMO_BPM: f32 = 120.0;
 
@@ -605,6 +687,8 @@ pub fn plan() -> Vec<ClipSpec> {
             quiet: None,
         });
     }
+
+    clips.extend(recipe_clips(RECIPES, &bank));
 
     // Home page demos: a preset per curated folder (maintainer's choice,
     // 2026-11-13), each a short phrase from its own root key.

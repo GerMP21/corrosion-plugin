@@ -90,6 +90,11 @@ Before each batch is offered for review, every behavioural claim is checked agai
 - **Also found:** at startup the preset bank shows "Bass / Bowed Cable Sub" (the first entry of its list, `selected_factory_preset: 0`) while the default patch, Hand Strike on Pipe, is what plays. It's in the plugin's editor too. Reported to the maintainer; the screenshots show it as it is.
 - **`<Screenshot src={…} alt="…" callouts={[[x, y], …]} />`** (`src/components/Screenshot.astro`): the image through `astro:assets` (1280 and 2560 px WebP), numbered callouts at fractions of the image, explained by an ordered list in the page. A callout outside the image fails the build. Checked in a build and in the browser with a temporary use on the editor page.
 
+### As built: task 1.4 (2026-11-14)
+- **`Recipe { slug, folder, preset, root, phrase, changes }`** and `RECIPES` in `src/guide/clip_plan.rs`. `recipe_clips` renders `set:recipes:<slug>:before` (the preset as it ships) and `:after` (`with_values(preset, changes)`, exactly the listed changes), with the home demos' phrases, in one set so both share a gain. `<Clips set="recipes" item="<slug>" />` plays them, labelled Before / After (Antes / Después).
+- **`check_recipe`** refuses an unknown preset, an unknown parameter, a value outside its range and a recipe that changes nothing; `every_recipe_in_the_plan_is_valid` runs it on `RECIPES`. The manifest test covers recipe clips like every other planned clip (file, audibility, fingerprint).
+- **`RECIPES` is empty** until the maintainer picks the list (Open Questions; task 2.8), so the fingerprint and the clips don't change yet. The tests use a sample recipe (Low Sheet Bow with Rust 2 and the cutoff at 2 kHz). The three tests failed to compile before the code existed.
+
 ## Risks / Trade-offs
 
 - [Volume: about 70 pages × 2 languages] → Batches by section, so review keeps pace with writing. The strict check is turned on only in the last task, so earlier batches can merge to `dev` with placeholders left.

@@ -25,6 +25,7 @@ const label = (clip: { ref: string; source: string }) => {
   if (!item) return last;
   if (set === 'exciters') return t('guide.clips.on' as any, { name: clip.source.split(' on ').at(-1) });
   if (set === 'objects') return t('guide.clips.with' as any, { name: clip.source.split(' with ').at(-1) });
+  if (set === 'recipes') return t(`guide.clips.${last}` as any);
   if (set?.endsWith('-presets')) return t('guide.clips.preset' as any, { name: clip.source.replace(/^preset /, '') });
   return last;
 };

@@ -194,3 +194,86 @@ fn trimming_cuts_where_the_tail_falls_silent() {
     trim_to_silence(&mut silent);
     assert_eq!(silent.len(), (rate * TRIM_FADE) as usize);
 }
+
+/// A recipe for the tests: Low Sheet Bow with more Rust and a darker filter.
+const SAMPLE_RECIPE: Recipe = Recipe {
+    slug: "rusted-bass",
+    folder: "bass",
+    preset: "Low Sheet Bow",
+    root: NOTE - 12,
+    phrase: DemoPhrase::Notes,
+    changes: &[("rust", 2.0), ("filter_cutoff", 2_000.0)],
+};
+
+#[test]
+fn a_recipe_renders_before_and_after_from_its_preset() {
+    let bank = factory::bank();
+    let clips = recipe_clips(&[SAMPLE_RECIPE], &bank);
+    assert_eq!(clips.len(), 2);
+    let (before, after) = (&clips[0], &clips[1]);
+    assert_eq!(before.reference, "set:recipes:rusted-bass:before");
+    assert_eq!(after.reference, "set:recipes:rusted-bass:after");
+    assert_eq!(before.file, "recipes/rusted-bass/before");
+    assert_eq!(before.set, after.set, "one gain, so the comparison is fair");
+    assert!(before.is_reference && !after.is_reference);
+    let preset = &bank
+        .iter()
+        .find(|e| e.folder == "bass" && e.preset.name == "Low Sheet Bow")
+        .expect("the preset")
+        .preset;
+    let json = |p: &Preset| serde_json::to_value(p).expect("presets serialize");
+    assert_eq!(
+        json(&before.preset),
+        json(preset),
+        "before is the preset as it ships"
+    );
+    assert_eq!(
+        json(&after.preset),
+        json(&with_values(preset, SAMPLE_RECIPE.changes)),
+        "after is the preset with exactly the listed changes"
+    );
+    assert_eq!(before.notes, after.notes);
+    assert_eq!(before.notes[0].note, NOTE - 12);
+}
+
+#[test]
+fn a_recipe_must_name_a_real_preset_parameters_and_values() {
+    let bank = factory::bank();
+    assert_eq!(check_recipe(&SAMPLE_RECIPE, &bank), Ok(()));
+    let bad = |r: Recipe| check_recipe(&r, &bank).expect_err("should be refused");
+    assert!(bad(Recipe {
+        preset: "Low Sheet Bowl",
+        ..SAMPLE_RECIPE
+    })
+    .contains("no factory preset bass/Low Sheet Bowl"));
+    assert!(bad(Recipe {
+        changes: &[("rusty", 1.0)],
+        ..SAMPLE_RECIPE
+    })
+    .contains("`rusty` is not a parameter"));
+    assert!(bad(Recipe {
+        changes: &[("rust", 50.0)],
+        ..SAMPLE_RECIPE
+    })
+    .contains("`rust` = 50 is outside its range"));
+    assert!(bad(Recipe {
+        changes: &[],
+        ..SAMPLE_RECIPE
+    })
+    .contains("changes nothing"));
+}
+
+#[test]
+fn every_recipe_in_the_plan_is_valid() {
+    let bank = factory::bank();
+    for recipe in RECIPES {
+        assert_eq!(
+            check_recipe(recipe, &bank),
+            Ok(()),
+            "recipe `{}`",
+            recipe.slug
+        );
+    }
+    let slugs: BTreeSet<&str> = RECIPES.iter().map(|r| r.slug).collect();
+    assert_eq!(slugs.len(), RECIPES.len(), "recipe slugs are unique");
+}
