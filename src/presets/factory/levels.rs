@@ -269,22 +269,22 @@ const LEVELS: &[(&str, u32, f32)] = &[
     (
         "experimental/stiff_point_scrape/pipe.corrosion-preset",
         0,
-        9.847,
+        1.299,
     ),
     (
         "experimental/stiff_point_scrape/plate.corrosion-preset",
         0,
-        40.56,
+        4.992,
     ),
     (
         "experimental/stiff_point_scrape/tank.corrosion-preset",
         0,
-        14.79,
+        42.57,
     ),
     (
         "experimental/stiff_point_scrape/chain.corrosion-preset",
         0,
-        97.83,
+        6.437,
     ),
     (
         "experimental/stiff_point_scrape/i_beam.corrosion-preset",

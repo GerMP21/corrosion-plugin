@@ -10,7 +10,19 @@ fn print_control_responses() {
         "{:26} {:>8} {:>7} {:>8} {:>8} {:>8}  acts",
         "parameter", "level", "ring", "bands", "width", "env"
     );
-    for (id, r) in responses() {
+    // CONTROLS=id,id limits the table to those controls.
+    let only: Option<Vec<String>> = std::env::var("CONTROLS")
+        .ok()
+        .map(|v| v.split(',').map(str::to_string).collect());
+    let rows: Vec<(String, Response)> = match &only {
+        Some(ids) => parameter_plans()
+            .into_iter()
+            .filter(|p| ids.contains(&p.id))
+            .map(|p| (p.id.clone(), response(&measure_points(&p))))
+            .collect(),
+        None => responses(),
+    };
+    for (id, r) in rows {
         println!(
             "{:26} {:8.2} {:6.0}% {:8.2} {:8.2} {:8.2}  {}",
             id,

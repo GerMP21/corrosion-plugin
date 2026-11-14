@@ -819,3 +819,28 @@ fn print_experimental_level_instability() {
         println!("{d:5.2} dB {p}");
     }
 }
+
+/// Re-level named presets only (`fix-inert-controls`: the maintainer keeps
+/// the bank as it is and re-levels just the presets a fix moves). Prints
+/// each one's new Output, floor check and level instability.
+/// `RELEVEL=folder/slug,… cargo test --release relevel_named -- --ignored --nocapture`
+#[test]
+#[ignore = "tool; run with RELEVEL=… --release -- --ignored --nocapture"]
+fn relevel_named_presets() {
+    let names = std::env::var("RELEVEL").unwrap_or_default();
+    for entry in bank() {
+        let path = entry.relative_path();
+        if !names.split(',').any(|n| !n.is_empty() && path.contains(n)) {
+            continue;
+        }
+        let mut preset = entry.preset.clone();
+        let before = preset.output;
+        let report = level(&mut preset);
+        println!(
+            "{path}: Output {before} -> {} | floor {:?} | instability {:.2} dB",
+            preset.output,
+            report.check(),
+            level_instability_db(&preset)
+        );
+    }
+}

@@ -57,9 +57,35 @@ Three points, not two: Strike Position's ends are mirror images (`sin(nπP)` has
 | Cable Braid | 0.01 | 0 % | 0.69 | 0.55 | 0.15 | Some spectral change, under the floor |
 | Diode Softness (driven) | 0.78 | 0 % | 0.38 | 0.96 | 0.47 | Close to the floor; acts only when clipping |
 
+**Presets (maintainer, 2026-11-14): leave the factory presets as they are, no reseed.** A fix that pushes a preset off the quality floor or out of its character is reported with the numbers instead.
+
 **Scope (maintainer, 2026-11-14): all 20**, both the inert ones and those under the floor. Each fix that changes a default sound is shown with before and after numbers.
 
 The causes are first readings from the code; task 2 confirms each before changing it. Earlier single-note findings that now pass in context: the gesture modifiers and Speed and Roughness (on Bow), Position Envelope, Fundamental Anchor (near a node), Strike Position (with its middle), Spring Dispersion, Bias Starvation, Diode Asymmetry, Space Mode, Wander Rate.
+
+### Task 2.1: Stiff Point Scrape (2026-11-14)
+
+**Cause confirmed.** The deflection grew by `v_rel·0.001` per sample, crossed the slip threshold and was cut to 10 % at once, so the returned force was a train of signed pressure spikes; Chatter Pitch and Chatter Damping only fed a tip state that never reached the output.
+
+**As built.** Each slip now strikes a two-pole resonator at `100 + 900·pitch` Hz (capped at 0.45 × the rate) with a `0.006 / damping` s decay, and the force is `2·ring + 0.3·stick`, where `stick = pressure · deflection / threshold` is the spring the deflection still holds. The strike is placed at its sub-sample crossing so the ring doesn't move with the rate. `CHATTER_RING_GAIN` started at 4; at 96 kHz the exciter then played 1.93 dB under 48 kHz (bound ±1.5 dB), from the drive governor (−0.73 dB) and the velocity feedback through a strong high ring, so it went down to 2. `EXCITER_DRIVE_LEVEL[9]` re-tuned 8.3877e-3 → 2.1089e-2 (`print_exciter_overdrive` median 0.3494).
+
+| Control | Level dB | Bands dB | Acts |
+|---|---|---|---|
+| Chatter Pitch | 0.00 → 5.05 | 0.00 → 7.70 | yes |
+| Chatter Damping | 0.00 → 1.28 | 0.00 → 6.34 | yes |
+
+Unit tests: `chatter_pitch_raises_the_chatter`, `chatter_damping_shortens_the_ring` (red before, green after).
+
+**Presets.** Cable Scrape Drone (drones) stays on the floor and in character. Four experimental presets left the floor; the maintainer chose to re-level only those four (stored Output, parameters untouched, rest of the bank unchanged; `relevel_named_presets`, ignored):
+
+| Preset | Level from target before | Output before → after | Instability |
+|---|---|---|---|
+| experimental/stiff_point_scrape/pipe | +14.8 dB | 9.847 → 1.299 | 0.58 dB |
+| experimental/stiff_point_scrape/plate | +14.9 dB | 40.56 → 4.992 | 0.01 dB |
+| experimental/stiff_point_scrape/tank | −9.2 dB | 14.79 → 42.57 | 0.21 dB |
+| experimental/stiff_point_scrape/chain | +16.5 dB | 97.83 → 6.437 | 0.11 dB |
+
+After: `every_factory_preset_meets_the_quality_floor` and `generated_bank_equals_the_files_on_disk` pass; full CI lane 463 passed, 0 failed.
 
 ## Goals / Non-Goals
 

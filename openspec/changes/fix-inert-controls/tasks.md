@@ -7,7 +7,7 @@
 
 ## 2. Fix
 
-- [ ] 2.1 Stiff Point Scrape: Chatter Pitch and Chatter Damping shape the force
+- [x] 2.1 Stiff Point Scrape: Chatter Pitch and Chatter Damping shape the force
 - [ ] 2.2 Force controls normalised away (Chain Mass, Grind Pressure, Flesh Stiffness, Core Hardness, Tip Stiffness and others from 1.1)
 - [ ] 2.3 Bounce and count controls (Restitution Bounciness, Micro Bounce Limit, Link Count, Slip Curve, Compression Curve)
 - [ ] 2.4 Object and envelope controls found inert in 1.1
@@ -15,5 +15,5 @@
 
 ## 3. Close-out
 
-- [ ] 3.1 Reseed the factory bank; bank tests; guide data and clips regenerated
+- [ ] 3.1 Bank tests (no reseed: the maintainer keeps the factory presets as they are, 2026-11-14); guide data and clips regenerated
 - [ ] 3.2 Docs: ARCHITECTURE, design.md measurements; fmt, clippy, full lanes; commit and push to `dev`; CLAUDE.md Current state
