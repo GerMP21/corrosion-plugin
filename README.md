@@ -278,7 +278,7 @@ scripts/bundle.sh linux release
 
 **CI** (`.github/workflows/ci.yml`) runs on every push to `dev` and `main`, on pull requests from forks, and by hand:
 
-- **checks** on Linux (formatting, clippy with warnings denied, the workspace tests on musl, the GUI library tests, the real-time safety tests, docs with warnings denied, the benchmarks compiled, the renderer smoke test and its WAV check), Windows with MSVC and macOS (clippy, the workspace and GUI tests, the renderer smoke test; real-time safety on macOS too);
+- **checks** on Linux (formatting, clippy with warnings denied, the workspace tests on musl, the GUI library tests, the real-time safety tests, docs with warnings denied, the benchmarks compiled, the renderer smoke test and its WAV check), Windows with MSVC and macOS (clippy, the workspace and GUI tests, the renderer smoke test and the real-time safety tests);
 - **bundle**: VST3 and CLAP built on each platform's own runner (macOS universal and ad-hoc signed), their layout checked, then validated with clap-validator and pluginval;
 - **nightly**: after a fully green run on `main`, the `nightly` pre-release is replaced with that commit's six zips. Runs on `dev` and pull requests never publish, and a failing run leaves the previous nightly in place.
 
@@ -288,7 +288,7 @@ Benchmarks are local and manual: `cargo bench --no-default-features --target x86
 
 ## Real-Time Safety
 
-- **No heap allocation** in `process()`, including note-on for every object, quality mode and exciter, kit pads, voice stealing, live MIDI expression, editor notes and `reset()`. Each voice preallocates its worst-case modal bank (`MAX_MODES`) and rebuilds it in place at note-on. Verified by `tests/no_alloc.rs`, which must run in a **debug** build (`cargo test --no-default-features --test no_alloc`): the checking allocator only exists under `debug_assertions`, and a release run passes vacuously. Builds off Windows enable nih-plug's `assert_process_allocs`; on Windows it stays off (its allocator hook hung nih-plug's test setup there), so the check runs on Linux and macOS.
+- **No heap allocation** in `process()`, including note-on for every object, quality mode and exciter, kit pads, voice stealing, live MIDI expression, editor notes and `reset()`. Each voice preallocates its worst-case modal bank (`MAX_MODES`) and rebuilds it in place at note-on. Verified by `tests/no_alloc.rs`, which must run in a **debug** build (`cargo test --no-default-features --test no_alloc`): the checking allocator only exists under `debug_assertions`, and a release run passes vacuously. Builds off Windows enable nih-plug's `assert_process_allocs`. `Cargo.toml` leaves it off on Windows (its allocator hook once hung nih-plug's test setup there), so CI turns it on for this test alone (`--features nih-plug/assert_process_allocs`), and the check runs on all three platforms. `the_checker_is_armed` proves the checker is installed, so a run can't pass vacuously.
 - **No locks / blocking / I/O / logging** in the audio callback. The kit's pad table is a seqlock read without locking; editor notes arrive through a lock-free ring.
 - **Fixed voice array**: 16 `Voice` instances (`MAX_VOICES`), each owning all 16 exciter structs (allocation-free dispatch).
 - **Denormal + NaN/Inf guards** at every voice boundary; non-finite peak holds sort as quietest within their stealing tier, so a corrupted voice is reclaimed.

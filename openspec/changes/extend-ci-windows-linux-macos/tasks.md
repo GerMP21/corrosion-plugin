@@ -17,6 +17,6 @@
 
 ## 3. Docs and close-out
 
-- [ ] 3.1 Measurements in `design.md` (run times cold and cached, validator results, platform-dependent tests, `no_alloc` on Windows)
-- [ ] 3.2 README (nightly downloads per OS, macOS quarantine step), `docs/ARCHITECTURE.md` §10, `docs/BACKLOG.md` (Windows lane done), CLAUDE.md
-- [ ] 3.3 Local close-out lanes; CLAUDE.md "Current state"; commit and push to `dev`; the nightly is verified on the first run on `main` (maintainer's merge or a manual run)
+- [x] 3.1 Measurements in `design.md` (run times cold and cached, validator results, platform-dependent tests, `no_alloc` on Windows)
+- [x] 3.2 README (nightly downloads per OS, macOS quarantine step), `docs/ARCHITECTURE.md` §10, `docs/BACKLOG.md` (Windows lane done), CLAUDE.md
+- [x] 3.3 Local close-out lanes; CLAUDE.md "Current state"; commit and push to `dev`; the nightly is verified on the first run on `main` (maintainer's merge or a manual run)

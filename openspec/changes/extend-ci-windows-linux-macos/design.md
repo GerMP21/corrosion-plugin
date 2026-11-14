@@ -91,7 +91,32 @@ Same mechanism as today, extended to six zips: `gh release delete nightly --yes 
 
 ## Measurements
 
-(Still to fill: run times per job, cold and cached; validator results per platform; `no_alloc` on Windows.)
+Validator results per platform are in "Validators green" below; the platform-dependent tests are in "First runs on Windows and macOS".
+
+### Run times (2026-11-14)
+
+Cached: run #284 on `dev` (25a5e9a), every job green, about 10 min end to end (`checks` start to `bundle` end). Cold: run #100 (attempt 2) on `main`, the first run with no cache (the cache step took 1 s). Windows and macOS failed their tests in that run, so it gives a complete cold time for Linux only. Bundle jobs have never run cold here: their first run already had a cache.
+
+| Job | Cold (#100) | Cached (#284) | Longest steps (cached) |
+|---|---|---|---|
+| checks (linux) | 8 min 12 s | 5 min 30 s | CI-lane tests 2:06, GUI lane 2:02 |
+| checks (windows) | — (tests failed at 3:58) | 8 min 14 s | CI-lane tests 3:31, GUI lane 3:21 |
+| checks (macos) | — (tests failed at 3:39) | 5 min 14 s | CI-lane tests 2:19, GUI lane 2:20 |
+| bundle (linux) | — | 53 s | build 11 s, validators 2 s |
+| bundle (windows) | — | 1 min 31 s | build 32 s, validators 3 s |
+| bundle (macos) | — | 1 min 22 s | build 41 s (universal), validators 4 s |
+| web | — | 2 min 46 s | build 41 s, browser checks 40 s |
+| guide | — | 23 s | build 6 s |
+
+Clippy took 27–61 s cold and 5–14 s cached. The tests dominate, and their time is running, not compiling: `every_sound_shaping_control_changes_its_note` and `every_factory_preset_meets_the_quality_floor` each run over a minute in the GUI lane. The nightly's first run on `main` took 11 min (#108).
+
+### `no_alloc` on Windows (2026-11-14)
+
+Design decision 4 said to try it. Cargo.toml still leaves nih-plug's `assert_process_allocs` off on Windows; a CI step turns it on for `no_alloc` alone (`--features nih-plug/assert_process_allocs`).
+
+- **Trial** (run #290, `continue-on-error`, 10-minute timeout): 12 of 12 passed on MSVC in 0.78 s, compiled in 39 s. No hang.
+- **But a pass alone proves nothing**, since a missing checker passes too. New test `the_checker_is_armed` runs a deliberately allocating test (`allocation_aborts_under_the_checker`, ignored) as a child of the test binary and requires it to abort. Locally: green in debug, red in release, where the checker compiles out.
+- **As built:** the step is permanent on Windows (no `continue-on-error`; the timeout stays). All three platforms now run the real-time tests, with the sentinel.
 
 ### First runs on Windows and macOS (2026-11-10)
 
