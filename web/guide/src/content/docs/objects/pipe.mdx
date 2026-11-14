@@ -6,21 +6,47 @@ covers: {"objects": ["Pipe"]}
 ---
 
 import Clips from '../../../components/Clips.astro';
-import Stub from '../../../components/Stub.astro';
+import ModelControls from '../../../components/ModelControls.astro';
 
-<Stub />
+A metal tube: close to harmonic, long-ringing and hollow, from deep basses to flutes.
+
+**Try it:** load **Bass → Hollow Pipe Sub**, then change **Tube Diameter** between notes.
 
 ## What it is
 
+A hollow tube that rings along its length. Its modes sit close to a harmonic series, so it plays clear pitches, and it adds one fixed mode between about 800 and 1030 Hz, set by its diameter, whatever note you play.
+
 ## How it sounds
+
+Round, hollow and sustained. Struck, it gives basses and bells that ring for seconds; blown with Pneumatic Jet, a flute; bowed, a singing lead. The fixed upper mode gives it its metallic tube colour, and is why it isn't used for chords: on several notes at once the fixed mode doesn't move with the harmony.
 
 ## Controls
 
+<ModelControls object="Pipe" />
+
+- **Pipe Length:** the size. Longer pipes sound lower. At 1.025 the pipe plays the key; at 1 it's 42 cents sharp.
+- **Tube Diameter:** changes the hollow tone and moves the fixed upper mode.
+- **Sustain Time:** how long the friction envelope sustains in Drone and looped modes. It acts on held notes.
+
 ## Pairings
+
+Felt Mallet and Hand Strike give basses; Pneumatic Jet, flutes and wind; Bow, leads; Electromagnetic Hum, a droning hum. A pipe rings for seconds, so a strike that must stop on its own needs Rust, Sludge or a short envelope.
 
 ## Tips
 
+- Set **Pipe Length** to 1.025 to play in tune.
+- For a shorter, drier hit, add **Rust** or **Sludge** ([Environmental Exposure](/wiki/objects/environmental-exposure/)).
+
 ## Presets to try
+
+- **Bass → Hollow Pipe Sub**
+- **Bass → Palm Pipe Thump**
+- **Lead → Pipe Bow Lead**
+- **Lead → Jet Pipe Flute**
+- **Lead → Driven Pipe Lead**
+- **Drones → Pipe Wind Drone**
+- **Drones → Smokestack Hum**
+- **Experimental → *exciter* → *exciter* · Pipe**: each of the 16 exciters has one preset on this object.
 
 ## Listen
 

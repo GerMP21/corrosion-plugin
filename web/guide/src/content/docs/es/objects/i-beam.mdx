@@ -6,21 +6,49 @@ covers: {"objects": ["I-Beam"]}
 ---
 
 import Clips from '../../../../components/Clips.astro';
-import Stub from '../../../../components/Stub.astro';
+import ModelControls from '../../../../components/ModelControls.astro';
 
-<Stub />
+Una viga de acero: grave, pesada y de resonancia larga, con modos de cizalla que añaden armónicos inarmónicos.
+
+**Pruébalo:** carga **Percussion → Beam Kick Thud** y sube **Shear Density** entre nota y nota.
 
 ## Qué es
 
+Una viga estructural en I. Se dobla a lo largo con modos graves, y su alma se deforma por cizalla con modos extra que no encajan en una serie armónica.
+
 ## Cómo suena
+
+Pesado, oscuro y largo. Golpeada, da golpes sordos, bombos y yunques que resuenan durante segundos; con arco o con amoladora, drones y corales graves.
 
 ## Controles
 
+<ModelControls object="I-Beam" />
+
+- **Beam Mass:** el tamaño. Las vigas más pesadas suenan más graves. Con 1 suena un tritono por debajo de la tecla; 0.707 la pone en la nota.
+- **Shear Density:** la fuerza de los modos de cizalla. Más alto añade más armónicos inarmónicos.
+- **Rigidity Damping:** la amortiguación de la rigidez de la viga. Más alto acorta los modos agudos. Actúa sobre notas sostenidas.
+
 ## Combinaciones
+
+Hand Strike da un bombo; Metal Pipe, un yunque; Felt Mallet y Hard Mallet, bajos; Bow y Heavy Grinding, drones.
 
 ## Consejos
 
+- Pon **Beam Mass** en 0.707 para tocar afinado.
+- Una viga resuena durante segundos: para un golpe corto, sube **Rigidity Damping** o añade Rust o Sludge.
+
 ## Presets para probar
+
+- **Percussion → Beam Kick Thud**
+- **Percussion → Beam Anvil**
+- **Percussion → Rusted Beam Knock**
+- **Bass → Driven Beam Bass**
+- **Bass → Heavy Felt Beam**
+- **Lead → Bowed Beam Lead**
+- **Chords → Beam Bow Chorale**
+- **Drones → Bowed Beam Drone**
+- **Drones → Grinding Beam**
+- **Experimental → *excitador* → *excitador* · I-Beam**: los 16 excitadores tienen un preset sobre este objeto.
 
 ## Escúchalo
 

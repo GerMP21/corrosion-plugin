@@ -6,12 +6,44 @@ sidebar:
 ---
 
 import Clips from '../../../../components/Clips.astro';
-import Stub from '../../../../components/Stub.astro';
+import Data from '../../../../components/Data.astro';
 
-<Stub />
+El objeto es la pieza de metal que resuena: un tubo, una placa, un cable, un engranaje. Da a la nota su altura, sus armónicos y cuánto resuena, la toque lo que la toque.
+
+**Pruébalo:** toca una nota, cambia **MATERIAL** en la columna **RESONATOR** y vuelve a tocarla. El excitador es el mismo; cambia el metal.
+
+Corrosion tiene <Data count="objects" /> objetos. Cada uno es un modelo modal: un conjunto de modos resonantes (los parciales del objeto), cada uno con su frecuencia, su nivel y su caída, generados para la nota que tocas. El excitador empuja esos modos y los modos le devuelven el empuje, así que la combinación importa tanto como cada parte.
 
 ## Comparativa
+
+| Objeto | Armónicos | Resonancia | Va bien para |
+|---|---|---|---|
+| [Pipe](/wiki/es/objects/pipe/) | Casi armónicos, más un modo agudo fijo | Larga | Bajos, flautas, leads |
+| [Plate](/wiki/es/objects/plate/) | Repartidos, de campana | Media | Campanas, cajas, pads |
+| [Tank](/wiki/es/objects/tank/) | Graves y retumbantes, con una cavidad de aire | Larga | Estruendos, respiraciones, golpes graves |
+| [Chain](/wiki/es/objects/chain/) | Agrupados, inestables | Corta | Golpes metálicos, traqueteos, arrastres |
+| [I-Beam](/wiki/es/objects/i-beam/) | Graves, con modos de cizalla | Larga | Golpes sordos, yunques, drones |
+| [Taut Cable](/wiki/es/objects/taut-cable/) | Armónicos; la altura baja en notas fuertes | Larga | Cuerdas, punteos, bajos |
+| [Coil Spring](/wiki/es/objects/coil-spring/) | Inarmónicos, con chirrido | Larga | Bajos y leads ondulantes |
+| [Sheet Metal](/wiki/es/objects/sheet-metal/) | Densos, se deforman al resonar | Media | Órganos, destellos, golpes metálicos |
+| [Industrial Cog](/wiki/es/objects/industrial-cog/) | Disonantes, desdoblados | Media | Gongs, ticks, zumbidos |
+
+Todos los objetos, golpeados por la misma Felt Mallet:
 
 <Clips set="objects" />
 
 ## Cómo se afinan los objetos
+
+La fundamental de una nota es más o menos la frecuencia de la tecla dividida por **Size** (cada objeto lo nombra según su forma: Pipe Length, Plate Size, Cable Length, etc.). Subir el tamaño baja la altura en todos los objetos. Con tamaño 1 no todos dan la nota de la tecla, porque cada uno tiene su forma. Estos tamaños ponen la fundamental en la tecla:
+
+| Objeto | Tamaño en la nota | Con tamaño 1 |
+|---|---|---|
+| Taut Cable | 1 | en la nota (unos cents alto) |
+| Pipe | 1.025 | 42 cents alto |
+| Coil Spring | 1.09 | 148 cents alto |
+| Plate | 2 | una octava arriba |
+| I-Beam | 0.707 | un tritono abajo |
+| Tank | 0.333 | 19 semitonos abajo |
+| Sheet Metal | 3.49 | 425 cents arriba |
+
+La altura de Sheet Metal sigue al tamaño más despacio que la de los demás (1.371 la pone una octava por encima de la tecla). Chain e Industrial Cog son inarmónicos: afínalos de oído. Consulta [Material y geometría](/wiki/es/objects/geometry/#afinación).

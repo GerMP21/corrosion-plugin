@@ -6,21 +6,47 @@ covers: {"objects": ["Pipe"]}
 ---
 
 import Clips from '../../../../components/Clips.astro';
-import Stub from '../../../../components/Stub.astro';
+import ModelControls from '../../../../components/ModelControls.astro';
 
-<Stub />
+Un tubo de metal: casi armónico, de resonancia larga y hueco, de bajos profundos a flautas.
+
+**Pruébalo:** carga **Bass → Hollow Pipe Sub** y cambia **Tube Diameter** entre nota y nota.
 
 ## Qué es
 
+Un tubo hueco que resuena a lo largo. Sus modos están cerca de una serie armónica, así que da alturas claras, y añade un modo fijo entre unos 800 y 1030 Hz, según su diámetro, toques la nota que toques.
+
 ## Cómo suena
+
+Redondo, hueco y sostenido. Golpeado, da bajos y campanas que resuenan durante segundos; soplado con Pneumatic Jet, una flauta; con arco, un lead que canta. El modo agudo fijo le da su color metálico de tubo, y es la razón de que no se use para acordes: con varias notas a la vez, el modo fijo no se mueve con la armonía.
 
 ## Controles
 
+<ModelControls object="Pipe" />
+
+- **Pipe Length:** el tamaño. Los tubos más largos suenan más graves. Con 1.025 el tubo da la nota de la tecla; con 1 suena 42 cents alto.
+- **Tube Diameter:** cambia el tono hueco y mueve el modo agudo fijo.
+- **Sustain Time:** cuánto sostiene la envolvente de fricción en los modos Drone y en bucle. Actúa sobre notas sostenidas.
+
 ## Combinaciones
+
+Felt Mallet y Hand Strike dan bajos; Pneumatic Jet, flautas y viento; Bow, leads; Electromagnetic Hum, un zumbido monótono. Un tubo resuena durante segundos, así que un golpe que deba pararse solo necesita Rust, Sludge o una envolvente corta.
 
 ## Consejos
 
+- Pon **Pipe Length** en 1.025 para tocar afinado.
+- Para un golpe más corto y seco, añade **Rust** o **Sludge** ([Environmental Exposure](/wiki/es/objects/environmental-exposure/)).
+
 ## Presets para probar
+
+- **Bass → Hollow Pipe Sub**
+- **Bass → Palm Pipe Thump**
+- **Lead → Pipe Bow Lead**
+- **Lead → Jet Pipe Flute**
+- **Lead → Driven Pipe Lead**
+- **Drones → Pipe Wind Drone**
+- **Drones → Smokestack Hum**
+- **Experimental → *excitador* → *excitador* · Pipe**: los 16 excitadores tienen un preset sobre este objeto.
 
 ## Escúchalo
 

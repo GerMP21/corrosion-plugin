@@ -4,16 +4,41 @@ sidebar:
   order: 2
 ---
 
-import Stub from '../../../../components/Stub.astro';
+import Clips from '../../../../components/Clips.astro';
+import Data from '../../../../components/Data.astro';
 
-<Stub />
+Environmental Exposure envejece el metal: óxido, abolladuras, calor, mugre y grosor. Cada control cambia los modos del objeto al empezar una nota, así que el mismo tubo puede sonar nuevo, oxidado, agrietado o caliente.
+
+**Pruébalo:** carga **Lead → Plate Strike Lead**, sube **Rust** y toca una nota; luego sube **Damage** y vuelve a tocar.
+
+Estos controles se leen al empezar cada nota. Mueve uno y toca la nota siguiente. Se aplican en un orden fijo: óxido, grosor, calor, mugre y por último daño.
 
 ## Rust
 
+Oxida el objeto, de <Data param="rust" field="min" /> a <Data param="rust" field="max" />: acorta la caída y apaga los modos agudos. Más alto suena más apagado y seco. Sobre una placa, el máximo deja la resonancia en la mitad. Rust conserva la fundamental, así que una nota oxidada sigue dando su altura.
+
+<Clips param="rust" />
+
 ## Damage
+
+Abolla y agrieta el objeto, de <Data param="damage" field="min" /> a <Data param="damage" field="max" />: desafina los modos y añade compañeros zumbantes junto a ellos. Más alto suena más roto. Como Rust, deja sonar la nota y conserva su fundamental.
+
+<Clips param="damage" />
 
 ## Heat
 
+Calienta el metal: baja un poco la altura, oscurece el tono y añade una ondulación lenta. Más alto está más caliente.
+
+<Clips param="heat" />
+
 ## Sludge
 
+Cubre el objeto de lodo. Más alto lo amortigua y apaga el ataque: sobre una placa, el máximo deja la resonancia en menos de la mitad y le quita buena parte del brillo. Junto con Rust, es como la percusión de fábrica hace que los objetos de resonancia larga se apaguen solos.
+
+<Clips param="sludge" />
+
 ## Thickness
+
+El grosor del objeto, alrededor de un valor por defecto central de <Data param="thickness" field="default" />. Más alto suena más brillante y rígido; más bajo, más blando y oscuro.
+
+<Clips param="thickness" />

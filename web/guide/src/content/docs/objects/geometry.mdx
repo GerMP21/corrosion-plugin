@@ -4,12 +4,32 @@ sidebar:
   order: 1
 ---
 
-import Stub from '../../../components/Stub.astro';
+import Clips from '../../../components/Clips.astro';
+import Data from '../../../components/Data.astro';
 
-<Stub />
+The top of the **RESONATOR** column picks the object and sets its shape: what it is, how big it is, and the controls that only that object has.
+
+**Try it:** pick **Taut Cable**, play a note and double **Cable Length**: the same key now sounds an octave lower.
 
 ## Material
 
+**MATERIAL** picks one of the [nine objects](/wiki/objects/). The controls under it change with the object: each one has a size control, named after its shape, and two or three controls of its own, described on its page. A new object applies to the next note you play.
+
+Object controls are read when a note starts, like the exciter's model controls. Two are the exception and act on held notes: **Brightness**, and the object's damping slot (Pipe's **Sustain Time**, Tank's **Shell Decay**, Chain's **Friction Decay**, I-Beam's **Rigidity Damping**, Sheet Metal's **Edge Damping** and Industrial Cog's **Blade Thickness**). The [Mechanical Linkage](/wiki/objects/mechanical-linkage/) controls act on held notes too.
+
 ## Brightness
 
+Opens the object's filter and brightens it, from <Data param="res_brightness" field="min" /> to <Data param="res_brightness" field="max" />. Higher sounds brighter; lower keeps only the lower modes. It acts on held notes, so you can sweep it while a note rings.
+
+<Clips param="res_brightness" />
+
 ## Tuning
+
+The size control, from <Data param="size" field="min" /> to <Data param="size" field="max" />, sets the object's pitch: the fundamental is roughly the key's frequency divided by the size, so doubling it drops the note an octave. Every object has a different pitch at the same size; the table in the [overview](/wiki/objects/#how-objects-are-tuned) gives the size that puts each one on the key.
+
+- To play a melody in tune, set the size that matches your object and play the keyboard as usual.
+- To transpose an object by octaves, multiply or divide its size by 2.
+- For Sheet Metal the pitch follows the size more slowly, so octaves need more than doubling.
+- In Kit mode, each pad also has its own **Tune**, in semitones ([Kit](/wiki/note-modes/kit/)).
+
+<Clips param="size" />

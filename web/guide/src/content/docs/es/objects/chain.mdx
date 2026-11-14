@@ -6,21 +6,45 @@ covers: {"objects": ["Chain"]}
 ---
 
 import Clips from '../../../../components/Clips.astro';
-import Stub from '../../../../components/Stub.astro';
+import ModelControls from '../../../../components/ModelControls.astro';
 
-<Stub />
+Una cadena colgada: modos agrupados e inestables y una resonancia corta, para golpes metálicos, traqueteos y arrastres.
+
+**Pruébalo:** carga **Percussion → Chain Mallet Clank** y sube **Instability** entre nota y nota.
 
 ## Qué es
 
+Una cadena de piezas enlazadas. Cada eslabón resuena, y los eslabones se mueven unos contra otros, así que los modos están agrupados y algo inestables en lugar de formar una serie limpia.
+
 ## Cómo suena
+
+Metálico, corto y de chatarra. Se apaga solo, así que los golpes se paran por sí mismos; arrastrada o con chasquidos, da texturas de traqueteo. Es inarmónica: afínala de oído.
 
 ## Controles
 
+<ModelControls object="Chain" />
+
+- **Chain Size:** el tamaño. Las cadenas más grandes suenan más graves.
+- **Link Mass:** el peso de cada eslabón. Los más pesados suenan más graves y pesados.
+- **Instability:** cuánto se mueven los eslabones entre sí. Más alto suena más suelto y caótico.
+- **Friction Decay:** el tiempo de caída de la envolvente de fricción. Más alto apaga la fricción más despacio. Actúa sobre notas sostenidas.
+
 ## Combinaciones
+
+Hard Mallet da golpes metálicos; Metal Chain, una cadena contra otra; Corrugated Drag, un dron de cadena arrastrada; Tension Snap, un chasquido metálico.
 
 ## Consejos
 
+- La cadena es uno de los objetos a elegir cuando un golpe debe apagarse solo.
+- Combínala con un excitador brillante para un golpe metálico, o con uno suave para un golpe sordo.
+
 ## Presets para probar
+
+- **Percussion → Chain Mallet Clank**
+- **Percussion → Chain Rattle Hit**
+- **Percussion → Chain Snap**
+- **Drones → Chain Drag Drone**
+- **Experimental → *excitador* → *excitador* · Chain**: los 16 excitadores tienen un preset sobre este objeto.
 
 ## Escúchalo
 

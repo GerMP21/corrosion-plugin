@@ -6,12 +6,44 @@ sidebar:
 ---
 
 import Clips from '../../../components/Clips.astro';
-import Stub from '../../../components/Stub.astro';
+import Data from '../../../components/Data.astro';
 
-<Stub />
+The object is the piece of metal that rings: a pipe, a plate, a cable, a cog. It gives a note its pitch, its overtones and how long it rings, whatever plays it.
+
+**Try it:** play a note, then change **MATERIAL** in the **RESONATOR** column and play it again. The exciter stays the same; the metal changes.
+
+Corrosion has <Data count="objects" /> objects. Each one is a modal model: a set of resonant modes (the object's partials), each with its own frequency, level and decay, generated for the note you play. The exciter pushes on those modes and the modes push back, so the pairing matters as much as either side.
 
 ## Comparison
+
+| Object | Overtones | Ring | Good for |
+|---|---|---|---|
+| [Pipe](/wiki/objects/pipe/) | Close to harmonic, plus a fixed upper mode | Long | Basses, flutes, leads |
+| [Plate](/wiki/objects/plate/) | Spread out, bell-like | Medium | Bells, snares, pads |
+| [Tank](/wiki/objects/tank/) | Low and boomy, with an air cavity | Long | Booms, breaths, deep hits |
+| [Chain](/wiki/objects/chain/) | Clustered, unstable | Short | Clanks, rattles, drags |
+| [I-Beam](/wiki/objects/i-beam/) | Low, with shear modes | Long | Thuds, anvils, drones |
+| [Taut Cable](/wiki/objects/taut-cable/) | Harmonic; pitch drops on loud notes | Long | Strings, plucks, basses |
+| [Coil Spring](/wiki/objects/coil-spring/) | Inharmonic, chirpy | Long | Wobbly basses and leads |
+| [Sheet Metal](/wiki/objects/sheet-metal/) | Dense, warps as it rings | Medium | Organs, shimmers, clangs |
+| [Industrial Cog](/wiki/objects/industrial-cog/) | Dissonant, split | Medium | Gongs, ticks, hums |
+
+Every object, struck by the same Felt Mallet:
 
 <Clips set="objects" />
 
 ## How objects are tuned
+
+A note's fundamental is roughly the key's frequency divided by **Size** (each object names it after its own shape: Pipe Length, Plate Size, Cable Length and so on). Raising the size lowers the pitch on every object. At a size of 1 the objects don't all play the key, because each has its own shape. These sizes put the fundamental on the key:
+
+| Object | Size on the key | At size 1 |
+|---|---|---|
+| Taut Cable | 1 | on the key (a few cents sharp) |
+| Pipe | 1.025 | 42 cents sharp |
+| Coil Spring | 1.09 | 148 cents sharp |
+| Plate | 2 | an octave up |
+| I-Beam | 0.707 | a tritone down |
+| Tank | 0.333 | 19 semitones down |
+| Sheet Metal | 3.49 | 425 cents up |
+
+Sheet Metal's pitch follows the size more slowly than the others (1.371 puts it an octave above the key). Chain and Industrial Cog are inharmonic: tune them by ear. See [Material and geometry](/wiki/objects/geometry/#tuning).

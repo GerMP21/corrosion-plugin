@@ -6,21 +6,48 @@ covers: {"objects": ["Plate"]}
 ---
 
 import Clips from '../../../../components/Clips.astro';
-import Stub from '../../../../components/Stub.astro';
+import ModelControls from '../../../../components/ModelControls.astro';
 
-<Stub />
+Una placa de metal plana: armónicos de campana que se apagan solos, de cajas a pads.
+
+**Pruébalo:** carga **Lead → Felt Plate Bell** y sube **Plate Aspect** entre nota y nota.
 
 ## Qué es
 
+Una placa rectangular que vibra por toda su superficie. Sus modos se reparten de forma irregular, como los de una campana; la proporción entre sus lados decide cómo se reparten, y su rigidez lo brillante que es.
+
 ## Cómo suena
+
+Brillante, de campana y claro. Resuena un tiempo medio y se apaga sola, así que va bien para golpes: cajas, campanas, leads golpeados. Con un arco suave, da pads de cristal.
 
 ## Controles
 
+<ModelControls object="Plate" />
+
+- **Plate Size:** el tamaño. Las placas más grandes suenan más graves. Con 2 la placa da la nota de la tecla; con 1 suena una octava arriba.
+- **Plate Aspect:** la proporción entre los lados. Cambia cómo se reparten los modos, de uniformes a agrupados; hacia el máximo el golpe se vuelve mucho más débil y brillante.
+- **Plate Stiffness:** más alto separa los armónicos y suena más brillante.
+
 ## Combinaciones
+
+Drumstick y Wire Brush dan cajas y escobillas; Felt Mallet, campanas y un sub bajo; Hard Mallet, leads golpeados; Bow, pads y cuerdas; Tension Rise, un crescendo tenso.
 
 ## Consejos
 
+- Pon **Plate Size** en 2 para tocar afinado.
+- La placa es el objeto que usan los acordes de fábrica para cuerdas suaves con arco: deja **BODY** en 0 para que los parciales sigan limpios.
+
 ## Presets para probar
+
+- **Lead → Felt Plate Bell**
+- **Lead → Plate Strike Lead**
+- **Percussion → Plate Snare Crack**
+- **Percussion → Brush Plate Swish**
+- **Bass → Plate Sub Mallet**
+- **Chords → Plate Bow Pad**
+- **Chords → Soft Plate Strings**
+- **Drones → Plate Tension Swell**
+- **Experimental → *excitador* → *excitador* · Plate**: los 16 excitadores tienen un preset sobre este objeto.
 
 ## Escúchalo
 

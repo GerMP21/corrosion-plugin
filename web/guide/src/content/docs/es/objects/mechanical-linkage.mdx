@@ -4,18 +4,53 @@ sidebar:
   order: 3
 ---
 
-import Stub from '../../../../components/Stub.astro';
+import Clips from '../../../../components/Clips.astro';
+import Data from '../../../../components/Data.astro';
 
-<Stub />
+Mechanical Linkage fija dónde y cómo toca el excitador el objeto: el punto que golpea, lo firme que están acoplados los dos y cómo se mueve ese punto mientras suena una nota.
+
+Los seis controles actúan sobre notas sostenidas.
+
+**Pruébalo:** elige **Bow**, mantén una nota y sube **Pos Wander**: el timbre se desplaza mientras el arco recorre el objeto.
 
 ## Strike Pos
 
+Dónde toca el excitador el objeto, de un extremo (0) al otro (1). Cada modo tiene sitios donde se mueve mucho y sitios donde se queda quieto (sus nodos); golpear cerca de un nodo deja ese modo callado. Así que el punto de golpeo decide qué modos suenan:
+
+- En el centro, uno de cada dos modos cae en un nodo, lo que da un tono más hueco y abierto.
+- Cerca de un extremo suenan más modos agudos, para un tono más brillante y delgado.
+- Las dos mitades son simétricas: 0.2 suena como 0.8.
+
+Justo en los extremos la fundamental desaparecería; **Anchor** la mantiene.
+
+<Clips param="strike_position" />
+
 ## Coupling
+
+Con qué fuerza se empujan el excitador y el objeto, de <Data param="coupling_stiffness" field="min" /> a <Data param="coupling_stiffness" field="max" />. En el máximo (el valor por defecto), la fuerza llega a cada modo según el punto de golpeo; más bajo tiende a mover todos los modos por igual, así que el punto de golpeo importa menos. Más alto hace su interacción más fuerte y salvaje.
+
+<Clips param="coupling_stiffness" />
 
 ## Pos Wander
 
+Cuánto se desplaza el punto de golpeo mientras suena la nota, como un seno lento alrededor de **Strike Pos**. Más alto hace que el timbre se mueva más. Va bien con los excitadores que siguen tocando el objeto, como Bow o Heavy Grinding; un golpe cae una sola vez, así que solo oye dónde estaba el punto en ese momento.
+
+<Clips param="position_wander" />
+
 ## Wander Rate
+
+La velocidad de ese desplazamiento, de <Data param="position_wander_rate" field="range" />. Más alto se desplaza más rápido. No hace nada mientras **Pos Wander** esté en 0.
+
+<Clips param="position_wander_rate" />
 
 ## Pos Env
 
+Cuánto barre la envolvente de fuerza el punto de golpeo. Al subir la envolvente, el punto se aleja de **Strike Pos**, hasta la mitad de la longitud del objeto en el máximo, y vuelve al bajar la envolvente. Más alto da un barrido de timbre más marcado. Con un crescendo de arco se mueve a lo largo de la nota; con un golpe, lo fija la forma de la envolvente durante el impacto.
+
+<Clips param="position_envelope" />
+
 ## Anchor
+
+Con qué firmeza mantiene su nivel la fundamental esté donde esté el punto de golpeo, de <Data param="fundamental_anchor" field="min" /> a <Data param="fundamental_anchor" field="max" />. Cerca de un extremo del objeto, o sobre un nodo de la fundamental, la nota perdería su altura; el ancla mantiene la fundamental a un nivel mínimo. Más alto mantiene las notas más afinadas. Lejos de los extremos cambia poco.
+
+<Clips param="fundamental_anchor" />

@@ -4,16 +4,41 @@ sidebar:
   order: 2
 ---
 
-import Stub from '../../../components/Stub.astro';
+import Clips from '../../../components/Clips.astro';
+import Data from '../../../components/Data.astro';
 
-<Stub />
+Environmental Exposure ages the metal: rust, dents, heat, grime and thickness. Each control changes the object's modes when a note starts, so the same pipe can sound new, corroded, cracked or hot.
+
+**Try it:** load **Lead → Plate Strike Lead**, raise **Rust** and play a note; then raise **Damage** and play again.
+
+These controls are read when a note starts. Move one, then play the next note. They apply in a fixed order: rust, thickness, heat, sludge, then damage.
 
 ## Rust
 
+Corrodes the object, from <Data param="rust" field="min" /> to <Data param="rust" field="max" />: it shortens the decay and dulls the upper modes. Higher sounds duller and drier. On a plate the maximum about halves the ring. Rust keeps the fundamental, so a rusted note still plays its pitch.
+
+<Clips param="rust" />
+
 ## Damage
+
+Dents and cracks the object, from <Data param="damage" field="min" /> to <Data param="damage" field="max" />: it detunes the modes and adds buzzing companions next to them. Higher sounds more broken. Like Rust, it keeps the note sounding and keeps its fundamental.
+
+<Clips param="damage" />
 
 ## Heat
 
+Heats the metal: it lowers the pitch slightly, darkens the tone and adds a slow warble. Higher is hotter.
+
+<Clips param="heat" />
+
 ## Sludge
 
+Coats the object in sludge. Higher damps it and dulls the attack: on a plate the maximum cuts the ring to under half and takes off much of the brightness. Combined with Rust, it's how the factory percussion makes long-ringing objects decay on their own.
+
+<Clips param="sludge" />
+
 ## Thickness
+
+The thickness of the object, around a middle default of <Data param="thickness" field="default" />. Higher sounds brighter and stiffer; lower, softer and darker.
+
+<Clips param="thickness" />

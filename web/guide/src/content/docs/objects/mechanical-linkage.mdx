@@ -4,18 +4,53 @@ sidebar:
   order: 3
 ---
 
-import Stub from '../../../components/Stub.astro';
+import Clips from '../../../components/Clips.astro';
+import Data from '../../../components/Data.astro';
 
-<Stub />
+Mechanical Linkage sets where and how the exciter touches the object: the point it strikes, how firmly the two are coupled, and how that point moves while a note plays.
+
+All six controls act on held notes.
+
+**Try it:** pick **Bow**, hold a note and raise **Pos Wander**: the timbre drifts as the bow moves along the object.
 
 ## Strike Pos
 
+Where the exciter touches the object, from one end (0) to the other (1). Each mode has places where it moves a lot and places where it stays still (its nodes); striking near a node leaves that mode quiet. So the strike point decides which modes ring:
+
+- In the middle, every second mode sits on a node, which gives a hollower, more open tone.
+- Near an end, more of the upper modes ring, for a brighter, thinner tone.
+- The two halves mirror each other: 0.2 sounds like 0.8.
+
+At the very ends the fundamental would vanish; **Anchor** keeps it.
+
+<Clips param="strike_position" />
+
 ## Coupling
+
+How strongly the exciter and the object push each other, from <Data param="coupling_stiffness" field="min" /> to <Data param="coupling_stiffness" field="max" />. At the maximum (the default) the force reaches each mode according to the strike point; lower blends toward driving every mode alike, so the strike point matters less. Higher makes their interaction stronger and wilder.
+
+<Clips param="coupling_stiffness" />
 
 ## Pos Wander
 
+How much the strike point drifts while the note plays, as a slow sine around **Strike Pos**. Higher makes the timbre move more. It suits exciters that keep touching the object, like Bow or Heavy Grinding; a strike lands once, so it hears only where the point was at that moment.
+
+<Clips param="position_wander" />
+
 ## Wander Rate
+
+The speed of that drift, from <Data param="position_wander_rate" field="range" />. Higher wanders faster. It does nothing while **Pos Wander** is at 0.
+
+<Clips param="position_wander_rate" />
 
 ## Pos Env
 
+How much the force envelope sweeps the strike point. As the envelope rises, the point moves away from **Strike Pos**, by up to half the object's length at the maximum, and comes back as the envelope falls. Higher gives a stronger timbral sweep. With a bow swell it moves through the note; with a strike, it's set by the envelope's shape over the hit.
+
+<Clips param="position_envelope" />
+
 ## Anchor
+
+How firmly the fundamental keeps its level wherever the strike point is, from <Data param="fundamental_anchor" field="min" /> to <Data param="fundamental_anchor" field="max" />. Near an end of the object, or on a node of the fundamental, the note would lose its pitch; the anchor holds the fundamental at a minimum level. Higher keeps notes more in tune. Away from the ends it changes little.
+
+<Clips param="fundamental_anchor" />

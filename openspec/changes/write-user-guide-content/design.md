@@ -129,6 +129,19 @@ Every page, EN and ES (Decision 6). Approved means the maintainer approved the S
 | `exciters/electromagnetic-hum` | 2026-11-14 | 2026-11-14 | |
 | `exciters/tension-snap` | 2026-11-14 | 2026-11-14 | |
 | `exciters/particle-rain` | 2026-11-14 | 2026-11-14 | |
+| `objects/index` | 2026-11-14 | 2026-11-14 | |
+| `objects/geometry` | 2026-11-14 | 2026-11-14 | |
+| `objects/environmental-exposure` | 2026-11-14 | 2026-11-14 | |
+| `objects/mechanical-linkage` | 2026-11-14 | 2026-11-14 | |
+| `objects/pipe` | 2026-11-14 | 2026-11-14 | |
+| `objects/plate` | 2026-11-14 | 2026-11-14 | |
+| `objects/tank` | 2026-11-14 | 2026-11-14 | |
+| `objects/chain` | 2026-11-14 | 2026-11-14 | |
+| `objects/i-beam` | 2026-11-14 | 2026-11-14 | |
+| `objects/taut-cable` | 2026-11-14 | 2026-11-14 | |
+| `objects/coil-spring` | 2026-11-14 | 2026-11-14 | |
+| `objects/sheet-metal` | 2026-11-14 | 2026-11-14 | |
+| `objects/industrial-cog` | 2026-11-14 | 2026-11-14 | |
 
 ### Batch 2.1 notes: Getting started (2026-11-14)
 - **Sources checked:** install folders, zip names and the macOS quarantine step against `README.md` and `ci.yml`'s package step; the default sound, labels (MODEL TYPE, MATERIAL, NOTE MODE, the header's MODE) and help texts against `parameters.json`; the piano strip and computer keys against `src/gui/editor.rs` (C3–C6, `A`…`K` = C4–C5); the web app's bar against `web/www/index.html`; counts through `<Data>` (16 exciters, 9 objects, 214 presets, 10 kits).
@@ -192,6 +205,27 @@ The pages give the Corrugated Drag numbers and advise a Release of half a second
 Troubleshooting (2.9) links back to these.
 
 **Glossary links** wait for batch 2.9, since the glossary is still a stub. No glossary anchors are linked yet.
+
+### Batch 2.4 notes: Objects (2026-11-14)
+
+The 13 pages are written in EN and ES. Each object page lists its controls with `<ModelControls>`, then gives one line per slot.
+
+**Sources checked.**
+- Tuning: the sizes that put each object on the key, and the offsets at size 1, come from the bank's measured constants and the tuning notes at the top of `curated.rs`. Chain and Industrial Cog have none, so the pages say to tune them by ear. The bare-number warnings on the size values are these constants; they aren't in the data.
+- The Pipe's fixed mode (800–1030 Hz, set by its diameter) and BODY at 0 for chords: also from those notes.
+- Live versus note-on: `Voice::update_live_controls` takes damping, brightness and the six Mechanical Linkage controls, so these act on held notes. Every other object and exposure control is read at note-on (ARCHITECTURE §5's transform chain).
+- The order of the exposure transforms, rust → thickness → heat → sludge → damage: ARCHITECTURE §5.
+- Strike position: `c_n = sin((n+1)πP)` (§7). In the middle every second mode is on a node; the two halves mirror each other; Anchor holds `c_0` up.
+- Pos Env moves the point by up to half the object: `+ position_envelope · envelope · 0.5`.
+- Coupling blends feed-forward with position-weighted force.
+
+**Measured** (`print_slot_effects`, from the 2.3 run):
+- Rust halves the ring on a plate (2.31 → 1.17 s).
+- Sludge takes it under half (0.99 s, centroid 525 → 387 Hz).
+- Plate Aspect at its maximum is −27 dB and much brighter.
+- Tank Volume and Cavity Mix both lower the centroid.
+- Link Mass sounds lower.
+- Rust and Damage keeping the fundamental: from `fix-rust-damage-heat-response`.
 
 ## Risks / Trade-offs
 

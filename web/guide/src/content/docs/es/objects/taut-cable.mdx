@@ -6,21 +6,48 @@ covers: {"objects": ["Taut Cable"]}
 ---
 
 import Clips from '../../../../components/Clips.astro';
-import Stub from '../../../../components/Stub.astro';
+import ModelControls from '../../../../components/ModelControls.astro';
 
-<Stub />
+Un cable de acero tensado: armónico como una cuerda, y su altura baja en las notas fuertes.
+
+**Pruébalo:** carga **Lead → Hard Cable Pluck** y toca notas suaves y fuertes: las fuertes empiezan un poco bajas y se asientan.
 
 ## Qué es
 
+Un cable en tensión que vibra como una cuerda. Sus modos forman una serie casi armónica, así que da alturas y acordes limpios. Una nota fuerte lo estira y le baja la tensión un momento, así que la altura baja y vuelve a subir mientras la nota se apaga.
+
 ## Cómo suena
+
+Claro, de cuerda y largo. Punteado o golpeado, da bajos y punteos; con arco, cuerdas, chelos y pads. Es el objeto detrás de la mayoría de los acordes de fábrica.
 
 ## Controles
 
+<ModelControls object="Taut Cable" />
+
+- **Cable Length:** el tamaño. Los cables más largos suenan más graves. Con 1 el cable da la nota de la tecla.
+- **Braid Stiffness:** la rigidez del trenzado. Más alto separa los parciales, para una resonancia menos armónica y más metálica.
+- **Tension Drop:** cuánto baja la altura en las notas fuertes. Más alto dobla más hacia abajo las notas fuertes.
+
 ## Combinaciones
+
+Bow da cuerdas, pads y bajos de chelo; Felt Mallet, un contrabajo; Hard Mallet y Drumstick, punteos; Hand Strike, un bajo slap; Tension Snap, un bajo de cuerda que salta; Stiff Point Scrape, un dron raspado.
 
 ## Consejos
 
+- Para acordes, deja **Braid Stiffness** bajo para que los parciales sigan armónicos.
+- **Tension Drop** en 0 mantiene afinadas las notas fuertes; súbelo para un doblado con twang.
+
 ## Presets para probar
+
+- **Lead → Bowed Cable Lead**
+- **Lead → Hard Cable Pluck**
+- **Bass → Felt Cable Upright**
+- **Bass → Hand Slap Cable**
+- **Bass → Snapped Cable Bass**
+- **Chords → Warm Cable Strings**
+- **Chords → Glass Cable Choir**
+- **Drones → Cable Scrape Drone**
+- **Experimental → *excitador* → *excitador* · Taut Cable**: los 16 excitadores tienen un preset sobre este objeto.
 
 ## Escúchalo
 

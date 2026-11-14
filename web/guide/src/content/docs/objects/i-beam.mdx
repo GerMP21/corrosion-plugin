@@ -6,21 +6,49 @@ covers: {"objects": ["I-Beam"]}
 ---
 
 import Clips from '../../../components/Clips.astro';
-import Stub from '../../../components/Stub.astro';
+import ModelControls from '../../../components/ModelControls.astro';
 
-<Stub />
+A steel girder: low, heavy and long-ringing, with shear modes that add inharmonic overtones.
+
+**Try it:** load **Percussion → Beam Kick Thud**, then raise **Shear Density** between notes.
 
 ## What it is
 
+A structural I-beam. It bends along its length with low modes, and its web shears with extra modes that don't fit a harmonic series.
+
 ## How it sounds
+
+Heavy, dark and long. Struck, it gives thuds, kicks and anvils that ring for seconds; bowed or ground, deep drones and chorales.
 
 ## Controls
 
+<ModelControls object="I-Beam" />
+
+- **Beam Mass:** the size. Heavier beams sound lower. At 1 it plays a tritone under the key; 0.707 puts it on the key.
+- **Shear Density:** the strength of the shear modes. Higher adds more inharmonic overtones.
+- **Rigidity Damping:** damping of the beam's stiffness. Higher shortens the high modes. It acts on held notes.
+
 ## Pairings
+
+Hand Strike gives a kick; Metal Pipe, an anvil; Felt Mallet and Hard Mallet, basses; Bow and Heavy Grinding, drones.
 
 ## Tips
 
+- Set **Beam Mass** to 0.707 to play in tune.
+- A beam rings for seconds: for a short hit, raise **Rigidity Damping** or add Rust or Sludge.
+
 ## Presets to try
+
+- **Percussion → Beam Kick Thud**
+- **Percussion → Beam Anvil**
+- **Percussion → Rusted Beam Knock**
+- **Bass → Driven Beam Bass**
+- **Bass → Heavy Felt Beam**
+- **Lead → Bowed Beam Lead**
+- **Chords → Beam Bow Chorale**
+- **Drones → Bowed Beam Drone**
+- **Drones → Grinding Beam**
+- **Experimental → *exciter* → *exciter* · I-Beam**: each of the 16 exciters has one preset on this object.
 
 ## Listen
 
