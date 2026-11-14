@@ -5,12 +5,30 @@ sidebar:
 covers: {"features": ["web-app"]}
 ---
 
-import Stub from '../../../components/Stub.astro';
+The web app runs the whole plugin, the same engine and the same editor, in a browser tab, with nothing to install.
 
-<Stub />
+**Try it:** open [corrosion-vst.org/play](https://corrosion-vst.org/play/), click **Start audio** and press `A` on your computer keyboard.
+
+Everything in this guide applies to the web app too, except what depends on a host (automation, saved projects, the host's tempo). Above the editor, a bar holds what the browser needs on top: **Start audio**, the MIDI input, the BPM field, the CPU figure, and **Open preset…** and **Download preset**.
+
+The web app needs a browser with AudioWorklet, WebAssembly SIMD and WebGL 2. Current Chrome, Edge, Firefox and Safari have them all; so far it has been tested in Chromium-based browsers (Chrome, Edge).
 
 ## Web MIDI
 
+Plug in a MIDI keyboard and choose it in the **MIDI** menu. Web MIDI is available in Chrome and Edge, and in Firefox after it asks for permission; Safari has none, so the menu stays disabled there. Without MIDI, the piano strip and the [computer keyboard](/wiki/midi/computer-keyboard/) still play.
+
 ## Session and browser presets
 
+Your work is kept in this browser:
+
+- **The session** (the current sound) is saved as you go and comes back on your next visit.
+- **Save** in the editor keeps a preset in the browser, under User in the preset menu.
+- **Download preset** saves the current sound as a `.corrosion-preset` file. The plugin opens it, and so does the web app on another computer.
+- **Open preset…** loads a `.corrosion-preset` file, for example one saved by the plugin.
+
+Browser storage belongs to one browser on one computer, and to one web address. Clearing the site's data deletes the session and the browser presets, so download the ones you want to keep. Sessions and presets saved at the old preview address, `preview.corrosion-vst.org`, stay with that address: it now redirects here, but the browser can't move them.
+
 ## Tempo and CPU
+
+- **Tempo:** a plugin follows its host's tempo; in the browser, the **BPM** field takes its place. It sets the tempo for tempo-synced echoes.
+- **CPU:** the web engine runs on a single core, in the browser's audio thread. The CPU figure in the bar shows how busy it is and turns red when it gets close to the limit. The heaviest presets playing many notes at once can be too much for a slower computer: if the sound crackles, play fewer notes at once or lower the header's **MODE** (see [Quality and CPU](/wiki/quality/)).

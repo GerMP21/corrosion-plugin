@@ -4,16 +4,39 @@ sidebar:
   order: 5
 ---
 
-import Stub from '../../../components/Stub.astro';
+In ten minutes you'll change every part of a sound: what plays it, what it is, and what happens to it afterwards.
 
-<Stub />
+**Try it:** follow along in the plugin or in the [web app](https://corrosion-vst.org/play/), playing a note after each step. Hover any ⓘ badge on the way to see what a control does.
 
 ## Start from a preset
 
+Open the preset menu in the **PRESET BANK** box and choose **Lead → Driven Pipe Lead**. Play a few notes around middle C. It's a drumstick hitting a pipe, with a little help from the output chain.
+
 ## Change the exciter
+
+In the **EXCITER** column, open **MODEL TYPE** and choose **Bow**. Play and hold a note: the same pipe now sings, swells and fades, and when you let go it rings out as the bow leaves it.
+
+The controls under the model changed too. Each exciter has its own panel (for the bow: Bow Pressure, Bow Speed, Rosin Grip and Slip Curve), and friction exciters get a six-stage force envelope instead of a simple attack and release. Raise **Bow Pressure** and play again: the tone gets grittier, then starts to scratch.
+
+Go back to **Drumstick** before the next step, or keep the bow if you like it.
 
 ## Change the object
 
+In the **RESONATOR** column, open **MATERIAL** and choose **Taut Cable**. Same exciter, different metal: a cable's partials bend down as it rings, a pipe's don't.
+
+- The first control of each object sets its size, under a name that fits it. For the cable it's **Cable Tension**. Move it and play: the pitch moves with it.
+- Under **Environmental Exposure**, raise **Rust**: the high partials dull and die sooner while the low thud keeps ringing. **Damage** cracks the object into beating pairs of partials.
+
 ## Shape the output
 
+- Turn the four **Macros** at the top. Each moves a group of controls at once: **MASS** makes the sound heavier and lower, **CORROSION** more rusted and damped, **VIOLENCE** dirtier and more chaotic, **BRIGHTNESS** brighter.
+- In **PROCESSING**, lower the Filter Bank's **CUTOFF** to darken everything, then add some **DRIVE AMT** in the Overdrive Unit.
+- Under **Space**, set **MODE** to **Spring** and raise **AMOUNT** to put the sound in a spring tank.
+
 ## Save your sound
+
+1. Type a name in the **Preset name** field.
+2. Choose where it goes with the menu on its left (User, or a folder you made inside it).
+3. Click **Save**. Your preset appears under User in the preset menu.
+
+Factory presets are never overwritten. If you want variations to explore, set the menu next to **Randomize** to **Safe** and click **Randomize**: it draws a new sound within safe limits. [Randomizer](/wiki/randomizer/) explains the other modes.

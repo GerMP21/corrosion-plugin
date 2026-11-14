@@ -4,14 +4,59 @@ sidebar:
   order: 2
 ---
 
-import Stub from '../../../../components/Stub.astro';
+Corrosion se instala como plugin de instrumento VST3 o CLAP en Windows, macOS y Linux. Si primero solo quieres probarlo, la [app web](/wiki/es/getting-started/web-app/) no necesita instalación.
 
-<Stub />
+**Pruébalo:** abre las [descargas](https://github.com/Synaptech-Solutions-SAS/Corrosion-VST/releases/tag/nightly) y busca el zip de tu sistema.
+
+Las versiones salen de la prerrelease `nightly` en GitHub. Se reconstruye desde la rama principal cada vez que pasan todas las comprobaciones, y cada zip se prueba en su propia plataforma y se valida con clap-validator y pluginval. Hay un zip por plataforma y formato:
+
+| Sistema | VST3 | CLAP |
+|---|---|---|
+| Windows (64 bits, Intel o AMD) | `Corrosion-windows-x86_64-vst3.zip` | `Corrosion-windows-x86_64-clap.zip` |
+| macOS (Apple Silicon e Intel) | `Corrosion-macos-universal-vst3.zip` | `Corrosion-macos-universal-clap.zip` |
+| Linux (64 bits, Intel o AMD) | `Corrosion-linux-x86_64-vst3.zip` | `Corrosion-linux-x86_64-clap.zip` |
+
+Cada zip contiene el bundle del plugin (`Corrosion.vst3` o `Corrosion.clap`) y la licencia. Descomprímelo, mueve el bundle a tu carpeta de plugins como se indica abajo y vuelve a escanear los plugins en tu DAW. Corrosion aparece como **Corrosion**, de **Synaptech Solutions**, entre los instrumentos.
 
 ## Windows
 
+Mueve el bundle a la carpeta compartida de plugins:
+
+- VST3: `C:\Program Files\Common Files\VST3`
+- CLAP: `C:\Program Files\Common Files\CLAP`
+
+Windows pide permiso de administrador para escribir ahí. Crea la carpeta `CLAP` si todavía no existe.
+
 ## macOS
+
+Mueve el bundle a tu carpeta de plugins:
+
+- VST3: `~/Library/Audio/Plug-Ins/VST3`
+- CLAP: `~/Library/Audio/Plug-Ins/CLAP`
+
+La carpeta `~/Library` está oculta en el Finder: elige **Ir → Ir a la carpeta…** y pega la ruta. Una misma versión funciona en Mac con Apple Silicon y con Intel.
+
+Los bundles están firmados pero no notarizados, así que macOS los pone en cuarentena tras la descarga y tu DAW no los carga. Antes del primer uso, ejecuta esto en Terminal (la línea del formato que instalaste):
+
+```bash
+xattr -dr com.apple.quarantine ~/Library/Audio/Plug-Ins/VST3/Corrosion.vst3
+```
+
+```bash
+xattr -dr com.apple.quarantine ~/Library/Audio/Plug-Ins/CLAP/Corrosion.clap
+```
 
 ## Linux
 
+Mueve el bundle a la carpeta de plugins de tu usuario, creándola si hace falta:
+
+- VST3: `~/.vst3`
+- CLAP: `~/.clap`
+
+La versión para Linux es para procesadores Intel y AMD de 64 bits.
+
 ## ¿VST3 o CLAP?
+
+Los dos formatos son el mismo plugin, con el mismo sonido, editor y presets. Usa el que admita tu DAW. Si admite los dos, cualquiera sirve. Ambos aceptan expresión por nota de los DAW que la envían, como afinar o cortar una sola nota (ver [Expresión](/wiki/es/midi/expression/)).
+
+Un DAW que escanea los dos formatos puede mostrar Corrosion dos veces; no pasa nada. Los proyectos recuerdan qué formato usaron, así que mantén el mismo en cada proyecto.

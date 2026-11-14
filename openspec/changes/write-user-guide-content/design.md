@@ -95,6 +95,29 @@ Before each batch is offered for review, every behavioural claim is checked agai
 - **`check_recipe`** refuses an unknown preset, an unknown parameter, a value outside its range and a recipe that changes nothing; `every_recipe_in_the_plan_is_valid` runs it on `RECIPES`. The manifest test covers recipe clips like every other planned clip (file, audibility, fingerprint).
 - **`RECIPES` is empty** until the maintainer picks the list (Open Questions; task 2.8), so the fingerprint and the clips don't change yet. The tests use a sample recipe (Low Sheet Bow with Rust 2 and the cutoff at 2 kHz). The three tests failed to compile before the code existed.
 
+## Review
+
+Every page, EN and ES (Decision 6). Approved means the maintainer approved the Spanish.
+
+| Page | EN written | ES written | ES approved |
+|---|---|---|---|
+| `index` (guide home) | 2026-11-14 | 2026-11-14 | |
+| `getting-started/what-is-corrosion` | 2026-11-14 | 2026-11-14 | |
+| `getting-started/installation` | 2026-11-14 | 2026-11-14 | |
+| `getting-started/first-note` | 2026-11-14 | 2026-11-14 | |
+| `getting-started/web-app` | 2026-11-14 | 2026-11-14 | |
+| `getting-started/tour` | 2026-11-14 | 2026-11-14 | |
+
+### Batch 2.1 notes: Getting started (2026-11-14)
+- **Sources checked:** install folders, zip names and the macOS quarantine step against `README.md` and `ci.yml`'s package step; the default sound, labels (MODEL TYPE, MATERIAL, NOTE MODE, the header's MODE) and help texts against `parameters.json`; the piano strip and computer keys against `src/gui/editor.rs` (C3–C6, `A`…`K` = C4–C5); the web app's bar against `web/www/index.html`; counts through `<Data>` (16 exciters, 9 objects, 214 presets, 10 kits).
+- **Rendered:** pitch against size, Hand Strike at C4, Render quality: Pipe 533 / 268 / 134 Hz and Taut Cable 528 / 264 / 132 Hz at size 0.5 / 1 / 2. Raising the size lowers the pitch on every object.
+- **Reported to the maintainer, not changed here:**
+  - **Cable Tension's ⓘ text says "Higher sounds higher"**, but it is the cable's size and raising it lowers the pitch (above). The pages say only that the pitch moves with it, until it's settled.
+  - The web editor's canvas at device pixel ratios above 1 (task 1.3 note).
+  - The preset bank's startup label (task 1.3 note).
+  - The README lists UI Scale as 50/75/100/125/150 %; the selector has every 5 % from 50 to 150 %.
+- **Check change:** the bare-number heuristic skips the name "Corrosion" (the product's name is also the macro's).
+
 ## Risks / Trade-offs
 
 - [Volume: about 70 pages × 2 languages] → Batches by section, so review keeps pace with writing. The strict check is turned on only in the last task, so earlier batches can merge to `dev` with placeholders left.

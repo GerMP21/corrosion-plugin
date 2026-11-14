@@ -299,8 +299,11 @@ for (const lang of ['en', 'es']) {
 // same sentence as a parameter's name, outside code and <Data>, is probably
 // one the data holds. A heuristic, so it warns and doesn't fail.
 const warnings = [];
+// Names that are also ordinary words in the prose: the product's name is
+// the Corrosion macro's too.
+const NOT_NAMES = new Set(['Corrosion']);
 const named = parameters
-  .filter((p) => p.name.length >= 4)
+  .filter((p) => p.name.length >= 4 && !NOT_NAMES.has(p.name))
   .map((p) => ({ p, re: new RegExp(`\\b${p.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`) }));
 for (const lang of ['en', 'es']) {
   for (const page of pages[lang].values()) {
