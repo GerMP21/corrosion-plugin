@@ -1477,15 +1477,10 @@ impl Voice {
         self.active = false;
         self.pedal_held = false;
         self.release_force_envelope();
-        self.bow_exciter.release();
-        self.stiff_point.release();
-        self.heavy_grinding.release();
-        self.corrugated_drag.release();
-        self.tension_rise.release();
-        self.pneumatic_jet.release();
-        self.electromagnetic_hum.release();
-        self.tension_snap.release();
-        self.particle_rain.release();
+        // The friction and specialty exciters keep running: the MSEG's or
+        // the ADSR's release fades them out (`fix-inert-controls`; stopping
+        // them here cut the release off, so MSEG Release and Release did
+        // nothing). A short release still lets go at once.
     }
 
     /// Make the voice just started a kit pad on `key` (`per-key-kits`): it
@@ -1740,9 +1735,12 @@ impl Voice {
             self.rate.pressure_smoothing * (self.pressure_target - self.pressure_gain);
 
         // If there is no active envelope, there is nothing left to excite.
+        // The specialty ADSR counts too: its release runs after the note
+        // ends (`fix-inert-controls`; it used to be cut off here).
         if !self.active
             && !self.mseg.is_active()
             && self.one_shot_phase == OneShotEnvelopePhase::Idle
+            && matches!(self.adsr_phase, AdsrPhase::Idle)
         {
             if self.position_envelope_amount > 0.0 {
                 self.resonator
@@ -4307,6 +4305,98 @@ mod metal_chain_tests {
         assert!(
             heavy - light > 3.0,
             "Chain Mass 0.1: {light:.1} dB, 2.0: {heavy:.1} dB"
+        );
+    }
+}
+
+/// `fix-inert-controls` 2.4: the specialty exciters' ADSR release sounds
+/// after the note ends.
+#[cfg(test)]
+mod adsr_release_tests {
+    use super::*;
+
+    /// Energy of the 0.5 s after note-off of a Pneumatic Jet note on a pipe,
+    /// relative to the held second before it, in dB.
+    fn release_db(env_release: f32) -> f32 {
+        let mut voice = Voice::new();
+        let controls = VoiceControls {
+            env_release,
+            ..VoiceControls::default()
+        };
+        voice.note_on_with_controls(
+            60,
+            100.0,
+            ModalProfileId::Pipe,
+            0,
+            1.0,
+            0.0,
+            0.0,
+            13,
+            controls,
+        );
+        let (mut held, mut released) = (0.0f64, 0.0f64);
+        for i in 0..72_000 {
+            if i == 48_000 {
+                voice.note_off();
+            }
+            let e = f64::from(voice.process_sample(48_000)).powi(2);
+            if i < 48_000 {
+                held += e;
+            } else {
+                released += e;
+            }
+        }
+        (10.0 * (released / (held / 2.0)).log10()) as f32
+    }
+
+    /// The same for a Bow note and its MSEG Release.
+    fn bow_release_db(mseg_release: f32) -> f32 {
+        let mut voice = Voice::new();
+        let controls = VoiceControls {
+            mseg_release,
+            ..VoiceControls::default()
+        };
+        voice.note_on_with_controls(
+            60,
+            100.0,
+            ModalProfileId::Plate,
+            0,
+            1.0,
+            0.0,
+            0.0,
+            1,
+            controls,
+        );
+        let (mut held, mut released) = (0.0f64, 0.0f64);
+        for i in 0..72_000 {
+            if i == 48_000 {
+                voice.note_off();
+            }
+            let e = f64::from(voice.process_sample(48_000)).powi(2);
+            if i < 48_000 {
+                held += e;
+            } else {
+                released += e;
+            }
+        }
+        (10.0 * (released / (held / 2.0)).log10()) as f32
+    }
+
+    #[test]
+    fn a_longer_mseg_release_keeps_the_bow_on() {
+        let (short, long) = (bow_release_db(0.001), bow_release_db(1.0));
+        assert!(
+            long - short > 3.0,
+            "MSEG release 0.001 s: {short:.1} dB, 1 s: {long:.1} dB"
+        );
+    }
+
+    #[test]
+    fn a_longer_release_keeps_the_jet_blowing() {
+        let (short, long) = (release_db(0.01), release_db(2.0));
+        assert!(
+            long - short > 3.0,
+            "release 0.01 s: {short:.1} dB, 2 s: {long:.1} dB"
         );
     }
 }

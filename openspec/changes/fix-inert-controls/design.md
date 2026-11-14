@@ -120,6 +120,32 @@ Tests: `metal_chain_tests::the_links_are_heard_without_the_rattle` (links alone 
 
 After: full CI lane 465 passed, 0 failed.
 
+### Task 2.4: Release and MSEG Release (2026-11-14)
+
+**Cause.** `Voice::note_off` stopped every friction and specialty exciter (Bow's pressure to 0, the others `active = false`), and the voice skipped excitation once the AD and the MSEG were idle without checking the ADSR. So the force ended at note-off and neither envelope's release reached the sound. MSEG Release was also measured on Hand Strike, which has no MSEG; its context is now Bow.
+
+**As built.** `note_off` no longer stops those exciters; their envelope's release fades them, and the voice keeps exciting while the ADSR runs. The Hit family is unchanged.
+
+| Control | Level dB | Ring | Bands dB | Width dB | Env dB | Acts |
+|---|---|---|---|---|---|---|
+| Release (Pneumatic Jet) | 0.00 → 1.25 | 0 % | 1.25 | 0.36 | 5.72 | yes |
+| MSEG Release (Bow) | 0.00 → 4.04 | 76 % | 4.04 | 3.89 | 9.32 | yes |
+
+Tests: `adsr_release_tests::a_longer_release_keeps_the_jet_blowing` (4.4 dB at both releases before) and `a_longer_mseg_release_keeps_the_bow_on` (−7.2 dB at both before), red then green.
+
+**The release snap** (`docs/BACKLOG.md`, kept as a feature by the maintainer) now follows MSEG Release, as the backlog proposed: a short release still lets go at once, a long one ramps. Tail (0.5 s after note-off) over the held second, C4 velocity 100:
+
+| Exciter, object | Before (any release) | After 0.001 s | After 0.1 s (default) | After 1 s |
+|---|---|---|---|---|
+| Bow, Plate | −6.5 dB | −11.1 | −11.7 | −2.3 |
+| Stiff Point, Plate | −2.6 | −2.8 | −4.4 | +0.1 |
+| Corrugated Drag, Plate | −7.2 | −11.0 | −11.7 | −2.3 |
+| Bow, Taut Cable | −3.8 | −4.4 | −11.5 | −2.3 |
+| Heavy Grinding, Plate | −8.2 | −30.8 | −8.3 | −4.6 |
+| Tension Rise, Plate | −0.6 | −0.6 | +1.1 | +4.3 |
+
+To judge by ear. No preset left the floor or its character, so no file changed; full CI lane 467 passed.
+
 ## Goals / Non-Goals
 
 - Goal: every sound-shaping control audible in its context, in the direction its help says, guarded by a test.

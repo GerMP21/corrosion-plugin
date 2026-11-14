@@ -71,6 +71,8 @@ pub fn context(id: &str) -> Context {
         "env_amount" | "velocity_to_peak" | "global_time_scale" | "velocity_to_level"
         | "velocity_to_time" | "curve_tension" | "exciter_speed" | "exciter_roughness"
         | "position_envelope" => vec![bow],
+        // The MSEG drives only the friction exciters.
+        "mseg_release" => vec![bow],
         // Release shows for the struck and the specialty exciters; the
         // clip's patch is the struck one, so measure the specialty one.
         "env_release" => vec![jet],
