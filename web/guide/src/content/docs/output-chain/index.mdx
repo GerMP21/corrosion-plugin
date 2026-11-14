@@ -5,10 +5,44 @@ sidebar:
   label: Overview
 ---
 
-import Stub from '../../../components/Stub.astro';
+Up to here, everything happens inside the voices: something hits, scrapes or blows on a piece of metal, and the metal rings. The output chain is what happens to that ringing afterwards, on its way to your speakers. It's the studio rack behind the instrument: a filter, two flavours of drive, a resonant chassis, a room, and a pair of safety stops at the end.
 
-<Stub />
+Everything in the **PROCESSING** column belongs here, along with **BODY**, **WIDTH**, **OUTPUT** and **LIMITER** in the header.
+
+**Try it:** load any preset, hold a note and pull **Cutoff** down slowly. The metal is the same; how you hear it isn't. That's the output chain's job.
 
 ## Signal order
 
+The order matters, because each stage hears what the previous one did. A drive before a filter sounds different from a drive after it, and a room after a distortion sounds like a distorted thing in a room, not a distorted room. Here's the path:
+
+1. **Voice mix.** All the voices are summed. A very gentle high-pass removes the slow offset that pushing or bowing metal leaves behind, so the drives downstream don't lean to one side.
+2. **Legacy Drive.** A plain master drive on the whole mix ([Overdrive Unit](/wiki/output-chain/overdrive/#legacy-drive)).
+3. **Filter Bank.** A four-pole low-pass, the classic way to darken and focus a sound ([Filter Bank](/wiki/output-chain/filter-bank/)).
+4. **Overdrive Unit.** A drive whose gain is pushed around by a chaotic system ([Overdrive Unit](/wiki/output-chain/overdrive/)).
+5. **BODY.** A chassis that resonates under everything ([Dispersion and BODY](/wiki/output-chain/dispersion/)).
+6. **Dispersion.** Stereo spread and how close you stand ([Dispersion and BODY](/wiki/output-chain/dispersion/#spread)).
+7. **Space.** A factory hall, a spring tank or an echo ([Space](/wiki/output-chain/space/)).
+8. **Diode stage.** A soft, lopsided clipper that can add grit ([Diode and limiter](/wiki/output-chain/diode-limiter/)).
+9. **OUTPUT.** The final volume ([Output and Width](/wiki/output-chain/output-width/)).
+10. **LIMITER.** The last line of defence: nothing gets past the ceiling.
+
+**WIDTH** is the odd one out. It works earlier, inside each voice, by spreading the object's modes (its individual ringing frequencies) across the stereo field before the voices are mixed.
+
 ## Levels along the chain
+
+Good news: you don't have to babysit gain staging. Each stage is set up so the default patch passes through cleanly, and a few things work behind the scenes:
+
+- **Each voice has a drive governor.** When an exciter pushes too hard, the governor turns it down before the voice overloads. A violent exciter gets denser, not uglier.
+- **The factory presets are levelled.** A note at velocity 100 comes out at about the same loudness from any of them, so you can compare presets without your ears being fooled by volume.
+- **The diode stage and limiter cap the peaks.** The diode starts to bend the wave a little under the ceiling (at the ceiling ÷ 1.3), and the limiter stops every single sample at the ceiling. So turning **OUTPUT** up past a certain point doesn't make things louder; it drives them into the clipper. That's a feature when you want grit, and a trap when you don't.
+- **Drives, BODY and Space all add level.** When a patch gets too loud, turn **OUTPUT** down rather than backing off the stage that gives it character.
+
+## A first trip down the chain
+
+Here's a quick tour that touches most of the rack. Start from **Lead → Plate Strike Lead**:
+
+1. Play a few notes to hear it dry.
+2. Turn **Drive Amt** up to about 1.5. The strike gets hairier.
+3. Turn **Cutoff** down to about 3000 Hz. The fizz from the drive goes, the body of the note stays.
+4. Set **Space** **Mode** to **Factory** and **Amount** to about 0.3. Now it's a struck plate in a big, empty building.
+5. Play hard and watch the red dot in the **Brickwall Limiter** panel. If it lights up on every note, you're leaning on the clipper; lower **OUTPUT** a few dB if you'd rather keep it clean.

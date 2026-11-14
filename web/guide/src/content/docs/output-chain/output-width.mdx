@@ -4,10 +4,33 @@ sidebar:
   order: 6
 ---
 
-import Stub from '../../../components/Stub.astro';
+import Clips from '../../../components/Clips.astro';
+import Data from '../../../components/Data.astro';
 
-<Stub />
+Two controls in the header that do exactly what they say: **OUTPUT** is the final volume, and **WIDTH** is how wide the voices sit in stereo.
+
+**Try it:** play a chord and move **WIDTH** from 0 up past its default. The chord opens up from a single point in the middle to a wide spread.
 
 ## OUTPUT
 
+The final volume, in dB, from silence up to <Data param="output" field="max" />. The default is <Data param="output" field="default" />, which leaves the presets at their levelled loudness.
+
+The fader's travel is curved so the useful region gets plenty of room: 0 dB sits a little above the middle, and the whole −20 to +6 dB range takes about a fifth of the travel. Fine adjustments are easy; you don't have to nudge it by a pixel.
+
+The ceiling still holds, so past a certain point turning OUTPUT up doesn't make things louder; it drives them into the diode stage. Watch the red dot in the **Brickwall Limiter** panel to see when that happens.
+
+<Clips param="output" />
+
+Host automation of OUTPUT recorded before it was shown in dB now maps to different levels. If an old project suddenly jumps in volume, re-record that lane.
+
 ## WIDTH
+
+How wide the voices are, from <Data param="width" field="min" /> to <Data param="width" field="max" />. Each voice spreads its object's modes across the stereo field: alternating modes go left and right, and the higher ones go further out. A struck plate becomes something you hear across the room rather than from a single point.
+
+At 0 the voices are mono. Higher spreads them wider. Negative values flip the sides.
+
+<Clips param="width" />
+
+**Tips:**
+- For basses, keep **WIDTH** low or at 0. Low end in mono stays solid on every system, from club rigs to phone speakers.
+- Pads and drones love width. Combine **WIDTH** with **Spread** for a sound that wraps around the listener.

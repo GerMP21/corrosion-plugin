@@ -5,16 +5,52 @@ sidebar:
 covers: {"modes": {"limiter": ["Hard", "Lookahead"]}}
 ---
 
-import Stub from '../../../../components/Stub.astro';
+import Clips from '../../../../components/Clips.astro';
+import Data from '../../../../components/Data.astro';
 
-<Stub />
+Las dos últimas etapas protegen tus altavoces y tus oídos, y de paso pueden añadir carácter. Primero viene un recortador de diodo que redondea los picos con suavidad y algo de cojera, como hacen los diodos de verdad. Luego un limitador se asegura de que nada pase nunca del techo. Están en el panel **Brickwall Limiter** y en el menú **LIMITER** de la cabecera.
+
+**Pruébalo:** sube mucho **Drive Amt**, baja **Ceiling** y escucha cómo empieza a morder la etapa de diodo. Mira cómo se enciende el punto rojo del panel.
 
 ## Ceiling
 
+El nivel más alto que el plugin llegará a sacar, de <Data param="analog_ceiling" field="min" /> a <Data param="analog_ceiling" field="max" /> (como amplitud lineal). Por defecto es de unos −0.3 dBFS, justo por debajo del máximo digital.
+
+La etapa de diodo empieza a recortar un poco por debajo, en el techo ÷ 1.3, lo que deja margen al limitador. Si bajas el techo, los dos actúan antes y se moldea más parte del sonido.
+
+<Clips param="analog_ceiling" />
+
 ## Softness
+
+La forma de la rodilla del recortador. En 0 la onda choca con una pared, y suena nítido y zumbón. Al subirlo, la curva empieza a doblarse antes y con más suavidad, y suena más cálido y redondo. Por defecto el doblez empieza unos 4 dB por debajo del límite; en el máximo, unos 14 dB por debajo.
+
+Para ser sinceros: Softness solo se oye cuando el sonido llega de verdad al recortador. En un patch limpio cambia muy poco.
+
+<Clips param="diode_softness" />
+
+Los presets y proyectos antiguos se cargan con Softness 0, el recorte en seco que siempre tuvieron, así que suenan como antes. La automatización de Softness grabada antes de que existiera este control corresponde ahora a otros valores, así que hay que volver a grabarla.
 
 ## Asymmetry
 
+Los diodos reales casi nunca recortan igual las dos mitades de la onda, y esa desigualdad es parte de por qué la distorsión analógica suena cálida. **Asymmetry** recorta la mitad negativa antes que la positiva. Eso añade armónicos pares, la octava y compañía, que suenan más llenos y dulces que un recorte simétrico.
+
+Un recorte cojo desplazaría la onda del centro, así que por encima de 0 un paso alto lento la devuelve a su sitio sin que lo notes. Los presets y proyectos antiguos se cargan con Asymmetry 0.
+
+<Clips param="diode_asymmetry" />
+
+**Consejo:** si un sonido saturado es áspero, cambia algo de **Drive Amt** por más **Asymmetry**: la aspereza se vuelve más cálida en lugar de más fuerte.
+
 ## Modos del limitador
 
+El menú **LIMITER** de la cabecera elige la última etapa:
+
+- **Hard** (por defecto): recorta cualquier pico en el techo, al instante, sin latencia añadida.
+- **Lookahead:** ve venir los picos y los baja con suavidad antes de que lleguen. Añade cerca de 1 ms de latencia, que el plugin comunica a tu host para que la pista siga a tiempo.
+
+En los dos casos, ninguna muestra sale del plugin por encima del techo. Usa **Hard** al tocar en directo y **Lookahead** al renderizar, si quieres los picos más limpios.
+
 ## El medidor del diodo
+
+El punto rojo del panel **Brickwall Limiter** te dice cuánto trabaja la etapa de diodo. En reposo está tenue, se ilumina a medida que el recortador recorta entre 0.1 dB y 6 dB, y se apaga cuando para.
+
+Que parpadee en los golpes fuertes es normal y sano. Si se queda encendido, el sonido vive dentro del recortador. Si es el sonido que buscas, disfrútalo; si no, baja **OUTPUT** o alguno de los drives.

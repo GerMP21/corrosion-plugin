@@ -4,14 +4,47 @@ sidebar:
   order: 2
 ---
 
-import Stub from '../../../components/Stub.astro';
+import Clips from '../../../components/Clips.astro';
+import Data from '../../../components/Data.astro';
 
-<Stub />
+The Overdrive Unit is not your usual distortion pedal. Its drive amount is pushed around by a Lorenz attractor, a tiny chaotic system famous for never quite repeating itself. So instead of a fixed amount of fuzz, you get distortion that breathes, sags and sputters on its own, like an old amp with a dodgy power supply.
+
+**Legacy Drive**, further up the chain, is the plain, honest alternative.
+
+**Try it:** turn **Drive Amt** up to about 2 and play. Then raise **Chaos** and listen to the distortion start to move without you touching anything.
 
 ## Drive Amt
 
+How hard the Lorenz drive saturates, from <Data param="drive_amount" field="min" /> to <Data param="drive_amount" field="max" />. At 0 the whole unit is bypassed. Turn it up and the wave is squashed by a tube-like curve: first warmth, then grit, then a thick fuzz.
+
+**Bias Starve** and **Chaos** only shape the drive, so they do nothing while **Drive Amt** is at 0.
+
+<Clips param="drive_amount" />
+
+**Tip:** distortion adds partials, and metal already has plenty. If a driven sound turns to mush, pull **Cutoff** down a little, or use less drive and more **Asymmetry** on the diode stage for a cleaner kind of grit.
+
 ## Bias Starve
+
+Imagine a circuit whose supply voltage dips now and then: the signal sags, coughs and comes back. That's **Bias Starve**. Whenever the attractor wanders into one region, the drive's input is starved, smoothly rather than with a click, and recovers when the attractor moves on.
+
+Higher makes the dips more frequent: rare near 0, most of the time at the maximum.
+
+<Clips param="bias_starvation" />
+
+**Tip:** with a sustained sound (a bow, a jet, a hum), Bias Starve is the "dying battery" effect. On short strikes it's more of a lottery: each hit may land in a dip or not.
 
 ## Chaos
 
+How much the attractor moves the drive. At 0 the drive is steady. Turn it up and both level and distortion swing unpredictably, by several dB at the maximum, never in a repeating pattern.
+
+<Clips param="chaos_depth" />
+
+**Tip:** the swings change the level, so check a chaotic patch at its loudest moments, not its quietest, before you decide where **OUTPUT** goes.
+
 ## Legacy Drive
+
+A straightforward master drive on the mix of all the voices, from <Data param="drive" field="min" /> to <Data param="drive" field="max" />. It sits before the Filter Bank, which is handy: the filter can then tame the extra fizz the drive adds.
+
+<Clips param="drive" />
+
+**Tip:** for a dirty sound that still sits politely, use **Legacy Drive** and then bring **Cutoff** down. For distortion that has a mind of its own, use the Overdrive Unit.

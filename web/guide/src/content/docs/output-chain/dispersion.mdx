@@ -4,16 +4,49 @@ sidebar:
   order: 3
 ---
 
-import Stub from '../../../components/Stub.astro';
+import Clips from '../../../components/Clips.astro';
+import Data from '../../../components/Data.astro';
 
-<Stub />
+A struck plate hanging in mid-air sounds different from the same plate bolted to a machine. **BODY** is that machine: a chassis that resonates under everything you play. The **Dispersion** controls then decide how wide the sound is and how close you're standing.
+
+**Try it:** play a strike with **BODY** at 0, then at its default. With the body, the note gets fuller and feels more like a physical object.
 
 ## BODY
 
+How much of the resonating chassis you hear, from <Data param="body" field="min" /> to <Data param="body" field="max" />, in the header. The chassis is a small set of fixed resonances, among them two near 190 and 390 Hz, and the sound itself plays them, the way a guitar's body is played by its strings.
+
+Higher sounds fuller, woodier and more physical.
+
+<Clips param="body" />
+
+**Tips:**
+- The chassis doesn't change pitch with the notes, so its resonances can clash with chords. That's why the factory chord presets keep **BODY** at 0: their partials stay harmonic.
+- For drums and one-shot hits, BODY is often the difference between "a sound" and "a thing". Don't be shy with it there.
+
 ## Chassis Mat
+
+What the chassis is made of. It changes the tone of its resonances, so you can hear the same strike on a different machine.
+
+<Clips param="chassis_material" />
 
 ## Chassis Vol
 
+How big the chassis is. A bigger chassis has lower resonances and sounds slightly louder, just as a bigger drum sounds deeper. It only retunes the body, so it does nothing while **BODY** is at 0.
+
+<Clips param="chassis_volume" />
+
+**Tip:** if BODY makes the low mids boomy in your mix, try a smaller **Chassis Vol** before you turn BODY down: the body moves up, out of the way of your bass.
+
 ## Spread
 
+How wide the mixed sound is, after the body. Higher sounds wider. It works on the whole mix, unlike **WIDTH**, which spreads each voice's modes.
+
+<Clips param="spread_width" />
+
 ## Proximity
+
+How close you're standing. Higher sounds nearer and fuller, as if your ear were right against the metal. Lower sounds further away and thinner.
+
+<Clips param="listener_proximity" />
+
+**Tip:** in a busy mix, a lower **Proximity** pushes a part into the background without reaching for a reverb.

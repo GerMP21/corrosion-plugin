@@ -134,6 +134,13 @@ Every page, EN and ES (Decision 6). Approved means the maintainer approved the S
 | `objects/geometry` | 2026-11-14 | 2026-11-14 | |
 | `objects/environmental-exposure` | 2026-11-14 | 2026-11-14 | |
 | `objects/mechanical-linkage` | 2026-11-14 | 2026-11-14 | |
+| `output-chain/index` | 2026-11-14 | 2026-11-14 | |
+| `output-chain/filter-bank` | 2026-11-14 | 2026-11-14 | |
+| `output-chain/overdrive` | 2026-11-14 | 2026-11-14 | |
+| `output-chain/dispersion` | 2026-11-14 | 2026-11-14 | |
+| `output-chain/space` | 2026-11-14 | 2026-11-14 | |
+| `output-chain/diode-limiter` | 2026-11-14 | 2026-11-14 | |
+| `output-chain/output-width` | 2026-11-14 | 2026-11-14 | |
 | `objects/pipe` | 2026-11-14 | 2026-11-14 | |
 | `objects/plate` | 2026-11-14 | 2026-11-14 | |
 | `objects/tank` | 2026-11-14 | 2026-11-14 | |
@@ -227,6 +234,22 @@ The 13 pages are written in EN and ES. Each object page lists its controls with 
 - Tank Volume and Cavity Mix both lower the centroid.
 - Link Mass sounds lower.
 - Rust and Damage keeping the fundamental: from `fix-rust-damage-heat-response`.
+
+### Batch 2.5 notes: Output chain (2026-11-14)
+- The first batch written in the `guide-writing-style` voice: why each stage behaves as it does, a tips list per control group, and a five-step walkthrough on the index page from **Plate Strike Lead**.
+- **Sources checked:**
+  - **Chain order:** `Corrosion::begin_block`.
+  - **Filter:** four-pole ladder, 24 dB/octave; cutoff and drive smoothed over about 20 ms; Tolerance a random walk up to 30 %.
+  - **Bias Starve:** the attractor-region starvation, through a 5 ms follower.
+  - **BODY:** fixed resonances near 190 and 390 Hz, mixed at BODY/5; Chassis Vol only retunes it.
+  - **Space:** low partials at 98–144 Hz in every mode; Delay Time `0.02 + t·0.78` s.
+  - **Diode:** knee at `limit·(1 − 0.8·softness)`, giving −4.4 dB at the 0.5 default and −14 dB at 1 (`oversampled_clipper.rs`).
+  - **Limiter:** the Hard default (`limiter_mode_param(0)`).
+  - **Meter:** brightens over 0.1–6 dB of reduction.
+  - **Output:** 0 dB at 57.5 % of the travel; −20..+6 dB over 18.9 %.
+  - **Labels and help:** every control's label and help from `parameters.json`.
+- `space_mode` has no clip set, so the Mode section has no clip; each Space mode's controls have their clips.
+- The bare-number warnings left are walkthrough values ("about 1.5", "about 2") and Delay Time's display range in milliseconds, which the data holds only as 0–1.
 
 ## Risks / Trade-offs
 

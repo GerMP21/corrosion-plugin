@@ -5,14 +5,61 @@ sidebar:
 covers: {"modes": {"space": ["Off", "Factory", "Spring", "Echo"]}}
 ---
 
-import Stub from '../../../../components/Stub.astro';
+import Clips from '../../../../components/Clips.astro';
+import Data from '../../../../components/Data.astro';
 
-<Stub />
+**Space** pone el sonido en algún sitio. Tienes tres: una gran nave industrial, un tanque de reverb de muelles y un eco. Solo suena uno a la vez, y cada uno muestra sus propios controles cuando lo eliges.
+
+**Pruébalo:** carga **Chords → Cable Echo Pad**, mantén un acorde y cambia **Mode** entre **Factory**, **Spring** y **Echo**. El mismo acorde en tres edificios distintos.
 
 ## Mode y Amount
 
+**Mode** elige el efecto: **Off** (seco), **Factory**, **Spring** o **Echo**. **Amount** es la mezcla, de <Data param="space_amount" field="min" /> (seco) a <Data param="space_amount" field="max" />; más alto suena más húmedo. Con el Amount por defecto de 0 no se añade nada, sea cual sea el modo: si eliges un modo y no notas nada, mira primero Amount.
+
+<Clips param="space_amount" />
+
+Una manía que conviene conocer: todos los modos añaden parciales graves débiles propios, en torno a 100–145 Hz. Bajo la mayoría de los sonidos no se notan, pero bajo una placa suave y sostenida pueden asomar como un zumbido grave. Por eso los acordes de placa de fábrica están secos. Si una reverb parece enturbiar un patch delicado, esa es la razón; un poco menos de Amount suele arreglarlo.
+
 ## Factory
+
+Una gran nave industrial: superficies duras, mucho espacio y trastos por todas partes.
+
+- **Factory Size:** el tamaño de la sala. Más grande da una reverb más larga y amplia.
+- **Machinery:** lo llena de trastos que está la sala. Más trastos dan reflexiones más ajetreadas y densas.
+- **Wall Impedance:** la dureza de las paredes. Más alto refleja más agudos, así que suena más brillante.
+
+<Clips param="factory_size" />
+<Clips param="machinery_clutter" />
+<Clips param="wall_impedance" />
+
+**Consejo:** para percusión, deja **Factory Size** pequeño y **Amount** bajo: tienes sensación de lugar sin emborronar el ataque.
 
 ## Spring
 
+Una reverb de muelles, como el tanque de un amplificador de guitarra antiguo, con su twang y su goteo característicos.
+
+- **Spring Tension:** lo tenso que está el muelle. Más tenso sube el twang.
+- **Wire Stiffness:** lo rígidas que son las espiras. Más rígidas suenan más brillantes y ceñidas.
+- **Tank Size:** el tamaño del tanque. Los tanques más grandes suenan más graves.
+
+<Clips param="spring_tension" />
+<Clips param="wire_stiffness" />
+<Clips param="spring_tank_size" />
+
+**Consejo:** a las reverbs de muelles les encantan los transitorios. Golpéala con **Drumstick** o **Hard Mallet** y un **Amount** alto para ese chapoteo elástico de guitarra surf.
+
 ## Echo
+
+Un eco estéreo, libre o fijado al tempo del host, con un poco de oscilación de cinta si la quieres.
+
+- **Sync:** fija el eco al tempo del host, de 1/16 a 2/1 de pulso. **Off** usa **Delay Time**, igual que un host que no informa del tempo.
+- **Delay Time:** el tiempo entre ecos, de unos 20 ms a 800 ms. Los tiempos muy cortos engordan el sonido como un doblador; los largos dan repeticiones separadas.
+- **Movement:** cuánto oscila el tiempo de retardo. Más alto suena más deformado, como un magnetófono gastado.
+- **HF Damping:** oscurece cada repetición, así que los ecos posteriores suenan más apagados, como en un delay analógico viejo. El efecto vive en las repeticiones: bajo la nota seca es sutil, así que escucha la cola.
+
+<Clips param="sync_rate" />
+<Clips param="delay_time" />
+<Clips param="machinery_movement" />
+<Clips param="high_frequency_damping" />
+
+**Consejo:** un eco sincronizado a 1/8 con un Amount bajo es una forma estupenda de hacer que un patrón percusivo sencillo suene más movido sin tocar más notas.
