@@ -2970,7 +2970,7 @@
       "controls": [
         {
           "group": "Filter Bank",
-          "help": "Random component drift in the filter. Higher sounds less precise and more analogue.",
+          "help": "Random drift of the filter's components. Higher lets the cutoff wander, less precise and more analogue.",
           "label": "Tolerance",
           "shown": "always"
         }

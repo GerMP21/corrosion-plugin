@@ -1079,7 +1079,7 @@ pub(crate) fn help_for(label: &str) -> &'static str {
         // Processing
         "cutoff" => "Cutoff of the low-pass filter after the voices. Lower sounds darker.",
         "resonance" => "Resonant peak at the cutoff. Higher rings and whistles more.",
-        "tolerance" => "Random component drift in the filter. Higher sounds less precise and more analogue.",
+        "tolerance" => "Random drift of the filter's components. Higher lets the cutoff wander, less precise and more analogue.",
         "drive amt" => "Saturation of the Lorenz drive in the post chain. Higher sounds more distorted.",
         "bias starve" => "Starves the drive's supply now and then. Higher makes it sag and sputter more often.",
         "chaos" => "How much the Lorenz attractor modulates the drive. Higher makes the distortion move unpredictably.",

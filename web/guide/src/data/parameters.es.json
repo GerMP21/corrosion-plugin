@@ -98,7 +98,7 @@
     }
   },
   "component_tolerance": {
-    "help": "Deriva aleatoria de los componentes del filtro. Más alto suena menos preciso y más analógico."
+    "help": "Deriva aleatoria de los componentes del filtro. Más alto hace que el corte se desplace, menos preciso y más analógico."
   },
   "compression_curve": {
     "slots": {

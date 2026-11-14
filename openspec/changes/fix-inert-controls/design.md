@@ -210,6 +210,20 @@ No preset left the floor or its character; the full CI lane passes (472).
 
 The mode-bank golden fixture still matches. One experimental preset left the floor (`bow/taut_cable`, −6.4 dB at Output 100 already) and was re-drawn: seed try 1, Output 70.69. Full lane 475 passed.
 
+### Task 2.4: Component Tolerance (2026-11-14)
+
+**Cause.** The control only added noise at 0.001 × the tolerance to the filter's input, about 60 dB under the signal.
+
+**As built.** The components now drift. A unit-variance random walk, smoothed with a 0.3 s time constant, moves the cutoff by `1 + tolerance · 0.3 · drift`, floored at 0.1×. The old jitter stays. At 0 nothing changes, and all 70 manual presets use 0. When the tolerance is above 0 the coefficients are rebuilt every sample, which costs one `tan` per sample per channel.
+
+Depth 0.1 stayed under the floor (0.35 dB width). 0.5 gave a 20 % ring change.
+
+| Control | Level dB | Ring | Bands dB | Width dB | Env dB | Acts |
+|---|---|---|---|---|---|---|
+| Component Tolerance (depth 0.3) | 0.00 → 0.15 | 1 % | 0.09 | 0.00 → 1.80 | 0.19 | yes |
+
+**Test.** `component_tolerance_drifts_the_cutoff`: the spread of 50 ms noise levels was 2.46 dB at both tolerances with the drift off, and widens by at least 2 dB with it on. Help text updated in English and Spanish. Full lane 476 passed, `no_alloc` passes.
+
 ### Found, not fixed: High Frequency Damping and Diode Softness (2026-11-14)
 
 - **High Frequency Damping works.** It filters every echo repeat: a repeat's highs fall 13.6 dB at 1, and the coefficient reaches the render (k = 0.178).
