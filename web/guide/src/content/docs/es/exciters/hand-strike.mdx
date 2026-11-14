@@ -6,21 +6,47 @@ covers: {"exciters": ["Hand Strike"]}
 ---
 
 import Clips from '../../../../components/Clips.astro';
-import Stub from '../../../../components/Stub.astro';
+import ModelControls from '../../../../components/ModelControls.astro';
 
-<Stub />
+Una mano que golpea el metal: el más blando y físico de los golpeados, del golpe sordo de la palma a la palmada brillante de los dedos.
+
+**Pruébalo:** carga **Bass → Palm Pipe Thump** y toca notas graves; luego sube **Mute Decay** y vuelve a tocar: la mano se queda sobre el tubo y ahoga la resonancia.
 
 ## Qué es
 
+Una mano de carne golpea el objeto y le devuelve el empuje como un muelle con amortiguación: la carne cede y luego despega la mano del metal. La mano puede quedarse apoyada en el objeto después del golpe, y eso lo apaga como una palma sobre un tambor. Su peso, la rigidez y la amortiguación de la carne y cuánto tiempo descansa deciden si el golpe suena a palmada, a golpe sordo o a golpe apagado.
+
 ## Cómo suena
+
+De borde suave y cálido, con menos clic agudo que una maza o una baqueta. Sobre un tubo o un tanque da un golpe grave de tambor de mano; sobre un cable, un bajo slap; sobre una viga, un golpe seco. Es el excitador por defecto, así que es lo que oyes al abrir Corrosion.
 
 ## Controles
 
+<ModelControls exciter="Hand Strike" />
+
+- **Hand Mass:** una mano más pesada golpea más fuerte y más brillante.
+- **Flesh Stiffness:** más alto despega antes la mano del metal, para una palmada más corta y ligera.
+- **Flesh Damping:** más alto empuja con más fuerza mientras la carne se mueve: un golpe más fuerte y brillante.
+- **Mute Decay:** cuánto tiempo descansa la mano sobre el objeto después del golpe. Más alto la deja más tiempo, así que la resonancia se apaga antes y la nota suena más débil.
+
+Como todos los golpeados, usa la envolvente AD, y **Speed** y **Roughness** no le afectan.
+
 ## Combinaciones
+
+Los objetos huecos y graves sacan la calidez de la mano: **Pipe**, **Tank** e **I-Beam** dan golpes de bombo, **Taut Cable** un bajo slap. Sobre objetos brillantes como **Plate** o **Sheet Metal** da un golpe suave, casi de gong.
 
 ## Consejos
 
+- Para una nota apagada y percusiva, sube **Mute Decay**; para una resonancia abierta, bájalo.
+- **Hand Mass** es la forma más rápida de hacer el golpe más pesado.
+- Seis de los kits de batería de fábrica usan pads de Hand Strike para bombos y toms graves.
+
 ## Presets para probar
+
+- **Bass → Palm Pipe Thump**
+- **Bass → Hand Slap Cable**
+- **Percussion → Beam Kick Thud**
+- **Experimental → Hand Strike**: un preset sobre cada uno de los nueve objetos.
 
 ## Escúchalo
 

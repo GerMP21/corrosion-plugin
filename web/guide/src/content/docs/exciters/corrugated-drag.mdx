@@ -6,21 +6,45 @@ covers: {"exciters": ["Corrugated Drag"]}
 ---
 
 import Clips from '../../../components/Clips.astro';
-import Stub from '../../../components/Stub.astro';
+import Data from '../../../components/Data.astro';
+import ModelControls from '../../../components/ModelControls.astro';
 
-<Stub />
+A tool dragged across a ridged surface: each ridge gives a tick, and the ticks blur into a buzz as the speed rises.
+
+**Try it:** load **Drones → Chain Drag Drone**, hold a note and sweep **Drag Speed**: slow drags tick, fast ones buzz.
 
 ## What it is
 
+An exciter drags across corrugated metal. The ridges push it up and down at a regular rate, so the force has a rhythm set by the speed and the ridge spacing.
+
 ## How it sounds
+
+Rhythmic and mechanical: ratchets, conveyors, washboards. Slow, it's a series of clicks; fast, a pitched rattle.
 
 ## Controls
 
+<ModelControls exciter="Corrugated Drag" />
+
+- **Drag Speed:** how fast the exciter crosses the ridges. Higher raises the ridge rate.
+- **Ridge Spacing:** the distance between ridges. Higher spaces the ticks further apart.
+- **Ridge Depth:** the depth of the ridges. Higher gives stronger, louder ticks; at 0 there are none.
+- **Exciter Mass:** the weight of the dragged exciter.
+
+**Speed** scales **Drag Speed**; **Roughness** doesn't affect it.
+
 ## Pairings
+
+On **Chain** it gives a dragged-chain drone; on **Plate** or **Sheet Metal**, a ratchety buzz; on **Pipe**, a hollow clatter.
 
 ## Tips
 
+- **Drag Speed** and **Ridge Spacing** together set the tick rate: halve one or double the other for the same rhythm.
+- **Release snap:** the drag holds the object out of its rest position, and letting go quickly makes it spring back. With Corrugated Drag on a Plate and the default MSEG **Release** of <Data param="mseg_release" field="default" /> s, the half second after you let go is about 15 dB louder than the held note; at 0.5 s the snap is gone.
+
 ## Presets to try
+
+- **Drones → Chain Drag Drone**
+- **Experimental → Corrugated Drag**: one preset on each of the nine objects.
 
 ## Listen
 

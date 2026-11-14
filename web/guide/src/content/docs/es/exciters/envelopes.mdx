@@ -4,14 +4,57 @@ sidebar:
   order: 2
 ---
 
-import Stub from '../../../../components/Stub.astro';
+import Clips from '../../../../components/Clips.astro';
+import Data from '../../../../components/Data.astro';
 
-<Stub />
+La envolvente de fuerza da forma a lo fuerte que empuja el excitador a lo largo de una nota. No es una envolvente de volumen: cambia la fuerza que entra en el objeto, y el objeto sigue resonando cuando la fuerza ya no está. Cada [familia](/wiki/es/exciters/#familias) tiene su envolvente, y el panel bajo **MODEL TYPE** muestra la del excitador actual.
+
+**Pruébalo:** carga **Drones → Grinding Beam**, pon **Loop** en **Forward** y mantén una nota: la caída empieza una y otra vez, y el desbaste late.
 
 ## Envolvente AD (golpeados)
 
+Los excitadores golpeados usan dos controles, **Attack** y **Release**. Al empezar una nota, la fuerza sube de cero al máximo durante **Attack** y enseguida cae durante **Release**. No espera a que sueltes la tecla: una nota golpeada se comporta como un golpe real, y soltar la tecla antes no la corta.
+
+- **Attack** es corto por defecto, así que el contacto llega de inmediato. Un Attack largo hace el golpe más suave y mucho más débil, porque el excitador ya rebotó antes de que la fuerza llegue a su máximo.
+- **Release** fija cuánto dura la fuerza después del máximo. En la mayoría de los golpes el contacto termina mucho antes, así que importa sobre todo en los excitadores que siguen tocando, como Wire Brush y Metal Chain.
+
+<Clips param="env_attack" />
+<Clips param="env_release" />
+
 ## MSEG (fricción)
+
+Los excitadores de fricción usan una envolvente de seis etapas, el MSEG:
+
+1. **Onset:** la fuerza sube de cero a **Onset Lvl** durante **Onset**. Déjalo corto y bajo para un comienzo limpio, o súbelo para que la nota entre con suavidad.
+2. **Attack:** la fuerza sube hasta su máximo.
+3. **Hold:** se queda en el máximo.
+4. **Decay:** cae hasta el nivel de sostenido.
+5. **Sustain:** se mantiene ahí mientras la tecla esté pulsada.
+6. **Release:** al soltar la tecla, se apaga durante **Release**.
+
+Los [modificadores de gesto](/wiki/es/exciters/gesture-modifiers/) escalan esta envolvente: su cantidad total, su máximo, su velocidad, cómo la cambia la velocidad de pulsación y la forma de sus tramos.
+
+**Chasquido al soltar.** Un Bow, un Stiff Point Scrape o un Corrugated Drag sostenidos sacan al objeto de su posición de reposo. Cuando la fuerza desaparece de golpe, el objeto vuelve de un salto y resuena, y la cola puede sonar más fuerte que la nota sostenida: con Corrugated Drag sobre un Plate y el **Release** por defecto de <Data param="mseg_release" field="default" /> s, el medio segundo después de soltar suena unos 15 dB más fuerte. Un **Release** de medio segundo o más suelta el objeto con suavidad. Se mantiene como una característica; consulta [Solución de problemas](/wiki/es/troubleshooting/).
+
+<Clips param="mseg_onset" />
+<Clips param="mseg_attack" />
+<Clips param="mseg_release" />
 
 ## Modos de bucle
 
+El MSEG puede repetir una parte de sí mismo mientras mantienes la tecla. **Loop** elige el modo, y **Start** y **End** eligen las etapas, numeradas de 0 (Onset) a 5 (Release).
+
+- **Off:** la envolvente suena una vez y se queda en Sustain.
+- **Forward:** cada vez que la envolvente llega a la etapa **End**, salta de vuelta a la etapa **Start**. La etapa End en sí no suena. Solo pueden repetirse las etapas 1 a 4 (de Attack a Sustain); 0 y 5 se llevan a ese rango. Con los valores por defecto, Start 3 y End 4, se repite el Decay y la nota late al ritmo del Decay. Si Start no está antes que End, no hay bucle.
+- **Ping-Pong:** por ahora es igual que Forward de la etapa 3 a la 4, digan lo que digan Start y End.
+
+Al soltar la tecla siempre se sale del bucle y suena el Release.
+
+<Clips param="loop_mode" />
+
 ## Envolvente ADSR (especiales)
+
+Los excitadores especiales usan un ADSR clásico: la fuerza sube durante **Attack**, cae durante **Decay** hasta el nivel de **Sustain**, se mantiene ahí mientras la tecla esté pulsada y se apaga durante **Release** al soltarla. Pneumatic Jet, Electromagnetic Hum y Particle Rain suenan mientras dura su fuerza; Tension Snap da un chasquido por nota.
+
+<Clips param="env_decay" />
+<Clips param="env_sustain" />

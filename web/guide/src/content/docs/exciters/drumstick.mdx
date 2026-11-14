@@ -6,21 +6,46 @@ covers: {"exciters": ["Drumstick"]}
 ---
 
 import Clips from '../../../components/Clips.astro';
-import Stub from '../../../components/Stub.astro';
+import ModelControls from '../../../components/ModelControls.astro';
 
-<Stub />
+A light stick that hits and bounces back: a sharp tick, followed by a few quick re-strikes that get closer together.
+
+**Try it:** load **Percussion → Plate Snare Crack**, then raise **Micro Bounce Limit** and play again: the stick comes back more times after the first hit.
 
 ## What it is
 
+A light, stiff stick hits the object with a hard contact. In the first contact it chatters against the surface for a few samples. Then, like a stick dropped on a table, it comes back: it re-strikes the object **Micro Bounce Limit** minus one times, each re-strike weaker than the last and each flight shorter, by the factor **Restitution Bounciness**. The first flight lasts about 40 ms times **Restitution Bounciness**.
+
 ## How it sounds
+
+Snappy and bright, with a quick ruffle after the hit. On a plate it gives a snare crack; on a cog, a tick; on a beam, a knock. The re-strikes are what make it sound like a stick rather than a hammer.
 
 ## Controls
 
+<ModelControls exciter="Drumstick" />
+
+- **Stick Mass:** heavier sticks drive the object harder and brighter.
+- **Tip Stiffness:** higher gives a sharper, slightly brighter tick.
+- **Restitution Bounciness:** how much the stick bounces back. Higher makes the re-strikes stronger and spreads them out further.
+- **Micro Bounce Limit:** how many times the stick comes back. Higher gives a buzzier, rattling attack; the extra re-strikes also damp the object a little.
+
 ## Pairings
+
+Small, bright objects suit it: **Plate** for snares, **Industrial Cog** for ticks, **Sheet Metal** for crashes. Nine of the ten factory drum kits use Drumstick pads for snares, hats and cymbals.
 
 ## Tips
 
+- For a single clean tick, set **Micro Bounce Limit** to its minimum.
+- For a ruff or a dropped-stick roll, raise both **Micro Bounce Limit** and **Restitution Bounciness**.
+
 ## Presets to try
+
+- **Percussion → Plate Snare Crack**
+- **Percussion → Cog Tick**
+- **Percussion → Rusted Beam Knock**
+- **Lead → Driven Pipe Lead**
+- **Lead → Echo Cable Pluck**
+- **Experimental → Drumstick**: one preset on each of the nine objects.
 
 ## Listen
 

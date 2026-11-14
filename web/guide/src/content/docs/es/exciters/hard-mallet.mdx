@@ -6,21 +6,46 @@ covers: {"exciters": ["Hard Mallet"]}
 ---
 
 import Clips from '../../../../components/Clips.astro';
-import Stub from '../../../../components/Stub.astro';
+import ModelControls from '../../../../components/ModelControls.astro';
 
-<Stub />
+Una maza rígida lanzada contra el objeto: un contacto duro y brillante que saca los modos agudos.
+
+**Pruébalo:** carga **Lead → Hard Cable Pluck** y sube y baja **Material Stiffness** entre nota y nota.
 
 ## Qué es
 
+Una cabeza de maza sólida golpea la superficie, se hunde en ella con un contacto rígido y algo disipativo, y rebota. El contacto se resuelve junto con la respuesta del objeto, así que un golpe fuerte se mantiene estable por rígida que sea la maza.
+
 ## Cómo suena
+
+Más brillante y duro que Felt Mallet, con un ataque claro: golpes metálicos, punteos y golpes brillantes. Excita más modos agudos del objeto, así que los objetos inarmónicos como **Sheet Metal** y **Chain** suenan más a sí mismos.
 
 ## Controles
 
+<ModelControls exciter="Hard Mallet" />
+
+- **Mallet Mass:** una maza más pesada se queda más tiempo en contacto y saca los modos graves.
+- **Material Stiffness:** más alto da un golpe más seco y algo más brillante.
+- **Impact Damping:** la energía que se pierde en el propio contacto. Más alto suaviza y acorta el ataque; sobre una placa, en el máximo la resonancia dura la mitad.
+
 ## Combinaciones
+
+Sobre **Taut Cable** puntea; sobre **Plate** da un lead golpeado; sobre **Sheet Metal** y **Chain**, golpes metálicos. El banco de fábrica también lo usa para un bajo de **I-Beam** saturado y un charles de chapa.
 
 ## Consejos
 
+- **Impact Damping** es el control al que acudir cuando un golpe es demasiado largo o tiene demasiado clic.
+- Para charles y ticks, usa un objeto pequeño y brillante y un **Release** corto.
+
 ## Presets para probar
+
+- **Lead → Hard Cable Pluck**
+- **Lead → Plate Strike Lead**
+- **Bass → Driven Beam Bass**
+- **Percussion → Rusted Sheet Clang**
+- **Percussion → Sheet Tick Hat**
+- **Percussion → Chain Mallet Clank**
+- **Experimental → Hard Mallet**: un preset sobre cada uno de los nueve objetos.
 
 ## Escúchalo
 

@@ -4,18 +4,35 @@ sidebar:
   order: 3
 ---
 
-import Stub from '../../../../components/Stub.astro';
+import Clips from '../../../../components/Clips.astro';
+import Data from '../../../../components/Data.astro';
 
-<Stub />
+Los modificadores de gesto remodelan el [MSEG](/wiki/es/exciters/envelopes/#mseg-fricción) de los excitadores de fricción: cuánta fuerza da, a qué velocidad corre y cómo lo cambia tu manera de tocar. Solo actúan sobre los excitadores de fricción (Bow, Stiff Point Scrape, Heavy Grinding, Corrugated Drag y Tension Rise). El panel aparece con todos los excitadores, pero con los demás no hace nada.
+
+**Pruébalo:** elige **Bow**, sube **Vel To Time** y toca una nota suave y luego una fuerte. La suave entra despacio; la fuerte suena enseguida.
 
 ## Env Amount
 
+Escala la fuerza de la envolvente de fricción, de <Data param="env_amount" field="min" /> a <Data param="env_amount" field="max" />. Más bajo suena más débil.
+
+**En 0 los excitadores de fricción no suenan nada**, porque su fuerza es la envolvente multiplicada por Env Amount. Si un preset de fricción se queda en silencio, revisa esto primero ([Solución de problemas](/wiki/es/troubleshooting/)).
+
 ## Vel To Peak
+
+El nivel máximo de la envolvente de fricción, de la mitad al total. Más alto da un ataque más marcado sobre el sostenido. A pesar del nombre, no lee la velocidad de pulsación: fija el máximo igual para todas las notas.
 
 ## Global Time
 
+La velocidad de toda la envolvente de fricción, de <Data param="global_time_scale" field="min" /> a <Data param="global_time_scale" field="max" />. Más alto recorre todas las etapas más rápido; más bajo estira la envolvente en crescendos largos.
+
 ## Vel To Level
+
+Cuánto cambia la velocidad de pulsación el nivel de la envolvente de fricción. En 0 todas las notas tienen la misma fuerza; más alto hace más débiles las notas suaves, hasta la mitad.
 
 ## Vel To Time
 
+Cuánto ralentizan las notas suaves la envolvente de fricción. En 0 la velocidad de pulsación no cambia los tiempos; más alto hace las notas suaves más lentas que las fuertes, como un arco que empieza con delicadeza.
+
 ## Curve
+
+La forma de los tramos de la envolvente de fricción. En el centro son rectas; girándolo hacia cualquier lado se curvan más, para arranques más rápidos o más lentos de cada etapa.

@@ -6,21 +6,44 @@ covers: {"exciters": ["Tension Rise"]}
 ---
 
 import Clips from '../../../../components/Clips.astro';
-import Stub from '../../../../components/Stub.astro';
+import ModelControls from '../../../../components/ModelControls.astro';
 
-<Stub />
+Tensión que se acumula en el material hasta que cede: crujidos y gemidos, irregulares o regulares.
+
+**Pruébalo:** carga **Drones → Plate Tension Swell**, mantén una nota y sube **Slip Stochasticity**.
 
 ## Qué es
 
+La fuerza se acumula despacio, como una viga que recibe carga o un cable del que se tira, hasta que pasa un umbral y el material cede de golpe. Luego vuelve a acumularse. Cada deslizamiento es un crujido.
+
 ## Cómo suena
+
+Crujiente, quejumbroso y tenso: cascos de barco, vigas cargadas, puertas. Puede ser una serie regular de crujidos o un crepitar al azar.
 
 ## Controles
 
+<ModelControls exciter="Tension Rise" />
+
+- **Pull Speed:** lo rápido que se acumula la tensión. Más alto hace que los crujidos lleguen más rápido.
+- **Break Threshold:** la tensión a la que cede el material. Más alto acumula más tensión antes de cada crujido.
+- **Slip Stochasticity:** el azar de los deslizamientos. Más alto suena más irregular.
+- **Creak Sharpness:** lo seco de cada crujido. Más alto suena más brillante y percusivo.
+
+**Speed** escala **Pull Speed** y **Roughness** escala **Slip Stochasticity**.
+
 ## Combinaciones
+
+Sobre **Plate** da un crescendo tenso; sobre **I-Beam** o **Tank**, gemidos estructurales graves; sobre **Taut Cable**, un cable forzado.
 
 ## Consejos
 
+- Un **Pull Speed** bajo con un **Break Threshold** alto da crujidos lentos y pesados.
+- Un **Slip Stochasticity** alto convierte los crujidos en crepitar.
+
 ## Presets para probar
+
+- **Drones → Plate Tension Swell**
+- **Experimental → Tension Rise**: un preset sobre cada uno de los nueve objetos.
 
 ## Escúchalo
 

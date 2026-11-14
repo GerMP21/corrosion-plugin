@@ -109,6 +109,26 @@ Every page, EN and ES (Decision 6). Approved means the maintainer approved the S
 | `getting-started/tour` | 2026-11-14 | 2026-11-14 | |
 | `how-it-sounds` | 2026-11-14 | 2026-11-14 | |
 | `editor` | 2026-11-14 | 2026-11-14 | |
+| `exciters/index` | 2026-11-14 | 2026-11-14 | |
+| `exciters/common-controls` | 2026-11-14 | 2026-11-14 | |
+| `exciters/envelopes` | 2026-11-14 | 2026-11-14 | |
+| `exciters/gesture-modifiers` | 2026-11-14 | 2026-11-14 | |
+| `exciters/hand-strike` | 2026-11-14 | 2026-11-14 | |
+| `exciters/felt-mallet` | 2026-11-14 | 2026-11-14 | |
+| `exciters/hard-mallet` | 2026-11-14 | 2026-11-14 | |
+| `exciters/drumstick` | 2026-11-14 | 2026-11-14 | |
+| `exciters/wire-brush` | 2026-11-14 | 2026-11-14 | |
+| `exciters/metal-pipe` | 2026-11-14 | 2026-11-14 | |
+| `exciters/metal-chain` | 2026-11-14 | 2026-11-14 | |
+| `exciters/bow` | 2026-11-14 | 2026-11-14 | |
+| `exciters/stiff-point-scrape` | 2026-11-14 | 2026-11-14 | |
+| `exciters/heavy-grinding` | 2026-11-14 | 2026-11-14 | |
+| `exciters/corrugated-drag` | 2026-11-14 | 2026-11-14 | |
+| `exciters/tension-rise` | 2026-11-14 | 2026-11-14 | |
+| `exciters/pneumatic-jet` | 2026-11-14 | 2026-11-14 | |
+| `exciters/electromagnetic-hum` | 2026-11-14 | 2026-11-14 | |
+| `exciters/tension-snap` | 2026-11-14 | 2026-11-14 | |
+| `exciters/particle-rain` | 2026-11-14 | 2026-11-14 | |
 
 ### Batch 2.1 notes: Getting started (2026-11-14)
 - **Sources checked:** install folders, zip names and the macOS quarantine step against `README.md` and `ci.yml`'s package step; the default sound, labels (MODEL TYPE, MATERIAL, NOTE MODE, the header's MODE) and help texts against `parameters.json`; the piano strip and computer keys against `src/gui/editor.rs` (C3–C6, `A`…`K` = C4–C5); the web app's bar against `web/www/index.html`; counts through `<Data>` (16 exciters, 9 objects, 214 presets, 10 kits).
@@ -126,12 +146,52 @@ Every page, EN and ES (Decision 6). Approved means the maintainer approved the S
 - **Sources checked:** the chain order against `docs/ARCHITECTURE.md` §1 and §9 and `Corrosion::begin_block` (voices → mix DC blocker → Legacy Drive → Filter Bank → Overdrive Unit → BODY → spread → Space → diode → Output → limiter); a note-off releases only the exciter (`Voice::note_off`); voice stealing (`VoiceManager::steal_index`: quietest tail, then pedal-held, then quietest held note past 100 ms); the macros are neutral at 0.5 and reach exciter mass, object damping, brightness, rust, damage, drive and filter (`resolve_macro_bias`); Speed and Roughness are inert on Hand Strike (ARCHITECTURE §6); the envelope per family (AD, MSEG, ADSR; `controls.rs`); knobs drag vertically, faders jump to the click (`knob_drag_value`, `industrial_fader`); the header scrolls with the panels in the plugin and only the strip is pinned (`render_window_body`); the kit zone is 36–59, C2–B3 (`KIT_ZONE`).
 - **Screenshots:** the whole editor and each column carry numbered callouts, placed and checked in the built page (EN and ES). The header has none: at the page's width its labels are too small for callouts not to cover them, so its list names the labels instead.
 
-### Batch 2.3 findings: exciter controls (2026-11-14, open)
+### Batch 2.3 findings: exciter controls (2026-11-14, resolved by `fix-inert-controls`)
 - **Envelope help texts fixed** in their own commit: Global Time speeds up (it said slows), Vel To Peak reads no velocity, Ping-Pong equals Forward 3 → 4, a strike's Release starts at its peak, Env Amount 0 silences; the six Gesture Modifiers act only on the friction MSEG (backlog item for the panel).
 - **Measured** with `print_slot_effects` (ignored test in `src/guide/clip_plan/tests.rs`): one note, C3 at velocity 100, each slot at its minimum and maximum on its clip patch (the exciter on Plate, Render quality); RMS, ring length to −40 dB, and the mean change of the first second's octave-band levels beyond the level change ("bands").
 - **No measurable effect** (level within 0.3 dB, same ring, bands ≤ 0.25 dB): Slip Curve, Chatter Pitch, Chatter Damping, Chain Mass (0.00 dB), Flesh Stiffness 0.04, Core Hardness 0.03, Grind Pressure 0.06, Link Count 0.06, Restitution Bounciness 0.07, Micro Bounce Limit 0.16, Compression Curve 0.22, Tip Stiffness 0.25. Stiff Point Scrape appears to slip every sample, so its spring (Chatter Pitch, Chatter Damping) never shapes the output (`stiff_point.rs`); the others look normalised away by the drive level and governor. Not yet confirmed per control.
 - **Help says the opposite of the measurement:** Mute Decay (help: lower mutes sooner; 0.85 → 0.999 gives −8.1 dB and ring 2.23 → 1.46 s, the hand rests longer and mutes more), Flesh Damping (help: softens the attack; min → max +4.3 dB, brighter), Rattle Color (help: brighter; −3.9 dB and darker overall, it raises a high-pass on the rattle), Stick Mass and Pipe Mass (help: darker; brighter), Voltage Sag (help: wavers; it adds 3rd and 5th harmonics, no wavering).
 - **Maintainer's decision (2026-11-14): fix the engine first.** Proposed as `fix-inert-controls`; batch 2.3 waits for it. Meanwhile the How it sounds and editor pages say the Gesture Modifiers act only on the friction exciters.
+
+### Batch 2.3 notes: Exciters (2026-11-14)
+
+The 20 pages are written in EN and ES. Each model page lists its controls with `<ModelControls>`, then gives one line per dedicated control.
+
+**Sources checked.**
+- Families and envelopes: `models.json` and `controls.rs`. The struck AD rises over Attack, then falls over Release at once, without waiting for note-off (`OneShotEnvelopePhase`).
+- MSEG stages and loop rules: `dsp/envelopes`. Only stages 1–4 loop. Forward jumps to Start on reaching End, so End itself doesn't play. Ping-Pong is Forward 3 → 4.
+- Speed and Roughness, which controls each scales and where they are inert: ARCHITECTURE §6 "Global exciter controls". Pressure is smoothed over about 10 ms.
+- Drumstick re-strikes: the first flight is 40 ms × Restitution.
+- Tension Snap: one snap per note, and velocity scales the snap force.
+- Preset lists: from the bank files, by exciter. Kit counts per exciter: from the pads' `exciter` values.
+
+**Measured, re-run after `fix-inert-controls`.** `print_slot_effects`: one C3 note, minimum → maximum of each control, on Plate.
+- Every direction stated on the pages matches.
+- Three help texts said the opposite, and were fixed in their own commit:
+  - Hand Mass: +5.9 dB, centroid 305 → 532 Hz.
+  - Pipe Mass: +4.2 dB, 66 → 109 Hz.
+  - Chatter Pitch: −4.3 dB, 388 → 196 Hz.
+- Where a help text's direction rests on a small centroid change, the page leaves the colour out and keeps to what was measured: Nozzle Width +6.1 dB, Particle Mass +10.5 dB, Exciter Mass, Pipe Pitch and Pipe Ring Decay.
+
+**Release snap, measured through the whole chain** (render, voice-mix DC blocker included):
+
+| Patch | MSEG Release | Half second after letting go, against the held note |
+|---|---|---|
+| Corrugated Drag on Plate | 0.1 s (default) | +14.6 dB |
+| Corrugated Drag on Plate | 0.5 s | 0.0 dB |
+| Bow on Taut Cable | 0.1 s | +0.7 dB |
+| Stiff Point Scrape on Plate | any | none |
+
+The pages give the Corrugated Drag numbers and advise a Release of half a second or more.
+
+**Surprises documented where readers meet them:**
+- the release snap: envelopes, Bow, Stiff Point Scrape and Corrugated Drag;
+- Env Amount 0: gesture modifiers and Bow;
+- the gesture modifiers acting only on friction: gesture modifiers.
+
+Troubleshooting (2.9) links back to these.
+
+**Glossary links** wait for batch 2.9, since the glossary is still a stub. No glossary anchors are linked yet.
 
 ## Risks / Trade-offs
 

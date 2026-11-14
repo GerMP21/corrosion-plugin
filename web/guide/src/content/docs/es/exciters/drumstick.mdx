@@ -6,21 +6,46 @@ covers: {"exciters": ["Drumstick"]}
 ---
 
 import Clips from '../../../../components/Clips.astro';
-import Stub from '../../../../components/Stub.astro';
+import ModelControls from '../../../../components/ModelControls.astro';
 
-<Stub />
+Una baqueta ligera que golpea y rebota: un tick seco seguido de unos cuantos re-golpes rápidos, cada vez más juntos.
+
+**Pruébalo:** carga **Percussion → Plate Snare Crack**, sube **Micro Bounce Limit** y vuelve a tocar: la baqueta vuelve más veces después del primer golpe.
 
 ## Qué es
 
+Una baqueta ligera y rígida golpea el objeto con un contacto duro. En el primer contacto vibra contra la superficie durante unas pocas muestras. Luego, como una baqueta que se deja caer sobre una mesa, vuelve: golpea el objeto **Micro Bounce Limit** menos una veces más, cada re-golpe más débil que el anterior y cada vuelo más corto, según el factor **Restitution Bounciness**. El primer vuelo dura unos 40 ms multiplicados por **Restitution Bounciness**.
+
 ## Cómo suena
+
+Seco y brillante, con un breve redoble después del golpe. Sobre una placa da el golpe de una caja; sobre un engranaje, un tick; sobre una viga, un golpe seco. Los re-golpes son lo que hace que suene a baqueta y no a martillo.
 
 ## Controles
 
+<ModelControls exciter="Drumstick" />
+
+- **Stick Mass:** una baqueta más pesada empuja el objeto con más fuerza y más brillo.
+- **Tip Stiffness:** más alto da un tick más seco y algo más brillante.
+- **Restitution Bounciness:** cuánto rebota la baqueta. Más alto hace los re-golpes más fuertes y más espaciados.
+- **Micro Bounce Limit:** cuántas veces vuelve la baqueta. Más alto da un ataque más zumbante y traqueteante; los re-golpes de más también amortiguan un poco el objeto.
+
 ## Combinaciones
+
+Le van los objetos pequeños y brillantes: **Plate** para cajas, **Industrial Cog** para ticks, **Sheet Metal** para crashes. Nueve de los diez kits de batería de fábrica usan pads de Drumstick para cajas, charles y platillos.
 
 ## Consejos
 
+- Para un único tick limpio, pon **Micro Bounce Limit** en su mínimo.
+- Para un redoble o una baqueta que cae, sube a la vez **Micro Bounce Limit** y **Restitution Bounciness**.
+
 ## Presets para probar
+
+- **Percussion → Plate Snare Crack**
+- **Percussion → Cog Tick**
+- **Percussion → Rusted Beam Knock**
+- **Lead → Driven Pipe Lead**
+- **Lead → Echo Cable Pluck**
+- **Experimental → Drumstick**: un preset sobre cada uno de los nueve objetos.
 
 ## Escúchalo
 

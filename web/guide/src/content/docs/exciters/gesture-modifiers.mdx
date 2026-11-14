@@ -4,18 +4,35 @@ sidebar:
   order: 3
 ---
 
-import Stub from '../../../components/Stub.astro';
+import Clips from '../../../components/Clips.astro';
+import Data from '../../../components/Data.astro';
 
-<Stub />
+The gesture modifiers reshape the friction exciters' [MSEG](/wiki/exciters/envelopes/#mseg-friction): how much force it gives, how fast it runs, and how the way you play changes it. They act only on the friction exciters (Bow, Stiff Point Scrape, Heavy Grinding, Corrugated Drag and Tension Rise). The panel shows for every exciter, but on the others it does nothing.
+
+**Try it:** pick **Bow**, set **Vel To Time** high and play a soft note, then a hard one. The soft note swells in slowly; the hard one speaks at once.
 
 ## Env Amount
 
+Scales the friction envelope's force, from <Data param="env_amount" field="min" /> to <Data param="env_amount" field="max" />. Lower is quieter.
+
+**At 0 the friction exciters make no sound at all**, since their force is the envelope times Env Amount. If a friction preset goes silent, check this first ([Troubleshooting](/wiki/troubleshooting/)).
+
 ## Vel To Peak
+
+The peak level of the friction envelope, from half to full. Higher gives a stronger attack over the sustain. Despite its name, it doesn't read velocity: it sets the peak the same way for every note.
 
 ## Global Time
 
+The speed of the whole friction envelope, from <Data param="global_time_scale" field="min" /> to <Data param="global_time_scale" field="max" />. Higher plays every stage faster; lower stretches the envelope into long swells.
+
 ## Vel To Level
+
+How much velocity changes the friction envelope's level. At 0 every note is equally strong; higher makes soft notes quieter, down to half.
 
 ## Vel To Time
 
+How much soft notes slow the friction envelope. At 0 velocity doesn't change the timing; higher makes soft notes slower than hard ones, like a bow that starts gently.
+
 ## Curve
+
+The shape of the friction envelope's segments. In the middle they're straight lines; turning it either way bends them more, for faster or slower starts to each stage.

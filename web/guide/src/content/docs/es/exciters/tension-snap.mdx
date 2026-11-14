@@ -6,21 +6,44 @@ covers: {"exciters": ["Tension Snap"]}
 ---
 
 import Clips from '../../../../components/Clips.astro';
-import Stub from '../../../../components/Stub.astro';
+import ModelControls from '../../../../components/ModelControls.astro';
 
-<Stub />
+Un gancho que tira del objeto hasta que lo suelta: un chasquido seco por nota.
+
+**Pruébalo:** carga **Bass → Snapped Cable Bass** y cambia **Pull Distance** entre nota y nota.
 
 ## Qué es
 
+Un gancho engancha el objeto y lo aparta despacio. Cuando la tensión supera la fuerza de chasquido, o el gancho llega a su distancia de tirón, lo suelta, y el objeto vuelve de un salto y resuena. Una nota, un chasquido.
+
 ## Cómo suena
+
+Un punteo o un crujido seco: cuerdas que saltan, bajos punteados, piezas que se rompen.
 
 ## Controles
 
+<ModelControls exciter="Tension Snap" />
+
+- **Pull Distance:** lo lejos que tira el gancho antes de soltar. Más alto da un chasquido mayor.
+- **Hook Stiffness:** la rigidez del gancho. Más alto da una suelta más seca.
+- **Snap Force:** la fuerza a la que salta. Más alto suena más fuerte y duro.
+
+Ni **Speed** ni **Roughness** le afectan.
+
 ## Combinaciones
+
+Sobre **Taut Cable** puntea como una cuerda de bajo; sobre **Chain**, un chasquido metálico. Dos kits de fábrica lo usan.
 
 ## Consejos
 
+- La velocidad de pulsación escala la fuerza de chasquido, así que toca más fuerte para chasquidos mayores.
+- Como tira antes de saltar, el chasquido llega un instante después de la tecla; un **Pull Distance** mayor puede retrasarlo más.
+
 ## Presets para probar
+
+- **Bass → Snapped Cable Bass**
+- **Percussion → Chain Snap**
+- **Experimental → Tension Snap**: un preset sobre cada uno de los nueve objetos.
 
 ## Escúchalo
 

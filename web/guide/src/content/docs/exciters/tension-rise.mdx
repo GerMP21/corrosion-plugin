@@ -6,21 +6,44 @@ covers: {"exciters": ["Tension Rise"]}
 ---
 
 import Clips from '../../../components/Clips.astro';
-import Stub from '../../../components/Stub.astro';
+import ModelControls from '../../../components/ModelControls.astro';
 
-<Stub />
+Stress that builds up in the material until it slips: creaks and groans, irregular or steady.
+
+**Try it:** load **Drones → Plate Tension Swell**, hold a note and raise **Slip Stochasticity**.
 
 ## What it is
 
+Force accumulates slowly, like a beam taking load or a cable being pulled, until it passes a threshold and the material slips with a sudden release. Then it starts building again. Each slip is a creak.
+
 ## How it sounds
+
+Creaking, groaning and tense: ship hulls, loaded beams, doors. It can be a steady series of creaks or a random crackle.
 
 ## Controls
 
+<ModelControls exciter="Tension Rise" />
+
+- **Pull Speed:** how fast the tension builds. Higher makes the creaks come faster.
+- **Break Threshold:** the tension at which the material slips. Higher builds more tension before each creak.
+- **Slip Stochasticity:** the randomness of the slips. Higher sounds more irregular.
+- **Creak Sharpness:** the sharpness of each creak. Higher sounds brighter and more percussive.
+
+**Speed** scales **Pull Speed** and **Roughness** scales **Slip Stochasticity**.
+
 ## Pairings
+
+On **Plate** it gives a tense swell; on **I-Beam** or **Tank**, deep structural groans; on **Taut Cable**, a strained cable.
 
 ## Tips
 
+- Low **Pull Speed** with a high **Break Threshold** gives slow, heavy creaks.
+- High **Slip Stochasticity** turns the creaks into crackle.
+
 ## Presets to try
+
+- **Drones → Plate Tension Swell**
+- **Experimental → Tension Rise**: one preset on each of the nine objects.
 
 ## Listen
 

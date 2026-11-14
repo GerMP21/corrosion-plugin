@@ -6,12 +6,45 @@ sidebar:
 ---
 
 import Clips from '../../../../components/Clips.astro';
-import Stub from '../../../../components/Stub.astro';
+import Data from '../../../../components/Data.astro';
 
-<Stub />
+El excitador es lo que toca el objeto: una mano, una maza, un arco, un chorro de aire. Decide cómo entra la energía, así que da forma al ataque, al sostenido y a buena parte del carácter antes de que el objeto ponga su altura y su resonancia.
+
+**Pruébalo:** toca una nota, cambia **MODEL TYPE** en la columna **EXCITER** y vuelve a tocar la misma nota. El objeto, su altura y la cadena de salida no cambian; solo cambia la manera de tocarlo.
+
+Corrosion tiene <Data count="exciters" /> excitadores. Cada uno es un pequeño modelo físico que empuja el objeto en cada muestra y siente cómo el objeto le devuelve el empuje, así que el mismo excitador suena distinto sobre un tubo que sobre una placa.
 
 ## Familias
 
+Los excitadores se agrupan en tres familias. La familia decide qué envolvente de fuerza usa el excitador y, por tanto, qué controles de envolvente muestra el panel.
+
+- Los **golpeados** golpean el objeto una vez por nota: Hand Strike, Felt Mallet, Hard Mallet, Drumstick, Wire Brush, Metal Pipe y Metal Chain. Su fuerza sigue una **envolvente AD** corta que arranca sola y no espera a que sueltes la tecla, así que una nota golpeada resuena como un golpe real.
+- Los de **fricción** frotan, raspan o tiran mientras mantienes la tecla: Bow, Stiff Point Scrape, Heavy Grinding, Corrugated Drag y Tension Rise. Su fuerza sigue el **MSEG** de seis etapas, que puede repetirse en bucle, y sobre él actúan los [modificadores de gesto](/wiki/es/exciters/gesture-modifiers/).
+- Los **especiales** los mueve algo que no es una mano ni una herramienta: Pneumatic Jet, Electromagnetic Hum, Tension Snap y Particle Rain. Su fuerza sigue un **ADSR** clásico.
+
+Consulta [Envolvente de fuerza y MSEG](/wiki/es/exciters/envelopes/) para las tres envolventes, y [Controles comunes](/wiki/es/exciters/common-controls/) para **Pressure**, **Speed** y **Roughness**, que tienen todos los excitadores.
+
 ## Comparativa
+
+| Excitador | Familia | Qué es | Va bien para |
+|---|---|---|---|
+| [Hand Strike](/wiki/es/exciters/hand-strike/) | Golpeado | Una palma o unos dedos que golpean el metal | Golpes sordos, palmadas, golpes apagados |
+| [Felt Mallet](/wiki/es/exciters/felt-mallet/) | Golpeado | Una maza forrada de fieltro con núcleo duro | Bajos redondos, campanas, gongs |
+| [Hard Mallet](/wiki/es/exciters/hard-mallet/) | Golpeado | Una maza rígida lanzada contra la superficie | Golpes metálicos, punteos, golpes brillantes |
+| [Drumstick](/wiki/es/exciters/drumstick/) | Golpeado | Una baqueta ligera que rebota | Ticks, cajas, platillos |
+| [Wire Brush](/wiki/es/exciters/wire-brush/) | Golpeado | Una nube de alambres que caen en pocos milisegundos | Barridos, charles con escobilla |
+| [Metal Pipe](/wiki/es/exciters/metal-pipe/) | Golpeado | Un tubo que resuena mientras golpea | Yunques, boings metálicos |
+| [Metal Chain](/wiki/es/exciters/metal-chain/) | Golpeado | Una cadena que cae sobre el objeto | Traqueteos, estrépito |
+| [Bow](/wiki/es/exciters/bow/) | Fricción | Un arco con resina que se pasa por el objeto | Pads, cuerdas, drones |
+| [Stiff Point Scrape](/wiki/es/exciters/stiff-point-scrape/) | Fricción | Una punta rígida que se engancha y vibra | Chirridos, raspados |
+| [Heavy Grinding](/wiki/es/exciters/heavy-grinding/) | Fricción | Una amoladora que arranca material de una superficie áspera | Rugidos, ruido industrial |
+| [Corrugated Drag](/wiki/es/exciters/corrugated-drag/) | Fricción | Una herramienta arrastrada sobre estrías | Tictac rítmico, cintas transportadoras |
+| [Tension Rise](/wiki/es/exciters/tension-rise/) | Fricción | Tensión que se acumula y cede | Crujidos, gemidos |
+| [Pneumatic Jet](/wiki/es/exciters/pneumatic-jet/) | Especial | Un chorro de aire sobre una abertura | Flautas, viento, respiración |
+| [Electromagnetic Hum](/wiki/es/exciters/electromagnetic-hum/) | Especial | Una bobina alimentada por la red eléctrica | Zumbidos, chisporroteo eléctrico |
+| [Tension Snap](/wiki/es/exciters/tension-snap/) | Especial | Un gancho que tira y suelta | Chasquidos, bajos punteados |
+| [Particle Rain](/wiki/es/exciters/particle-rain/) | Especial | Muchas partículas pequeñas que caen | Lluvia, arena, texturas granulares |
+
+Todos los excitadores tocando el mismo Tank:
 
 <Clips set="exciters" />

@@ -6,21 +6,44 @@ covers: {"exciters": ["Heavy Grinding"]}
 ---
 
 import Clips from '../../../../components/Clips.astro';
-import Stub from '../../../../components/Stub.astro';
+import ModelControls from '../../../../components/ModelControls.astro';
 
-<Stub />
+Una amoladora apretada contra una superficie áspera: un rugido denso de fricción y arena que se arranca.
+
+**Pruébalo:** carga **Drones → Grinding Beam**, mantén una nota y sube **Surface Grit**.
 
 ## Qué es
 
+Una herramienta pesada raspa un material áspero. Una fuerza de fricción constante tira del objeto y, encima, la rugosidad de la superficie se engancha y se arranca, añadiendo ruido filtrado. La presión decide cuánto muerde ese desgarro.
+
 ## Cómo suena
+
+Áspero, denso e industrial: desbaste, lijado, drones abrasivos. Con valores bajos es un roce con aire; subido, un rugido.
 
 ## Controles
 
+<ModelControls exciter="Heavy Grinding" />
+
+- **Grind Speed:** la velocidad de la muela. Más alto da un rugido más brillante y denso.
+- **Grind Pressure:** lo fuerte que aprieta la amoladora. Más alto suena más fuerte y agresivo.
+- **Surface Grit:** lo gruesa que es la superficie. Más alto añade ruido y crepitar; en 0 casi no hay desgarro.
+- **Grit Color:** el tono del ruido de la arena. Más alto es más brillante.
+
+**Speed** escala **Grind Speed** y **Roughness** escala **Surface Grit**.
+
 ## Combinaciones
+
+Sobre **I-Beam** da un dron de desbaste grave; sobre **Plate** o **Sheet Metal**, un raspado brillante; sobre **Tank**, un retumbar hueco.
 
 ## Consejos
 
+- **Surface Grit** y **Grit Color** juntos fijan lo ruidoso y lo brillante que es el desbaste.
+- Pon el MSEG en bucle ([modos de bucle](/wiki/es/exciters/envelopes/#modos-de-bucle)) para una máquina que late.
+
 ## Presets para probar
+
+- **Drones → Grinding Beam**
+- **Experimental → Heavy Grinding**: un preset sobre cada uno de los nueve objetos.
 
 ## Escúchalo
 

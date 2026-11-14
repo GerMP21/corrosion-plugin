@@ -6,21 +6,45 @@ covers: {"exciters": ["Electromagnetic Hum"]}
 ---
 
 import Clips from '../../../../components/Clips.astro';
-import Stub from '../../../../components/Stub.astro';
+import ModelControls from '../../../../components/ModelControls.astro';
+import Data from '../../../../components/Data.astro';
 
-<Stub />
+Una bobina alimentada por la red eléctrica que zumba contra el objeto: zumbidos, drones y chisporroteo eléctrico.
+
+**Pruébalo:** carga **Drones → Smokestack Hum**, mantén una nota y sube **Voltage Sag**.
 
 ## Qué es
 
+Un electroimán cerca del objeto tira de él a la frecuencia de la red. El objeto resuena a su propia altura mientras el zumbido lo mueve al ritmo de la red, y una alimentación inestable añade armónicos al zumbido.
+
 ## Cómo suena
+
+Constante, eléctrico y monótono: transformadores, amplificadores, salas de máquinas.
 
 ## Controles
 
+<ModelControls exciter="Electromagnetic Hum" />
+
+- **Mains Frequency:** la frecuencia del impulso, de <Data param="mains_frequency" field="range" /> Hz. Fija la altura base del zumbido.
+- **Coil Proximity:** lo cerca que está la bobina del objeto. Más alto acopla con más fuerza y suena más fuerte; en su mínimo el zumbido no llega al objeto.
+- **Voltage Sag:** la inestabilidad de la alimentación. Más alto añade armónicos zumbantes.
+
+Ni **Speed** ni **Roughness** le afectan.
+
 ## Combinaciones
+
+Sobre **Pipe** o **Industrial Cog** da un zumbido monótono; sobre **Plate** o **Sheet Metal**, un chisporroteo más brillante.
 
 ## Consejos
 
+- Prueba las frecuencias reales de la red, 50 o 60 Hz, para un zumbido eléctrico convincente.
+- **Voltage Sag** es el control de la aspereza.
+
 ## Presets para probar
+
+- **Drones → Smokestack Hum**
+- **Drones → Cog Hum Drone**
+- **Experimental → Electromagnetic Hum**: un preset sobre cada uno de los nueve objetos.
 
 ## Escúchalo
 

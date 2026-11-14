@@ -6,21 +6,43 @@ covers: {"exciters": ["Particle Rain"]}
 ---
 
 import Clips from '../../../components/Clips.astro';
-import Stub from '../../../components/Stub.astro';
+import ModelControls from '../../../components/ModelControls.astro';
 
-<Stub />
+Many small particles falling on the object: rain, sand and granular textures.
+
+**Try it:** load **Drones → Particle Rain Tank**, hold a note and sweep **Flow Rate**.
 
 ## What it is
 
+A stream of tiny particles falls on the object, each one a small impact. How many fall, how heavy they are and how much their weight varies set the texture.
+
 ## How it sounds
+
+Granular and pattering: rain on a roof, sand, gravel, a shaker held still.
 
 ## Controls
 
+<ModelControls exciter="Particle Rain" />
+
+- **Flow Rate:** how many particles fall per second. Higher gives a denser rain.
+- **Particle Mass:** the weight of each particle. Heavier particles hit harder.
+- **Mass Variance:** the variation in particle weight. Higher sounds more uneven; at 0 every particle is the same and the rain is quiet.
+
+**Speed** scales **Flow Rate** and **Roughness** scales **Mass Variance**.
+
 ## Pairings
+
+On **Tank** it sounds like rain on a tank; on **Plate** or **Sheet Metal**, like rain on a roof.
 
 ## Tips
 
+- A low **Flow Rate** gives separate drops; a high one, a steady wash.
+- The Junk Percussion Kit has a Particle Rain pad.
+
 ## Presets to try
+
+- **Drones → Particle Rain Tank**
+- **Experimental → Particle Rain**: one preset on each of the nine objects.
 
 ## Listen
 

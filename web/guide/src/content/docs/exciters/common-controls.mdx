@@ -4,12 +4,35 @@ sidebar:
   order: 1
 ---
 
-import Stub from '../../../components/Stub.astro';
+import Clips from '../../../components/Clips.astro';
+import Data from '../../../components/Data.astro';
 
-<Stub />
+Three knobs sit above every exciter's own controls: **Pressure**, **Speed** and **Roughness**. They scale the exciter's force, its motion and its grit, whatever the model. At their defaults they change nothing, so a preset sounds the same until you move them.
+
+**Try it:** load **Drones → Grinding Beam**, hold a note and turn **Pressure** up and down. The grinder bites harder and softer while the note plays.
 
 ## Pressure
 
+How hard the exciter presses on the object. It scales every exciter's force, from <Data param="exciter_pressure" field="min" /> to <Data param="exciter_pressure" field="max" />. Higher drives the object harder: louder and more strained.
+
+Pressure acts on held notes too, smoothed over about 10 ms, so you can play it like a swell. The drive governor still keeps the voice from overloading, so at the top of its travel a loud exciter gets denser rather than much louder.
+
+<Clips param="exciter_pressure" />
+
 ## Speed
 
+How fast the exciter moves across or against the object, from <Data param="exciter_speed" field="min" /> to <Data param="exciter_speed" field="max" /> of the model's own speed. It scales the motion controls: `Bow Speed`, `Scrape Speed`, `Grind Speed`, `Drag Speed`, `Pull Speed` and Particle Rain's `Flow Rate`. For Wire Brush and Metal Chain it shortens their spread in time instead, so a faster brush or chain lands sooner.
+
+Speed is read when a note starts; move it, then play the next note.
+
+It does nothing on exciters that have no motion to scale: Hand Strike, Felt Mallet, Hard Mallet, Drumstick, Metal Pipe, Pneumatic Jet, Electromagnetic Hum and Tension Snap.
+
+<Clips param="exciter_speed" />
+
 ## Roughness
+
+Irregularity of the contact, from <Data param="exciter_roughness" field="min" /> to <Data param="exciter_roughness" field="max" /> of the model's own grit. It scales the controls that add noise or randomness: `Rosin Grip`, `Amplitude Randomization`, `Internal Rattle`, `Surface Grit`, `Slip Stochasticity`, `Turbulence Chaos` and `Mass Variance`. At its minimum they go to their lowest setting.
+
+Like Speed, Roughness is read when a note starts. It does nothing on Hand Strike, Felt Mallet, Hard Mallet, Drumstick, Metal Pipe, Stiff Point Scrape, Corrugated Drag, Electromagnetic Hum and Tension Snap.
+
+<Clips param="exciter_roughness" />

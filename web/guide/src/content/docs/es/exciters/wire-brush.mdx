@@ -6,21 +6,44 @@ covers: {"exciters": ["Wire Brush"]}
 ---
 
 import Clips from '../../../../components/Clips.astro';
-import Stub from '../../../../components/Stub.astro';
+import ModelControls from '../../../../components/ModelControls.astro';
 
-<Stub />
+Un cepillo de alambres que cae sobre el objeto en unos pocos milisegundos: un barrido en lugar de un único golpe.
+
+**Pruébalo:** carga **Percussion → Brush Plate Swish** y sube **Spread Duration**: el barrido se estira.
 
 ## Qué es
 
+En lugar de un contacto, Wire Brush dispara una nube de impactos diminutos, uno por alambre, repartidos en poco tiempo, y luego los aclara como el borde erizado de un cepillo real. Es un excitador de tipo ruido: no hay dos golpes iguales.
+
 ## Cómo suena
+
+Suave, aireado y con textura: cajas con escobillas, charles, shakers y barridos. Sobre una placa suena a escobillas sobre una caja; sobre un cable, a un punteo rasposo.
 
 ## Controles
 
+<ModelControls exciter="Wire Brush" />
+
+- **Wire Density:** el número de alambres. Más alto da un barrido más denso y suave.
+- **Spread Duration:** lo que tardan en caer los alambres. Más alto convierte el golpe en un barrido, y lo hace más fuerte.
+- **Wire Stiffness:** más alto suena más brillante, más ceñido y más fuerte.
+- **Amplitude Randomization:** diferencias de nivel al azar entre alambres. Más alto suena más suelto y orgánico.
+
+**Speed** acorta la dispersión, así que el cepillo cae antes, y **Roughness** escala **Amplitude Randomization**.
+
 ## Combinaciones
+
+**Plate** y **Sheet Metal** dan cajas y charles con escobilla; **Taut Cable** y **Coil Spring**, texturas rasposas. Tres kits de fábrica lo usan para charles y cajas con escobilla.
 
 ## Consejos
 
+- Para un charles nítido, deja **Spread Duration** corto y **Wire Stiffness** alto.
+- Un **Spread Duration** largo con un **Release** largo da un barrido que funciona como efecto de sonido.
+
 ## Presets para probar
+
+- **Percussion → Brush Plate Swish**
+- **Experimental → Wire Brush**: un preset sobre cada uno de los nueve objetos.
 
 ## Escúchalo
 

@@ -6,21 +6,43 @@ covers: {"exciters": ["Metal Pipe"]}
 ---
 
 import Clips from '../../../../components/Clips.astro';
-import Stub from '../../../../components/Stub.astro';
+import ModelControls from '../../../../components/ModelControls.astro';
 
-<Stub />
+Un tubo usado como martillo: golpea el objeto y a la vez resuena él mismo, así que suenan juntos dos metales.
+
+**Pruébalo:** carga **Percussion → Beam Anvil** y toca la misma nota mientras mueves **Pipe Pitch**.
 
 ## Qué es
 
+Un tubo de metal rígido golpea el objeto. A diferencia de los demás golpes, el percutor tiene su propio pequeño conjunto de modos, así que también resuena: la fuerza del contacto mueve a la vez el objeto y el tubo. El resultado son dos metales acoplados, como un yunque golpeado con un martillo.
+
 ## Cómo suena
+
+Duro, metálico y estridente, con una resonancia extra sobre la del objeto. Va bien para yunques, boings, golpes de chatarra y punteos metálicos.
 
 ## Controles
 
+<ModelControls exciter="Metal Pipe" />
+
+- **Pipe Mass:** un tubo más pesado golpea más fuerte y más brillante.
+- **Metal Stiffness:** más alto da un golpe más duro y brillante.
+- **Pipe Pitch:** la afinación de la resonancia propia del tubo que golpea, que colorea el golpe.
+- **Pipe Ring Decay:** cuánto resuena el tubo que golpea.
+
 ## Combinaciones
+
+Sobre **I-Beam** da un yunque; sobre **Taut Cable**, un punteo metálico. Dos kits de fábrica lo usan para golpes metálicos y sonidos de cencerro.
 
 ## Consejos
 
+- Afina **Pipe Pitch** de oído contra la nota que tocas: unos valores resuenan con el objeto y otros contra él.
+- Sube **Metal Stiffness** para un golpe más brillante.
+
 ## Presets para probar
+
+- **Percussion → Beam Anvil**
+- **Lead → Metal Pipe Pluck**
+- **Experimental → Metal Pipe**: un preset sobre cada uno de los nueve objetos.
 
 ## Escúchalo
 

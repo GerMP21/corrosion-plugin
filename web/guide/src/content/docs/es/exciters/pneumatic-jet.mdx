@@ -6,21 +6,45 @@ covers: {"exciters": ["Pneumatic Jet"]}
 ---
 
 import Clips from '../../../../components/Clips.astro';
-import Stub from '../../../../components/Stub.astro';
+import ModelControls from '../../../../components/ModelControls.astro';
 
-<Stub />
+Un chorro de aire soplado sobre el objeto: tonos de flauta con aire y viento.
+
+**Pruébalo:** carga **Lead → Jet Pipe Flute** y toca una melodía; luego sube **Turbulence Chaos** para más aire.
 
 ## Qué es
 
+Un chorro de aire mueve el objeto con un flujo turbulento, como el aliento sobre una botella o una flauta. La fuerza del chorro crece con la presión y se estabiliza a presiones altas, así que las notas fuertes siguen sonando.
+
 ## Cómo suena
+
+Suave y con aire: flautas, viento, respiración y vapor. Sobre un tubo es el más parecido a un instrumento de los excitadores especiales.
 
 ## Controles
 
+<ModelControls exciter="Pneumatic Jet" />
+
+- **Air Pressure:** la presión del chorro. Más alto suena más fuerte y turbulento; en su mínimo el chorro apenas mueve el objeto.
+- **Nozzle Width:** la anchura de la boquilla. Más alto da un soplido más amplio y fuerte.
+- **Turbulence Chaos:** la inestabilidad del flujo. Más alto suena más áspero y caótico.
+
+**Roughness** escala **Turbulence Chaos**; **Speed** no le afecta.
+
 ## Combinaciones
+
+**Pipe** es su pareja natural, para flautas y drones de viento; **Tank** da una respiración hueca.
 
 ## Consejos
 
+- El ADSR da forma al soplo: un **Attack** más lento para una entrada suave.
+- Para viento en lugar de un tono, sube **Turbulence Chaos** y toca un objeto grande.
+
 ## Presets para probar
+
+- **Lead → Jet Pipe Flute**
+- **Drones → Pipe Wind Drone**
+- **Drones → Tank Breath**
+- **Experimental → Pneumatic Jet**: un preset sobre cada uno de los nueve objetos.
 
 ## Escúchalo
 
