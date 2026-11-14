@@ -14,7 +14,7 @@ export default defineConfig({
   trailingSlash: 'always',
   integrations: [
     starlight({
-      title: { en: 'Corrosion guide', es: 'Guía de Corrosion' },
+      title: { en: 'Corrosion Wiki', es: 'Wiki de Corrosion' },
       defaultLocale: 'root',
       locales: {
         root: { label: 'English', lang: 'en' },

@@ -161,3 +161,28 @@ test('a number from <Data> does not warn', () => {
   );
   assert.doesNotMatch(output, /warning: .*Filter Cutoff/);
 });
+
+test('two clip rows with one caption but different clips fail', () => {
+  const { status, output } = checkWith((dir) =>
+    edit(dir, 'exciters/envelopes.mdx', (t) =>
+      t.replace('<Clips param="mseg_release" />', '<Clips param="mseg_release" caption="Release" />'),
+    ),
+  );
+  assert.equal(status, 1);
+  assert.match(output, /envelopes\.mdx: two clip rows share the caption "Release"/);
+});
+
+test('the same clips twice on a page may share their caption', () => {
+  const { status } = checkWith((dir) =>
+    edit(dir, 'exciters/envelopes.mdx', (t) => `${t}\n<Clips param="env_attack" />\n`),
+  );
+  assert.equal(status, 0);
+});
+
+test('a clip row with an empty caption fails', () => {
+  const { status, output } = checkWith((dir) =>
+    edit(dir, 'exciters/envelopes.mdx', (t) => t.replace('<Clips param="mseg_onset" />', '<Clips set="nothing-here" />')),
+  );
+  assert.equal(status, 1);
+  assert.match(output, /envelopes\.mdx: the clip row set:nothing-here has no caption/);
+});

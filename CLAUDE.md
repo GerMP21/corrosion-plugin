@@ -12,6 +12,10 @@ Corrosion is a physical-modeling instrument plugin (VST3 + CLAP, Rust, nih-plug,
 - **PRs** go from `dev` into `main`, and only when the maintainer asks for one.
 - **After a PR merges**, bring `dev` up to date with `main` (`git fetch origin && git merge --ff-only origin/main`, then push) before any new work.
 
+## ⚠️ The Wiki follows the plugin, ALWAYS
+
+**Any change to how the plugin works or sounds MUST be recorded in the Corrosion Wiki (`/wiki/`, `web/guide/`) in the same change, in English and Spanish.** A control that acts differently, a new or removed behaviour, a new model or mode, a fixed surprise, a changed default or range: update every Wiki page that describes it (and Troubleshooting when it surprises people) before the change is closed. No change is done while the Wiki says something the plugin no longer does. The mechanics (data export, clips, screenshots, style) are in "User guide data and clips" and "Wiki writing style" below.
+
 ## Working with the maintainer
 
 - **Talk to the maintainer in Spanish.** Code, comments, docs, commit messages and PR descriptions are in English.
@@ -33,7 +37,7 @@ The factory bank (214 presets in folders under `presets/factory/`: 204 plus 10 d
 
 ## User guide data and clips
 
-The guide at `/wiki/` (`web/guide/`, `add-user-guide`) is partly generated from the plugin, like the factory bank:
+The Corrosion Wiki at `/wiki/` (`web/guide/`, `add-user-guide`; readers see it as "Corrosion Wiki" / "Wiki de Corrosion", the code keeps the `guide` names) is partly generated from the plugin, like the factory bank:
 - **After changing a parameter** (range, default, name, unit), a control's label or ⓘ text, a model, a mode or the factory bank: `cargo run --bin export_guide_data`, then add or fix the parameter's Spanish entry in `web/guide/src/data/parameters.es.json`. `guide_data_equals_the_files_on_disk` and `npm run check` (in `web/guide/`) fail until then.
 - **After a change that moves the sound engine-wide** (the trigger that reseeds presets) or a change to `src/guide/clip_plan.rs`: `scripts/build-guide-clips.sh` (needs `opusenc`), and say in the close-out that the clips were regenerated. The fingerprint test only sees plan changes, not engine changes.
 - A new parameter needs a clip plan entry or an exclusion with a reason (`guide_clip_plan_covers_every_parameter`); a minimum that renders silent needs a `QUIET` reason or a fix.
@@ -73,9 +77,19 @@ The work follows the code review in `FABLE-CODE-REVIEW-2026-07-07.md`. Each fixe
 - Bow: Slip Curve shapes the sliding grip. Real stick-slip broke the bowed chords and is in the backlog.
 - Numbers in its `design.md`; guide clips regenerated. |
 | Guide content (maintainer request) | `write-user-guide-content` written (2026-11-14): every page of the guide in English and Spanish, no placeholder left (CI runs the check with `--complete`), in the voice of the new `guide-writing-style` spec (see "Wiki writing style"); the pages written before the spec were restyled. 10 recipes with before and after clips (`RECIPES`). **Waiting on the maintainer:** approving the Spanish pages (task 3.1, the review table in its `design.md`) and listening to the recipe clips. The three English model and tooltip texts flagged in the task 2.10 notes (Bow, Corrugated Drag, Rosin Grip) are fixed. Then close-out (3.4) and archive |
+| Wiki refinements (maintainer request) | `refine-wiki-naming-and-clips` done (2026-11-14), to archive after `add-user-guide` and `write-user-guide-content` (its requirements add to their capabilities).
+- Every clip row has a caption: the control's label, or its unique host name when two parameters share a label (MSEG Attack vs Attack). Each parameter button states its value, choices by name. `src/lib/clip-labels.mjs` is shared by `<Clips>` and `npm run check`, which fails on an uncaptioned or ambiguous row.
+- The ADSR section has its Attack and Release rows.
+- Readers see "Corrosion Wiki" / "Wiki de Corrosion" (site, app, 404, pages); code names stay `guide`.
+- Header links read Home / Play.
+- A note that one-control clips sound alike and combinations make the character.
+- Moving presets between the web app and the plugin is documented.
+- The "Wiki follows the plugin" rule is at the top of this file.
+
+No clips regenerated. **Next:** `add-preset-import-export` (proposed), which replaces the manual transfer section. |
 | Backlog | `docs/BACKLOG.md`, open items only (2026-11-14): Release Snap, real Bow stick-slip, Env Amount, Gesture Modifiers, default-patch decay, MSEG PingPong, web canvas DPR, browser name; deferred features (mod matrix, sequencer, effect mode, output meter); DAW smoke automation, visual GUI tests, benchmark baselines |
 
-**Archived:** `h01`–`h14`, `resolve-exciter-tradeoffs` and `stabilize-mallet-and-grinding-contact` (2026-11-08); `m03-m20-start-at-host-rate-and-report-latency`, `m13-sustain-pedal-and-panic`, `m07-m08-interpolate-echo-and-tidy-spread`, `m06-m09-smooth-starvation-and-oversample-clipper` and `fix-rust-damage-heat-response` (2026-11-09); `m01-m04-m05-clarify-parameters`, `block-voice-mix-dc`, `add-asymmetric-diode-stage`, `add-parameter-tooltips`, `m12-per-note-expression`, `m10-m18-tidy-dead-code-and-docs`, `add-editor-keyboard`, `reorganize-factory-presets`, `fix-pneumatic-jet-saturation` and `per-key-kits` (2026-11-10). They are in `openspec/changes/archive/`, and their delta specs are synced into `openspec/specs/` (31 capabilities; `voice-mix-dc`, `diode-stage`, `host-parameters`, `note-expression`, `editor-keyboard` and `factory-preset-bank` new on 2026-11-10). **Pending from the diode stage:** the maintainer judges the knee by ear and may adjust the Softness/Asymmetry defaults (a small follow-up change if so). Every review finding's change is archived. **Active:** `extend-ci-windows-linux-macos`, `add-web-app`, `add-site-shell`, `add-user-guide` and `fix-inert-controls` (done, to archive; CI run times in extend-ci's `design.md`, and `no_alloc` now runs on Windows too, with `the_checker_is_armed` proving the checker is installed), `write-user-guide-content` (written, waiting on the maintainer's Spanish review). A new change syncs its specs on archive as usual (`/opsx:archive`).
+**Archived:** `h01`–`h14`, `resolve-exciter-tradeoffs` and `stabilize-mallet-and-grinding-contact` (2026-11-08); `m03-m20-start-at-host-rate-and-report-latency`, `m13-sustain-pedal-and-panic`, `m07-m08-interpolate-echo-and-tidy-spread`, `m06-m09-smooth-starvation-and-oversample-clipper` and `fix-rust-damage-heat-response` (2026-11-09); `m01-m04-m05-clarify-parameters`, `block-voice-mix-dc`, `add-asymmetric-diode-stage`, `add-parameter-tooltips`, `m12-per-note-expression`, `m10-m18-tidy-dead-code-and-docs`, `add-editor-keyboard`, `reorganize-factory-presets`, `fix-pneumatic-jet-saturation` and `per-key-kits` (2026-11-10). They are in `openspec/changes/archive/`, and their delta specs are synced into `openspec/specs/` (31 capabilities; `voice-mix-dc`, `diode-stage`, `host-parameters`, `note-expression`, `editor-keyboard` and `factory-preset-bank` new on 2026-11-10). **Pending from the diode stage:** the maintainer judges the knee by ear and may adjust the Softness/Asymmetry defaults (a small follow-up change if so). Every review finding's change is archived. **Active:** `extend-ci-windows-linux-macos`, `add-web-app`, `add-site-shell`, `add-user-guide` and `fix-inert-controls` (done, to archive; CI run times in extend-ci's `design.md`, and `no_alloc` now runs on Windows too, with `the_checker_is_armed` proving the checker is installed), `write-user-guide-content` (written, waiting on the maintainer's Spanish review), `refine-wiki-naming-and-clips` (done, to archive), `add-preset-import-export` (proposed). A new change syncs its specs on archive as usual (`/opsx:archive`).
 
 ### Execution order for the M changes (and two feature changes)
 

@@ -14,6 +14,27 @@ Each preset is one `.corrosion-preset` file in JSON, a plain text format. It sto
 
 You can edit one by hand if you're careful, but there's rarely a reason to: anything you can set in the editor, you can save from it. A value out of range is clamped to the nearest valid one when the preset loads.
 
+## Between the web app and the plugin
+
+The plugin has no Import button yet, but moving a preset across takes a minute, because both sides use the same files.
+
+**From the web app to the plugin:**
+
+1. In the web app, click **Download preset**, give it a name, and the browser saves a `.corrosion-preset` file, usually in your Downloads folder.
+2. In the plugin, click **Open folder** in the **PRESET BANK** box. It opens your preset folder, and creates it if this is your first preset.
+3. Move or copy the file into that folder, or into one of its subfolders.
+4. Open the preset menu in the plugin. The menu looks at the folder again each time it opens, so the preset is already there, under **User**.
+
+If you'd rather find the folder yourself, it's here:
+
+- **Windows:** `%APPDATA%\Corrosion\Presets`
+- **macOS:** `~/Library/Application Support/Corrosion/Presets`
+- **Linux:** `~/.local/share/corrosion/presets` (or `$XDG_DATA_HOME/corrosion/presets` if you've set it)
+
+**From the plugin to the web app:** click **Open folder** in the plugin to find the file, then in the web app click **Open preset…** and pick it. It loads, and the web app keeps it with your browser presets.
+
+If a copied preset doesn't show up, see [Troubleshooting](/wiki/troubleshooting/#missing-presets).
+
 ## Older presets
 
 Corrosion keeps loading presets made by older versions, and makes them sound as they did, even where a control has changed meaning since:

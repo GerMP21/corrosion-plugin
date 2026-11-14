@@ -38,5 +38,13 @@
   "guide.clips.with": "With {{name}}",
   "guide.clips.preset": "Preset: {{name}}",
   "guide.clips.before": "Before",
-  "guide.clips.after": "After"
+  "guide.clips.after": "After",
+  "guide.clips.caption.exciter": "{{name}}, on {{object}}",
+  "guide.clips.caption.exciters": "All exciters, on {{object}}",
+  "guide.clips.caption.object": "{{name}}, with {{exciter}}",
+  "guide.clips.caption.objects": "All objects, with {{exciter}}",
+  "guide.clips.caption.preset": "Factory preset",
+  "guide.clips.caption.recipe": "{{name}}: before and after",
+  "guide.clips.caption.kits": "Drum kits",
+  "guide.clips.value": "{{name}}: {{value}}"
 }

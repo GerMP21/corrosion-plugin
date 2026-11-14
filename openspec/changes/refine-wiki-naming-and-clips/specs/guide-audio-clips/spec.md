@@ -4,7 +4,7 @@
 
 ### Requirement: Every clip row says what it plays
 Every row of clip buttons in the Wiki SHALL start with a visible caption, in the page's language, that names what the row plays:
-- **A parameter row:** the control's label as the editor shows it. A parameter with no editor control uses its host name.
+- **A parameter row:** the control's label as the editor shows it. A parameter with no single editor label, or whose label another parameter also shows, uses its host name (host names are unique).
 - **One item of a set:** the item and what it is compared on. For example, "Bow, on Tank" or "Pipe, with Felt Mallet".
 - **A factory preset row:** that it plays a factory preset.
 - **A recipe row:** that it plays the recipe before and after.
@@ -14,7 +14,7 @@ A row's caption SHALL be distinct from the captions of the other clip rows on it
 
 #### Scenario: Envelope rows
 - **WHEN** a reader opens the envelope page
-- **THEN** the three MSEG rows read "Onset", "Attack" and "Release" before their buttons, and no two rows on the page share a caption
+- **THEN** the three MSEG rows read "Onset", "MSEG Attack" and "MSEG Release" before their buttons, the struck and ADSR rows read "Attack" and "Release", and no two rows that play different clips share a caption
 
 #### Scenario: Spanish page
 - **WHEN** a reader opens the same page in Spanish
