@@ -263,8 +263,66 @@ Kept, because the measurement agrees:
 ### Found, not fixed: Bow and Drumstick (2026-11-14)
 
 - **Bow (Slip Curve).** The bow never sticks. The resonator moves at most 0.0007 against a bow speed of 0.94, and the relative speed never drops under 0.094, above the Stribeck width (0.02). So the friction sits on its sliding branch and Slip Curve, which only shapes the sticking side, does nothing.
-- **Drumstick (Restitution Bounciness, Micro Bounce Limit).** Every sample on the way out of one contact counts as a bounce, and it flips the stick back in. The limit is used up within about 4 consecutive samples; the stick never flies and comes back.
+- **Drumstick (Restitution Bounciness, Micro Bounce Limit).** *Fixed by the re-strikes above.* Every sample on the way out of one contact counts as a bounce, and it flips the stick back in. The limit is used up within about 4 consecutive samples; the stick never flies and comes back.
 - **Both** need a change to the model that moves the default sound, and so every manual Bow and Drumstick preset (Drumstick: pads in all 10 kits). They wait for the maintainer.
+
+### Task 2.3: Drumstick re-strikes (2026-11-14)
+
+The maintainer chose scheduled re-strikes after two physical attempts failed:
+
+- **Free rebounds** dropped 29 pads and 3–4 manual presets 6–17 dB under the target and broke the hi-hat character in 5 kits.
+- **A hybrid** let the stick fall back onto the surface every few milliseconds, which damped the plate (−70 dB at 100 ms).
+
+**As built.** The first contact and its micro-bounces are unchanged. When they end, the stick comes back Micro Bounce Limit − 1 times:
+
+- The first flight is 40 ms × Restitution Bounciness. Each later flight shortens by that factor again, like a dropped stick's.
+- Each re-strike is a real Hertzian contact, solved like the first. It lands on the surface at its scheduled frame, at Restitution Bounciness^k of the strike speed, and ends as soon as the stick turns back or the surface leaves it.
+
+Two tries before this one didn't hold:
+
+- **An open-loop half-sine pulse** worth the first contact's impulse raised the pre-clamp peaks 1.5–1.7× (Plate C4 0.231 → 0.386). It pushed the overdrive median to 0.71 at half the impulse.
+- **A stick started 0.002 above the surface** chased a surface moving away. At 96 kHz, velocity 127, the third re-strike landed 3.9 ms late, and the note was +4.3 dB louder than at 48 kHz (`every_exciter_has_the_same_level_at_any_sample_rate` failed by +1.63 dB). Landing on schedule gives −21.30 / −21.35 dB.
+
+| Measure | Before | After |
+|---|---|---|
+| Restitution Bounciness: level / ring / bands / width / envelope | 0.00 dB / 0 % / 0.07 / 0.03 / 0.02 | 0.98 dB / 7 % / 0.86 / 5.99 / 2.26 |
+| Micro Bounce Limit | inert | 3.12 dB / 17 % / 2.03 / 4.81 / 4.56 |
+| Separate bounces (gap > 20 samples), Plate C4, limit 2 / 8 | — | 1 / 7 |
+| Overdrive median, drive level 9.2944e-01 (unchanged) | 0.3459 | 0.3459 |
+| `every_exciter_has_the_same_level_at_any_sample_rate`, vel 127 Pipe C4, 48 / 96 kHz | — | −21.30 / −21.35 dB |
+
+**Manual presets.** No change was made to them, and all pass:
+
+| Preset | Level change |
+|---|---|
+| Rusted Beam Knock | −0.7 dB |
+| Cog Tick | −0.5 dB |
+| Driven Pipe Lead | −0.3 dB |
+| Echo Cable Pluck | −0.3 dB |
+| Plate Snare Crack | −0.3 dB |
+
+**Kit pads.** The Drumstick cymbals and hats dropped. Rail Yard 46 fell −8.1 dB, failing the ±6 dB floor. The maintainer chose to re-level, by `PAD_LEVELS` gain only, the 12 pads that moved more than 1 dB:
+
+| Kit | Pad | Moved | Pad level |
+|---|---|---|---|
+| Foundry | 51 | −1.3 dB | 34.3 → 35.6 |
+| Scrapyard | 51 | −2.0 dB | 35.5 → 37.5 |
+| Pipe | 37 | −1.7 dB | 14.2 → 15.9 |
+| Pipe | 46 | −2.2 dB | 23.8 → 26.0 |
+| Pipe | 51 | −1.5 dB | 22.0 → 23.5 |
+| Boiler Room | 51 | −1.6 dB | 33.3 → 34.9 |
+| Rail Yard | 46 | −8.1 dB | 22.3 → 30.4 |
+| Rail Yard | 51 | −3.8 dB | 20.2 → 24.0 |
+| Wire | 51 | −5.8 dB | 26.1 → 31.9 |
+| Sheet Storm | 46 | −5.0 dB | 31.1 → 36.1 |
+| Clockwork | 37 | −4.7 dB | 4.8 → 9.5 |
+| Clockwork | 51 | −2.0 dB | 39.2 → 41.2 |
+
+After the re-level every pad is within 2.1 dB of the target, and the kits' character checks pass.
+
+**Experimental.** `drumstick/i_beam` was re-levelled: Output 1.081 → 2.211, from −6.2 dB.
+
+**Tests changed.** `struck_attack_timing_does_not_depend_on_sample_rate` now looks for the attack's peak within the first 20 ms. A re-strike can ring the pipe as loud as the first contact, and the winner of that near-tie moved with the rate (25.7 vs 11.0 ms).
 
 ## Goals / Non-Goals
 

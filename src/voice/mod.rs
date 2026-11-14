@@ -2874,9 +2874,14 @@ mod tests {
 
     #[test]
     fn struck_attack_timing_does_not_depend_on_sample_rate() {
+        // The attack's peak, within the first 20 ms: Drumstick's re-strikes
+        // (from 22 ms at the default Restitution Bounciness) can ring the
+        // pipe as loud as the first contact did, and which one wins is a
+        // near-tie that moves with the sample rate (`fix-inert-controls`).
         let time_to_peak = |exciter: i32, sample_rate: u32| {
             let out = render_pipe_note(exciter, sample_rate, 0.5, 0.0);
-            let peak = out
+            let attack = sample_rate as usize / 50;
+            let peak = out[..attack]
                 .iter()
                 .enumerate()
                 .max_by(|a, b| a.1.abs().total_cmp(&b.1.abs()))
@@ -4480,6 +4485,61 @@ mod contact_control_tests {
             10,
             |c, v| c.grind_pressure = v,
             (0.1, 1.9),
+        );
+    }
+
+    #[test]
+    fn restitution_shapes_the_drumstick_bounces() {
+        assert_acts(
+            "Restitution Bounciness",
+            5,
+            |c, v| c.restitution_bounciness = v,
+            (0.2, 0.9),
+        );
+    }
+
+    /// Bounces of a Drumstick note on a plate that come after a flight of
+    /// more than 20 samples, at `limit`. The micro-bounces inside the first
+    /// contact come a sample apart; the re-strikes' flights shorten by
+    /// Restitution Bounciness each time, like a dropped stick's.
+    fn separate_bounces(limit: f32) -> usize {
+        let mut voice = Voice::new();
+        let controls = VoiceControls {
+            micro_bounce_limit: limit,
+            ..VoiceControls::default()
+        };
+        voice.note_on_with_controls(
+            60,
+            100.0,
+            ModalProfileId::Plate,
+            0,
+            1.0,
+            0.0,
+            0.0,
+            5,
+            controls,
+        );
+        let (mut count, mut last, mut separate) = (0, 0usize, 0);
+        for i in 0..24_000 {
+            voice.process_sample(48_000);
+            let now = voice.drumstick.bounce_count();
+            if now > count {
+                if count > 0 && i - last > 20 {
+                    separate += 1;
+                }
+                count = now;
+                last = i;
+            }
+        }
+        separate
+    }
+
+    #[test]
+    fn micro_bounce_limit_sets_how_often_the_stick_comes_back() {
+        let (few, many) = (separate_bounces(2.0), separate_bounces(8.0));
+        assert!(
+            many >= 4 && many > few,
+            "bounces after a flight: limit 2 {few}, limit 8 {many}"
         );
     }
 
