@@ -49,6 +49,20 @@ Each item notes the relevant file(s) and an acceptance check.
   `src/dsp/envelopes/mod.rs`). *Accept:* PingPong runs forward then backward
   between Loop Start and Loop End, with a test; or the mode is removed with a
   preset and host migration.
+- [ ] **[PARTIAL] The web editor's canvas is cut off at a device pixel ratio
+  above 1.** `web/editor/src/lib.rs` sets the canvas's CSS height to
+  `content_height() * zoom_factor()`, which is right only at a ratio of 1: at
+  1.5 the 1280 px editor's canvas is 939 px tall instead of 1408, at 2 it is
+  705 px, so the bottom panels and the keyboard are cut off and the text is
+  blurry (HiDPI laptops, phones). Found while capturing the guide's
+  screenshots (`write-user-guide-content`, which shoots at a ratio of 1).
+  *Accept:* at ratios 1, 1.5 and 2 the whole editor shows, sharp, with a test
+  or a Playwright check per ratio.
+- [ ] **[VERIFY] The preset browser names a preset the editor hasn't loaded.**
+  At startup the header shows "Bass / Bowed Cable Sub"
+  (`selected_factory_preset: 0`, `src/gui/editor.rs`) while the default patch
+  plays. *Accept:* the header shows the default patch (e.g. "Init") until a
+  preset is loaded, and a restored project shows its own name or none.
 
 ## Features (deferred)
 
