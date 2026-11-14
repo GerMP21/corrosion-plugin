@@ -954,7 +954,7 @@ pub(crate) fn help_for(label: &str) -> &'static str {
         "speed" => "How fast the exciter moves across or against the object. Higher sounds brighter and more agitated.",
         "roughness" => "Irregularity of the contact. Higher adds grit, noise and jitter to the excitation.",
         // Hand strike
-        "hand mass" => "Weight of the striking hand. Heavier hands push more low end into the object.",
+        "hand mass" => "Weight of the striking hand. Heavier hands hit louder and brighter.",
         "flesh stiffness" => "Stiffness of the hand's flesh at contact. Higher throws the hand back off the metal: a shorter, lighter slap.",
         "flesh damping" => "How hard the flesh pushes back while it moves. Higher hits harder and brighter.",
         "mute decay" => "How long the hand rests on the object after the strike. Higher keeps it there longer, muting the ring sooner.",
@@ -975,7 +975,7 @@ pub(crate) fn help_for(label: &str) -> &'static str {
         "wire stiffness" => "Stiffness of the wires (brush wires or spring coils, by model). Higher sounds brighter and tighter.",
         "amplitude randomization" => "Random level variation between wires or hits. Higher sounds looser and more organic.",
         // Pipe, chain
-        "pipe mass" => "Weight of the striking pipe. Heavier pipes hit harder and darker.",
+        "pipe mass" => "Weight of the striking pipe. Heavier pipes hit louder and brighter.",
         "metal stiffness" => "Stiffness of the striking metal. Higher gives a harder, brighter clang.",
         "pipe pitch" => "Tuning of the striking pipe's own ring. Higher raises its overtone.",
         "pipe ring decay" => "How long the striking pipe's own ring lasts. Higher adds a longer metallic tail to each hit.",
@@ -992,7 +992,7 @@ pub(crate) fn help_for(label: &str) -> &'static str {
         // Scrape, grind, drag
         "scrape speed" => "How fast the point scrapes along the surface. Higher raises the chatter's pitch and density.",
         "point pressure" => "How hard the point presses into the surface. Higher is louder and harsher.",
-        "chatter pitch" => "Pitch of the stick-slip chatter. Higher sounds squealier.",
+        "chatter pitch" => "Tuning of the point's chatter, which colors the scrape. Higher sounds darker and softer.",
         "chatter damping" => "How quickly each chatter burst dies away. Higher sounds drier and tighter.",
         "grind speed" => "Speed of the grinding wheel. Higher gives a brighter, denser roar.",
         "grind pressure" => "How hard the grinder presses on the object. Higher is louder and more aggressive.",

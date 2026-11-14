@@ -84,7 +84,7 @@
   },
   "chatter_pitch": {
     "slots": {
-      "Stiff Point Scrape": "Altura del chirrido del stick-slip. Más alto suena más chillón."
+      "Stiff Point Scrape": "Afinación del traqueteo de la punta, que colorea el raspado. Más alto suena más oscuro y suave."
     }
   },
   "cog_dissonance": {
@@ -250,7 +250,7 @@
   },
   "hand_mass": {
     "slots": {
-      "Hand Strike": "Peso de la mano que golpea. Una mano más pesada lleva más graves al objeto."
+      "Hand Strike": "Peso de la mano que golpea. Una mano más pesada golpea más fuerte y más brillante."
     }
   },
   "heat": {
@@ -409,7 +409,7 @@
   },
   "pipe_mass": {
     "slots": {
-      "Metal Pipe": "Peso del tubo que golpea. Un tubo más pesado golpea más fuerte y más oscuro."
+      "Metal Pipe": "Peso del tubo que golpea. Un tubo más pesado golpea más fuerte y más brillante."
     }
   },
   "pipe_pitch": {

@@ -506,7 +506,7 @@
       "slots": [
         {
           "group": "Hand strike physics",
-          "help": "Weight of the striking hand. Heavier hands push more low end into the object.",
+          "help": "Weight of the striking hand. Heavier hands hit louder and brighter.",
           "label": "Hand Mass",
           "max": "3",
           "min": "0.4",
@@ -892,7 +892,7 @@
       "slots": [
         {
           "group": "Metal pipe coupling",
-          "help": "Weight of the striking pipe. Heavier pipes hit harder and darker.",
+          "help": "Weight of the striking pipe. Heavier pipes hit louder and brighter.",
           "label": "Pipe Mass",
           "max": "2.6",
           "min": "0.4",
@@ -1207,7 +1207,7 @@
       "slots": [
         {
           "group": "Stiff point chatter",
-          "help": "Pitch of the stick-slip chatter. Higher sounds squealier.",
+          "help": "Tuning of the point's chatter, which colors the scrape. Higher sounds darker and softer.",
           "label": "Chatter Pitch",
           "max": "1.5",
           "min": "0.1",
