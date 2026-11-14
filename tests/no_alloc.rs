@@ -445,3 +445,37 @@ fn pad_note_ons_are_alloc_free_while_pads_are_assigned() {
     stop.store(true, Ordering::Relaxed);
     writer.join().unwrap();
 }
+
+/// Allocates inside `assert_no_alloc` on purpose. Run only as a child
+/// process by `the_checker_is_armed`, since the checker aborts the process.
+#[test]
+#[ignore = "aborts the process by design; run by the_checker_is_armed"]
+fn allocation_aborts_under_the_checker() {
+    assert_no_alloc(|| {
+        let v: Vec<u64> = Vec::with_capacity(64);
+        std::hint::black_box(v);
+    });
+}
+
+/// Proves the checking allocator is installed on this platform: the
+/// deliberate allocation above must kill its process. Without it every
+/// other test here would pass vacuously.
+#[test]
+fn the_checker_is_armed() {
+    let exe = std::env::current_exe().expect("test binary path");
+    let status = std::process::Command::new(exe)
+        .args([
+            "allocation_aborts_under_the_checker",
+            "--exact",
+            "--ignored",
+            "--test-threads=1",
+        ])
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .status()
+        .expect("run the test binary");
+    assert!(
+        !status.success(),
+        "an allocation under assert_no_alloc did not abort: the checking allocator is not installed"
+    );
+}

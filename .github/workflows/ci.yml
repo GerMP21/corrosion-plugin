@@ -107,18 +107,18 @@ jobs:
       - name: Test library with the GUI (default features)
         run: cargo test --lib --target ${{ matrix.native }}
 
-      # Debug only: the checking allocator doesn't exist in release. Not on
-      # Windows, where Cargo.toml leaves nih-plug's assert_process_allocs off.
+      # Debug only: the checking allocator doesn't exist in release.
+      # `the_checker_is_armed` proves it is installed on each platform.
       - name: Real-time safety (no_alloc)
         if: runner.os != 'Windows'
         run: cargo test --no-default-features --test no_alloc --target ${{ matrix.native }}
 
-      # Trial (extend-ci-windows-linux-macos 3.1): does the checking allocator
-      # still hang on MSVC? The feature is turned on for this step only, with
-      # a timeout, and a failure doesn't fail the job.
-      - name: Real-time safety (no_alloc) trial on Windows
+      # Cargo.toml leaves nih-plug's assert_process_allocs off on Windows (it
+      # once hung nih-plug's test setup there), so this step turns it on for
+      # no_alloc alone. It passed on MSVC on 2026-11-14; the timeout guards
+      # against the old hang.
+      - name: Real-time safety (no_alloc, Windows)
         if: runner.os == 'Windows'
-        continue-on-error: true
         timeout-minutes: 10
         run: cargo test --no-default-features --features nih-plug/assert_process_allocs --test no_alloc --target ${{ matrix.native }}
 
