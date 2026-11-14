@@ -2,18 +2,55 @@
 title: "Solución de problemas"
 ---
 
-import Stub from '../../../components/Stub.astro';
+¿Algo suena mal, o no suena? Casi todas las sorpresas de Corrosion tienen una causa sencilla, y varias son la física haciendo justo lo que debe. Empieza por el apartado que corresponda a lo que oyes.
 
-<Stub />
+**Pruébalo:** si estás perdido, carga cualquier preset de **Bass** y toca C2. Si suena, el problema está en el patch, no en tu configuración.
 
 ## No suena
 
+- **No llega MIDI al plugin.** Comprueba que la pista está armada o con monitorización y que el DAW muestra las notas entrantes. En la app web, pulsa antes **Start audio**.
+- **OUTPUT abajo del todo.** En su mínimo está en silencio. Vuelve a ponerlo en 0 dB.
+- **Modo Kit con una tecla vacía.** En **Kit** solo suenan las teclas con pad. Prueba de C2 a B3, o cambia **NOTE MODE** a **Tonal**.
+- **Un preset de fricción que se ha quedado mudo.** Mira **Env Amount** en los Gesture Modifiers: en 0 los excitadores de fricción (Bow y los raspadores) no suenan nada, porque su fuerza es la envolvente multiplicada por esa cantidad. Vuelve a subirlo.
+- **Un toque muy corto en un sonido con arco.** Un arco necesita un momento para agarrar el metal. Mantén la tecla.
+
 ## Notas colgadas
+
+- **Una nota que suena varios segundos puede no estar colgada.** Los golpes en Pipe, I-Beam y Taut Cable suenan así de largo por naturaleza. Añade **Rust** o **Sludge**, o sube la amortiguación del objeto, para una cola más corta.
+- **El modo Drone** mantiene las notas de fricción hasta que sueltas la tecla. Si tu DAW perdió un note-off, el drone sigue sonando.
+- **El pedal de sustain** mantiene las notas soltadas hasta que se levanta; un pedal atascado en el DAW lo mantiene todo.
+- **Para pararlo todo,** usa el botón de pánico o de stop de tu DAW (envía All Sound Off), o envía CC120. Corrosion lleva todo al silencio en 5 ms.
 
 ## CPU alta
 
+- Cambia **MODE** a **Eco** mientras trabajas, y vuelve a **Render** para exportar. Cargar un preset vuelve a poner **Normal**.
+- Las notas de resonancia larga mantienen ocupadas las voces. Menos notas superpuestas, o una resonancia más corta, liberan CPU.
+- En la app web todo va en un solo núcleo: los presets más pesados con muchas notas pueden ser demasiado para un ordenador lento.
+
+Consulta [Calidad y CPU](/wiki/es/quality/) para más detalles.
+
 ## El tamaño de la ventana
+
+**SCALE**, en la cabecera, fija la ventana entre el 50 % y el 150 %. Si el editor no cabe en tu pantalla, bájala; los paneles se desplazan y el teclado de piano se queda abajo. La escala se guarda con el proyecto, no con los presets. Consulta [Escala de la interfaz](/wiki/es/ui-scale/).
 
 ## Un release muy fuerte
 
+Mantienes una nota con arco, raspada o arrastrada, la sueltas, y la cola salta **más fuerte** de lo que sonaba la nota. Es el **chasquido al soltar**, y es física de verdad: un excitador de fricción mantiene el objeto un poco fuera de su forma de reposo, y cuando lo suelta de golpe el objeto vuelve de un salto y resuena. En algunos patches el chasquido suena mucho más fuerte que la nota sostenida: Corrugated Drag sobre una Plate dio unos 15 dB.
+
+Hay a quien le encanta. Para domarlo:
+
+1. Alarga el **Release** del MSEG, para que el excitador suelte poco a poco. Medio segundo basta en muchos patches; algunos necesitan 2 s (consulta la [receta](/wiki/es/recipes/#domar-una-suelta-fuerte)).
+2. O toca la nota en **Drone** con un Release largo, para un drone que se desvanece en lugar de chasquear.
+
+## Los proyectos antiguos suenan distinto
+
+- **La automatización de Output o de Softness** grabada con una versión anterior suena con otros valores. Output está ahora en dB, y Diode Softness da forma ahora a una rodilla de verdad. Vuelve a grabar esas pistas. Consulta [Proyectos de DAW](/wiki/es/presets/daw-projects/#cambios-en-la-automatización).
+- **Un preset o proyecto de Kit antiguo suena ahora en Tonal.** El modo Kit antiguo, que asignaba objetos a las teclas, ya no existe; esos presets y proyectos se cargan en **Tonal**. Crea un kit nuevo con [Assign](/wiki/es/note-modes/kit/#assign-y-clear).
+
+Los presets y proyectos se convierten al cargarse, así que conservan su sonido; solo la automatización grabada no se puede convertir.
+
 ## Presets que no aparecen
+
+- **Tus presets de usuario** están en tu carpeta de presets: **Open folder**, en el recuadro **PRESET BANK**, te la muestra. Un preset copiado en una subcarpeta aparece en el submenú correspondiente bajo **User**.
+- **En la app web,** los presets viven en el navegador en el que los guardaste, en ese ordenador. Borrar los datos del sitio los elimina.
+- **Presets de la antigua dirección de preview.** Los presets y sesiones del navegador guardados en `preview.corrosion-vst.org` se quedan con esa dirección. Ahora redirige a `corrosion-vst.org/play/`, pero el navegador no puede mover su almacenamiento. Si todavía los tienes, ábrelos allí y usa **Download preset** antes de que sea tarde, y luego **Open preset…** en la dirección nueva.

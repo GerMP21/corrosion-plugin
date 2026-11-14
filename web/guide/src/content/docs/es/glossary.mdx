@@ -2,8 +2,120 @@
 title: "Glosario"
 ---
 
-import Stub from '../../../components/Stub.astro';
+Las palabras que usa esta guía, en lenguaje llano. Si una página usa un término que no conoces, probablemente esté aquí.
 
-<Stub />
+**Pruébalo:** échale un vistazo a la lista una vez. La mitad los reconocerás de otros sintetizadores; la otra mitad es donde el modelado físico se pone interesante.
 
 ## Términos
+
+### Acoplamiento
+
+Lo firme que se empujan el excitador y el objeto. Lo fija **Coupling** en Mechanical Linkage.
+
+### Aliasing
+
+Chisporroteo áspero e inarmónico que aparece cuando un proceso como el recorte crea frecuencias demasiado altas para la frecuencia de muestreo, que se reflejan hacia el rango audible. El sobremuestreo lo reduce.
+
+### Amortiguación
+
+Lo rápido que pierde energía un modo. Más amortiguación significa una resonancia más corta.
+
+### Armónico
+
+Parciales en múltiplos enteros de la fundamental. Las cuerdas y los tubos son casi armónicos, y por eso dan alturas claras y acordes.
+
+### Armónicos pares
+
+Parciales en múltiplos pares de la fundamental (la octava, dos octavas arriba…). El recorte asimétrico los añade, y suenan llenos y cálidos.
+
+### Atractor de Lorenz
+
+Un pequeño sistema caótico que vaga sin fin y sin repetirse. La Overdrive Unit lo usa para mover su saturación.
+
+### Batido
+
+Una ondulación lenta del nivel que se oye cuando dos parciales tienen alturas muy cercanas y entran y salen de fase. Los gongs y el metal agrietado están llenos de ella.
+
+### Chasquido al soltar
+
+El salto de nivel cuando una nota de fricción sostenida se suelta de golpe y el objeto vuelve de un salto. Consulta [Solución de problemas](/wiki/es/troubleshooting/#un-release-muy-fuerte).
+
+### Choke
+
+Un mensaje del DAW que para una nota al instante. Corrosion la desvanece en 2 ms para que no haga clic.
+
+### Drive (saturación)
+
+Sobrecarga deliberada de una etapa para añadir armónicos y aspereza. Corrosion tiene dos: Legacy Drive y la Overdrive Unit.
+
+### Envolvente
+
+Una forma a lo largo del tiempo. En Corrosion las envolventes dan forma a la fuerza del excitador, no al volumen: AD para los golpeados, MSEG para la fricción, ADSR para los especiales.
+
+### Excitador
+
+Lo que toca el objeto: una mano, una maza, un arco, un chorro de aire. Consulta [Excitadores](/wiki/es/exciters/).
+
+### Fundamental
+
+El modo más grave de una nota, el que oyes como su altura.
+
+### General MIDI
+
+Una distribución estándar que pone cada sonido de batería en una tecla fija (bombo en C2, caja en D2…), para que los patrones de batería toquen los sonidos correctos en cualquier instrumento que la siga.
+
+### Inarmónico
+
+Parciales que no se alinean como múltiplos enteros. Las campanas, placas, engranajes y cadenas son inarmónicos: de ahí su brillo, y por eso los acordes sobre ellos pueden chocar.
+
+### Latencia
+
+Retardo añadido por el procesado. Corrosion no añade ninguno con el limitador Hard y cerca de 1 ms con Lookahead, que comunica al DAW.
+
+### Modo
+
+Una de las formas en que puede vibrar un objeto, cada una a su frecuencia, con su nivel y su caída. Cada modo se oye como un parcial.
+
+### MSEG
+
+Generador de envolvente multietapa: la envolvente de seis etapas, con bucle, de los excitadores de fricción. Consulta [Envolvente de fuerza y MSEG](/wiki/es/exciters/envelopes/).
+
+### Nodo
+
+Un punto de un objeto donde un modo no se mueve. Golpear en el nodo de un modo lo deja callado.
+
+### Objeto
+
+La pieza de metal que resuena: un tubo, una placa, un cable… Consulta [Objetos](/wiki/es/objects/).
+
+### Pad
+
+En modo Kit, el sonido guardado en una tecla. Consulta [Kit](/wiki/es/note-modes/kit/).
+
+### Parcial
+
+Una de las alturas de las que está hecho un sonido. Los parciales de una nota, y cómo se reparten, son lo que hace que un tubo suene a tubo.
+
+### Robo de voces
+
+Cuando suenan más de 16 notas, reutilizar una voz para la nota nueva: primero una que se esté apagando, luego una sostenida por el pedal, y después la nota sostenida más silenciosa.
+
+### Rodilla
+
+Donde empieza a doblarse la curva de un recortador. Una rodilla dura recorta en seco; una blanda se dobla antes y con suavidad.
+
+### Sobremuestreo
+
+Ejecutar un proceso a un múltiplo de la frecuencia de muestreo, para poder filtrar las frecuencias ásperas que crea antes de que hagan aliasing.
+
+### Síntesis modal
+
+Construir un sonido a partir de un conjunto de modos resonantes, cada uno con su frecuencia, su nivel y su caída. Así modela Corrosion sus objetos.
+
+### Techo (Ceiling)
+
+El nivel más alto que sacará Corrosion. La etapa de diodo recorta un poco por debajo, y el limitador para cada muestra en él.
+
+### Voz
+
+Una nota que suena: un excitador y un objeto. Corrosion toca hasta 16 a la vez.

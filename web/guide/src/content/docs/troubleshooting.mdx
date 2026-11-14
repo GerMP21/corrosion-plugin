@@ -2,18 +2,55 @@
 title: "Troubleshooting"
 ---
 
-import Stub from '../../components/Stub.astro';
+Something sounds wrong, or doesn't sound at all? Most surprises in Corrosion have a simple cause, and several of them are the physics doing exactly what it should. Start with the heading that matches what you hear.
 
-<Stub />
+**Try it:** if you're lost, load any **Bass** preset and play C2. If that sounds, the problem is in the patch, not in your setup.
 
 ## No sound
 
+- **No MIDI reaching the plugin.** Check the track is armed or monitored and that the host shows incoming notes. In the web app, click **Start audio** first.
+- **OUTPUT at the bottom.** At its minimum it's silent. Put it back to 0 dB.
+- **Kit mode with an empty key.** In **Kit**, only keys with pads play. Try C2 to B3, or switch **NOTE MODE** to **Tonal**.
+- **A friction preset gone silent.** Check **Env Amount** in the Gesture Modifiers: at 0 the friction exciters (Bow and the scrapers) make no sound at all, because their force is the envelope times that amount. Turn it back up.
+- **A very short tap on a bowed sound.** A bow needs a moment to grab the metal. Hold the key.
+
 ## Stuck notes
+
+- **A note that rings for seconds may not be stuck.** Pipe, I-Beam and Taut Cable strikes ring that long by nature. Add **Rust** or **Sludge**, or turn up the object's damping, for a shorter tail.
+- **Drone mode** holds friction notes until the key comes up. If your host lost a note-off, the drone keeps going.
+- **The sustain pedal** holds released notes until it lifts; a pedal stuck down in the host holds everything.
+- **To stop everything,** use your host's panic or stop button (it sends All Sound Off), or send CC120. Corrosion fades everything to silence in 5 ms.
 
 ## High CPU
 
+- Switch **MODE** to **Eco** while you work, and back to **Render** to bounce. Loading a preset sets **Normal** again.
+- Long-ringing notes keep voices busy. Fewer overlapping notes, or a shorter ring, frees CPU.
+- In the web app, everything runs on one core: the heaviest presets with many notes can be too much for a slower computer.
+
+See [Quality and CPU](/wiki/quality/) for more.
+
 ## The window size
+
+**SCALE** in the header sets the window from 50 % to 150 %. If the editor doesn't fit your screen, lower it; the panels scroll and the piano strip stays at the bottom. The scale is saved with the project, not with presets. See [UI scale](/wiki/ui-scale/).
 
 ## A loud release
 
+You hold a bowed, scraped or dragged note, let go, and the tail jumps **louder** than the note was. That's the **release snap**, and it's real physics: a friction exciter holds the object slightly out of its resting shape, and when it lets go quickly the object springs back and rings. On some patches the snap is far louder than the held note: Corrugated Drag on a Plate measured about 15 dB.
+
+Some people love it. To tame it:
+
+1. Lengthen the MSEG **Release**, so the exciter lets go gradually. Half a second is enough on many patches; some need 2 s (see the [recipe](/wiki/recipes/#taming-a-loud-release)).
+2. Or play the note in **Drone** with a long Release, for a drone that fades out instead of snapping.
+
+## Old projects sound different
+
+- **Output or Softness automation** recorded with an older version plays back at different values. Output is now in dB, and Diode Softness now shapes a real knee. Re-record those lanes. See [DAW projects](/wiki/presets/daw-projects/#automation-changes).
+- **An old Kit preset or project now plays as Tonal.** The old Kit mode, which mapped keys to objects, is gone; those presets and projects load in **Tonal**. Build a new kit with [Assign](/wiki/note-modes/kit/#assign-and-clear).
+
+Presets and projects themselves are converted when they load, so they keep their sound; only recorded automation can't be.
+
 ## Missing presets
+
+- **Your user presets** are in your preset folder: **Open folder** in the **PRESET BANK** box shows it. A preset copied into a subfolder appears in the matching submenu under **User**.
+- **In the web app,** presets live in the browser you saved them in, on that computer. Clearing the site's data deletes them.
+- **Presets from the old preview address.** Browser presets and sessions saved at `preview.corrosion-vst.org` stay with that address. It now redirects to `corrosion-vst.org/play/`, but the browser can't move their storage. If you still have them, open them there and **Download preset** before it's too late, then **Open preset…** at the new address.

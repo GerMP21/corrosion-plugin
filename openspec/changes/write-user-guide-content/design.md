@@ -158,6 +158,8 @@ Every page, EN and ES (Decision 6). Approved means the maintainer approved the S
 | `quality` | 2026-11-14 | 2026-11-14 | |
 | `ui-scale` | 2026-11-14 | 2026-11-14 | |
 | `recipes` | 2026-11-14 | 2026-11-14 | |
+| `troubleshooting` | 2026-11-14 | 2026-11-14 | |
+| `glossary` | 2026-11-14 | 2026-11-14 | |
 | `objects/pipe` | 2026-11-14 | 2026-11-14 | |
 | `objects/plate` | 2026-11-14 | 2026-11-14 | |
 | `objects/tank` | 2026-11-14 | 2026-11-14 | |
@@ -362,6 +364,23 @@ Every page written before the style spec was revised in both languages (paragrap
   - Regenerated: 511 (491 + 20), 16 MB; clips.json gains the recipes and the new fingerprint.
   - The 491 existing `.opus` files were restored from git. Their audio is unchanged (same plan, same engine), but opusenc writes a random stream serial, so a regeneration rewrites every file.
 - **Listening:** the maintainer should listen to the recipe clips. They were checked by measurement only.
+
+### Batch 2.9 notes: Troubleshooting and Glossary (2026-11-14)
+- **Troubleshooting** covers the five documented surprises the spec lists:
+  - the release snap, under "A loud release": +14.6 dB measured on Corrugated Drag on Plate, with the 2 s case from the recipe;
+  - Env Amount 0, under "No sound";
+  - the BREAKING automation changes and old Kit presets loading as Tonal, under a new "Old projects sound different";
+  - the preview-address browser presets, under "Missing presets".
+
+  Each also stays on the page where readers meet it.
+- **Glossary:** 28 terms, each a `###` heading so it has an anchor. The Spanish list is sorted by its Spanish terms.
+- **Glossary links**, on the first mention of the terms the earlier pages explain least:
+  - modes: What is Corrosion and Objects;
+  - partials: How it sounds;
+  - aliasing: Quality;
+  - knee: Diode and limiter.
+
+  Pages written after the style spec explain their terms in place, so they link less.
 
 ## Risks / Trade-offs
 
