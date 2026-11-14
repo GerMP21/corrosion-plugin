@@ -517,6 +517,29 @@ plays every exciter 12 dB over its drive with the governor off.
   out from it, up to +30 dB over the held note on the default patch. Kept as
   a feature; a Release Snap control is proposed in `docs/BACKLOG.md`.
 
+### Controls that reach the sound (`fix-inert-controls`)
+
+Every sound-shaping control changes its note by at least the floor: 1 dB in level, 10 % in ring, 1 dB in band shape, width or envelope. Each is measured in its own context (`src/guide/control_response.rs`), and `every_sound_shaping_control_changes_its_note` guards this. High Frequency Damping and Diode Softness are accepted under the floor (`UNDER_FLOOR`, with their reasons). Most fixes are an identity at the control's default, so default notes render bit-identical; the exceptions are noted per item.
+
+**Exciters**
+- **Stiff Point Scrape:** the chatter rings the force (ring gain 2).
+- **Metal Chain:** the links strike the object. The dent grows with Chain Mass (`IMPACT_DENT`), so the chain is audible at Internal Rattle 0.
+- **Felt Mallet:** the core stiffens past `CORE_ONSET`.
+- **Hard Mallet:** gives back `(0.46/damping)` on the way out.
+- **Hand Strike:** keeps flesh on landing, set by Flesh Stiffness.
+- **Heavy Grinding:** tearing scales with `√pressure`.
+- **Drumstick:** after the first contact and its micro-bounces, the stick re-strikes Micro Bounce Limit − 1 times. Flights start at 40 ms × Restitution and shorten by Restitution each time. Each re-strike is a real Hertzian contact that lands on its scheduled frame, so its timing is the same at any rate.
+- **Bow:** Slip Curve also sets how far the grip carries into sliding: the fall-off is `10·(0.485/slip)²`. The bow never sticks; real stick-slip is in the backlog.
+
+**Releases**
+- Note-off no longer zeroes the friction and specialty exciters' force. Release and MSEG Release now shape the tail, and the friction exciters' release snap follows MSEG Release.
+
+**Object and post chain**
+- **Chaos Depth:** swings the level (`CHAOS_SPREAD`, `CHAOS_SWING`).
+- **Braid Stiffness:** stretches the cable's partials quadratically.
+- **Wire Stiffness:** widens the spring's dispersion around its default.
+- **Component Tolerance:** drifts the filter cutoff (a 0.3 s random walk, 30 % deep).
+
 ### Noise
 
 Every random source uses `dsp::utils::noise::Noise`, a xorshift32 generator

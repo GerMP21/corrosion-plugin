@@ -15,5 +15,5 @@
 
 ## 3. Close-out
 
-- [ ] 3.1 Bank tests (no reseed: the maintainer keeps the factory presets as they are, 2026-11-14); guide data and clips regenerated; drop `internal_rattle`'s QUIET declaration and the backlog's "Metal Chain at Internal Rattle 0" once the clip check confirms it is audible
-- [ ] 3.2 Docs: ARCHITECTURE, design.md measurements; fmt, clippy, full lanes; commit and push to `dev`; CLAUDE.md Current state
+- [x] 3.1 Bank tests (no reseed: the maintainer keeps the factory presets as they are, 2026-11-14); guide data and clips regenerated; drop `internal_rattle`'s QUIET declaration and the backlog's "Metal Chain at Internal Rattle 0" once the clip check confirms it is audible
+- [x] 3.2 Docs: ARCHITECTURE, design.md measurements; fmt, clippy, full lanes; commit and push to `dev`; CLAUDE.md Current state

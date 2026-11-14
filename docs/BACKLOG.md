@@ -20,8 +20,9 @@ Each item notes the relevant file(s) and an acceptance check.
   static deflection: on the default patch the tail is up to +30 dB over the
   held note (Plate + Corrugated Drag −48.1 → −17.6 dB), in the bank up to
   +37 dB (Bow · Taut Cable). The maintainer keeps it as a feature. *Proposal:*
-  a Release Snap parameter, from a sudden release (today's snap) to a ramp
-  that follows the MSEG release, so the snap can be bounded (e.g. ≤ +6 dB over
+  a Release Snap parameter, from a sudden release to a ramp (since
+  `fix-inert-controls` the friction exciters keep their force through the
+  MSEG release, so the snap follows MSEG Release), so the snap can be bounded (e.g. ≤ +6 dB over
   the held note); the seeder then also levels the released note.
   *Accept:* at Release Snap 0 the released note is no louder than the held
   one; the default keeps today's snap or a bounded one, by ear.
@@ -53,14 +54,6 @@ Each item notes the relevant file(s) and an acceptance check.
   2–3 s, the default patch included (`reorganize-factory-presets` design).
   The percussion presets add Rust and Sludge to make strikes decay. *Accept:*
   decide by ear whether the default should decay sooner.
-- [ ] **[VERIFY] Metal Chain is almost silent at Internal Rattle 0.** With no
-  rattle the chain's drop barely sounds: −62 dBFS RMS on the guide's base
-  patch (Hand Strike on Plate, `param:internal_rattle:min`, declared quiet in
-  `src/guide/clip_plan.rs`). Found by the guide's audibility check
-  (`add-user-guide`). Decide whether the links should still ring on their own
-  at 0, or whether the range should start above silence. *Accept:* Metal Chain
-  at Internal Rattle 0 is audible (over the guide's silence floor) or the
-  tooltip says that 0 mutes it; the clip's quiet declaration goes either way.
 - [ ] **[PARTIAL] MSEG PingPong loop ignores the loop stages.** It always loops
   Decay → Sustain, like Forward 3 → 4 (its help says so since 2026-11-14) (`src/params.rs` `loop_mode` doc,
   `src/dsp/envelopes/mod.rs`). *Accept:* PingPong runs forward then backward

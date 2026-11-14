@@ -166,11 +166,6 @@ const QUIET: &[(&str, Point, &str)] = &[
         Point::Min,
         "With the coil at its farthest, the hum doesn't reach the object.",
     ),
-    (
-        "internal_rattle",
-        Point::Min,
-        "With no rattle, Metal Chain's drop is almost silent (−62 dBFS); in docs/BACKLOG.md.",
-    ),
 ];
 
 /// Parameters whose effect needs two velocities to be heard.
