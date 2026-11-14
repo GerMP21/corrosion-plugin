@@ -114,9 +114,11 @@ Clippy took 27–61 s cold and 5–14 s cached. The tests dominate, and their ti
 
 Design decision 4 said to try it. Cargo.toml still leaves nih-plug's `assert_process_allocs` off on Windows; a CI step turns it on for `no_alloc` alone (`--features nih-plug/assert_process_allocs`).
 
-- **Trial** (run #290, `continue-on-error`, 10-minute timeout): 12 of 12 passed on MSVC in 0.78 s, compiled in 39 s. No hang.
-- **But a pass alone proves nothing**, since a missing checker passes too. New test `the_checker_is_armed` runs a deliberately allocating test (`allocation_aborts_under_the_checker`, ignored) as a child of the test binary and requires it to abort. Locally: green in debug, red in release, where the checker compiles out.
-- **As built:** the step is permanent on Windows (no `continue-on-error`; the timeout stays). All three platforms now run the real-time tests, with the sentinel.
+- **Trial** (run #290, `continue-on-error`, 10-minute timeout): 12 of 12 passed on MSVC in 0.78 s, compiled in 39 s. No hang. On its own this proved nothing: a missing checker passes too.
+- **Sentinel:** new test `the_checker_is_armed` runs a deliberately allocating test (`allocation_aborts_under_the_checker`, ignored) as a child of the test binary and requires it to abort. Locally it is green in debug and red in release, where the checker compiles out.
+- **A wrong turn, recorded:** runs #292 and #294 failed on Windows. I first read that as "the checker isn't installed on MSVC". The failure was in the *workspace* test step, which also runs `tests/no_alloc.rs`, but without the feature, so the checker is absent there by design. The feature step never ran. On Windows the sentinel now applies only when `CORROSION_EXPECT_ALLOC_CHECKER` is set, which only the no_alloc step does; off Windows it always applies.
+- **Result** (run #296, `3cd53c7`): the Windows no_alloc step passed in 33 s with the sentinel required. The checker is installed and catches allocations on MSVC, and nothing hangs.
+- **As built:** the step is permanent on Windows (no `continue-on-error`; the timeout stays). All three platforms now run the real-time tests, each with a sentinel proving the checker is armed.
 
 ### First runs on Windows and macOS (2026-11-10)
 
