@@ -5,8 +5,21 @@ sidebar:
   label: Overview
 ---
 
-import Stub from '../../../components/Stub.astro';
+import Data from '../../../components/Data.astro';
 
-<Stub />
+A preset is a snapshot of a sound: every control in the editor, saved under a name. Corrosion comes with <Data count="factoryPresets" /> of them, and you can save as many of your own as you like.
+
+**Try it:** click the preset name in the **PRESET BANK** box, open **Percussion** and pick anything. Then step through the folder with the **‹ ›** arrows.
 
 ## Where presets live
+
+- **Factory presets** are built into the plugin. You can't overwrite or delete them, so you can't break them either: tweak away.
+- **Your presets** live in a folder on your computer, one `.corrosion-preset` file each:
+  - Windows: `%APPDATA%\Corrosion\Presets`
+  - macOS: `~/Library/Application Support/Corrosion/Presets`
+  - Linux: `~/.local/share/corrosion/presets` (or `$XDG_DATA_HOME/corrosion/presets`)
+- **In the web app,** your presets live in the browser instead. See [Play in the browser](/wiki/getting-started/web-app/#session-and-browser-presets).
+
+A preset holds every control except the UI scale, including the note mode, the quality mode and, for Kit presets, all the pads.
+
+The pages in this section cover [the factory bank](/wiki/presets/factory-bank/), [browsing and saving](/wiki/presets/browse-and-save/), [preset files](/wiki/presets/files/) and [DAW projects](/wiki/presets/daw-projects/).

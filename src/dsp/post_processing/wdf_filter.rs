@@ -42,6 +42,12 @@ pub struct WdfLadderFilter {
     s: [f32; 4],
     /// Noise for the component-tolerance jitter (`resolve-exciter-tradeoffs`).
     tolerance_noise: crate::dsp::utils::noise::Noise,
+    /// Slow random drift of the components (unit variance), its smoother's
+    /// coefficient and the gain that normalizes the smoothed noise
+    /// (`fix-inert-controls`).
+    drift: f32,
+    drift_coeff: f32,
+    drift_norm: f32,
 
     // Cached coefficients
     g: f32,
@@ -65,6 +71,11 @@ impl WdfLadderFilter {
     /// Highest effective cutoff as a fraction of the sample rate.
     const MAX_CUTOFF_RATIO: f32 = 0.49;
 
+    /// How slowly the components drift, and how far the cutoff moves at full
+    /// Component Tolerance (one standard deviation).
+    const DRIFT_TAU_SECONDS: f32 = 0.3;
+    const DRIFT_DEPTH: f32 = 0.3;
+
     /// Creates the filter with a wide-open cutoff and zero resonance.
     pub fn new() -> Self {
         let mut filter = Self {
@@ -75,6 +86,9 @@ impl WdfLadderFilter {
             component_tolerance: 0.0,
             s: [0.0; 4],
             tolerance_noise: crate::dsp::utils::noise::Noise::default(),
+            drift: 0.0,
+            drift_coeff: 0.0,
+            drift_norm: 0.0,
             g: 0.0,
             g_comp: 0.0,
             sample_rate: 48000.0,
@@ -123,6 +137,11 @@ impl WdfLadderFilter {
     fn recompute_smoothing_coeff(&mut self) {
         let sr = self.sample_rate.max(1.0);
         self.smoothing_coeff = 1.0 - (-1.0 / (Self::SMOOTHING_TAU_SECONDS * sr)).exp();
+        self.drift_coeff = 1.0 - (-1.0 / (Self::DRIFT_TAU_SECONDS * sr)).exp();
+        // A one-pole smoothing uniform noise (variance 1/3) leaves
+        // variance k/(2 − k)/3; this brings it back to 1.
+        let k = self.drift_coeff;
+        self.drift_norm = (3.0 * (2.0 - k) / k).sqrt();
     }
 
     fn update_coefficients(&mut self) {
@@ -131,7 +150,15 @@ impl WdfLadderFilter {
         // that lowers fs; it keeps `g` finite and positive, so every stage's
         // pole `(1 − g)/(1 + g)` stays inside the unit circle.
         let sr = self.sample_rate.max(1.0);
-        let fc = self.cutoff_hz.min(Self::MAX_CUTOFF_RATIO * sr);
+        // Component Tolerance lets the cutoff drift; exactly the set cutoff
+        // at 0.
+        let drifted = if self.component_tolerance > 0.0 {
+            self.cutoff_hz
+                * (1.0 + self.component_tolerance * Self::DRIFT_DEPTH * self.drift).max(0.1)
+        } else {
+            self.cutoff_hz
+        };
+        let fc = drifted.min(Self::MAX_CUTOFF_RATIO * sr);
         self.g = (std::f32::consts::PI * fc / sr).tan();
 
         // Compensation gain for resonance
@@ -149,6 +176,16 @@ impl WdfLadderFilter {
         if cutoff_changed || resonance_changed {
             self.cutoff_hz += (self.target_cutoff_hz - self.cutoff_hz) * self.smoothing_coeff;
             self.resonance += (self.target_resonance - self.resonance) * self.smoothing_coeff;
+        }
+        // The components drift slowly, so the cutoff wanders around its
+        // setting (`fix-inert-controls`: the old jitter alone, 60 dB under the
+        // signal, was not heard).
+        let drifting = self.component_tolerance > 0.0;
+        if drifting {
+            let noise = self.tolerance_noise.bipolar() * self.drift_norm;
+            self.drift += self.drift_coeff * (noise - self.drift);
+        }
+        if cutoff_changed || resonance_changed || drifting {
             self.update_coefficients();
         }
 
@@ -210,6 +247,7 @@ impl WdfLadderFilter {
     pub fn reset(&mut self) {
         self.s = [0.0; 4];
         self.tolerance_noise.reseed(0);
+        self.drift = 0.0;
         // Re-prime so the next `set_parameters` snaps to the requested values.
         self.smoothing_primed = false;
     }
@@ -601,5 +639,36 @@ mod tests {
         }
 
         assert!(high_energy < low_energy, "Low cutoff should attenuate more");
+    }
+
+    /// Spread (dB) between the loudest and quietest 50 ms of 4 s of white
+    /// noise through a resonant 1.5 kHz low-pass at `tolerance`.
+    fn drift_spread_db(tolerance: f32) -> f32 {
+        let mut filter = WdfLadderFilter::new();
+        filter.set_sample_rate(48_000.0);
+        filter.set_parameters(1500.0, 0.6, tolerance);
+        let mut noise = crate::dsp::utils::noise::Noise::default();
+        let windows: Vec<f32> = (0..80)
+            .map(|_| {
+                let energy: f32 = (0..2_400)
+                    .map(|_| filter.process(noise.bipolar() * 0.3).powi(2))
+                    .sum();
+                10.0 * (energy / 2_400.0).log10()
+            })
+            .collect();
+        let (lo, hi) = windows
+            .iter()
+            .fold((f32::MAX, f32::MIN), |(lo, hi), &x| (lo.min(x), hi.max(x)));
+        hi - lo
+    }
+
+    /// `fix-inert-controls`: Component Tolerance lets the cutoff drift.
+    #[test]
+    fn component_tolerance_drifts_the_cutoff() {
+        let (exact, drifting) = (drift_spread_db(0.0), drift_spread_db(1.0));
+        assert!(
+            drifting - exact >= 2.0,
+            "50 ms level spread at tolerance 0: {exact:.2} dB, at 1: {drifting:.2} dB"
+        );
     }
 }

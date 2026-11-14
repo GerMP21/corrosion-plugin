@@ -5,8 +5,14 @@ sidebar:
   label: Overview
 ---
 
-import Stub from '../../../components/Stub.astro';
+**NOTE MODE**, in the header, decides what a key on your keyboard *means*. In **Tonal** it's a pitch, like on any instrument. In **Drone** it's a pitch that keeps sounding for as long as you hold it. In **Kit** each key is its own sound, like the pads of a drum machine.
 
-<Stub />
+**Try it:** load **Drums → Foundry Kit** and play C2 to B3: a whole drum kit, one sound per key. Then switch **NOTE MODE** to **Tonal** and play the same keys.
 
 ## Choosing a mode
+
+- **Tonal** is the default and the right choice for most things: basses, leads, chords, struck percussion played melodically. Each note follows its envelope, so a bowed note can fade while you hold it, just as a real bow stroke runs out. See [Tonal](/wiki/note-modes/tonal/).
+- **Drone** is for sounds that must hold as long as you do: pads, beds, sustained bowed or ground textures. It keeps the friction exciters going until you let go. See [Drone](/wiki/note-modes/drone/).
+- **Kit** is for drums and sound-effect palettes: a different sound on every key, all in one instance. See [Kit](/wiki/note-modes/kit/).
+
+The mode is saved with the preset, so loading a drum kit switches to Kit and loading a pad may switch to Drone.

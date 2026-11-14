@@ -2,8 +2,159 @@
 title: "Recipes"
 ---
 
-import Stub from '../../components/Stub.astro';
+import Clips from '../../components/Clips.astro';
 
-<Stub />
+Recipes are short, practical walkthroughs: start from a factory preset, change a few controls, and hear what you made. Each one says not only *what* to turn, but *why*, so you can take the idea to other sounds.
+
+**Try it:** pick any recipe below, load its preset, and play the before clip's notes yourself before you start turning knobs.
 
 ## How recipes work
+
+Every recipe starts from a named factory preset, lists every setting it changes with the value as the plugin displays it, and has two clips: **Before** is the preset as it ships, **After** is the same preset with exactly the listed changes. Both play the same notes at the same gain, so the difference you hear is the recipe.
+
+Follow the steps in order, playing a note after each one; hearing each change on its own is half the lesson.
+
+## From upright to steel
+
+A soft, round upright bass turned into a hard, ringing steel bass.
+
+1. Load **Bass → Felt Cable Upright**.
+2. Set **MODEL TYPE** to **Hard Mallet**.
+3. Set **Cutoff** to 4000 Hz.
+4. Set **Drive Amt** to 0.8.
+5. Set **Asymmetry** to 0.6.
+
+A felt mallet stays on the cable for a long, soft contact; a hard mallet is gone in an instant, so the cable is left free to ring. It comes out about 4 dB louder and its tail rings far longer. Opening the filter lets the extra attack through, and the drive with some asymmetry gives the sustain a warm grit rather than a fizz.
+
+<Clips set="recipes" item="metallic-bass" />
+
+## Grinding in the hall
+
+The grinding beam drone moved into a big factory hall, with an unsteady drive underneath.
+
+1. Load **Drones → Grinding Beam**.
+2. Set **Drive Amt** to 0.8.
+3. Set **Bias Starve** to 0.4.
+4. Set **Chaos** to 0.4.
+5. Set Space **Mode** to **Factory**.
+6. Set **Amount** to 0.4.
+7. Set **Factory Size** to 0.8.
+
+A drone is a sound you live inside, so the room matters as much as the source. The large hall gives the grinder distance and size; the Lorenz drive, starved now and then and pushed by Chaos, keeps the texture from sitting perfectly still. Keep Amount moderate: a drone is long enough already, and too much reverb turns it to fog.
+
+<Clips set="recipes" item="industrial-drone" />
+
+## A singing bowed lead
+
+The bowed pipe lead, played nearer the end, with a moving bow and a soft echo.
+
+1. Load **Lead → Pipe Bow Lead**.
+2. Set **Strike Pos** to 0.2.
+3. Set **Pos Wander** to 0.3.
+4. Set Space **Mode** to **Echo**.
+5. Set **Amount** to 0.3.
+6. Set **Delay Time** to 0.4.
+7. Set **HF Damping** to 0.7.
+
+Bowing nearer the end of the pipe brings in more upper modes, like a violinist moving towards the bridge. Pos Wander keeps that point drifting, so the tone never quite repeats itself from note to note. The echo, darkened by HF Damping, sits behind the melody without cluttering it.
+
+<Clips set="recipes" item="singing-bowed-lead" />
+
+## A trailer impact
+
+A struck girder blown up into a heavy, cinematic hit with a long tail.
+
+1. Load **Percussion → Beam Anvil**.
+2. Set **MASS** to 0.9.
+3. Set **BODY** to 4.5.
+4. Set **Legacy Drive** to 1.0.
+5. Set Space **Mode** to **Factory**.
+6. Set **Amount** to 0.5.
+7. Set **Factory Size** to 0.9.
+
+MASS makes the hammer heavier and the beam bigger, so the hit drops in pitch and lands harder. BODY adds a chassis for the beam to shake, the drive glues it together, and the big hall gives it a tail. The result is about 8 dB louder than the original, so keep an eye on the red dot in the Brickwall Limiter panel.
+
+<Clips set="recipes" item="impact" />
+
+## A rusted bell
+
+A clean felt-struck bell left out in the rain for a few decades.
+
+1. Load **Lead → Felt Plate Bell**.
+2. Set **Rust** to 1.0.
+3. Set **Damage** to 0.8.
+4. Set **Heat** to 0.3.
+
+Rust shortens the ring, Damage cracks the plate into buzzing, beating pairs of partials, and a little Heat softens the metal so it sits lower and warmer. Together they turn a pretty bell into something found in a scrapyard, but it still plays its notes: Rust and Damage both keep the fundamental.
+
+<Clips set="recipes" item="rusted-bell" />
+
+## Glitchy ticks
+
+A tidy clock tick made erratic with a starving drive and a short, wobbling echo.
+
+1. Load **Percussion → Cog Tick**.
+2. Set **Drive Amt** to 1.5.
+3. Set **Bias Starve** to 0.7.
+4. Set **Chaos** to 0.8.
+5. Set Space **Mode** to **Echo**.
+6. Set **Amount** to 0.3.
+7. Set **Delay Time** to 0.1.
+8. Set **Movement** to 0.6.
+
+On short hits, Bias Starve and Chaos are a lottery: each tick lands at a different point of the attractor's wandering, so each one comes out a little different. The short echo, with Movement bending its time, smears each tick into a small stutter. Play a steady pattern and listen to it refuse to repeat.
+
+<Clips set="recipes" item="glitch-percussion" />
+
+## A pad with a spring tail
+
+The bowed cable pad moved from the factory hall into a spring tank.
+
+1. Load **Chords → Bowed Cable Pad**.
+2. Set Space **Mode** to **Spring**.
+3. Set **Amount** to 0.45.
+4. Set **Spring Tension** to 0.6.
+5. Set **Tank Size** to 0.6.
+
+A hall surrounds a pad; a spring colours it. The tank's twang and drip give the chords a vintage, slightly lo-fi bloom, and a larger tank keeps the spring's tone low so it doesn't fight the harmony.
+
+<Clips set="recipes" item="spring-pad" />
+
+## A dying-battery lead
+
+A bowed cable lead run through a drive whose power keeps failing.
+
+1. Load **Lead → Bowed Cable Lead**.
+2. Set **Drive Amt** to 3.0.
+3. Set **Bias Starve** to 1.0.
+4. Set **Chaos** to 1.0.
+
+Bias Starve at its maximum starves the drive most of the time, and Chaos at its maximum keeps its gain swinging, so the level sags and stutters under a steady bow. It works best on sustained sounds, where you hear the supply fail and come back in the middle of a note.
+
+<Clips set="recipes" item="dying-battery-lead" />
+
+## A snare in the distance
+
+A close, crisp snare pushed to the far end of a big room.
+
+1. Load **Percussion → Plate Snare Crack**.
+2. Set **Proximity** to 0.15.
+3. Set **Cutoff** to 3000 Hz.
+4. Set Space **Mode** to **Factory**.
+5. Set **Amount** to 0.4.
+6. Set **Factory Size** to 0.7.
+
+Distance is mostly about losing the highs and gaining the room. Lower Proximity and a lower Cutoff take the edge off the crack, the way air does over a long distance, and the hall supplies the reflections you'd hear from far away.
+
+<Clips set="recipes" item="distant-hit" />
+
+## Taming a loud release
+
+A dragged plate whose release snaps louder than the held note, let go gently.
+
+1. Load **Experimental → Corrugated Drag → Corrugated Drag · Plate**.
+2. Set MSEG **Release** to 2.0 s.
+
+A drag holds the plate slightly out of its resting shape. Let go quickly and the plate springs back: in this preset the release peaks about 6.5 dB above the held note. A long Release eases the drag off, and the snap falls to about 1 dB. This preset needs about 2 s; others settle with half a second. See [Troubleshooting](/wiki/troubleshooting/).
+
+<Clips set="recipes" item="gentle-release" />

@@ -16,6 +16,10 @@ use crate::dsp::ContactPrediction;
 /// HandStrike's drive level (`EXCITER_DRIVE_LEVEL`), which is what makes the
 /// two cancel.
 pub const HAND_SCALE: f32 = 55.4;
+/// Flesh Stiffness's default (`VoiceControls::default`).
+const DEFAULT_FLESH_STIFFNESS: f32 = 0.425;
+/// How much of its landing speed the softest or stiffest flesh keeps.
+const FLESH_GIVE: f32 = 1.0;
 
 /// Fleshy impact with strong damping and a simple release state.
 #[derive(Clone, Debug)]
@@ -126,9 +130,17 @@ impl HandStrike {
             if before < surface && !self.landed {
                 force *= ((surface - before) / (self.hand_position - before)).clamp(0.0, 1.0);
             }
+            // The flesh decides what the hand keeps of its speed on landing:
+            // softer flesh gives and the hand keeps pressing in, stiffer
+            // flesh throws it back. None at the default stiffness, where the
+            // hand just follows the surface (`fix-inert-controls`: pinned to
+            // the surface, the hand's stiffness only shaped its approach).
+            let keep = (1.0 - self.flesh_stiffness / DEFAULT_FLESH_STIFFNESS).clamp(-1.0, 1.0)
+                * FLESH_GIVE;
+            let incoming = self.hand_velocity - resonator_velocity * 0.5;
             self.landed = true;
             self.hand_position = resonator_displacement;
-            self.hand_velocity = resonator_velocity * 0.5;
+            self.hand_velocity = resonator_velocity * 0.5 + keep * incoming;
         }
 
         self.decay_state *= self.mute_decay_per_sample;

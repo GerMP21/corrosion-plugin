@@ -4,10 +4,33 @@ sidebar:
   order: 6
 ---
 
-import Stub from '../../../../components/Stub.astro';
+import Clips from '../../../../components/Clips.astro';
+import Data from '../../../../components/Data.astro';
 
-<Stub />
+Dos controles de la cabecera que hacen exactamente lo que dicen: **OUTPUT** es el volumen final y **WIDTH** lo abiertas que suenan las voces en estéreo.
+
+**Pruébalo:** toca un acorde y mueve **WIDTH** de 0 hasta más allá de su valor por defecto. El acorde se abre de un punto en el centro a un abanico amplio.
 
 ## OUTPUT
 
+El volumen final, en dB, desde el silencio hasta <Data param="output" field="max" />. Por defecto es <Data param="output" field="default" />, que deja los presets en su volumen nivelado.
+
+El recorrido del fader está curvado para que la zona útil tenga sitio de sobra: 0 dB queda un poco por encima del centro, y todo el rango de −20 a +6 dB ocupa cerca de una quinta parte del recorrido. Los ajustes finos son fáciles; no tienes que moverlo de píxel en píxel.
+
+El techo sigue mandando, así que a partir de cierto punto subir OUTPUT no suena más fuerte: mete el sonido en la etapa de diodo. Mira el punto rojo del panel **Brickwall Limiter** para ver cuándo pasa.
+
+<Clips param="output" />
+
+La automatización de OUTPUT grabada antes de que se mostrara en dB corresponde ahora a otros niveles. Si un proyecto antiguo pega un salto de volumen, vuelve a grabar esa pista de automatización.
+
 ## WIDTH
+
+Lo abiertas que suenan las voces, de <Data param="width" field="min" /> a <Data param="width" field="max" />. Cada voz reparte los modos de su objeto por el campo estéreo: los modos alternos van a izquierda y derecha, y los más agudos, más hacia fuera. Una placa golpeada pasa de sonar desde un punto a sonar de lado a lado de la sala.
+
+En 0 las voces son mono. Más alto las abre más. Los valores negativos intercambian los lados.
+
+<Clips param="width" />
+
+**Consejos:**
+- En los bajos, deja **WIDTH** bajo o en 0. Los graves en mono se mantienen firmes en cualquier sistema, del equipo de un club al altavoz de un móvil.
+- A los pads y drones les encanta la anchura. Combina **WIDTH** con **Spread** para un sonido que envuelva al oyente.

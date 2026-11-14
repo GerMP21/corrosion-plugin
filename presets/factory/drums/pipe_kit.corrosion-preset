@@ -280,7 +280,7 @@
       {
         "key": 37,
         "tune": 24,
-        "level_db": 14.2,
+        "level_db": 15.9,
         "values": {
           "air_pressure": 1.1,
           "amplitude_randomization": 0.3,
@@ -1141,7 +1141,7 @@
       {
         "key": 46,
         "tune": 48,
-        "level_db": 23.8,
+        "level_db": 26.0,
         "values": {
           "air_pressure": 1.1,
           "amplitude_randomization": 0.3,
@@ -1510,7 +1510,7 @@
       {
         "key": 51,
         "tune": 36,
-        "level_db": 22.0,
+        "level_db": 23.5,
         "values": {
           "air_pressure": 1.1,
           "amplitude_randomization": 0.3,

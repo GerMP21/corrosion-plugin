@@ -5,8 +5,27 @@ sidebar:
   label: Overview
 ---
 
-import Stub from '../../../components/Stub.astro';
+The parameter reference is the encyclopedia to the rest of the guide's tutorials: one card for every parameter Corrosion has, generated from the plugin itself, so it's always exactly in step with the version you're running.
 
-<Stub />
+**Try it:** open [Exciter parameters](/wiki/reference/exciter/) and find **Bow Pressure**. The card tells you its range, its default, and lets you hear its extremes.
+
+The parameters are grouped by panel, in the editor's order:
+
+- [Header](/wiki/reference/header/): presets aside, everything in the top bar.
+- [Macros](/wiki/reference/macros/): MASS, CORROSION, VIOLENCE and BRIGHTNESS.
+- [Exciter](/wiki/reference/exciter/): the model, its controls and its envelopes.
+- [Resonator](/wiki/reference/resonator/): the object, its geometry, exposure and linkage.
+- [Processing](/wiki/reference/processing/): the output chain.
+- [Kit pads](/wiki/reference/kit/): what a Kit pad stores, and what the kit shares.
 
 ## How to read a card
+
+- **The title** is the parameter's name as your host shows it in automation lanes and parameter lists. It can differ from the label on the panel: the Filter Bank's **Cutoff** is **Filter Cutoff** here.
+- **The code** under it is the parameter's ID, the name presets and projects store it under.
+- **The first line** says what it does, the same text as the ⓘ badge in the editor.
+- **Range** or **Options**: what values it takes. **Default**: where a new instance starts. **Unit**, when it has one.
+- **Shown**: when the control only appears in some cases (a family of exciters, a Space mode).
+- **Per model**: for the controls whose meaning changes with the exciter or object, one row per model with its own label, range and help.
+- **Clips**: the parameter at its minimum, middle and maximum, each played on a reference patch, so you can hear what the range does before you touch it. A few parameters have no clips, with the reason given.
+
+The cards say *what*; the rest of the guide says *why* and *how to use it*. When a card leaves you curious, follow the link to the panel's page.

@@ -13,6 +13,11 @@
 //! share of time rises from about 5 % at 0.1 to about 87 % at 1. A 5 ms one-pole
 //! follower ramps the gain between full and starved, so the switches sag
 //! rather than click (`m06-m09-smooth-starvation-and-oversample-clipper`).
+/// How far the attractor's `x` reaches into the drive's gain swing.
+const CHAOS_SPREAD: f32 = 0.1;
+/// The gain swing at full Chaos Depth: the drive's gain goes 1 ± this.
+const CHAOS_SWING: f32 = 0.9;
+
 /// Chaotic drive processor with Lorenz modulation and tube saturation.
 pub struct LorenzDrive {
     /// Smoothed drive amount; lags `target_drive_amount` to kill zipper noise.
@@ -125,7 +130,11 @@ impl LorenzDrive {
         self.y = (self.y + dy * dt).clamp(-50.0, 50.0);
         self.z = (self.z + dz * dt).clamp(0.0, 100.0);
 
-        let chaos_mod = 1.0 + self.chaos_depth * ((self.x * 0.02).tanh() * 0.5);
+        // At full depth the attractor swings the drive from a tenth to
+        // nearly twice its gain: warm one moment, sputtering the next
+        // (`fix-inert-controls`; ±19 % before, under the floor). Exactly 1
+        // at depth 0.
+        let chaos_mod = 1.0 + self.chaos_depth * ((self.x * CHAOS_SPREAD).tanh() * CHAOS_SWING);
 
         #[cfg(test)]
         if !self.starvation_stage_enabled {
@@ -478,5 +487,40 @@ mod tests {
             let output = drive.process(input);
             assert!(output.is_finite(), "Output should be finite");
         }
+    }
+
+    /// Spread (dB) between the loudest and quietest 50 ms of 4 s of a
+    /// 220 Hz sine at 0.3 through drive 3 and `chaos`.
+    fn level_spread_db(chaos: f32) -> f32 {
+        let mut drive = LorenzDrive::new();
+        drive.set_sample_rate(48_000.0);
+        drive.set_parameters(3.0, 0.0, chaos);
+        let windows: Vec<f32> = (0..80)
+            .map(|w| {
+                let energy: f32 = (0..2_400)
+                    .map(|i| {
+                        let t = (w * 2_400 + i) as f32 / 48_000.0;
+                        drive
+                            .process(0.3 * (std::f32::consts::TAU * 220.0 * t).sin())
+                            .powi(2)
+                    })
+                    .sum();
+                10.0 * (energy / 2_400.0).log10()
+            })
+            .collect();
+        let (lo, hi) = windows
+            .iter()
+            .fold((f32::MAX, f32::MIN), |(lo, hi), &x| (lo.min(x), hi.max(x)));
+        hi - lo
+    }
+
+    /// `fix-inert-controls`: Chaos Depth swings the drive audibly.
+    #[test]
+    fn chaos_depth_swings_the_level() {
+        let (still, chaotic) = (level_spread_db(0.0), level_spread_db(1.0));
+        assert!(
+            chaotic - still >= 3.0,
+            "level spread at depth 0: {still:.2} dB, at 1: {chaotic:.2} dB"
+        );
     }
 }

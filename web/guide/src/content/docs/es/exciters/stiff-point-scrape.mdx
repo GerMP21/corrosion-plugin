@@ -6,21 +6,45 @@ covers: {"exciters": ["Stiff Point Scrape"]}
 ---
 
 import Clips from '../../../../components/Clips.astro';
-import Stub from '../../../../components/Stub.astro';
+import ModelControls from '../../../../components/ModelControls.astro';
 
-<Stub />
+Una punta rígida arrastrada por la superficie: se engancha, se dobla y se suelta, una y otra vez, para chirridos y raspados. Piensa en un clavo sobre una chapa de acero, o en una silla arrastrada por el suelo de una fábrica. Úsalo con cuidado, y disfrútalo cuando lo hagas.
+
+**Pruébalo:** carga **Drones → Cable Scrape Drone**, mantén una nota y barre **Scrape Speed**.
 
 ## Qué es
 
+Una punta rígida, como un clavo o el filo de una hoja, se clava en una superficie que se mueve. Se engancha, se dobla como un muelle rígido y se suelta; el muelle de la punta resuena cada vez que se suelta, y esa vibración es la fuerza que mueve el objeto.
+
 ## Cómo suena
+
+Chirriante, rasposo y tenso: chirridos, raspados y uñas sobre metal. Es más áspero que el arco y menos ruidoso que el desbaste.
 
 ## Controles
 
+<ModelControls exciter="Stiff Point Scrape" />
+
+- **Scrape Speed:** lo rápido que avanza la punta por la superficie. Más alto sube la altura y la densidad de la vibración.
+- **Point Pressure:** lo fuerte que se clava la punta. Más alto suena más fuerte y áspero.
+- **Chatter Pitch:** la afinación de la vibración de la punta, que colorea el raspado. Más alto suena más oscuro y suave.
+- **Chatter Damping:** lo rápido que se apaga cada ráfaga de vibración. Más alto suena más seco y ceñido.
+
+**Speed** escala **Scrape Speed**; **Roughness** no le afecta.
+
 ## Combinaciones
+
+Sobre **Taut Cable** da un dron raspado; sobre **Plate** o **Sheet Metal**, chirridos. Un **Scrape Speed** bajo sobre un objeto grande da crujidos lentos.
 
 ## Consejos
 
-## Presets de fábrica
+- Usa **Point Pressure** para la intensidad y **Chatter Damping** para lo seco que suena.
+- **Chasquido al soltar:** Como el arco, el raspado deja el objeto un poco fuera de su posición de reposo, y al soltarlo de golpe el objeto vuelve de un salto. Sube el **Release** del MSEG a medio segundo o más para domarlo. Consulta [Solución de problemas](/wiki/es/troubleshooting/).
+- Los chirridos son fuertes en los medios agudos. Un poco de **Cutoff** en el Filter Bank los mantiene emocionantes sin que nadie ponga cara de dolor.
+
+## Presets para probar
+
+- **Drones → Cable Scrape Drone**
+- **Experimental → Stiff Point Scrape**: un preset sobre cada uno de los nueve objetos.
 
 ## Escúchalo
 

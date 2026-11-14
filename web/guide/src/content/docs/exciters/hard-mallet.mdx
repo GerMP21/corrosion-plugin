@@ -6,21 +6,47 @@ covers: {"exciters": ["Hard Mallet"]}
 ---
 
 import Clips from '../../../components/Clips.astro';
-import Stub from '../../../components/Stub.astro';
+import ModelControls from '../../../components/ModelControls.astro';
 
-<Stub />
+A rigid mallet thrown at the object: a hard, bright contact that brings out the high modes. The shorter a contact, the higher the frequencies it can excite, and a hard mallet is over almost before it starts. Reach for it when a sound needs to cut.
+
+**Try it:** load **Lead → Hard Cable Pluck**, then turn **Material Stiffness** up and down between notes.
 
 ## What it is
 
+A solid mallet head hits the surface, pushes into it with a stiff, slightly lossy contact, and rebounds. The contact is solved together with the object's response, so a hard hit stays stable however stiff the mallet is.
+
 ## How it sounds
+
+Brighter and harder than Felt Mallet, with a clear attack: clangs, plucks and metallic hits. It excites more of the object's high modes, so inharmonic objects like **Sheet Metal** and **Chain** sound more like themselves.
 
 ## Controls
 
+<ModelControls exciter="Hard Mallet" />
+
+- **Mallet Mass:** heavier mallets stay in contact longer and bring out the low modes.
+- **Material Stiffness:** higher gives a sharper, slightly brighter strike.
+- **Impact Damping:** the energy lost in the contact. Higher softens and shortens the attack; on a plate the ring is about half as long at the maximum.
+
 ## Pairings
+
+On **Taut Cable** it plucks; on **Plate** it gives a struck lead; on **Sheet Metal** and **Chain**, clangs. The factory bank also uses it for a driven **I-Beam** bass and a sheet-metal hi-hat.
 
 ## Tips
 
-## Factory presets
+- **Impact Damping** is the control to reach for when a hit is too long or too clicky.
+- For hi-hats and ticks, use a small, bright object and a short **Release**.
+- Hard contacts excite everything, including the partials you might not want. If a hit is too harsh, lower the object's **Brightness** before you change the mallet.
+
+## Presets to try
+
+- **Lead → Hard Cable Pluck**
+- **Lead → Plate Strike Lead**
+- **Bass → Driven Beam Bass**
+- **Percussion → Rusted Sheet Clang**
+- **Percussion → Sheet Tick Hat**
+- **Percussion → Chain Mallet Clank**
+- **Experimental → Hard Mallet**: one preset on each of the nine objects.
 
 ## Listen
 

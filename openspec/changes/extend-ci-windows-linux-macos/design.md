@@ -91,7 +91,34 @@ Same mechanism as today, extended to six zips: `gh release delete nightly --yes 
 
 ## Measurements
 
-(Still to fill: run times per job, cold and cached; validator results per platform; `no_alloc` on Windows.)
+Validator results per platform are in "Validators green" below; the platform-dependent tests are in "First runs on Windows and macOS".
+
+### Run times (2026-11-14)
+
+Cached: run #284 on `dev` (25a5e9a), every job green, about 10 min end to end (`checks` start to `bundle` end). Cold: run #100 (attempt 2) on `main`, the first run with no cache (the cache step took 1 s). Windows and macOS failed their tests in that run, so it gives a complete cold time for Linux only. Bundle jobs have never run cold here: their first run already had a cache.
+
+| Job | Cold (#100) | Cached (#284) | Longest steps (cached) |
+|---|---|---|---|
+| checks (linux) | 8 min 12 s | 5 min 30 s | CI-lane tests 2:06, GUI lane 2:02 |
+| checks (windows) | — (tests failed at 3:58) | 8 min 14 s | CI-lane tests 3:31, GUI lane 3:21 |
+| checks (macos) | — (tests failed at 3:39) | 5 min 14 s | CI-lane tests 2:19, GUI lane 2:20 |
+| bundle (linux) | — | 53 s | build 11 s, validators 2 s |
+| bundle (windows) | — | 1 min 31 s | build 32 s, validators 3 s |
+| bundle (macos) | — | 1 min 22 s | build 41 s (universal), validators 4 s |
+| web | — | 2 min 46 s | build 41 s, browser checks 40 s |
+| guide | — | 23 s | build 6 s |
+
+Clippy took 27–61 s cold and 5–14 s cached. The tests dominate, and their time is running, not compiling: `every_sound_shaping_control_changes_its_note` and `every_factory_preset_meets_the_quality_floor` each run over a minute in the GUI lane. The nightly's first run on `main` took 11 min (#108).
+
+### `no_alloc` on Windows (2026-11-14)
+
+Design decision 4 said to try it. Cargo.toml still leaves nih-plug's `assert_process_allocs` off on Windows; a CI step turns it on for `no_alloc` alone (`--features nih-plug/assert_process_allocs`).
+
+- **Trial** (run #290, `continue-on-error`, 10-minute timeout): 12 of 12 passed on MSVC in 0.78 s, compiled in 39 s. No hang. On its own this proved nothing: a missing checker passes too.
+- **Sentinel:** new test `the_checker_is_armed` runs a deliberately allocating test (`allocation_aborts_under_the_checker`, ignored) as a child of the test binary and requires it to abort. Locally it is green in debug and red in release, where the checker compiles out.
+- **A wrong turn, recorded:** runs #292 and #294 failed on Windows. I first read that as "the checker isn't installed on MSVC". The failure was in the *workspace* test step, which also runs `tests/no_alloc.rs`, but without the feature, so the checker is absent there by design. The feature step never ran. On Windows the sentinel now applies only when `CORROSION_EXPECT_ALLOC_CHECKER` is set, which only the no_alloc step does; off Windows it always applies.
+- **Result** (run #296, `3cd53c7`): the Windows no_alloc step passed in 33 s with the sentinel required. The checker is installed and catches allocations on MSVC, and nothing hangs.
+- **As built:** the step is permanent on Windows (no `continue-on-error`; the timeout stays). All three platforms now run the real-time tests, each with a sentinel proving the checker is armed.
 
 ### First runs on Windows and macOS (2026-11-10)
 

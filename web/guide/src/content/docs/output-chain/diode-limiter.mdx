@@ -5,16 +5,52 @@ sidebar:
 covers: {"modes": {"limiter": ["Hard", "Lookahead"]}}
 ---
 
-import Stub from '../../../components/Stub.astro';
+import Clips from '../../../components/Clips.astro';
+import Data from '../../../components/Data.astro';
 
-<Stub />
+The last two stages keep your speakers and your ears safe, and they can add character on the way. First comes a diode clipper that rounds off peaks softly and a little lopsidedly, like real diodes do. Then a limiter makes sure nothing ever goes past the ceiling. You'll find them in the **Brickwall Limiter** panel and the header's **LIMITER** menu.
+
+**Try it:** turn **Drive Amt** up a lot, then lower **Ceiling** and listen as the diode stage starts to bite. Watch the red dot in the panel light up.
 
 ## Ceiling
 
+The highest level the plugin will ever output, from <Data param="analog_ceiling" field="min" /> to <Data param="analog_ceiling" field="max" /> (as a linear amplitude). The default is about −0.3 dBFS, just under full scale.
+
+The diode stage starts to clip a little below it, at the ceiling ÷ 1.3, which leaves the limiter some headroom. Lower the ceiling and both act earlier, so more of the sound gets shaped.
+
+<Clips param="analog_ceiling" />
+
 ## Softness
+
+The shape of the clipper's [knee](/wiki/glossary/#knee). At 0 the wave hits a hard wall, which sounds crisp and buzzy. Turn it up and the curve starts bending earlier and more gently, which sounds warmer and rounder. At the default the bend starts about 4 dB under the limit; at the maximum, about 14 dB under.
+
+Honest note: you'll only hear Softness when the sound actually reaches the clipper. On a clean patch it changes very little.
+
+<Clips param="diode_softness" />
+
+Older presets and projects load with Softness 0, the hard clip they always had, so they sound as they did. Host automation of Softness recorded before this control existed now means different values, so it needs re-recording.
 
 ## Asymmetry
 
+Real diodes rarely clip both halves of a wave equally, and that unevenness is part of why analogue distortion sounds warm. **Asymmetry** clips the negative half earlier than the positive half. That adds even harmonics, the octave and friends, which sounds fuller and sweeter than symmetric clipping.
+
+Lopsided clipping would shift the wave off centre, so above 0 a slow high-pass quietly puts it back. Older presets and projects load with Asymmetry 0.
+
+<Clips param="diode_asymmetry" />
+
+**Tip:** if a driven sound is harsh, try trading some **Drive Amt** for more **Asymmetry**: the grit gets warmer rather than louder.
+
 ## Limiter modes
 
+The header's **LIMITER** menu picks the very last stage:
+
+- **Hard** (default): clamps any peak at the ceiling, instantly, with no added latency.
+- **Lookahead:** sees peaks coming and turns them down smoothly beforehand. It adds about 1 ms of latency, which the plugin reports to your host, so your track stays in time.
+
+Either way, no sample leaves the plugin above the ceiling. Use **Hard** when you're playing live; use **Lookahead** when you're rendering and want the cleanest peaks.
+
 ## The diode meter
+
+The red dot in the **Brickwall Limiter** panel tells you how hard the diode stage is working. It rests dim, brightens as the clipper takes off between 0.1 dB and 6 dB, and fades back when it stops.
+
+A dot that flickers on loud hits is normal and healthy. A dot that stays lit means the sound is living in the clipper. If that's the sound you want, enjoy it; if not, lower **OUTPUT** or one of the drives.

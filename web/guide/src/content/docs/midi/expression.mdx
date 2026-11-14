@@ -5,10 +5,20 @@ sidebar:
 covers: {"features": ["expression"]}
 ---
 
-import Stub from '../../../components/Stub.astro';
+Some hosts can talk to one note at a time instead of the whole instrument. Corrosion listens: in CLAP and VST3 hosts that send per-note events, you can retune or choke a single note while the others keep playing.
 
-<Stub />
+**Try it:** in a host that edits per-note expression (several CLAP hosts do), draw a tuning curve on one note of a chord. Only that note bends.
+
+Notes are matched by the ID the host gives them, so two overlapping notes on the same key stay separate. Hosts that send plain MIDI match notes by key and channel instead, and everything still works the ordinary way.
 
 ## Per-note tuning
 
+Retunes one note, in semitones, on top of the pitch bend, which still moves every note. Like pitch bend, it slides the object's modes smoothly instead of restarting the note, so per-note glides on a ringing cable or bowed plate sound natural.
+
+**Tip:** per-note tuning is a lovely way to detune one voice of a bowed chord by a few cents for a slow beating shimmer.
+
 ## Choke
+
+A choke stops one note dead, with a 2 ms fade so it doesn't click. It's how drum machines cut an open hi-hat when the closed one plays; a host that sends chokes can do the same with Corrosion's Kit pads.
+
+Channel MPE, where each note gets its own MIDI channel for bend and pressure, isn't supported: channel messages apply to all notes.

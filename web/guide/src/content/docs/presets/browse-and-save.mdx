@@ -5,14 +5,32 @@ sidebar:
 covers: {"features": ["user-presets"]}
 ---
 
-import Stub from '../../../components/Stub.astro';
+Browsing and saving both happen in the **PRESET BANK** box in the header.
 
-<Stub />
+**Try it:** load a preset, change something you like, type a name in **Preset name** and click **Save**. Then open the preset menu: your sound is under **User**.
 
 ## Browse
 
+Click the preset name to open the menu. Each factory folder is a submenu (Experimental has one per exciter), followed by **User** with your own presets. The **‹ ›** arrows step to the previous and next preset in the folder of the one you're on, so you can audition a whole folder without opening the menu again.
+
+Loading a preset replaces every control in the editor, except the UI scale.
+
 ## Save
+
+1. Pick a folder in the menu to the left of the name: **User**, or one of its subfolders.
+2. Type a name in **Preset name**.
+3. Click **Save**.
+
+If a preset with that name already exists in that folder, Corrosion asks before replacing it. Names can be anything you like; characters a file name can't hold are swapped for safe ones on disk, and the preset keeps the name you typed.
+
+Saving never writes into the factory bank, so a factory preset you've changed is saved as a new user preset.
 
 ## User folders
 
+Subfolders of your preset folder show up as submenus under **User**, and in the folder menu next to the name. To make one, create a folder in your file manager (**Open folder** takes you there) and it appears in the editor.
+
+**Tip:** organise by what you'll look for later, not by how you made it. "Basses", "Hits", "Song – Night Shift" beats "Bow experiments".
+
 ## Open the folder
+
+**Open folder** shows your preset folder in the system's file manager, creating it if it doesn't exist yet. Use it to back up your presets, share them, or copy in presets someone sent you.

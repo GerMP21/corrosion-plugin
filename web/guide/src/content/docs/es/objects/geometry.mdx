@@ -4,12 +4,34 @@ sidebar:
   order: 1
 ---
 
-import Stub from '../../../../components/Stub.astro';
+import Clips from '../../../../components/Clips.astro';
+import Data from '../../../../components/Data.astro';
 
-<Stub />
+La parte superior de la columna **RESONATOR** elige el objeto y fija su forma: qué es, qué tamaño tiene y los controles que solo tiene ese objeto. El tamaño es lo principal. Igual que una campana más grande suena más grave, aquí un objeto más grande da una nota más grave, y así es como Corrosion convierte la tecla que pulsas en una altura.
+
+**Pruébalo:** elige **Taut Cable**, toca una nota y dobla **Cable Length**: la misma tecla suena ahora una octava más grave.
 
 ## Material
 
+**MATERIAL** elige uno de los [nueve objetos](/wiki/es/objects/). Los controles de debajo cambian con el objeto: cada uno tiene un control de tamaño, con el nombre de su forma, y dos o tres controles propios, descritos en su página. Un objeto nuevo se aplica a la siguiente nota que toques.
+
+Los controles del objeto se leen al empezar cada nota, como los controles del modelo de excitador. Hay dos excepciones que actúan sobre notas sostenidas: **Brightness** y el control de amortiguación del objeto (**Sustain Time** en Pipe, **Shell Decay** en Tank, **Friction Decay** en Chain, **Rigidity Damping** en I-Beam, **Edge Damping** en Sheet Metal y **Blade Thickness** en Industrial Cog). Los controles de [Mechanical Linkage](/wiki/es/objects/mechanical-linkage/) también actúan sobre notas sostenidas.
+
 ## Brightness
 
+Abre el filtro del objeto y lo aclara, de <Data param="res_brightness" field="min" /> a <Data param="res_brightness" field="max" />. Más alto suena más brillante; más bajo deja solo los modos graves. Actúa sobre notas sostenidas, así que puedes barrerlo mientras suena una nota.
+
+<Clips param="res_brightness" />
+
 ## Afinación
+
+El control de tamaño, de <Data param="size" field="min" /> a <Data param="size" field="max" />, fija la altura del objeto: la fundamental es más o menos la frecuencia de la tecla dividida por el tamaño, así que doblarlo baja la nota una octava. Cada objeto tiene una altura distinta al mismo tamaño; la tabla del [resumen](/wiki/es/objects/#cómo-se-afinan-los-objetos) da el tamaño que pone cada uno en la nota.
+
+- Para tocar una melodía afinada, pon el tamaño que corresponde a tu objeto y toca el teclado con normalidad.
+- Para transponer un objeto por octavas, multiplica o divide su tamaño por 2.
+- En Sheet Metal la altura sigue al tamaño más despacio, así que las octavas necesitan más que doblarlo.
+- En el modo Kit, cada pad tiene además su propio **Tune**, en semitonos ([Kit](/wiki/es/note-modes/kit/)).
+
+<Clips param="size" />
+
+**Consejo:** el tamaño no es solo para afinar. Un tamaño algo «incorrecto» en un objeto inarmónico (una placa, un engranaje, una lámina) cambia qué parciales caen cerca de las notas que tocas, así que con movimientos pequeños un acorde agrio puede volverse dulce. Muévelo un poco y escucha.

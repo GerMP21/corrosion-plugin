@@ -2,8 +2,120 @@
 title: "Glossary"
 ---
 
-import Stub from '../../components/Stub.astro';
+The words this guide uses, in plain language. If a page uses a term you don't know, it's probably here.
 
-<Stub />
+**Try it:** skim the list once. Half of these you'll recognise from other synths; the other half are where physical modelling gets interesting.
 
 ## Terms
+
+### Aliasing
+
+Harsh, inharmonic fizz that appears when a process like clipping creates frequencies too high for the sample rate, which fold back down into the audible range. Oversampling reduces it.
+
+### Beating
+
+A slow wobble in level heard when two partials are very close in pitch, as they drift in and out of step. Gongs and cracked metal are full of it.
+
+### Ceiling
+
+The highest level Corrosion will output. The diode stage clips a little under it and the limiter stops every sample at it.
+
+### Choke
+
+A host message that stops one note at once. Corrosion fades it out in 2 ms so it doesn't click.
+
+### Coupling
+
+How firmly the exciter and the object push on each other. Set by **Coupling** in Mechanical Linkage.
+
+### Damping
+
+How quickly a mode loses energy. More damping means a shorter ring.
+
+### Drive
+
+Deliberate overloading of a stage to add harmonics and grit. Corrosion has two: Legacy Drive and the Overdrive Unit.
+
+### Envelope
+
+A shape over time. In Corrosion the envelopes shape the exciter's force, not the volume: AD for struck exciters, MSEG for friction, ADSR for specialty.
+
+### Even harmonics
+
+Partials at even multiples of the fundamental (the octave, two octaves up…). Asymmetric clipping adds them, and they sound full and warm.
+
+### Exciter
+
+Whatever plays the object: a hand, a mallet, a bow, a jet of air. See [Exciters](/wiki/exciters/).
+
+### Fundamental
+
+The lowest mode of a note, the one you hear as its pitch.
+
+### General MIDI
+
+A standard layout that puts each drum sound on a fixed key (kick on C2, snare on D2…), so drum patterns play the right sounds on any instrument that follows it.
+
+### Harmonic
+
+Partials at whole-number multiples of the fundamental. Strings and pipes are nearly harmonic, which is why they play clear pitches and chords.
+
+### Inharmonic
+
+Partials that don't line up as whole-number multiples. Bells, plates, cogs and chains are inharmonic: that's their shimmer, and why chords on them can clash.
+
+### Knee
+
+Where a clipper's curve starts to bend. A hard knee clips abruptly; a soft knee bends early and gently.
+
+### Latency
+
+Delay added by processing. Corrosion adds none with the Hard limiter and about 1 ms with Lookahead, which it reports to the host.
+
+### Lorenz attractor
+
+A small chaotic system that wanders endlessly without repeating. The Overdrive Unit uses it to move its drive.
+
+### Modal synthesis
+
+Building a sound from a set of resonating modes, each with its own frequency, level and decay. It's how Corrosion models its objects.
+
+### Mode
+
+One of the ways an object can vibrate, each at its own frequency, with its own level and decay. You hear each mode as a partial.
+
+### MSEG
+
+Multi-stage envelope generator: the six-stage, loopable envelope of the friction exciters. See [Force envelope and MSEG](/wiki/exciters/envelopes/).
+
+### Node
+
+A point on an object where a mode doesn't move. Striking at a mode's node leaves that mode silent.
+
+### Object
+
+The piece of metal that rings: a pipe, a plate, a cable… See [Objects](/wiki/objects/).
+
+### Oversampling
+
+Running a process at a multiple of the sample rate, so the harsh frequencies it creates can be filtered out before they alias.
+
+### Pad
+
+In Kit mode, the sound stored on one key. See [Kit](/wiki/note-modes/kit/).
+
+### Partial
+
+One of the pitches a sound is made of. A note's partials, and how they're spaced, are what make a pipe sound like a pipe.
+
+### Release snap
+
+The jump in level when a held friction note is released quickly and the object springs back. See [Troubleshooting](/wiki/troubleshooting/#a-loud-release).
+
+### Voice
+
+One playing note: an exciter and an object. Corrosion plays up to 16 at once.
+
+### Voice stealing
+
+When more than 16 notes are playing, reusing a voice for the new note: first one that's fading out, then one held by the pedal, then the quietest held note.

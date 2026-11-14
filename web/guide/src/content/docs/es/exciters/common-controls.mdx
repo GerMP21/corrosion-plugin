@@ -4,12 +4,39 @@ sidebar:
   order: 1
 ---
 
-import Stub from '../../../../components/Stub.astro';
+import Clips from '../../../../components/Clips.astro';
+import Data from '../../../../components/Data.astro';
 
-<Stub />
+Encima de los controles propios de cada excitador hay tres perillas: **Pressure**, **Speed** y **Roughness**. Escalan la fuerza, el movimiento y la aspereza del excitador, sea cual sea el modelo. En sus valores por defecto no cambian nada, así que un preset suena igual hasta que las mueves.
+
+**Pruébalo:** carga **Drones → Grinding Beam**, mantén una nota y sube y baja **Pressure**. La amoladora muerde más fuerte y más suave mientras suena la nota.
 
 ## Pressure
 
+Lo fuerte que el excitador presiona el objeto. Escala la fuerza de todos los excitadores, de <Data param="exciter_pressure" field="min" /> a <Data param="exciter_pressure" field="max" />. Más alto empuja el objeto con más fuerza: más volumen y más tensión.
+
+Pressure también actúa sobre notas sostenidas, suavizado en unos 10 ms, así que puedes tocarlo como un crescendo. El gobernador de drive sigue evitando que la voz se sature, así que en lo alto de su recorrido un excitador fuerte se vuelve más denso en lugar de mucho más fuerte.
+
+<Clips param="exciter_pressure" />
+
 ## Speed
 
+Lo rápido que el excitador se mueve sobre o contra el objeto, de <Data param="exciter_speed" field="min" /> a <Data param="exciter_speed" field="max" /> de la velocidad propia del modelo. Escala los controles de movimiento: `Bow Speed`, `Scrape Speed`, `Grind Speed`, `Drag Speed`, `Pull Speed` y el `Flow Rate` de Particle Rain. En Wire Brush y Metal Chain acorta en cambio su dispersión en el tiempo, así que un cepillo o una cadena más rápidos caen antes.
+
+Speed se lee al empezar cada nota: muévelo y toca la nota siguiente.
+
+No hace nada en los excitadores que no tienen movimiento que escalar: Hand Strike, Felt Mallet, Hard Mallet, Drumstick, Metal Pipe, Pneumatic Jet, Electromagnetic Hum y Tension Snap.
+
+<Clips param="exciter_speed" />
+
 ## Roughness
+
+La irregularidad del contacto, de <Data param="exciter_roughness" field="min" /> a <Data param="exciter_roughness" field="max" /> de la aspereza propia del modelo. Escala los controles que añaden ruido o azar: `Rosin Grip`, `Amplitude Randomization`, `Internal Rattle`, `Surface Grit`, `Slip Stochasticity`, `Turbulence Chaos` y `Mass Variance`. En su mínimo, esos controles van a su valor más bajo.
+
+Como Speed, Roughness se lee al empezar cada nota. No hace nada en Hand Strike, Felt Mallet, Hard Mallet, Drumstick, Metal Pipe, Stiff Point Scrape, Corrugated Drag, Electromagnetic Hum y Tension Snap.
+
+<Clips param="exciter_roughness" />
+
+**Consejos:**
+- **Pressure** es el más expresivo de los tres. Asígnalo a la rueda de modulación o a un pedal de expresión en tu DAW y toca con él un drone con arco o con amoladora: conseguirás crescendos que la velocidad sola no da.
+- **Speed** y **Roughness** van genial para sacar variaciones de un preset que te gusta: mueve uno, toca y guárdalo como preset nuevo.

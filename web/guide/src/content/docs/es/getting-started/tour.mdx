@@ -4,16 +4,39 @@ sidebar:
   order: 5
 ---
 
-import Stub from '../../../../components/Stub.astro';
+En diez minutos vas a cambiar cada parte de un sonido: qué lo toca, de qué está hecho y qué le pasa después. Al final sabrás dónde está todo y tendrás un sonido propio guardado.
 
-<Stub />
+**Pruébalo:** sigue los pasos en el plugin o en la [app web](https://corrosion-vst.org/play/), tocando una nota después de cada uno. Por el camino, pasa el ratón por cualquier insignia ⓘ para ver qué hace un control.
 
 ## Empieza desde un preset
 
+Abre el menú de presets en el recuadro **PRESET BANK** y elige **Lead → Driven Pipe Lead**. Toca unas notas alrededor del do central. Es una baqueta golpeando un tubo, con algo de ayuda de la cadena de salida.
+
 ## Cambia el excitador
+
+En la columna **EXCITER**, abre **MODEL TYPE** y elige **Bow**. Toca y mantén una nota: el mismo tubo ahora canta, crece y se apaga, y al soltar resuena mientras el arco lo abandona.
+
+Los controles bajo el modelo también cambiaron. Cada excitador tiene su propio panel (para el arco: `Bow Pressure`, `Bow Speed`, `Rosin Grip` y `Slip Curve`), y los excitadores de fricción tienen una envolvente de fuerza de seis etapas en lugar de un ataque y una caída simples. Sube **Bow Pressure** y vuelve a tocar: el tono se vuelve más áspero y luego empieza a rascar.
+
+Vuelve a **Drumstick** antes del siguiente paso, o quédate con el arco si te gusta.
 
 ## Cambia el objeto
 
+En la columna **RESONATOR**, abre **MATERIAL** y elige **Taut Cable**. Mismo excitador, otro metal. Escucha la altura mientras suena la nota: un golpe fuerte baja por un momento la tensión del cable, así que la altura cae y vuelve a subir mientras la nota se apaga. Un tubo no hace eso.
+
+- El primer control de cada objeto fija su tamaño, con un nombre que le va. Para el cable es **Cable Length**. Alárgalo y toca: la altura baja.
+- En **Environmental Exposure**, sube **Rust**: los parciales agudos se apagan antes y suenan más sordos mientras el golpe grave sigue sonando. **Damage** agrieta el objeto en pares de parciales que baten.
+
 ## Da forma a la salida
 
+- Gira las cuatro **macros** de arriba. Cada una mueve un grupo de controles a la vez: **MASS** hace el sonido más pesado y grave, **CORROSION** más oxidado y apagado, **VIOLENCE** más sucio y caótico, **BRIGHTNESS** más brillante.
+- En **PROCESSING**, baja el **CUTOFF** del Filter Bank para oscurecerlo todo y añade algo de **DRIVE AMT** en el Overdrive Unit.
+- En **Space**, pon **MODE** en **Spring** y sube **AMOUNT** para meter el sonido en un tanque de muelles.
+
 ## Guarda tu sonido
+
+1. Escribe un nombre en el campo **Preset name**.
+2. Elige dónde va con el menú de su izquierda (User, o una carpeta que hayas creado dentro).
+3. Haz clic en **Save**. Tu preset aparece en User, en el menú de presets.
+
+Los presets de fábrica nunca se sobrescriben. Si quieres variaciones para explorar, pon el menú junto a **Randomize** en **Safe** y haz clic en **Randomize**: saca un sonido nuevo dentro de límites seguros. [Randomizer](/wiki/es/randomizer/) explica los otros modos.

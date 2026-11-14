@@ -6,21 +6,46 @@ covers: {"exciters": ["Metal Chain"]}
 ---
 
 import Clips from '../../../../components/Clips.astro';
-import Stub from '../../../../components/Stub.astro';
+import ModelControls from '../../../../components/ModelControls.astro';
 
-<Stub />
+Una cadena que cae sobre el objeto: una cascada de golpes de eslabones y el traqueteo de los eslabones chocando entre sí. Es el más caótico de los golpes y no hay dos notas iguales, lo que la convierte en un regalo para el diseño de sonido y en un reto para los ritmos ajustados.
+
+**Pruébalo:** carga **Percussion → Chain Rattle Hit**, sube **Link Count** y **Drop Envelope Spread** y vuelve a tocar.
 
 ## Qué es
 
+Una cadena cae sobre el objeto. Sus eslabones aterrizan uno tras otro, repartidos en poco tiempo, y cada uno golpea el metal; entre golpe y golpe, los eslabones traquetean entre sí. Los eslabones más pesados golpean más fuerte y hunden más la superficie.
+
 ## Cómo suena
+
+Ajetreado, metálico y rítmico: traqueteos, estrépito y golpes de chatarra. Es el más caótico de los golpes, y cada nota es un poco distinta.
 
 ## Controles
 
+<ModelControls exciter="Metal Chain" />
+
+- **Link Count:** el número de eslabones. Más alto da un traqueteo más largo y ajetreado.
+- **Chain Mass:** el peso de los eslabones. Los más pesados golpean más fuerte.
+- **Drop Envelope Spread:** lo repartidos en el tiempo que caen los eslabones. Más alto estira la cascada.
+- **Internal Rattle:** el traqueteo entre eslabones. Más alto añade más estrépito. En 0 solo oyes los golpes de los eslabones.
+- **Rattle Color:** dónde está el paso alto del traqueteo. Más alto adelgaza el traqueteo y deja los golpes de los eslabones.
+
+**Speed** acorta la caída, así que los eslabones aterrizan antes, y **Roughness** escala **Internal Rattle**.
+
 ## Combinaciones
+
+Sobre **Chain** suena a cadena contra cadena; sobre **Plate** o **Sheet Metal**, a chatarra cayendo sobre una chapa. Cuatro kits de fábrica lo usan para estrépito y percusión de chatarra.
 
 ## Consejos
 
-## Presets de fábrica
+- Para un único golpe metálico, baja **Link Count** y **Drop Envelope Spread**.
+- Para un traqueteo largo, sube los dos y añade un **Release** largo.
+- Para partes rítmicas, deja la cascada corta para que el golpe caiga donde lo tocaste; guarda las cascadas largas para efectos sueltos.
+
+## Presets para probar
+
+- **Percussion → Chain Rattle Hit**
+- **Experimental → Metal Chain**: un preset sobre cada uno de los nueve objetos.
 
 ## Escúchalo
 

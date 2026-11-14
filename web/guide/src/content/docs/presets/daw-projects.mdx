@@ -4,10 +4,22 @@ sidebar:
   order: 4
 ---
 
-import Stub from '../../../components/Stub.astro';
+Your host saves Corrosion's state with the project: every control, the kit's pads, everything. Reopen the project and the sound is back, without a preset in sight.
 
-<Stub />
+**Try it:** tweak a sound, save the host project, close it and open it again. The editor comes back exactly as you left it.
 
 ## Saved projects
 
+Projects saved with older versions of Corrosion get the same conversions as [older presets](/wiki/presets/files/#older-presets), so they keep their sound: the diode stage, Onset Level, Wander Rate and the old Kit mode are all migrated when the project opens.
+
+The project remembers whether it used the VST3 or the CLAP version. Keep using the same one for that project.
+
 ## Automation changes
+
+Automation is the one thing that can't be converted. The host replays recorded values by parameter, and where a parameter's meaning has changed, old automation now means something different. These changes are **breaking**:
+
+- **Output** is now in dB, with 0 dB a little above the middle of its travel. Output automation recorded before that change plays back at different levels. If an old project jumps in volume, re-record the Output lane.
+- **Diode Softness** used to barely move the old clipper; it now shapes a real knee. Old Softness automation sounds different; re-record it if it matters.
+- **Note Mode** automation that switched to the old Kit mode now switches to the new one, where keys without pads are silent.
+
+If you never automated these, there's nothing to do.

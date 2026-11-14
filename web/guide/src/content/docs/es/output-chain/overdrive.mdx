@@ -4,14 +4,47 @@ sidebar:
   order: 2
 ---
 
-import Stub from '../../../../components/Stub.astro';
+import Clips from '../../../../components/Clips.astro';
+import Data from '../../../../components/Data.astro';
 
-<Stub />
+La Overdrive Unit no es el típico pedal de distorsión. Su cantidad de saturación la mueve un atractor de Lorenz, un pequeño sistema caótico famoso por no repetirse nunca del todo. Así que en lugar de una cantidad fija de fuzz tienes una distorsión que respira, se cae y chisporrotea sola, como un amplificador viejo con la fuente de alimentación tocada.
+
+**Legacy Drive**, más arriba en la cadena, es la alternativa sencilla y honrada.
+
+**Pruébalo:** sube **Drive Amt** hasta 2 más o menos y toca. Luego sube **Chaos** y escucha cómo la distorsión empieza a moverse sin que toques nada.
 
 ## Drive Amt
 
+Lo fuerte que satura el drive de Lorenz, de <Data param="drive_amount" field="min" /> a <Data param="drive_amount" field="max" />. En 0 toda la unidad queda puenteada. Al subirlo, una curva de válvula aplasta la onda: primero calidez, luego aspereza y luego un fuzz espeso.
+
+**Bias Starve** y **Chaos** solo dan forma al drive, así que no hacen nada mientras **Drive Amt** esté en 0.
+
+<Clips param="drive_amount" />
+
+**Consejo:** la distorsión añade parciales, y el metal ya tiene de sobra. Si un sonido saturado se vuelve una papilla, baja un poco **Cutoff**, o usa menos drive y más **Asymmetry** en la etapa de diodo para una aspereza más limpia.
+
 ## Bias Starve
+
+Imagina un circuito al que de vez en cuando le baja la tensión de alimentación: la señal se cae, tose y vuelve. Eso es **Bias Starve**. Cada vez que el atractor pasa por una zona, la entrada del drive se queda sin alimentación, con suavidad y sin clics, y se recupera cuando el atractor sigue su camino.
+
+Más alto hace las caídas más frecuentes: raras cerca de 0, casi constantes en el máximo.
+
+<Clips param="bias_starvation" />
+
+**Consejo:** con un sonido sostenido (un arco, un chorro, un zumbido), Bias Starve es el efecto de «pila agotada». En golpes cortos es más bien una lotería: cada golpe puede caer en una bajada o no.
 
 ## Chaos
 
+Cuánto mueve el atractor el drive. En 0 el drive es estable. Al subirlo, el nivel y la distorsión oscilan de forma imprevisible, varios dB en el máximo, sin repetir nunca el mismo dibujo.
+
+<Clips param="chaos_depth" />
+
+**Consejo:** esas oscilaciones cambian el nivel, así que revisa un patch caótico en sus momentos más fuertes, no en los más flojos, antes de decidir dónde va **OUTPUT**.
+
 ## Legacy Drive
+
+Una saturación general, sin complicaciones, sobre la mezcla de todas las voces, de <Data param="drive" field="min" /> a <Data param="drive" field="max" />. Está antes del Filter Bank, y eso viene bien: el filtro puede domar luego el chisporroteo que añade.
+
+<Clips param="drive" />
+
+**Consejo:** para un sonido sucio que se siga portando bien en la mezcla, usa **Legacy Drive** y baja después **Cutoff**. Para una distorsión con voluntad propia, usa la Overdrive Unit.

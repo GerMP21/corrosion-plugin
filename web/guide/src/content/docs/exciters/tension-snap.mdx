@@ -6,21 +6,45 @@ covers: {"exciters": ["Tension Snap"]}
 ---
 
 import Clips from '../../../components/Clips.astro';
-import Stub from '../../../components/Stub.astro';
+import ModelControls from '../../../components/ModelControls.astro';
 
-<Stub />
+A hook that pulls on the object until it lets go: one sharp snap per note. It's a pluck in slow motion: you hear the pull, then the release, then the ring. Great for basses with real bite.
+
+**Try it:** load **Bass → Snapped Cable Bass** and change **Pull Distance** between notes.
 
 ## What it is
 
+A hook catches the object and pulls it slowly aside. When the tension passes the snap force, or the hook reaches its pull distance, it lets go, and the object springs back and rings. One note, one snap.
+
 ## How it sounds
+
+A sharp pluck or crack: snapped strings, plucked basses, breaking parts.
 
 ## Controls
 
+<ModelControls exciter="Tension Snap" />
+
+- **Pull Distance:** how far the hook pulls before releasing. Higher gives a bigger snap.
+- **Hook Stiffness:** the stiffness of the hook. Higher gives a sharper release.
+- **Snap Force:** the force at which it snaps. Higher is louder and harder.
+
+Neither **Speed** nor **Roughness** affects it.
+
 ## Pairings
+
+On **Taut Cable** it plucks like a bass string; on **Chain**, a metallic snap. Two factory kits use it.
 
 ## Tips
 
-## Factory presets
+- Velocity scales the snap force, so play harder for bigger snaps.
+- Because it pulls before it snaps, the snap lands a moment after the key; a larger **Pull Distance** can delay it more.
+- Because the snap lands a moment after the key, nudge the part a little earlier in your host if it feels late in a tight groove.
+
+## Presets to try
+
+- **Bass → Snapped Cable Bass**
+- **Percussion → Chain Snap**
+- **Experimental → Tension Snap**: one preset on each of the nine objects.
 
 ## Listen
 

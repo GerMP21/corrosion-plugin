@@ -6,21 +6,45 @@ covers: {"exciters": ["Stiff Point Scrape"]}
 ---
 
 import Clips from '../../../components/Clips.astro';
-import Stub from '../../../components/Stub.astro';
+import ModelControls from '../../../components/ModelControls.astro';
 
-<Stub />
+A stiff point dragged across the surface: it catches, bends and lets go, over and over, for squeals and scraping chatter. Think of a nail on a sheet of steel, or a chair dragged across a factory floor. Use it with care, and enjoy it when you do.
+
+**Try it:** load **Drones → Cable Scrape Drone**, hold a note and sweep **Scrape Speed**.
 
 ## What it is
 
+A rigid point, like a nail or a blade edge, presses into a moving surface. It catches, bends like a stiff spring, and slips free; the point's own spring rings each time it lets go, and that chatter is the force that drives the object.
+
 ## How it sounds
+
+Squeaky, scratchy and tense: squeals, scrapes and nails on metal. It's harsher than the bow and less noisy than grinding.
 
 ## Controls
 
+<ModelControls exciter="Stiff Point Scrape" />
+
+- **Scrape Speed:** how fast the point moves along the surface. Higher raises the chatter's pitch and density.
+- **Point Pressure:** how hard the point presses in. Higher is louder and harsher.
+- **Chatter Pitch:** the tuning of the point's chatter, which colors the scrape. Higher sounds darker and softer.
+- **Chatter Damping:** how quickly each chatter burst dies away. Higher sounds drier and tighter.
+
+**Speed** scales **Scrape Speed**; **Roughness** doesn't affect it.
+
 ## Pairings
+
+On **Taut Cable** it gives a scraped drone; on **Plate** or **Sheet Metal**, squeals. Low **Scrape Speed** on a big object gives slow creaks.
 
 ## Tips
 
-## Factory presets
+- Use **Point Pressure** for intensity and **Chatter Damping** for how dry it sounds.
+- **Release snap:** like the bow, a scrape can leave the object out of its rest position, and letting go quickly makes it spring back louder. Raise the MSEG **Release** to half a second or more to tame it.
+- Squeals are loud in the upper mids. A little **Cutoff** in the Filter Bank keeps them exciting without making listeners wince.
+
+## Presets to try
+
+- **Drones → Cable Scrape Drone**
+- **Experimental → Stiff Point Scrape**: one preset on each of the nine objects.
 
 ## Listen
 

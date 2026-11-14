@@ -40,7 +40,7 @@
 ## Capabilities
 
 ### New Capabilities
-None.
+- `guide-writing-style`: the guide's voice (maintainer, 2026-11-14). Warm and conversational, it explains why things sound as they do and gives practical tips and step-by-step walkthroughs. It never trades accuracy for charm.
 
 ### Modified Capabilities
 - `user-guide`: adds requirements on the content. No placeholders remain. Model pages follow a fixed section shape. Statements match the plugin. Spanish pages are reviewed by the maintainer before they are published. Recipes are reproducible from factory presets. (`user-guide` is created by `add-user-guide`, which must be archived first; these are written as ADDED requirements so they append to it.)

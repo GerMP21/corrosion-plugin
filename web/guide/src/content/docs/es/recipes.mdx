@@ -2,8 +2,159 @@
 title: "Recetas"
 ---
 
-import Stub from '../../../components/Stub.astro';
+import Clips from '../../../components/Clips.astro';
 
-<Stub />
+Las recetas son recorridos cortos y prácticos: empiezas con un preset de fábrica, cambias unos cuantos controles y escuchas lo que has hecho. Cada una dice no solo *qué* girar, sino *por qué*, para que puedas llevar la idea a otros sonidos.
+
+**Pruébalo:** elige cualquier receta de abajo, carga su preset y toca tú mismo las notas del clip de antes antes de empezar a girar mandos.
 
 ## Cómo funcionan las recetas
+
+Cada receta empieza con un preset de fábrica con nombre, enumera cada ajuste que cambia con el valor que muestra el plugin, y tiene dos clips: **Antes** es el preset tal como viene, **Después** es el mismo preset con exactamente los cambios de la lista. Los dos tocan las mismas notas con la misma ganancia, así que la diferencia que oyes es la receta.
+
+Sigue los pasos en orden, tocando una nota después de cada uno; oír cada cambio por separado es la mitad de la lección.
+
+## Del contrabajo al acero
+
+Un contrabajo suave y redondo convertido en un bajo de acero duro y resonante.
+
+1. Carga **Bass → Felt Cable Upright**.
+2. Pon **MODEL TYPE** en **Hard Mallet**.
+3. Pon **Cutoff** en 4000 Hz.
+4. Pon **Drive Amt** en 0.8.
+5. Pon **Asymmetry** en 0.6.
+
+Una maza de fieltro se queda en el cable en un contacto largo y blando; una maza dura desaparece al instante, así que el cable queda libre para resonar. Sale unos 4 dB más fuerte y su cola suena mucho más tiempo. Abrir el filtro deja pasar el ataque extra, y la saturación con algo de asimetría da al sostenido una aspereza cálida en lugar de chisporroteo.
+
+<Clips set="recipes" item="metallic-bass" />
+
+## Amolando en la nave
+
+El drone de la viga amolada llevado a una gran nave industrial, con una saturación inestable por debajo.
+
+1. Carga **Drones → Grinding Beam**.
+2. Pon **Drive Amt** en 0.8.
+3. Pon **Bias Starve** en 0.4.
+4. Pon **Chaos** en 0.4.
+5. Pon Space **Mode** en **Factory**.
+6. Pon **Amount** en 0.4.
+7. Pon **Factory Size** en 0.8.
+
+Un drone es un sonido en el que vives dentro, así que la sala importa tanto como la fuente. La nave grande da distancia y tamaño a la amoladora; el drive de Lorenz, al que de vez en cuando le falta alimentación y que Chaos empuja, evita que la textura se quede quieta del todo. Deja Amount moderado: un drone ya es bastante largo, y demasiada reverb lo convierte en niebla.
+
+<Clips set="recipes" item="industrial-drone" />
+
+## Un lead con arco que canta
+
+El lead de tubo con arco, tocado más cerca del extremo, con un arco que se mueve y un eco suave.
+
+1. Carga **Lead → Pipe Bow Lead**.
+2. Pon **Strike Pos** en 0.2.
+3. Pon **Pos Wander** en 0.3.
+4. Pon Space **Mode** en **Echo**.
+5. Pon **Amount** en 0.3.
+6. Pon **Delay Time** en 0.4.
+7. Pon **HF Damping** en 0.7.
+
+Pasar el arco más cerca del extremo del tubo trae más modos agudos, como un violinista que se acerca al puente. Pos Wander mantiene ese punto a la deriva, así que el tono nunca se repite del todo de una nota a otra. El eco, oscurecido por HF Damping, se queda detrás de la melodía sin ensuciarla.
+
+<Clips set="recipes" item="singing-bowed-lead" />
+
+## Un impacto de tráiler
+
+Una viga golpeada convertida en un golpe pesado y cinematográfico con una cola larga.
+
+1. Carga **Percussion → Beam Anvil**.
+2. Pon **MASS** en 0.9.
+3. Pon **BODY** en 4.5.
+4. Pon **Legacy Drive** en 1.0.
+5. Pon Space **Mode** en **Factory**.
+6. Pon **Amount** en 0.5.
+7. Pon **Factory Size** en 0.9.
+
+MASS hace el martillo más pesado y la viga más grande, así que el golpe baja de altura y cae con más fuerza. BODY añade un chasis que la viga hace temblar, la saturación lo empasta y la nave grande le da una cola. El resultado suena unos 8 dB más fuerte que el original, así que vigila el punto rojo del panel Brickwall Limiter.
+
+<Clips set="recipes" item="impact" />
+
+## Una campana oxidada
+
+Una campana limpia tocada con fieltro y dejada a la lluvia unas cuantas décadas.
+
+1. Carga **Lead → Felt Plate Bell**.
+2. Pon **Rust** en 1.0.
+3. Pon **Damage** en 0.8.
+4. Pon **Heat** en 0.3.
+
+Rust acorta la resonancia, Damage agrieta la placa en parejas de parciales que zumban y baten, y un poco de Heat ablanda el metal para que suene más grave y cálido. Juntos convierten una campana bonita en algo encontrado en un desguace, pero sigue dando sus notas: Rust y Damage conservan la fundamental.
+
+<Clips set="recipes" item="rusted-bell" />
+
+## Tics con glitch
+
+Un tic de reloj ordenado vuelto errático con una saturación sin alimentación y un eco corto que oscila.
+
+1. Carga **Percussion → Cog Tick**.
+2. Pon **Drive Amt** en 1.5.
+3. Pon **Bias Starve** en 0.7.
+4. Pon **Chaos** en 0.8.
+5. Pon Space **Mode** en **Echo**.
+6. Pon **Amount** en 0.3.
+7. Pon **Delay Time** en 0.1.
+8. Pon **Movement** en 0.6.
+
+En los golpes cortos, Bias Starve y Chaos son una lotería: cada tic cae en un punto distinto del vagar del atractor, así que cada uno sale un poco diferente. El eco corto, con Movement doblando su tiempo, emborrona cada tic en un pequeño tartamudeo. Toca un patrón constante y escucha cómo se niega a repetirse.
+
+<Clips set="recipes" item="glitch-percussion" />
+
+## Un pad con cola de muelles
+
+El pad de cable con arco llevado de la nave industrial a un tanque de muelles.
+
+1. Carga **Chords → Bowed Cable Pad**.
+2. Pon Space **Mode** en **Spring**.
+3. Pon **Amount** en 0.45.
+4. Pon **Spring Tension** en 0.6.
+5. Pon **Tank Size** en 0.6.
+
+Una nave envuelve un pad; un muelle lo colorea. El twang y el goteo del tanque dan a los acordes una floración vintage, algo lo-fi, y un tanque más grande mantiene grave el tono del muelle para que no se pelee con la armonía.
+
+<Clips set="recipes" item="spring-pad" />
+
+## Un lead con la pila agotada
+
+Un lead de cable con arco pasado por una saturación a la que no paran de fallarle las fuerzas.
+
+1. Carga **Lead → Bowed Cable Lead**.
+2. Pon **Drive Amt** en 3.0.
+3. Pon **Bias Starve** en 1.0.
+4. Pon **Chaos** en 1.0.
+
+Bias Starve al máximo deja sin alimentación al drive casi todo el tiempo, y Chaos al máximo mantiene su ganancia oscilando, así que el nivel cae y tartamudea bajo un arco constante. Funciona mejor en sonidos sostenidos, donde oyes fallar la alimentación y volver en mitad de una nota.
+
+<Clips set="recipes" item="dying-battery-lead" />
+
+## Una caja a lo lejos
+
+Una caja cercana y nítida empujada al fondo de una sala grande.
+
+1. Carga **Percussion → Plate Snare Crack**.
+2. Pon **Proximity** en 0.15.
+3. Pon **Cutoff** en 3000 Hz.
+4. Pon Space **Mode** en **Factory**.
+5. Pon **Amount** en 0.4.
+6. Pon **Factory Size** en 0.7.
+
+La distancia consiste sobre todo en perder agudos y ganar sala. Bajar Proximity y Cutoff le quita filo al chasquido, como hace el aire a mucha distancia, y la nave aporta las reflexiones que oirías desde lejos.
+
+<Clips set="recipes" item="distant-hit" />
+
+## Domar una suelta fuerte
+
+Una placa arrastrada cuya suelta suena más fuerte que la nota sostenida, soltada con suavidad.
+
+1. Carga **Experimental → Corrugated Drag → Corrugated Drag · Plate**.
+2. Pon MSEG **Release** en 2.0 s.
+
+Un arrastre mantiene la placa un poco fuera de su forma de reposo. Suéltalo de golpe y la placa vuelve de un salto: en este preset la suelta llega a unos 6.5 dB por encima de la nota sostenida. Un Release largo retira el arrastre poco a poco, y el chasquido baja a cerca de 1 dB. Este preset necesita unos 2 s; otros se calman con medio segundo. Consulta [Solución de problemas](/wiki/es/troubleshooting/).
+
+<Clips set="recipes" item="gentle-release" />

@@ -6,21 +6,46 @@ covers: {"exciters": ["Electromagnetic Hum"]}
 ---
 
 import Clips from '../../../components/Clips.astro';
-import Stub from '../../../components/Stub.astro';
+import ModelControls from '../../../components/ModelControls.astro';
+import Data from '../../../components/Data.astro';
 
-<Stub />
+A coil fed from the mains, buzzing against the object: hums, drones and electric buzz. Every studio engineer has spent hours getting rid of this sound; here you get to make it on purpose.
+
+**Try it:** load **Drones → Smokestack Hum**, hold a note and turn **Voltage Sag** up.
 
 ## What it is
 
+An electromagnet near the object pulls on it at the mains frequency. The object rings at its own pitch while the hum drives it at the mains rate, and an unstable supply adds harmonics of the hum.
+
 ## How it sounds
+
+Steady, electric and droning: transformers, amplifiers, machine rooms.
 
 ## Controls
 
+<ModelControls exciter="Electromagnetic Hum" />
+
+- **Mains Frequency:** the frequency of the drive, from <Data param="mains_frequency" field="range" /> Hz. It sets the hum's base pitch.
+- **Coil Proximity:** how close the coil sits to the object. Higher couples more strongly and sounds louder; at its minimum the hum doesn't reach the object.
+- **Voltage Sag:** the instability of the supply. Higher adds buzzing harmonics to the hum.
+
+Neither **Speed** nor **Roughness** affects it.
+
 ## Pairings
+
+On **Pipe** or **Industrial Cog** it gives a droning hum; on **Plate** or **Sheet Metal**, a brighter buzz.
 
 ## Tips
 
-## Factory presets
+- Try the real mains frequencies, 50 or 60 Hz, for a convincing electrical hum.
+- **Voltage Sag** is the control for grit.
+- The hum drives the object at the mains rate whatever note you play, so it works best as a drone or texture rather than a melody.
+
+## Presets to try
+
+- **Drones → Smokestack Hum**
+- **Drones → Cog Hum Drone**
+- **Experimental → Electromagnetic Hum**: one preset on each of the nine objects.
 
 ## Listen
 

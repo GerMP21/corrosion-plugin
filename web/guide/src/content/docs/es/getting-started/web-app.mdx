@@ -5,12 +5,30 @@ sidebar:
 covers: {"features": ["web-app"]}
 ---
 
-import Stub from '../../../../components/Stub.astro';
+La app web ejecuta el plugin entero, el mismo motor y el mismo editor, en una pestaña del navegador, sin instalar nada. Es la forma más rápida de saber si Corrosion es tu tipo de instrumento, y un buen cuaderno de bocetos cuando no estás delante del ordenador del estudio.
 
-<Stub />
+**Pruébalo:** abre [corrosion-vst.org/play](https://corrosion-vst.org/play/), haz clic en **Start audio** y pulsa `A` en el teclado del ordenador.
+
+Todo lo que cuenta esta guía vale también para la app web, salvo lo que depende de un DAW (automatización, proyectos guardados, el tempo del DAW). Encima del editor, una barra reúne lo que el navegador necesita además: **Start audio**, la entrada MIDI, el campo BPM, la cifra de CPU, y **Open preset…** y **Download preset**.
+
+La app web necesita un navegador con AudioWorklet, WebAssembly SIMD y WebGL 2. Las versiones actuales de Chrome, Edge, Firefox y Safari los tienen todos; de momento se ha probado en navegadores basados en Chromium (Chrome, Edge).
 
 ## Web MIDI
 
+Conecta un teclado MIDI y elígelo en el menú **MIDI**. Web MIDI está disponible en Chrome y Edge, y en Firefox después de pedirte permiso; Safari no lo tiene, así que allí el menú queda desactivado. Sin MIDI, el teclado de piano y el [teclado del ordenador](/wiki/es/midi/computer-keyboard/) siguen tocando.
+
 ## Sesión y presets del navegador
 
+Tu trabajo se guarda en este navegador:
+
+- **La sesión** (el sonido actual) se guarda sobre la marcha y vuelve en tu próxima visita.
+- **Save**, en el editor, guarda un preset en el navegador, dentro de User en el menú de presets.
+- **Download preset** guarda el sonido actual como archivo `.corrosion-preset`. El plugin lo abre, y también la app web en otro ordenador.
+- **Open preset…** carga un archivo `.corrosion-preset`, por ejemplo uno guardado con el plugin.
+
+El almacenamiento del navegador pertenece a un navegador en un ordenador, y a una dirección web. Borrar los datos del sitio elimina la sesión y los presets del navegador, así que descarga los que quieras conservar. Las sesiones y presets guardados en la antigua dirección de prueba, `preview.corrosion-vst.org`, se quedan en esa dirección: ahora redirige aquí, pero el navegador no puede trasladarlos.
+
 ## Tempo y CPU
+
+- **Tempo:** un plugin sigue el tempo de su DAW; en el navegador, el campo **BPM** ocupa su lugar. Fija el tempo de los ecos sincronizados.
+- **CPU:** el motor web funciona en un solo núcleo, en el hilo de audio del navegador. La cifra de CPU de la barra muestra lo ocupado que está y se pone roja cuando se acerca al límite. Los presets más pesados tocando muchas notas a la vez pueden ser demasiado para un ordenador lento: si el sonido cruje, toca menos notas a la vez o baja el **MODE** de la cabecera (ver [Calidad y CPU](/wiki/es/quality/)).

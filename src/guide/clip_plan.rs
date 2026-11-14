@@ -166,11 +166,6 @@ const QUIET: &[(&str, Point, &str)] = &[
         Point::Min,
         "With the coil at its farthest, the hum doesn't reach the object.",
     ),
-    (
-        "internal_rattle",
-        Point::Min,
-        "With no rattle, Metal Chain's drop is almost silent (−62 dBFS); in docs/BACKLOG.md.",
-    ),
 ];
 
 /// Parameters whose effect needs two velocities to be heard.
@@ -227,6 +222,219 @@ fn demo_notes(root: u8, phrase: DemoPhrase) -> Vec<OfflineNote> {
     }
     notes.sort_by_key(|n| n.frame);
     notes
+}
+
+/// A recipe of the guide (`write-user-guide-content` Decision 5): a factory
+/// preset and the settings it changes, heard before and after.
+#[derive(Clone, Copy, Debug)]
+pub struct Recipe {
+    /// The page anchor and the clip folder, `recipes/<slug>/`.
+    pub slug: &'static str,
+    /// The factory folder and preset it starts from.
+    pub folder: &'static str,
+    pub preset: &'static str,
+    /// What it plays, as the home demos do.
+    pub root: u8,
+    pub phrase: DemoPhrase,
+    /// Every setting it changes, as plain values (what the editor displays,
+    /// for the parameters whose display has no unit conversion).
+    pub changes: &'static [(&'static str, f32)],
+}
+
+/// The guide's recipes (task 2.8): the proposed list, with the two Kit
+/// workflows left to the Kit page, since a pad isn't a parameter change.
+pub const RECIPES: &[Recipe] = &[
+    Recipe {
+        slug: "metallic-bass",
+        folder: "bass",
+        preset: "Felt Cable Upright",
+        root: NOTE - 12,
+        phrase: DemoPhrase::Notes,
+        changes: &[
+            ("exciter", 4.0),
+            ("filter_cutoff", 4_000.0),
+            ("drive_amount", 0.8),
+            ("diode_asymmetry", 0.6),
+        ],
+    },
+    Recipe {
+        slug: "industrial-drone",
+        folder: "drones",
+        preset: "Grinding Beam",
+        root: NOTE - 12,
+        phrase: DemoPhrase::Held,
+        changes: &[
+            ("drive_amount", 0.8),
+            ("bias_starvation", 0.4),
+            ("chaos_depth", 0.4),
+            ("space_mode", 1.0),
+            ("space_amount", 0.4),
+            ("factory_size", 0.8),
+        ],
+    },
+    Recipe {
+        slug: "singing-bowed-lead",
+        folder: "lead",
+        preset: "Pipe Bow Lead",
+        root: NOTE + 12,
+        phrase: DemoPhrase::Notes,
+        changes: &[
+            ("strike_position", 0.2),
+            ("position_wander", 0.3),
+            ("space_mode", 3.0),
+            ("space_amount", 0.3),
+            ("delay_time", 0.4),
+            ("high_frequency_damping", 0.7),
+        ],
+    },
+    Recipe {
+        slug: "impact",
+        folder: "percussion",
+        preset: "Beam Anvil",
+        root: NOTE - 12,
+        phrase: DemoPhrase::Held,
+        changes: &[
+            ("macro_mass", 0.9),
+            ("body", 4.5),
+            ("drive", 1.0),
+            ("space_mode", 1.0),
+            ("space_amount", 0.5),
+            ("factory_size", 0.9),
+        ],
+    },
+    Recipe {
+        slug: "rusted-bell",
+        folder: "lead",
+        preset: "Felt Plate Bell",
+        root: NOTE + 12,
+        phrase: DemoPhrase::Notes,
+        changes: &[("rust", 1.0), ("damage", 0.8), ("heat", 0.3)],
+    },
+    Recipe {
+        slug: "glitch-percussion",
+        folder: "percussion",
+        preset: "Cog Tick",
+        root: NOTE,
+        phrase: DemoPhrase::Notes,
+        changes: &[
+            ("drive_amount", 1.5),
+            ("bias_starvation", 0.7),
+            ("chaos_depth", 0.8),
+            ("space_mode", 3.0),
+            ("space_amount", 0.3),
+            ("delay_time", 0.1),
+            ("machinery_movement", 0.6),
+        ],
+    },
+    Recipe {
+        slug: "spring-pad",
+        folder: "chords",
+        preset: "Bowed Cable Pad",
+        root: NOTE + 12,
+        phrase: DemoPhrase::Triads,
+        changes: &[
+            ("space_mode", 2.0),
+            ("space_amount", 0.45),
+            ("spring_tension", 0.6),
+            ("spring_tank_size", 0.6),
+        ],
+    },
+    Recipe {
+        slug: "dying-battery-lead",
+        folder: "lead",
+        preset: "Bowed Cable Lead",
+        root: NOTE + 12,
+        phrase: DemoPhrase::Notes,
+        changes: &[
+            ("drive_amount", 3.0),
+            ("bias_starvation", 1.0),
+            ("chaos_depth", 1.0),
+        ],
+    },
+    Recipe {
+        slug: "distant-hit",
+        folder: "percussion",
+        preset: "Plate Snare Crack",
+        root: NOTE,
+        phrase: DemoPhrase::Notes,
+        changes: &[
+            ("listener_proximity", 0.15),
+            ("filter_cutoff", 3_000.0),
+            ("space_mode", 1.0),
+            ("space_amount", 0.4),
+            ("factory_size", 0.7),
+        ],
+    },
+    Recipe {
+        slug: "gentle-release",
+        folder: "experimental/corrugated_drag",
+        preset: "Corrugated Drag · Plate",
+        root: NOTE,
+        phrase: DemoPhrase::Held,
+        changes: &[("mseg_release", 2.0)],
+    },
+];
+
+/// Refuse a recipe whose preset, parameters or values don't exist.
+pub fn check_recipe(recipe: &Recipe, bank: &[factory::FactoryPreset]) -> Result<(), String> {
+    if !bank
+        .iter()
+        .any(|e| e.folder == recipe.folder && e.preset.name == recipe.preset)
+    {
+        return Err(format!(
+            "no factory preset {}/{}",
+            recipe.folder, recipe.preset
+        ));
+    }
+    if recipe.changes.is_empty() {
+        return Err("the recipe changes nothing".to_string());
+    }
+    let params = CorrosionParams::default();
+    let map = params.param_map();
+    for &(id, value) in recipe.changes {
+        let Some((_, ptr, _)) = map.iter().find(|(i, _, _)| i == id) else {
+            return Err(format!("`{id}` is not a parameter"));
+        };
+        // SAFETY: `ptr` points into `params`, alive for this call.
+        let back = unsafe { ptr.preview_plain(ptr.preview_normalized(value)) };
+        if (back - value).abs() > 1e-3 * value.abs().max(1.0) {
+            return Err(format!("`{id}` = {value} is outside its range"));
+        }
+    }
+    Ok(())
+}
+
+/// The before and after clips of each recipe, in one set so they share a
+/// gain and the comparison stays fair.
+pub fn recipe_clips(recipes: &[Recipe], bank: &[factory::FactoryPreset]) -> Vec<ClipSpec> {
+    let mut clips = Vec::new();
+    for recipe in recipes {
+        let preset = &bank
+            .iter()
+            .find(|e| e.folder == recipe.folder && e.preset.name == recipe.preset)
+            .unwrap_or_else(|| panic!("no factory preset {}/{}", recipe.folder, recipe.preset))
+            .preset;
+        let set = format!("set:recipes:{}", recipe.slug);
+        let notes = demo_notes(recipe.root, recipe.phrase);
+        for (point, patch) in [
+            ("before", preset.clone()),
+            ("after", with_values(preset, recipe.changes)),
+        ] {
+            clips.push(ClipSpec {
+                reference: format!("{set}:{point}"),
+                file: format!("recipes/{}/{point}", recipe.slug),
+                set: set.clone(),
+                is_reference: point == "before",
+                source: format!("preset {} ({point})", recipe.preset),
+                preset: patch,
+                notes: notes.clone(),
+                seconds: 4.0,
+                tempo_bpm: None,
+                quiet: None,
+            });
+        }
+    }
+    clips
 }
 
 /// The tempo of the tempo-synced demos.
@@ -374,7 +582,7 @@ pub fn parameter_plans() -> Vec<ParamPlan> {
 
 /// A parameter's plain value at a point: the host range's ends and middle
 /// (in normalized travel), or a slot's slider range.
-fn point_value(params: &CorrosionParams, ptr: &ParamPtr, point: Point) -> f32 {
+pub(crate) fn point_value(params: &CorrosionParams, ptr: &ParamPtr, point: Point) -> f32 {
     // SAFETY: `ptr` points into `params`, alive for this call.
     unsafe {
         let (lo, hi) = match slot_of(params, ptr) {
@@ -605,6 +813,8 @@ pub fn plan() -> Vec<ClipSpec> {
             quiet: None,
         });
     }
+
+    clips.extend(recipe_clips(RECIPES, &bank));
 
     // Home page demos: a preset per curated folder (maintainer's choice,
     // 2026-11-13), each a short phrase from its own root key.

@@ -955,4 +955,44 @@ mod tests {
             "peak ratio should be 0.65, got {ratio} (high={max_high}, low={max_low})"
         );
     }
+
+    /// Samples a held note takes to reach Sustain.
+    fn samples_to_sustain(mut mseg: MSEG, velocity: f32) -> usize {
+        mseg.set_sample_rate(48_000.0);
+        mseg.trigger(velocity);
+        (1..=480_000)
+            .find(|_| {
+                mseg.process_sample();
+                mseg.stage() == Stage::Sustain
+            })
+            .expect("reaches Sustain within 10 s")
+    }
+
+    /// The help texts (`write-user-guide-content` 2.3) say Global Time
+    /// speeds the envelope up and Vel To Time slows soft notes down.
+    #[test]
+    fn global_time_scale_speeds_the_envelope_up() {
+        let mut fast = MSEG::new();
+        fast.set_global_time_scale(2.0);
+        let normal = samples_to_sustain(MSEG::new(), 1.0);
+        let doubled = samples_to_sustain(fast, 1.0);
+        assert!(
+            doubled * 2 <= normal + 4 && doubled * 2 + 4 >= normal,
+            "{doubled} samples at ×2 vs {normal} at ×1"
+        );
+    }
+
+    #[test]
+    fn velocity_to_time_slows_soft_notes() {
+        let mut mseg = MSEG::new();
+        mseg.set_velocity_response(1.0, 1.0);
+        let hard = samples_to_sustain(mseg.clone(), 1.0);
+        let soft = samples_to_sustain(mseg, 0.0);
+        assert_eq!(
+            hard,
+            samples_to_sustain(MSEG::new(), 1.0),
+            "hard notes keep their speed"
+        );
+        assert!(soft > hard * 19 / 10, "soft {soft} vs hard {hard}");
+    }
 }

@@ -4,10 +4,23 @@ sidebar:
   order: 3
 ---
 
-import Stub from '../../../components/Stub.astro';
+Presets are small text files you can copy, mail, back up and share. A preset saved in the plugin opens in the web app, and the other way round.
 
-<Stub />
+**Try it:** click **Open folder** in the **PRESET BANK** box and open one of your presets in a text editor. It's readable: the name, the object, the exciter and a list of values.
 
 ## File format
 
+Each preset is one `.corrosion-preset` file in JSON, a plain text format. It stores the preset's name, a schema version (currently `"4"`), and the value of every control by its parameter name; Kit presets add their pads.
+
+You can edit one by hand if you're careful, but there's rarely a reason to: anything you can set in the editor, you can save from it. A value out of range is clamped to the nearest valid one when the preset loads.
+
 ## Older presets
+
+Corrosion keeps loading presets made by older versions, and makes them sound as they did, even where a control has changed meaning since:
+
+- **Diode stage:** presets from before **Asymmetry** existed load with **Softness** and **Asymmetry** at 0, the hard, symmetric clip they had.
+- **Onset Level:** presets from before it existed get the level their **Onset** used to set.
+- **Wander Rate:** presets from before it existed get the rate their **Pos Env** used to set, and Pos Env 0.
+- **Kit mode:** presets that used the old Kit mode, which mapped keys to objects, load in **Tonal**.
+
+Nothing is rewritten on disk: the conversion happens each time the preset loads. Save it again to store it in the current form.

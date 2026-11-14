@@ -6,12 +6,55 @@ sidebar:
 ---
 
 import Clips from '../../../components/Clips.astro';
-import Stub from '../../../components/Stub.astro';
+import Data from '../../../components/Data.astro';
 
-<Stub />
+The exciter is what plays the object: a hand, a mallet, a bow, a jet of air. Before the object adds its pitch and its ring, the exciter has already decided most of the character: whether the note starts with a crack or a swell, whether it sustains or dies away, whether it's clean or gritty. Ask any percussionist: the same cymbal hit with a stick, a mallet or a brush is three different instruments.
+
+**Try it:** play a note, then change **MODEL TYPE** in the **EXCITER** column and play the same note again. The object, its pitch and the output chain stay the same; only the way it's played changes.
+
+Corrosion has <Data count="exciters" /> exciters. Each one is a small physical model that pushes on the object every sample and feels the object push back, so the same exciter sounds different on a pipe than on a plate.
 
 ## Families
 
+The exciters come in three families. The family decides which force envelope the exciter gets, and so which envelope controls the panel shows.
+
+- **Struck** exciters hit the object once per note: Hand Strike, Felt Mallet, Hard Mallet, Drumstick, Wire Brush, Metal Pipe and Metal Chain. Their force follows a short **AD envelope** that starts on its own and doesn't wait for the key to be released, so a struck note rings out like a real strike.
+- **Friction** exciters rub, scrape or pull for as long as the key is held: Bow, Stiff Point Scrape, Heavy Grinding, Corrugated Drag and Tension Rise. Their force follows the six-stage **MSEG**, which can loop, and the [gesture modifiers](/wiki/exciters/gesture-modifiers/) act on it.
+- **Specialty** exciters are driven by something other than a hand or a tool: Pneumatic Jet, Electromagnetic Hum, Tension Snap and Particle Rain. Their force follows a classic **ADSR**.
+
+See [Force envelope and MSEG](/wiki/exciters/envelopes/) for the three envelopes, and [Common controls](/wiki/exciters/common-controls/) for **Pressure**, **Speed** and **Roughness**, which every exciter has.
+
 ## Comparison
 
+| Exciter | Family | What it is | Good for |
+|---|---|---|---|
+| [Hand Strike](/wiki/exciters/hand-strike/) | Struck | A palm or fingers slapping the metal | Thuds, slaps, muted hits |
+| [Felt Mallet](/wiki/exciters/felt-mallet/) | Struck | A felt-covered mallet with a hard core | Round basses, bells, gongs |
+| [Hard Mallet](/wiki/exciters/hard-mallet/) | Struck | A rigid mallet thrown at the surface | Clangs, plucks, bright hits |
+| [Drumstick](/wiki/exciters/drumstick/) | Struck | A light stick that bounces back | Ticks, snares, cymbals |
+| [Wire Brush](/wiki/exciters/wire-brush/) | Struck | A cloud of wires landing over a few milliseconds | Swishes, brushed hats |
+| [Metal Pipe](/wiki/exciters/metal-pipe/) | Struck | A pipe that rings while it strikes | Anvils, metallic boings |
+| [Metal Chain](/wiki/exciters/metal-chain/) | Struck | A chain dropped on the object | Rattles, clatter |
+| [Bow](/wiki/exciters/bow/) | Friction | A rosined bow drawn across the object | Pads, strings, drones |
+| [Stiff Point Scrape](/wiki/exciters/stiff-point-scrape/) | Friction | A stiff point that catches and chatters | Squeals, scrapes |
+| [Heavy Grinding](/wiki/exciters/heavy-grinding/) | Friction | A grinder tearing at a rough surface | Roars, industrial noise |
+| [Corrugated Drag](/wiki/exciters/corrugated-drag/) | Friction | A tool dragged over ridges | Rhythmic ticking, conveyors |
+| [Tension Rise](/wiki/exciters/tension-rise/) | Friction | Stress that builds up and slips | Creaks, groans |
+| [Pneumatic Jet](/wiki/exciters/pneumatic-jet/) | Specialty | A jet of air across an opening | Flutes, wind, breath |
+| [Electromagnetic Hum](/wiki/exciters/electromagnetic-hum/) | Specialty | A coil driven by the mains | Hums, buzzes |
+| [Tension Snap](/wiki/exciters/tension-snap/) | Specialty | A hook that pulls and lets go | Snaps, plucked basses |
+| [Particle Rain](/wiki/exciters/particle-rain/) | Specialty | Many small particles falling | Rain, sand, granular beds |
+
+Every exciter, playing the same Tank:
+
 <Clips set="exciters" />
+
+## Choosing an exciter
+
+Start from what the sound has to *do*, not what it should be made of:
+
+- **A note that must stop on its own** (drums, plucks, basses that leave room): a struck exciter or Tension Snap.
+- **A note that holds as long as the key does** (pads, drones, leads): Bow, Pneumatic Jet or Electromagnetic Hum, or a friction exciter with the **Drone** note mode.
+- **Texture rather than notes** (rain, grinding, clatter): Particle Rain, Heavy Grinding or Metal Chain.
+
+Then pick the object for the colour, and come back to the exciter's own controls once the pairing feels right.

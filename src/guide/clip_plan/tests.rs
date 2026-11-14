@@ -194,3 +194,281 @@ fn trimming_cuts_where_the_tail_falls_silent() {
     trim_to_silence(&mut silent);
     assert_eq!(silent.len(), (rate * TRIM_FADE) as usize);
 }
+
+/// A recipe for the tests: Low Sheet Bow with more Rust and a darker filter.
+const SAMPLE_RECIPE: Recipe = Recipe {
+    slug: "rusted-bass",
+    folder: "bass",
+    preset: "Low Sheet Bow",
+    root: NOTE - 12,
+    phrase: DemoPhrase::Notes,
+    changes: &[("rust", 2.0), ("filter_cutoff", 2_000.0)],
+};
+
+#[test]
+fn a_recipe_renders_before_and_after_from_its_preset() {
+    let bank = factory::bank();
+    let clips = recipe_clips(&[SAMPLE_RECIPE], &bank);
+    assert_eq!(clips.len(), 2);
+    let (before, after) = (&clips[0], &clips[1]);
+    assert_eq!(before.reference, "set:recipes:rusted-bass:before");
+    assert_eq!(after.reference, "set:recipes:rusted-bass:after");
+    assert_eq!(before.file, "recipes/rusted-bass/before");
+    assert_eq!(before.set, after.set, "one gain, so the comparison is fair");
+    assert!(before.is_reference && !after.is_reference);
+    let preset = &bank
+        .iter()
+        .find(|e| e.folder == "bass" && e.preset.name == "Low Sheet Bow")
+        .expect("the preset")
+        .preset;
+    let json = |p: &Preset| serde_json::to_value(p).expect("presets serialize");
+    assert_eq!(
+        json(&before.preset),
+        json(preset),
+        "before is the preset as it ships"
+    );
+    assert_eq!(
+        json(&after.preset),
+        json(&with_values(preset, SAMPLE_RECIPE.changes)),
+        "after is the preset with exactly the listed changes"
+    );
+    assert_eq!(before.notes, after.notes);
+    assert_eq!(before.notes[0].note, NOTE - 12);
+}
+
+#[test]
+fn a_recipe_must_name_a_real_preset_parameters_and_values() {
+    let bank = factory::bank();
+    assert_eq!(check_recipe(&SAMPLE_RECIPE, &bank), Ok(()));
+    let bad = |r: Recipe| check_recipe(&r, &bank).expect_err("should be refused");
+    assert!(bad(Recipe {
+        preset: "Low Sheet Bowl",
+        ..SAMPLE_RECIPE
+    })
+    .contains("no factory preset bass/Low Sheet Bowl"));
+    assert!(bad(Recipe {
+        changes: &[("rusty", 1.0)],
+        ..SAMPLE_RECIPE
+    })
+    .contains("`rusty` is not a parameter"));
+    assert!(bad(Recipe {
+        changes: &[("rust", 50.0)],
+        ..SAMPLE_RECIPE
+    })
+    .contains("`rust` = 50 is outside its range"));
+    assert!(bad(Recipe {
+        changes: &[],
+        ..SAMPLE_RECIPE
+    })
+    .contains("changes nothing"));
+}
+
+#[test]
+fn every_recipe_in_the_plan_is_valid() {
+    let bank = factory::bank();
+    for recipe in RECIPES {
+        assert_eq!(
+            check_recipe(recipe, &bank),
+            Ok(()),
+            "recipe `{}`",
+            recipe.slug
+        );
+    }
+    let slugs: BTreeSet<&str> = RECIPES.iter().map(|r| r.slug).collect();
+    assert_eq!(slugs.len(), RECIPES.len(), "recipe slugs are unique");
+}
+
+/// Level, attack brightness and ring length of one note.
+fn note_features(frames: &[(f32, f32)]) -> (f32, f32, f32) {
+    let mono: Vec<f32> = frames.iter().map(|(l, r)| 0.5 * (l + r)).collect();
+    let db = |x: f32| 20.0 * x.max(1e-9).log10();
+    let rms = (mono.iter().map(|x| x * x).sum::<f32>() / mono.len() as f32).sqrt();
+    let peak = mono.iter().fold(0.0f32, |m, x| m.max(x.abs()));
+    let onset = mono.iter().position(|x| x.abs() > 0.05 * peak).unwrap_or(0);
+    // Attack brightness: zero-crossing rate of the first 30 ms's
+    // first difference over its own, a cheap centroid proxy in hertz.
+    let attack = &mono[onset..(onset + 1440).min(mono.len())];
+    let energy: f32 = attack.iter().map(|x| x * x).sum();
+    let diff: f32 = attack.windows(2).map(|w| (w[1] - w[0]).powi(2)).sum();
+    let bright =
+        (diff / energy.max(1e-12)).sqrt() * SAMPLE_RATE as f32 / (2.0 * std::f32::consts::PI);
+    // Ring: the last 10 ms window within 40 dB of the loudest window.
+    let windows: Vec<f32> = mono
+        .chunks(480)
+        .map(|w| (w.iter().map(|x| x * x).sum::<f32>() / w.len() as f32).sqrt())
+        .collect();
+    let loudest = windows.iter().cloned().fold(0.0, f32::max);
+    let last = windows
+        .iter()
+        .rposition(|w| *w > loudest * 0.01)
+        .unwrap_or(0);
+    (db(rms), bright, (last + 1) as f32 * 0.01)
+}
+
+/// Prints, for every exciter and object slot, one note at the slot's
+/// minimum and maximum on its clip patch: RMS (dB), attack brightness (Hz,
+/// a centroid proxy) and ring length (s, to −40 dB). The guide's accuracy
+/// pass (`write-user-guide-content` 2.3) compares it with the help texts.
+#[test]
+#[ignore = "measurement table; run with --ignored --nocapture"]
+fn print_slot_effects() {
+    let clips = plan();
+    let one_note = vec![
+        OfflineNote::on(0, NOTE, 100.0 / 127.0),
+        OfflineNote::off(2 * SAMPLE_RATE as usize, NOTE),
+    ];
+    let render = |reference: String| {
+        let clip = clips.iter().find(|c| c.reference == reference)?;
+        Some(note_features(&render_preset_at_tempo(
+            &clip.preset,
+            &one_note,
+            SAMPLE_RATE,
+            4.0,
+            None,
+        )))
+    };
+    // Mean absolute difference of the first second's octave-band levels
+    // (63 Hz to 16 kHz, each band's energy from a direct DFT of
+    // 4096-sample frames), so a control that only reshapes the spectrum
+    // still shows.
+    let bands = |frames: &[(f32, f32)]| -> Vec<f32> {
+        let mono: Vec<f32> = frames
+            .iter()
+            .take(SAMPLE_RATE as usize)
+            .map(|(l, r)| 0.5 * (l + r))
+            .collect();
+        let n = 4096;
+        let mut energy = [1e-12f32; 9];
+        for frame in mono.chunks_exact(n) {
+            for (b, e) in energy.iter_mut().enumerate() {
+                let (lo, hi) = (44.0 * 2f32.powi(b as i32), 88.0 * 2f32.powi(b as i32));
+                let (k0, k1) = (
+                    (lo * n as f32 / SAMPLE_RATE as f32) as usize,
+                    (hi * n as f32 / SAMPLE_RATE as f32) as usize,
+                );
+                for k in k0.max(1)..=k1 {
+                    let (mut re, mut im) = (0.0f32, 0.0f32);
+                    for (i, x) in frame.iter().enumerate() {
+                        let w = 2.0 * std::f32::consts::PI * (k * i) as f32 / n as f32;
+                        re += x * w.cos();
+                        im -= x * w.sin();
+                    }
+                    *e += re * re + im * im;
+                }
+            }
+        }
+        energy.iter().map(|e| 10.0 * e.log10()).collect()
+    };
+    let shape = |reference: String| {
+        let clip = clips.iter().find(|c| c.reference == reference)?;
+        Some(bands(&render_preset_at_tempo(
+            &clip.preset,
+            &one_note,
+            SAMPLE_RATE,
+            1.0,
+            None,
+        )))
+    };
+    println!(
+        "{:26} {:>26} {:>26} {:>9}",
+        "parameter", "min: dB / Hz / s", "max: dB / Hz / s", "bands dB"
+    );
+    for plan in parameter_plans() {
+        let (Some(lo), Some(hi)) = (
+            render(format!("param:{}:min", plan.id)),
+            render(format!("param:{}:max", plan.id)),
+        ) else {
+            continue;
+        };
+        let (a, b) = (
+            shape(format!("param:{}:min", plan.id)).unwrap_or_default(),
+            shape(format!("param:{}:max", plan.id)).unwrap_or_default(),
+        );
+        let level = (lo.0 - hi.0).abs();
+        let spread = a
+            .iter()
+            .zip(&b)
+            .map(|(x, y)| ((x - y).abs() - level).abs())
+            .sum::<f32>()
+            / a.len().max(1) as f32;
+        println!(
+            "{:26} {:8.1} {:8.0} {:6.2}   {:8.1} {:8.0} {:6.2} {:9.2}",
+            plan.id, lo.0, lo.1, lo.2, hi.0, hi.1, hi.2, spread
+        );
+    }
+}
+
+/// The numbers behind each recipe's text (task 2.8): level, brightness and
+/// the level after the last note-off, before and after.
+#[test]
+#[ignore = "measurement table; run with --ignored --nocapture"]
+fn print_recipe_measurements() {
+    let bank = factory::bank();
+    let db = |x: f32| 20.0 * x.max(1e-9).log10();
+    let rms = |s: &[(f32, f32)]| {
+        (s.iter().map(|(l, r)| l * l + r * r).sum::<f32>() / (2 * s.len().max(1)) as f32).sqrt()
+    };
+    // Brightness proxy: RMS of the first difference over RMS, in Hz
+    // (for a sine, rate · |2 sin(πf/rate)| / 2π ≈ f).
+    let centroid = |s: &[(f32, f32)]| {
+        let mono: Vec<f32> = s.iter().map(|(l, r)| l + r).collect();
+        let d: f32 = mono.windows(2).map(|w| (w[1] - w[0]).powi(2)).sum();
+        let e: f32 = mono.iter().map(|x| x * x).sum();
+        (d / e.max(1e-12)).sqrt() * SAMPLE_RATE as f32 / std::f32::consts::TAU
+    };
+    // Movement: standard deviation, in dB, of 20 ms RMS over 0.5–3 s.
+    let wobble = |s: &[(f32, f32)]| {
+        let w = SAMPLE_RATE as usize / 50;
+        let start = (SAMPLE_RATE as usize / 2).min(s.len());
+        let end = (SAMPLE_RATE as usize * 3).min(s.len());
+        let levels: Vec<f32> = s[start..end]
+            .chunks(w)
+            .map(|c| 20.0 * rms(c).max(1e-9).log10())
+            .collect();
+        let mean = levels.iter().sum::<f32>() / levels.len().max(1) as f32;
+        (levels.iter().map(|x| (x - mean).powi(2)).sum::<f32>() / levels.len().max(1) as f32).sqrt()
+    };
+    println!("| clip | RMS dB | bright Hz | attack bright Hz | wobble dB | last 0.5 s dB | max after off dB | max before off dB |");
+    for clip in recipe_clips(RECIPES, &bank) {
+        let out = render_clip(&clip);
+        let off = clip
+            .notes
+            .iter()
+            .filter(|n| matches!(n.kind, crate::offline::OfflineNoteKind::Off))
+            .map(|n| n.frame)
+            .max()
+            .unwrap_or(0);
+        let peak = |s: &[(f32, f32)]| {
+            s.iter()
+                .map(|(l, r)| l.abs().max(r.abs()))
+                .fold(0.0, f32::max)
+        };
+        let half = SAMPLE_RATE as usize / 2;
+        let before_off = &out[off.saturating_sub(half).min(out.len())..off.min(out.len())];
+        let after_off = &out[off.min(out.len())..(off + half).min(out.len())];
+        let tail = &out[out.len().saturating_sub(half)..];
+        println!(
+            "| {} | {:.1} | {:.0} | {:.0} | {:.1} | {:.1} | {:.1} | {:.1} |",
+            clip.reference,
+            db(rms(&out)),
+            centroid(&out),
+            {
+                let w = SAMPLE_RATE as usize * 3 / 100;
+                let ons: Vec<usize> = clip
+                    .notes
+                    .iter()
+                    .filter(|n| !matches!(n.kind, crate::offline::OfflineNoteKind::Off))
+                    .map(|n| n.frame)
+                    .collect();
+                ons.iter()
+                    .map(|&f| centroid(&out[f.min(out.len())..(f + w).min(out.len())]))
+                    .sum::<f32>()
+                    / ons.len().max(1) as f32
+            },
+            wobble(&out),
+            db(rms(tail)),
+            db(peak(after_off)),
+            db(peak(before_off)),
+        );
+    }
+}

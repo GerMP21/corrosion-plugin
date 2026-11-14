@@ -4,14 +4,68 @@ sidebar:
   order: 2
 ---
 
-import Stub from '../../../components/Stub.astro';
+Corrosion installs as a VST3 or CLAP instrument plugin on Windows, macOS and Linux. If you only want to try it first, the [web app](/wiki/getting-started/web-app/) needs no install.
 
-<Stub />
+**Try it:** open the [downloads](https://github.com/Synaptech-Solutions-SAS/Corrosion-VST/releases/tag/nightly) and find the zip for your system.
+
+Builds come from the `nightly` pre-release on GitHub. It is rebuilt from the main branch whenever all the checks pass, and every zip is tested on its own platform and checked with clap-validator and pluginval. There is one zip per platform and format:
+
+| System | VST3 | CLAP |
+|---|---|---|
+| Windows (64-bit Intel or AMD) | `Corrosion-windows-x86_64-vst3.zip` | `Corrosion-windows-x86_64-clap.zip` |
+| macOS (Apple Silicon and Intel) | `Corrosion-macos-universal-vst3.zip` | `Corrosion-macos-universal-clap.zip` |
+| Linux (64-bit Intel or AMD) | `Corrosion-linux-x86_64-vst3.zip` | `Corrosion-linux-x86_64-clap.zip` |
+
+Each zip holds the plugin bundle (`Corrosion.vst3` or `Corrosion.clap`) and the license. Unzip it, move the bundle into your plugin folder as below, then rescan plugins in your host. Corrosion appears as **Corrosion**, from **Synaptech Solutions**, among the instruments.
 
 ## Windows
 
+Move the bundle into the shared plugin folder:
+
+- VST3: `C:\Program Files\Common Files\VST3`
+- CLAP: `C:\Program Files\Common Files\CLAP`
+
+Windows asks for administrator permission to write there. Create the `CLAP` folder if it doesn't exist yet.
+
 ## macOS
+
+Move the bundle into your plugin folder:
+
+- VST3: `~/Library/Audio/Plug-Ins/VST3`
+- CLAP: `~/Library/Audio/Plug-Ins/CLAP`
+
+The `~/Library` folder is hidden in Finder: choose **Go → Go to Folder…** and paste the path. One build runs on both Apple Silicon and Intel Macs.
+
+The bundles are signed but not notarized, so macOS quarantines them after a download and your host won't load them. Before the first use, run this in Terminal (the line for the format you installed):
+
+```bash
+xattr -dr com.apple.quarantine ~/Library/Audio/Plug-Ins/VST3/Corrosion.vst3
+```
+
+```bash
+xattr -dr com.apple.quarantine ~/Library/Audio/Plug-Ins/CLAP/Corrosion.clap
+```
 
 ## Linux
 
+Move the bundle into your home plugin folder, creating it if needed:
+
+- VST3: `~/.vst3`
+- CLAP: `~/.clap`
+
+The Linux build is for 64-bit Intel and AMD processors.
+
+## If Corrosion doesn't show up
+
+A missing plugin is almost always a folder or a scan:
+
+1. Check the bundle landed in the folder above for your system and format, as `Corrosion.vst3` or `Corrosion.clap`, not inside another folder from the zip.
+2. Rescan plugins in your host. Some hosts only scan custom folders you've added in their preferences.
+3. On macOS, run the quarantine command above; a quarantined bundle is silently skipped.
+4. Look for it under **Synaptech Solutions** as well as under **Corrosion**: hosts sort by maker or by name.
+
 ## VST3 or CLAP
+
+Both formats are the same plugin, with the same sound, editor and presets. Use the one your host supports. If it supports both, either is fine. Both accept per-note expression from hosts that send it, such as tuning or choking a single note (see [Expression](/wiki/midi/expression/)).
+
+A host that scans both formats may list Corrosion twice; that is harmless. Projects remember which format they used, so keep the same one for a project.

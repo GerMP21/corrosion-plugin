@@ -389,7 +389,7 @@
           "value": 8
         },
         {
-          "help": "Smooth stick-slip bow friction with pressure, speed, grip, and slip controls from the documented bow model.",
+          "help": "A rosined bow that grips and drags the object, for sustained, singing tones. Shaped by pressure, speed, grip and slip.",
           "name": "Bow",
           "value": 1
         },
@@ -404,7 +404,7 @@
           "value": 10
         },
         {
-          "help": "Drag motion across ridges with explicit spacing, depth, and moving contact mass.",
+          "help": "A tool dragged across ridged metal: ticks that blur into a buzz as it speeds up. Shaped by ridge spacing, depth and the tool's weight.",
           "name": "Corrugated Drag",
           "value": 11
         },
@@ -506,7 +506,7 @@
       "slots": [
         {
           "group": "Hand strike physics",
-          "help": "Weight of the striking hand. Heavier hands push more low end into the object.",
+          "help": "Weight of the striking hand. Heavier hands hit louder and brighter.",
           "label": "Hand Mass",
           "max": "3",
           "min": "0.4",
@@ -527,7 +527,7 @@
       "slots": [
         {
           "group": "Hand strike physics",
-          "help": "Stiffness of the hand's flesh at contact. Higher gives a shorter, brighter slap.",
+          "help": "Stiffness of the hand's flesh at contact. Higher throws the hand back off the metal: a shorter, lighter slap.",
           "label": "Flesh Stiffness",
           "max": "0.8",
           "min": "0.05",
@@ -548,7 +548,7 @@
       "slots": [
         {
           "group": "Hand strike physics",
-          "help": "How much the flesh absorbs the impact. Higher softens the attack.",
+          "help": "How hard the flesh pushes back while it moves. Higher hits harder and brighter.",
           "label": "Flesh Damping",
           "max": "1.8",
           "min": "0.3",
@@ -569,7 +569,7 @@
       "slots": [
         {
           "group": "Hand strike physics",
-          "help": "How long the hand rests on the object after the strike. Lower mutes the ring sooner.",
+          "help": "How long the hand rests on the object after the strike. Higher keeps it there longer, muting the ring sooner.",
           "label": "Mute Decay",
           "max": "0.999",
           "min": "0.85",
@@ -661,7 +661,7 @@
       "slots": [
         {
           "group": "Felt mallet contact",
-          "help": "How quickly the felt stiffens as it is squeezed. Higher makes hard hits much brighter than soft ones.",
+          "help": "How suddenly the hard core takes over as the felt is squeezed. Lower brings it in sooner, for a brighter strike.",
           "label": "Compression Curve",
           "max": "5",
           "min": "2",
@@ -724,7 +724,7 @@
       "slots": [
         {
           "group": "Drumstick bounce",
-          "help": "Weight of the drumstick. Heavier sticks drive the object harder and darker.",
+          "help": "Weight of the drumstick. Heavier sticks drive the object harder and brighter.",
           "label": "Stick Mass",
           "max": "1.25",
           "min": "0.05",
@@ -892,7 +892,7 @@
       "slots": [
         {
           "group": "Metal pipe coupling",
-          "help": "Weight of the striking pipe. Heavier pipes hit harder and darker.",
+          "help": "Weight of the striking pipe. Heavier pipes hit louder and brighter.",
           "label": "Pipe Mass",
           "max": "2.6",
           "min": "0.4",
@@ -997,7 +997,7 @@
       "slots": [
         {
           "group": "Metal chain cascade",
-          "help": "Weight of the dropped chain. Heavier chains hit harder and darker.",
+          "help": "Weight of the dropped chain's links. Heavier links strike harder.",
           "label": "Chain Mass",
           "max": "1.4",
           "min": "0.2",
@@ -1060,7 +1060,7 @@
       "slots": [
         {
           "group": "Metal chain cascade",
-          "help": "Tone of the rattle. Higher is brighter.",
+          "help": "Where the rattle's high-pass sits. Higher thins the rattle out and leaves the links' strikes.",
           "label": "Rattle Color",
           "max": "1",
           "min": "0",
@@ -1123,7 +1123,7 @@
       "slots": [
         {
           "group": "Bow",
-          "help": "Static friction of the rosin. Higher grips harder, giving a stronger, rougher stick-slip.",
+          "help": "Static friction of the rosin. Higher grips harder, for a stronger, rougher bowed tone.",
           "label": "Rosin Grip",
           "max": "1.5",
           "min": "0.05",
@@ -1144,7 +1144,7 @@
       "slots": [
         {
           "group": "Bow",
-          "help": "How quickly friction falls once the bow slips. Higher gives a sharper, more aggressive tone.",
+          "help": "How much grip the bow keeps once it slips. Higher keeps more: louder and harsher.",
           "label": "Slip Curve",
           "max": "1.5",
           "min": "0.05",
@@ -1207,7 +1207,7 @@
       "slots": [
         {
           "group": "Stiff point chatter",
-          "help": "Pitch of the stick-slip chatter. Higher sounds squealier.",
+          "help": "Tuning of the point's chatter, which colors the scrape. Higher sounds darker and softer.",
           "label": "Chatter Pitch",
           "max": "1.5",
           "min": "0.1",
@@ -1606,7 +1606,7 @@
       "slots": [
         {
           "group": "Electromagnetic drive",
-          "help": "Instability of the supply. Higher makes the hum waver and sag.",
+          "help": "Instability of the supply. Higher adds buzzing harmonics to the hum.",
           "label": "Voltage Sag",
           "max": "2",
           "min": "0",
@@ -1745,7 +1745,7 @@
       "controls": [
         {
           "group": "Gesture Modifiers",
-          "help": "How much the envelope shapes the excitation. Lower flattens it.",
+          "help": "Scales the friction envelope's force. Lower is quieter, and 0 silences the friction exciters.",
           "label": "Env Amount",
           "shown": "always"
         }
@@ -1764,7 +1764,7 @@
       "controls": [
         {
           "group": "Gesture Modifiers",
-          "help": "How much velocity changes the envelope's peak. Higher makes soft notes quieter.",
+          "help": "Peak level of the friction envelope, from half to full. Higher gives a stronger attack over the sustain.",
           "label": "Vel To Peak",
           "shown": "always"
         }
@@ -1783,7 +1783,7 @@
       "controls": [
         {
           "group": "Gesture Modifiers",
-          "help": "Scales every envelope time. Higher slows the whole envelope.",
+          "help": "Speed of the whole friction envelope. Higher plays every stage faster.",
           "label": "Global Time",
           "shown": "always"
         }
@@ -1802,7 +1802,7 @@
       "controls": [
         {
           "group": "Gesture Modifiers",
-          "help": "How much velocity changes the note's level. Higher gives more dynamic range.",
+          "help": "How much velocity changes the friction envelope's level. Higher makes soft notes quieter, down to half.",
           "label": "Vel To Level",
           "shown": "always"
         }
@@ -1821,7 +1821,7 @@
       "controls": [
         {
           "group": "Gesture Modifiers",
-          "help": "How much velocity shortens the envelope. Higher makes hard notes snappier.",
+          "help": "How much soft notes slow the friction envelope. Higher makes soft notes slower than hard ones.",
           "label": "Vel To Time",
           "shown": "always"
         }
@@ -1840,7 +1840,7 @@
       "controls": [
         {
           "group": "Gesture Modifiers",
-          "help": "Shape of the envelope's segments. Turning it away from the middle bends them more.",
+          "help": "Shape of the friction envelope's segments. Turning it away from the middle bends them more.",
           "label": "Curve",
           "shown": "always"
         }
@@ -1884,13 +1884,13 @@
       "controls": [
         {
           "group": "Force Envelope (AD)",
-          "help": "Time to fade after the note ends. Higher fades longer.",
+          "help": "Time the force takes to fade: from its peak on a strike, after the note ends otherwise. Higher fades longer.",
           "label": "Release",
           "shown": "family:hit"
         },
         {
           "group": "Force Envelope (ADSR)",
-          "help": "Time to fade after the note ends. Higher fades longer.",
+          "help": "Time the force takes to fade: from its peak on a strike, after the note ends otherwise. Higher fades longer.",
           "label": "Release",
           "shown": "family:specialty"
         }
@@ -2023,7 +2023,7 @@
       "controls": [
         {
           "group": "Force Envelope (MSEG)",
-          "help": "Time to fade after the note ends. Higher fades longer.",
+          "help": "Time the force takes to fade: from its peak on a strike, after the note ends otherwise. Higher fades longer.",
           "label": "Release",
           "shown": "family:friction"
         }
@@ -2059,12 +2059,12 @@
           "value": 0
         },
         {
-          "help": "The envelope repeats between the Start and End stages.",
+          "help": "The envelope jumps back to the Start stage each time it reaches the End stage.",
           "name": "Forward",
           "value": 1
         },
         {
-          "help": "The envelope runs back and forth between the Start and End stages.",
+          "help": "For now the same as Forward from stage 3 to 4, whatever Start and End say.",
           "name": "Ping-Pong",
           "value": 2
         }
@@ -2119,7 +2119,7 @@
       "controls": [
         {
           "group": "Force Envelope (MSEG)",
-          "help": "The stage where the envelope loop ends.",
+          "help": "Reaching this stage sends the loop back to Start.",
           "label": "End",
           "shown": "family:friction"
         }
@@ -2312,8 +2312,8 @@
         },
         {
           "group": "Cable tension",
-          "help": "Tension of the cable. Higher sounds higher.",
-          "label": "Cable Tension",
+          "help": "Length of the cable. Longer cables sound lower.",
+          "label": "Cable Length",
           "max": "10",
           "min": "0.05",
           "model": "Taut Cable"
@@ -2586,7 +2586,7 @@
       "slots": [
         {
           "group": "Cable tension",
-          "help": "Stiffness of the cable's braid. Higher sounds brighter and less harmonic.",
+          "help": "Stiffness of the cable's braid. Higher stretches the partials apart, for a less harmonic, more metallic ring.",
           "label": "Braid Stiffness",
           "max": "1",
           "min": "0",
@@ -2970,7 +2970,7 @@
       "controls": [
         {
           "group": "Filter Bank",
-          "help": "Random component drift in the filter. Higher sounds less precise and more analogue.",
+          "help": "Random drift of the filter's components. Higher lets the cutoff wander, less precise and more analogue.",
           "label": "Tolerance",
           "shown": "always"
         }

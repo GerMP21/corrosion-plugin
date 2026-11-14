@@ -4,12 +4,48 @@ sidebar:
   order: 3
 ---
 
-import Stub from '../../../components/Stub.astro';
+import Data from '../../../components/Data.astro';
+import Screenshot from '../../../components/Screenshot.astro';
+import browser from '../../../assets/screenshots/preset-browser.webp';
 
-<Stub />
+Your first note takes about a minute: load Corrosion on an instrument track, pick a preset and play. The next few minutes are the fun part.
+
+**Try it:** in the [web app](https://corrosion-vst.org/play/), the same steps work without a host. Skip to [Pick a preset](#pick-a-preset).
 
 ## Load the plugin
 
+1. Create an instrument track (some hosts call it a MIDI or software instrument track) and add **Corrosion** from **Synaptech Solutions** to it.
+2. Open the plugin's window. You see the header at the top, the four Macros, then three columns: **EXCITER**, **RESONATOR** and **PROCESSING**, with a piano strip along the bottom. [The editor, panel by panel](/wiki/editor/) explains each part.
+
+A new instance starts on the default sound: <Data param="exciter" field="default" /> on <Data param="object" field="default" />.
+
 ## Pick a preset
 
+<Screenshot src={browser} alt="The preset bank with its folder menu open" callouts={[[0.67, 0.19], [0.45, 0.19]]} />
+
+1. Click the preset name in the **PRESET BANK** box. A menu opens with the factory folders, Bass, Lead, Chords, Drones, Percussion, Drums and Experimental, and your own presets under User.
+2. The **‹ ›** arrows step to the previous or next preset in the same folder.
+
+Every factory preset is levelled to the same loudness, so you can browse without riding the volume. [The factory bank](/wiki/presets/factory-bank/) describes each folder.
+
 ## Play
+
+- **From a MIDI keyboard or the host:** record-arm the track, or play notes from a MIDI clip.
+- **From the piano strip:** click a key. Clicking lower on a key plays louder; dragging across keys plays a glissando.
+- **From your computer keyboard:** the keys `A W S E D F T G Y H U J K` play C4 to C5, like a piano octave. They work while the mouse pointer is over the editor, and not while you type a preset name. See [Computer keyboard](/wiki/midi/computer-keyboard/).
+
+What happens next depends on the exciter:
+
+- **Struck sounds** (a mallet, a stick, a hand) ring on after the hit and fade by themselves. Pipes, beams and cables can ring for seconds.
+- **Bowed, scraped and dragged sounds** follow their envelope: in the default Tonal note mode they fade even while you hold the key. Letting go snaps the object free, and that release can be louder than the held note. It's part of the sound; [Troubleshooting](/wiki/troubleshooting/) explains it. The Drone note mode keeps them going until you let go.
+
+## If you hear nothing
+
+- **Check the track is armed or monitored**, and that MIDI is reaching it. Most hosts show incoming notes on the track's meter.
+- **Friction sounds take a moment.** A bow needs time to grab the metal, so a very short tap on a bowed preset can sound like nothing. Hold the key.
+- **In Kit mode, only keys with pads play.** If **NOTE MODE** says **Kit**, try a key between C2 and B3, or load a Bass or Lead preset.
+- **Check OUTPUT** in the header. At its bottom it's silent.
+
+## Where to go from here
+
+You've made a sound; now make it yours. The [10-minute tour](/wiki/getting-started/tour/) walks through changing every part of it, and it's the fastest way to get a feel for the instrument.

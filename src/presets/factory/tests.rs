@@ -819,3 +819,66 @@ fn print_experimental_level_instability() {
         println!("{d:5.2} dB {p}");
     }
 }
+
+/// Re-level named presets only (`fix-inert-controls`: the maintainer keeps
+/// the bank as it is and re-levels just the presets a fix moves). Prints
+/// each one's new Output, floor check and level instability.
+/// `RELEVEL=folder/slug,… cargo test --release relevel_named -- --ignored --nocapture`
+#[test]
+#[ignore = "tool; run with RELEVEL=… --release -- --ignored --nocapture"]
+fn relevel_named_presets() {
+    let names = std::env::var("RELEVEL").unwrap_or_default();
+    for entry in bank() {
+        let path = entry.relative_path();
+        if !names.split(',').any(|n| !n.is_empty() && path.contains(n)) {
+            continue;
+        }
+        let mut preset = entry.preset.clone();
+        let before = preset.output;
+        let report = level(&mut preset);
+        println!(
+            "{path}: Output {before} -> {} | floor {:?} | instability {:.2} dB",
+            preset.output,
+            report.check(),
+            level_instability_db(&preset)
+        );
+    }
+}
+
+/// Re-draw one experimental preset only, as the seeder would (the next seed
+/// try that meets the floor), and write its file (`fix-inert-controls`: the
+/// maintainer re-draws just the presets a fix moves off the floor). Prints
+/// the try and Output for `levels.rs`.
+/// `REDRAW=<exciter id>/<object slug> cargo test --release redraw_named -- --ignored --nocapture`
+#[test]
+#[ignore = "tool; run with REDRAW=… --release -- --ignored --nocapture"]
+fn redraw_named_preset() {
+    let Ok(spec) = std::env::var("REDRAW") else {
+        return;
+    };
+    let (exciter, object_slug) = spec.split_once('/').expect("exciter/object");
+    let exciter: i32 = exciter.parse().expect("exciter id");
+    let object = (0..OBJECT_COUNT)
+        .map(Object::from_int)
+        .find(|o| slug(o.name()) == object_slug)
+        .expect("object slug");
+    for try_index in 1..MAX_SEED_TRIES {
+        let mut entry = experimental_entry(exciter, object, try_index);
+        let check = level(&mut entry.preset).check();
+        let spread = level_instability_db(&entry.preset);
+        println!(
+            "{} try {try_index}: Output {} | floor {check:?} | instability {spread:.2} dB",
+            entry.relative_path(),
+            entry.preset.output
+        );
+        if check.is_ok() && spread <= MAX_LEVEL_INSTABILITY_DB {
+            let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("presets/factory");
+            entry
+                .preset
+                .save(entry.path_under(&dir))
+                .expect("write preset");
+            return;
+        }
+    }
+    panic!("no try meets the floor");
+}

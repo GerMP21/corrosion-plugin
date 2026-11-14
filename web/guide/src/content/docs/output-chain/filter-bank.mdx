@@ -4,12 +4,41 @@ sidebar:
   order: 1
 ---
 
-import Stub from '../../../components/Stub.astro';
+import Clips from '../../../components/Clips.astro';
+import Data from '../../../components/Data.astro';
 
-<Stub />
+The Filter Bank is a four-pole low-pass ladder: it lets the low end through and rolls off everything above its cutoff, at a steep 24 dB per octave. That's the filter behind a thousand classic synth sounds, and it does the same job here: it takes the edge off bright metal, focuses a sound, and, with resonance, adds a singing peak of its own. It also saturates slightly when pushed, like the analogue circuits it's modelled on.
+
+**Try it:** set **Resonance** to about halfway, hold a note and sweep **Cutoff** down and back up. Hear that whistle following your hand? That's the resonant peak.
 
 ## Cutoff
 
+Where the filter starts to cut, from <Data param="filter_cutoff" field="min" /> to <Data param="filter_cutoff" field="max" /> Hz. At its default, all the way up, the filter is wide open and doesn't touch the sound. Turn it down and the upper partials fade away first, so the note gets darker and rounder.
+
+Changes glide over about 20 ms, so you can sweep it, automate it or twist it live without zipper noise or clicks.
+
+<Clips param="filter_cutoff" />
+
+**Tips:**
+- Metal is bright by nature. A cutoff around 2–5 kHz often makes a harsh strike sit better in a mix without making it dull.
+- Going very low (a few hundred Hz) turns most objects into a dark thud. Great for sub-ish percussion, but you'll lose the shimmer that makes metal sound like metal.
+
 ## Resonance
 
+A boost right at the cutoff. A little makes the filter sound more vocal and present. More makes it ring and whistle. Near the maximum the peak becomes a strong tone of its own: whenever the sound has energy near the cutoff, the filter sings along.
+
+<Clips param="filter_resonance" />
+
+**Tips:**
+- High resonance can be much louder than the sound under it. Turn **OUTPUT** down before you crank it, or the diode stage will do it for you, with grit.
+- Resonance plus a slow **Cutoff** sweep on a bowed drone is a cheap, very effective way to make it evolve.
+
 ## Tolerance
+
+Real analogue components are never exactly their printed values, and they drift with temperature. **Tolerance** imitates that. At 0 the cutoff stays where you put it. Higher lets it wander slowly and randomly around that point, by up to about 30 % at the maximum.
+
+You'll hear it best with some **Resonance** and the cutoff below the top, because then there's a peak for the drift to move around. With the filter wide open there's nothing to wander.
+
+<Clips param="component_tolerance" />
+
+**Tip:** a small amount (0.1–0.3) on a long drone gives it a subtle, living unsteadiness. Large amounts sound like a filter with a loose wire, which is sometimes exactly the point.

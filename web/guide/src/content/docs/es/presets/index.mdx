@@ -5,8 +5,21 @@ sidebar:
   label: Resumen
 ---
 
-import Stub from '../../../../components/Stub.astro';
+import Data from '../../../../components/Data.astro';
 
-<Stub />
+Un preset es una foto de un sonido: todos los controles del editor, guardados con un nombre. Corrosion trae <Data count="factoryPresets" />, y puedes guardar todos los tuyos que quieras.
+
+**Pruébalo:** haz clic en el nombre del preset en el recuadro **PRESET BANK**, abre **Percussion** y elige cualquiera. Luego recorre la carpeta con las flechas **‹ ›**.
 
 ## Dónde viven los presets
+
+- **Los presets de fábrica** van dentro del plugin. No puedes sobrescribirlos ni borrarlos, así que tampoco puedes estropearlos: toca sin miedo.
+- **Tus presets** viven en una carpeta de tu ordenador, un archivo `.corrosion-preset` cada uno:
+  - Windows: `%APPDATA%\Corrosion\Presets`
+  - macOS: `~/Library/Application Support/Corrosion/Presets`
+  - Linux: `~/.local/share/corrosion/presets` (o `$XDG_DATA_HOME/corrosion/presets`)
+- **En la app web,** tus presets viven en el navegador. Consulta [Tocar en el navegador](/wiki/es/getting-started/web-app/#sesión-y-presets-del-navegador).
+
+Un preset guarda todos los controles salvo la escala de la interfaz, incluidos el modo de nota, el modo de calidad y, en los presets de Kit, todos los pads.
+
+Las páginas de esta sección cubren [el banco de fábrica](/wiki/es/presets/factory-bank/), [navegar y guardar](/wiki/es/presets/browse-and-save/), [los archivos de preset](/wiki/es/presets/files/) y [los proyectos de DAW](/wiki/es/presets/daw-projects/).

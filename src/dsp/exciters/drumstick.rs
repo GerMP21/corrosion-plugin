@@ -37,7 +37,35 @@ pub struct Drumstick {
     /// last (0.25 s), however the resonator moves under the stick.
     strike_frames: u32,
     max_strike_frames: u32,
+    /// The strike's starting speed, and the re-strikes played after the
+    /// first contact (`fix-inert-controls`).
+    initial_velocity: f32,
+    restrikes: Restrikes,
 }
+
+/// The re-strikes after the first contact: the stick comes back `total`
+/// times, each at `restitution` of the last one's speed, after a flight that
+/// shortens by the same factor. Each is a real contact, solved like the
+/// first, that ends as soon as the stick rebounds. Left free to fall back,
+/// a stick coming back every few milliseconds damped the object (−50 dB in
+/// 100 ms), like one left resting on it.
+#[derive(Clone, Copy, Debug, Default)]
+struct Restrikes {
+    /// Whether the first contact is over and re-strikes are playing.
+    playing: bool,
+    /// Whether a re-strike's contact is under way.
+    striking: bool,
+    /// Re-strikes in all, and how many have started.
+    total: u32,
+    started: u32,
+    /// Frame (since the strike began) at which the next one starts.
+    next_at: f32,
+    /// Flight before the next one, in frames.
+    flight: f32,
+}
+
+/// The first re-strike's flight at Restitution Bounciness 1, at 48 kHz.
+const FIRST_FLIGHT_FRAMES: f32 = 1_920.0;
 
 impl Drumstick {
     /// Creates a default rigid stick model.
@@ -57,6 +85,15 @@ impl Drumstick {
             velocity_decay: 0.999,
             strike_frames: 0,
             max_strike_frames: 12_000,
+            initial_velocity: 0.0,
+            restrikes: Restrikes {
+                playing: false,
+                striking: false,
+                total: 0,
+                started: 0,
+                next_at: 0.0,
+                flight: 0.0,
+            },
         }
     }
 
@@ -87,9 +124,40 @@ impl Drumstick {
         self.active = true;
         self.stick_position = -0.15;
         self.stick_velocity = velocity * 5.0 + 3.0;
+        self.initial_velocity = self.stick_velocity;
         self.bounce_count = 0;
         self.last_penetration = 0.0;
         self.strike_frames = 0;
+        self.restrikes = Restrikes::default();
+    }
+
+    /// The first contact is over: play the re-strikes, if any.
+    fn start_restrikes(&mut self) {
+        let total = self.max_bounces.saturating_sub(1);
+        if total == 0 {
+            self.active = false;
+            return;
+        }
+        let flight = FIRST_FLIGHT_FRAMES / self.ratio * self.restitution_bounciness.min(1.0);
+        self.restrikes = Restrikes {
+            playing: true,
+            striking: false,
+            total,
+            started: 0,
+            next_at: self.strike_frames as f32 + flight,
+            flight,
+        };
+    }
+
+    /// A re-strike's contact has ended: wait for the next one, or stop.
+    fn end_restrike(&mut self) {
+        self.restrikes.striking = false;
+        if self.restrikes.started >= self.restrikes.total {
+            self.active = false;
+        } else {
+            self.restrikes.flight *= self.restitution_bounciness.min(1.0);
+            self.restrikes.next_at = self.strike_frames as f32 + self.restrikes.flight;
+        }
     }
 
     /// Processes one Hertzian contact sample and updates the stick state.
@@ -101,6 +169,22 @@ impl Drumstick {
         if self.strike_frames >= self.max_strike_frames {
             self.active = false;
             return 0.0;
+        }
+
+        if self.restrikes.playing && !self.restrikes.striking {
+            if (self.strike_frames as f32) < self.restrikes.next_at {
+                return 0.0;
+            }
+            // The stick comes back, at Restitution Bounciness of the last
+            // strike's speed. It lands now, on the surface: started above
+            // it, it chased a surface moving away for milliseconds, so the
+            // strike's timing (and level) depended on the sample rate.
+            self.restrikes.started += 1;
+            self.restrikes.striking = true;
+            let r = self.restitution_bounciness.min(1.0);
+            self.stick_position = resonator.displacement(0.0);
+            self.stick_velocity = self.initial_velocity * r.powi(self.restrikes.started as i32);
+            self.last_penetration = 0.0;
         }
 
         self.stick_position += self.stick_velocity * rate::step(0.0003, self.ratio);
@@ -122,7 +206,14 @@ impl Drumstick {
             let deceleration = hertzian_force / self.stick_mass.max(0.01);
             self.stick_velocity -= deceleration * rate::step(0.1, self.ratio);
 
-            if penetration < self.last_penetration && self.stick_velocity < 0.0 {
+            if self.restrikes.striking {
+                // A re-strike ends as soon as the stick turns back: waiting
+                // for the penetration to fall as well let a fast-moving
+                // surface hold it in a long press.
+                if self.stick_velocity < 0.0 {
+                    self.end_restrike();
+                }
+            } else if penetration < self.last_penetration && self.stick_velocity < 0.0 {
                 self.bounce_count += 1;
                 self.stick_velocity = -self.stick_velocity * self.restitution_bounciness;
                 self.stick_velocity += resonator_velocity * 0.3;
@@ -132,14 +223,17 @@ impl Drumstick {
                 // it chatter for as long as the note was held
                 // (`resolve-exciter-tradeoffs`).
                 if self.bounce_count >= self.max_bounces {
-                    self.active = false;
+                    self.start_restrikes();
                 }
             }
         } else {
             self.stick_velocity += rate::step(0.05, self.ratio);
 
-            if self.bounce_count >= self.max_bounces && self.stick_velocity < 0.0 {
-                self.active = false;
+            if self.restrikes.striking {
+                // The surface has left the stick.
+                self.end_restrike();
+            } else if self.bounce_count >= self.max_bounces && self.stick_velocity < 0.0 {
+                self.start_restrikes();
             }
         }
 
@@ -154,9 +248,10 @@ impl Drumstick {
         self.active
     }
 
-    /// Returns how many bounces have occurred.
+    /// Returns how many bounces have occurred: the first contact's
+    /// micro-bounces and the re-strikes after it.
     pub fn bounce_count(&self) -> u32 {
-        self.bounce_count
+        self.bounce_count + self.restrikes.started
     }
 }
 

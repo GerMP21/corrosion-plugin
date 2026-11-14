@@ -62,7 +62,7 @@ To build it yourself instead, see [Build And Run](#build-and-run).
 - **Sustain pedal and panic**: CC64 holds released notes until the pedal lifts (re-striking a held note replaces it; pedal-held notes are stolen before held keys). CC123 All Notes Off releases every held key (a down pedal still holds them), CC120 All Sound Off fades everything, Space tails included, to silence in 5 ms, and CC121 Reset All Controllers lifts the pedal and returns mod wheel, bend and pressure to rest. Other CCs are ignored (full CC mapping is on the roadmap).
 - 16-voice polyphony. When the pool is full, released tails are stolen first, then held notes at least 100 ms old (quietest first, oldest on ties); a note that just started is only stolen if every held note is that young. Idle voices cost nothing; a full pool at Render quality measured about 36 % of one core on the development machine.
 - 130+ host parameters covering exciters, objects, transformations, post-processing, four macros and three note modes.
-- An egui editor with UI scaling (50/75/100/125/150 %), controls for every audible parameter, inline help on every control, a piano strip, a preset browser with folders, user presets, a randomizer, and a kit editor.
+- An egui editor with UI scaling (50 to 150 % in 5 % steps), controls for every audible parameter, inline help on every control, a piano strip, a preset browser with folders, user presets, a randomizer, and a kit editor.
 - **Kit mode**: an AFX-style drum kit, one pad (a whole sound with its own tune and level) per key, saved with presets and projects.
 - A factory bank of 214 presets in folders: 60 designed by hand (bass, lead, chords, drones, percussion), 10 drum kits and 144 experimental ones, one per exciter × resonator, all at a common loudness (`src/presets/factory/`, written by `src/bin/seed_presets.rs`).
 - Offline renderers for comparison suites, preset batch renders, and aliasing analysis with asserted budgets.
@@ -278,7 +278,7 @@ scripts/bundle.sh linux release
 
 **CI** (`.github/workflows/ci.yml`) runs on every push to `dev` and `main`, on pull requests from forks, and by hand:
 
-- **checks** on Linux (formatting, clippy with warnings denied, the workspace tests on musl, the GUI library tests, the real-time safety tests, docs with warnings denied, the benchmarks compiled, the renderer smoke test and its WAV check), Windows with MSVC and macOS (clippy, the workspace and GUI tests, the renderer smoke test; real-time safety on macOS too);
+- **checks** on Linux (formatting, clippy with warnings denied, the workspace tests on musl, the GUI library tests, the real-time safety tests, docs with warnings denied, the benchmarks compiled, the renderer smoke test and its WAV check), Windows with MSVC and macOS (clippy, the workspace and GUI tests, the renderer smoke test and the real-time safety tests);
 - **bundle**: VST3 and CLAP built on each platform's own runner (macOS universal and ad-hoc signed), their layout checked, then validated with clap-validator and pluginval;
 - **nightly**: after a fully green run on `main`, the `nightly` pre-release is replaced with that commit's six zips. Runs on `dev` and pull requests never publish, and a failing run leaves the previous nightly in place.
 
@@ -288,7 +288,7 @@ Benchmarks are local and manual: `cargo bench --no-default-features --target x86
 
 ## Real-Time Safety
 
-- **No heap allocation** in `process()`, including note-on for every object, quality mode and exciter, kit pads, voice stealing, live MIDI expression, editor notes and `reset()`. Each voice preallocates its worst-case modal bank (`MAX_MODES`) and rebuilds it in place at note-on. Verified by `tests/no_alloc.rs`, which must run in a **debug** build (`cargo test --no-default-features --test no_alloc`): the checking allocator only exists under `debug_assertions`, and a release run passes vacuously. Builds off Windows enable nih-plug's `assert_process_allocs`; on Windows it stays off (its allocator hook hung nih-plug's test setup there), so the check runs on Linux and macOS.
+- **No heap allocation** in `process()`, including note-on for every object, quality mode and exciter, kit pads, voice stealing, live MIDI expression, editor notes and `reset()`. Each voice preallocates its worst-case modal bank (`MAX_MODES`) and rebuilds it in place at note-on. Verified by `tests/no_alloc.rs`, which must run in a **debug** build (`cargo test --no-default-features --test no_alloc`): the checking allocator only exists under `debug_assertions`, and a release run passes vacuously. Builds off Windows enable nih-plug's `assert_process_allocs`. `Cargo.toml` leaves it off on Windows (its allocator hook once hung nih-plug's test setup there), so CI turns it on for this test alone (`--features nih-plug/assert_process_allocs`), and the check runs on all three platforms. `the_checker_is_armed` proves the checker is installed, so a run can't pass vacuously.
 - **No locks / blocking / I/O / logging** in the audio callback. The kit's pad table is a seqlock read without locking; editor notes arrive through a lock-free ring.
 - **Fixed voice array**: 16 `Voice` instances (`MAX_VOICES`), each owning all 16 exciter structs (allocation-free dispatch).
 - **Denormal + NaN/Inf guards** at every voice boundary; non-finite peak holds sort as quietest within their stealing tier, so a corrupted voice is reclaimed.
@@ -317,7 +317,8 @@ From `docs/BACKLOG.md`, which has the details and acceptance checks for each ite
 **Sound and behaviour:**
 
 - **Release Snap** control for the friction exciters, to bound the snap when a bowed, scraped or dragged note is released.
-- **Env Amount at 0** silences the friction exciters while its help says it flattens the envelope: decide whether to fix the text or the behaviour.
+- **Env Amount at 0** silences the friction exciters (its help now says so): decide whether it should blend toward a flat envelope instead.
+- **Gesture Modifiers** act only on the friction exciters' envelope, but the panel shows for every exciter.
 - **The default patch's decay**: a struck Pipe, I-Beam or Taut Cable rings at the voice's safety clamp for 2–3 s; decide by ear whether it should decay sooner.
 - **MSEG PingPong** loops between the chosen loop stages instead of always Decay → Sustain.
 

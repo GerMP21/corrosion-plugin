@@ -3,12 +3,38 @@ title: "Calidad y CPU"
 covers: {"modes": {"quality": ["Eco", "Normal", "High", "Render"]}}
 ---
 
-import Stub from '../../../components/Stub.astro';
+El modelado físico da mucho trabajo: cada nota son docenas de modos resonantes, cada uno calculado en cada muestra, para hasta 16 voces. **MODE**, en la cabecera, cambia detalle por CPU.
 
-<Stub />
+**Pruébalo:** toca un acorde denso en **Chords → Bowed Cable Pad** en **Normal**, luego cambia **MODE** a **Render** y vuelve a tocarlo. Escucha el brillo extra en los parciales agudos, y mira el medidor de CPU de tu DAW.
 
 ## Modos
 
+Con el modo cambian dos cosas: cuántos modos tiene cada voz y cuánto sobremuestrea la etapa de diodo para que su recorte sea limpio.
+
+| Modo | Modos por voz | Sobremuestreo del diodo | Para qué |
+|---|---|---|---|
+| **Eco** | la mitad | ninguno | Proyectos grandes, ordenadores lentos, bocetos |
+| **Normal** (por defecto) | el conjunto estándar | 4× | Tocar y mezclar a diario |
+| **High** | 1.5× | 8× | Sonidos detallados, solos expuestos |
+| **Render** | 2× | 16× | Exportar y mezcla final |
+
+Más modos dan parciales agudos más ricos y detallados, sobre todo en objetos brillantes como **Plate** y **Sheet Metal**. Más sobremuestreo da menos [aliasing](/wiki/es/glossary/#aliasing) (el chisporroteo áspero e inarmónico que un recortador puede reflejar en el audio) cuando la etapa de diodo trabaja a fondo.
+
+Las dos partes cambian en momentos distintos. El sobremuestreo cambia al instante. El número de modos se fija al empezar una nota, así que las notas que ya suenan conservan el suyo y las siguientes reciben el nuevo.
+
+Los presets guardan un modo, y todos los de fábrica usan **Normal**: cargar uno devuelve **MODE** a Normal.
+
 ## Latencia
 
+- El limitador **Hard** no añade latencia.
+- El limitador **Lookahead** añade cerca de 1 ms, que Corrosion comunica a tu DAW para que la pista siga a tiempo.
+- El sobremuestreo de la etapa de diodo retrasa el sonido unas pocas muestras (una décima de milisegundo o menos), demasiado poco para importar, y no se comunica.
+
 ## Ahorrar CPU
+
+Corrosion solo gasta CPU en las voces que siguen sonando, así que el silencio sale barato y los acordes densos y largos salen caros. Si tu ordenador sufre:
+
+1. **Usa Eco mientras compones,** y vuelve a Render para la exportación final. Recuerda que cargar un preset vuelve a poner Normal.
+2. **Toca menos notas superpuestas,** o acorta las colas: los objetos de resonancia larga (Pipe, I-Beam, Taut Cable) mantienen ocupadas las voces durante segundos, y **Rust** o **Sludge** las liberan antes.
+3. **Congela o exporta** en tu DAW las partes terminadas.
+4. **En la app web,** todo va en un solo núcleo del hilo de audio del navegador, así que los presets más pesados con muchas notas pueden ser demasiado para un ordenador lento. La cifra de CPU de la barra de la app web se pone roja cerca del límite.

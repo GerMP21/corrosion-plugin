@@ -9,12 +9,17 @@
 //   3. the IDs of parameters.json and parameters.es.json differ, or a
 //      Spanish entry lacks a text the English one has;
 //   4. a page references a clip that isn't in clips.json or on disk;
-//   5. with --complete, a page still has a <Stub /> placeholder.
+//   5. with --complete, a page still has a <Stub /> placeholder;
+//   6. an exciter or object page lacks the seven model sections in order,
+//      its Listen section lacks the model's clips, or, once written, its
+//      Controls section doesn't link every control the model shows.
+// It also warns (7) about a bare number next to a parameter's name.
 // Internal links are checked at build by starlight-links-validator.
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import yaml from 'js-yaml';
+import { modelControls } from '../src/lib/model-controls.mjs';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 const args = process.argv.slice(2);
@@ -229,6 +234,99 @@ for (const lang of ['en', 'es']) {
     }
   }
 }
+
+// 6. Model pages (`write-user-guide-content` Decision 2): the seven
+// sections in order; once written (no <Stub />), a Controls section that
+// links every control the model shows, or renders them with
+// <ModelControls>; a Listen section with the model's two clips.
+const MODEL_SECTIONS = {
+  en: ['What it is', 'How it sounds', 'Controls', 'Pairings', 'Tips', 'Presets to try', 'Listen'],
+  es: ['Qué es', 'Cómo suena', 'Controles', 'Combinaciones', 'Consejos', 'Presets para probar', 'Escúchalo'],
+};
+/** The body of each `##` section, by heading. */
+function sections(body) {
+  const out = new Map();
+  let current = null;
+  let fence = false;
+  for (const line of body.split(/\r?\n/)) {
+    if (/^\s*(```|~~~)/.test(line)) fence = !fence;
+    const h = !fence && /^##\s+(.+?)\s*#*\s*$/.exec(line);
+    if (h) {
+      current = h[1];
+      out.set(current, '');
+    } else if (current) {
+      out.set(current, `${out.get(current)}${line}\n`);
+    }
+  }
+  return out;
+}
+for (const lang of ['en', 'es']) {
+  const names = MODEL_SECTIONS[lang];
+  for (const [key, page] of pages[lang]) {
+    const [dir, file] = key.split('/');
+    const kind = { exciters: 'exciters', objects: 'objects' }[dir];
+    const model = kind && file !== 'index' && page.data.covers?.[kind]?.length === 1 && page.data.covers[kind][0];
+    if (!model) continue;
+    const got = page.headings.filter((h) => h.level === 2).map((h) => h.text);
+    if (got.join('|') !== names.join('|')) {
+      fail(`${rel(page.path)}: a model page needs the sections ${names.join(', ')}, in order (has ${got.join(', ') || 'none'})`);
+      continue;
+    }
+    const body = sections(page.body);
+    const listen = body.get(names[6]);
+    const clipSets = kind === 'exciters' ? ['exciters', 'exciter-presets'] : ['objects', 'object-presets'];
+    for (const set of clipSets) {
+      if (!new RegExp(`<Clips\\s+set="${set}"\\s+item="${model}"`).test(listen)) {
+        fail(`${rel(page.path)}: the ${names[6]} section has no clip for <Clips set="${set}" item="${model}" />`);
+      }
+    }
+    if (/<Stub\b/.test(page.body)) continue;
+    const controls = body.get(names[2]);
+    const attr = kind === 'exciters' ? 'exciter' : 'object';
+    if (new RegExp(`<ModelControls\\s+${attr}="${model}"`).test(controls)) continue;
+    const missing = modelControls(kind, model, parameters, models).filter(
+      (p) => !new RegExp(`reference/${p.panel}/#${p.id}(?![\\w-])`).test(controls),
+    );
+    if (missing.length) {
+      fail(
+        `${rel(page.path)}: the ${names[2]} section does not link ${missing.map((p) => `${p.name} (${p.id})`).join(', ')}`,
+      );
+    }
+  }
+}
+
+// 7. Bare numbers (`write-user-guide-content` Decision 3): a number in the
+// same sentence as a parameter's name, outside code and <Data>, is probably
+// one the data holds. A heuristic, so it warns and doesn't fail.
+const warnings = [];
+// Names that are also ordinary words in the prose: the product's name is
+// the Corrosion macro's too.
+const NOT_NAMES = new Set(['Corrosion']);
+const named = parameters
+  .filter((p) => p.name.length >= 4 && !NOT_NAMES.has(p.name))
+  .map((p) => ({ p, re: new RegExp(`\\b${p.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`) }));
+for (const lang of ['en', 'es']) {
+  for (const page of pages[lang].values()) {
+    let fence = false;
+    for (const raw of page.body.split(/\r?\n/)) {
+      if (/^\s*(```|~~~)/.test(raw)) fence = !fence;
+      if (fence || /^\s*(import|export)\s/.test(raw)) continue;
+      const line = raw.replace(/<[A-Z][^>]*\/>/g, ' ').replace(/`[^`]*`/g, ' ').replace(/\]\([^)]*\)/g, ']');
+      for (const sentence of line.split(/(?<=[.!?;:])\s+/)) {
+        const number = /(?<![\w#-])[-−+]?\d[\d.,]*/.exec(sentence);
+        if (!number) continue;
+        for (const { p, re } of named) {
+          if (re.test(sentence)) {
+            warnings.push(
+              `${rel(page.path)}: "${p.name}" next to ${number[0]}; if the data holds it, use <Data param="${p.id}" field="…" />`,
+            );
+          }
+        }
+      }
+    }
+  }
+}
+for (const w of warnings) console.log(`warning: ${w}`);
 
 // 5. Placeholders.
 if (complete) {

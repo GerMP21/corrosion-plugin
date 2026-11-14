@@ -2,12 +2,69 @@
 title: "How it sounds"
 ---
 
-import Stub from '../../components/Stub.astro';
+import Data from '../../components/Data.astro';
+import Flow from '../../components/Flow.astro';
 
-<Stub />
+Every note in Corrosion is a small physical event. Something hits, scrapes or blows on a metal object, the object rings, and the output chain shapes the result. Once you know which part does what, you always know which knob to reach for: a note that's the wrong *kind* of sound needs a different exciter or object; a note that's the right sound in the wrong place needs the output chain.
+
+**Try it:** in the [web app](https://corrosion-vst.org/play/), hold the `A` key, then switch the **EXCITER**'s **MODEL TYPE** to **Bow** and hold it again. Same object, same chain: only what drives the object changed.
 
 ## Signal flow
 
+<Flow
+  label="Signal flow: a note starts a voice; its exciter and object push each other; the voices are mixed, driven, and sent through the Filter Bank, the Overdrive Unit, BODY, the spread, Space, the diode stage, Output and the limiter."
+  steps={[
+    { title: 'Note', note: 'key and velocity' },
+    { title: 'Exciter', note: 'what plays the object' },
+    { title: 'Object', note: 'what rings', loop: true },
+    { title: 'Voice mix', note: 'up to 16 notes' },
+    { title: 'Legacy Drive' },
+    { title: 'Filter Bank' },
+    { title: 'Overdrive Unit' },
+    { title: 'BODY' },
+    { title: 'Spread' },
+    { title: 'Space' },
+    { title: 'Diode stage' },
+    { title: 'OUTPUT' },
+    { title: 'Limiter', note: 'at the Ceiling' },
+  ]}
+/>
+
+Read it left to right. The first three boxes happen once per note (a **voice**), and everything from the voice mix on happens once for all the notes together. The two-way arrow is the heart of the instrument: the exciter doesn't just play a sound into the object, they push each other.
+
 ## The voice
 
+When you play a note, Corrosion starts a voice: one exciter and one object.
+
+- **The exciter** is what plays the object. There are <Data count="exciters" />: hands, mallets, a drumstick, a bow, grinders, a jet of air, a mains hum and more. You choose it in **MODEL TYPE**. See [Exciters](/wiki/exciters/).
+- **The object** is what rings. There are <Data count="objects" />: a pipe, a plate, a tank, a cable and more. You choose it in **MATERIAL**. See [Objects](/wiki/objects/).
+
+An object rings at many pitches at once, its [*partials*](/wiki/glossary/#partial). Their spacing is what makes a pipe sound like a pipe and a plate like a plate. Each partial has its own decay, so the sound changes colour as it fades: high partials usually die first.
+
+The exciter and the object are coupled. Every sample, the exciter feels how far and how fast the object is moving and pushes back. That's why a bow catches and slips on the metal instead of just playing a recorded scrape, and why a mallet sounds different on a plate than on a cable.
+
+A few things change what the voice does from note to note:
+
+- **Velocity.** Harder notes push harder and sound brighter. On the friction exciters (Bow and the scrapers), the **Gesture Modifiers** under the exciter also decide how much velocity changes the envelope's level and timing.
+- **Releasing the key** lets go of the exciter, not the object. A struck pipe keeps ringing after you let go until its own damping stops it; a bowed one rings on after the bow leaves.
+- **The pitch** comes from the key and the object's size: the larger the object, the lower it sounds.
+
+Up to 16 notes play at once. When you play more, Corrosion takes over the quietest voice that is already fading out, then one the sustain pedal holds, then the quietest held note.
+
+**A sound designer's rule of thumb:** fix a sound as early in the chain as you can. If a plate is too bright, try **Brightness**, a softer exciter or a different **Strike Pos** before you reach for the filter. Changes at the source sound natural, because the physics stays consistent; changes at the end are a coat of paint.
+
 ## The output chain
+
+All the voices are mixed into one stereo signal, which then goes through the chain, in this order. The controls are in the **PROCESSING** column and the header; [Output chain](/wiki/output-chain/) covers each stage.
+
+1. **Legacy Drive** (in the Overdrive Unit) saturates the voice mix before anything else.
+2. **Filter Bank:** a resonant low-pass filter. Lower **Cutoff** darkens everything.
+3. **Overdrive Unit:** a drive whose amount is wobbled by a chaotic system, from warm saturation to sputtering distortion.
+4. **BODY:** a resonating body added under the sound, as if the object stood in a machine. **Chassis Mat** and **Chassis Vol** in the Dispersion panel set its tone; the header's **BODY** fader sets how much you hear.
+5. **Spread:** **Spread** and **Proximity** place the sound in the stereo field, wider and nearer or narrower and further.
+6. **Space:** a factory room, a spring tank or an echo, mixed in with **Amount**.
+7. **Diode stage:** a clipper that rounds off the loudest peaks. **Softness** and **Asymmetry** in the Brickwall Limiter panel set its character.
+8. **OUTPUT:** the final level, in dB.
+9. **Limiter:** keeps every peak under the **Ceiling**. The header's **LIMITER** chooses a hard clip or a lookahead limiter.
+
+The four **Macros** above the columns reach into both halves: they move controls of the exciter, the object and the chain at once. See [Macros](/wiki/macros/).

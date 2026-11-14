@@ -6,21 +6,44 @@ covers: {"exciters": ["Particle Rain"]}
 ---
 
 import Clips from '../../../../components/Clips.astro';
-import Stub from '../../../../components/Stub.astro';
+import ModelControls from '../../../../components/ModelControls.astro';
 
-<Stub />
+Una corriente de partículas diminutas cae sobre el objeto, cada una un pequeño impacto: lluvia en un tejado de chapa, arena sobre una lámina, grava en un bidón. Cuántas caen, cuánto pesan y cuánto varía su peso definen la textura.
+
+**Pruébalo:** carga **Drones → Particle Rain Tank**, mantén una nota y barre **Flow Rate**.
 
 ## Qué es
 
+Un flujo de partículas diminutas cae sobre el objeto, cada una un pequeño impacto. Cuántas caen, cuánto pesan y cuánto varía su peso fijan la textura.
+
 ## Cómo suena
+
+Granular y repiqueteante: lluvia sobre un tejado, arena, grava, un shaker quieto.
 
 ## Controles
 
+<ModelControls exciter="Particle Rain" />
+
+- **Flow Rate:** cuántas partículas caen por segundo. Más alto da una lluvia más densa.
+- **Particle Mass:** el peso de cada partícula. Las más pesadas golpean más fuerte.
+- **Mass Variance:** la variación de peso entre partículas. Más alto suena más desigual; en 0 todas son iguales y la lluvia suena débil.
+
+**Speed** escala **Flow Rate** y **Roughness** escala **Mass Variance**.
+
 ## Combinaciones
+
+Sobre **Tank** suena a lluvia sobre un depósito; sobre **Plate** o **Sheet Metal**, a lluvia sobre un tejado.
 
 ## Consejos
 
-## Presets de fábrica
+- Un **Flow Rate** bajo da gotas separadas; uno alto, un manto continuo.
+- El Junk Percussion Kit tiene un pad de Particle Rain.
+- La lluvia sobre un objeto brillante y resonante se convierte en un lecho reluciente. Pruébala en **Plate** o **Sheet Metal** con algo de **Space**.
+
+## Presets para probar
+
+- **Drones → Particle Rain Tank**
+- **Experimental → Particle Rain**: un preset sobre cada uno de los nueve objetos.
 
 ## Escúchalo
 

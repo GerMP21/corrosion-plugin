@@ -4,12 +4,41 @@ sidebar:
   order: 1
 ---
 
-import Stub from '../../../../components/Stub.astro';
+import Clips from '../../../../components/Clips.astro';
+import Data from '../../../../components/Data.astro';
 
-<Stub />
+El Filter Bank es un filtro paso bajo en escalera de cuatro polos: deja pasar los graves y recorta todo lo que queda por encima del corte, con una pendiente de 24 dB por octava. Es el filtro de mil sonidos clásicos de sintetizador, y aquí hace lo mismo: le quita filo al metal brillante, centra un sonido y, con resonancia, añade un pico que canta por su cuenta. Además satura un poco cuando lo empujas, como los circuitos analógicos en los que se inspira.
+
+**Pruébalo:** pon **Resonance** a la mitad, mantén una nota y barre **Cutoff** hacia abajo y otra vez hacia arriba. ¿Oyes ese silbido que sigue a tu mano? Es el pico resonante.
 
 ## Cutoff
 
+Dónde empieza a cortar el filtro, de <Data param="filter_cutoff" field="min" /> a <Data param="filter_cutoff" field="max" /> Hz. En su valor por defecto, arriba del todo, el filtro está abierto y no toca el sonido. Al bajarlo se apagan primero los parciales agudos, así que la nota se vuelve más oscura y redonda.
+
+Los cambios se deslizan en unos 20 ms, así que puedes barrerlo, automatizarlo o girarlo en directo sin escalones ni clics.
+
+<Clips param="filter_cutoff" />
+
+**Consejos:**
+- El metal es brillante por naturaleza. Un corte entre 2 y 5 kHz suele hacer que un golpe áspero se asiente mejor en la mezcla sin apagarlo.
+- Muy abajo (unos cientos de Hz) casi cualquier objeto se convierte en un golpe sordo y oscuro. Va genial para percusión grave, pero pierdes el brillo que hace que el metal suene a metal.
+
 ## Resonance
 
+Un realce justo en el corte. Un poco hace que el filtro suene más vocal y presente. Más lo hace resonar y silbar. Cerca del máximo el pico se convierte en un tono propio: cada vez que el sonido tiene energía cerca del corte, el filtro se pone a cantar.
+
+<Clips param="filter_resonance" />
+
+**Consejos:**
+- Mucha resonancia puede sonar bastante más fuerte que el sonido de debajo. Baja **OUTPUT** antes de subirla, o lo hará la etapa de diodo por ti, con aspereza incluida.
+- Resonancia y un barrido lento de **Cutoff** sobre un drone con arco es una forma barata y muy eficaz de hacerlo evolucionar.
+
 ## Tolerance
+
+Los componentes analógicos de verdad nunca valen exactamente lo que pone en ellos, y derivan con la temperatura. **Tolerance** imita eso. En 0 el corte se queda donde lo pones. Más alto lo deja vagar despacio y al azar alrededor de ese punto, hasta un 30 % en el máximo.
+
+Se oye mejor con algo de **Resonance** y el corte por debajo del máximo, porque así hay un pico que se mueve. Con el filtro abierto no hay nada que vague.
+
+<Clips param="component_tolerance" />
+
+**Consejo:** un poco (0.1–0.3) en un drone largo le da una inestabilidad sutil, viva. Mucho suena a filtro con un cable suelto, que a veces es justo lo que buscas.

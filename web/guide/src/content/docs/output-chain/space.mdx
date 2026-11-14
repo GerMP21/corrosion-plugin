@@ -5,14 +5,61 @@ sidebar:
 covers: {"modes": {"space": ["Off", "Factory", "Spring", "Echo"]}}
 ---
 
-import Stub from '../../../components/Stub.astro';
+import Clips from '../../../components/Clips.astro';
+import Data from '../../../components/Data.astro';
 
-<Stub />
+**Space** puts the sound somewhere. You get three rooms: a big factory hall, a spring reverb tank, and an echo. Only one plays at a time, and each shows its own controls when it's selected.
+
+**Try it:** load **Chords → Cable Echo Pad**, hold a chord and switch **Mode** between **Factory**, **Spring** and **Echo**. Same chord, three different buildings.
 
 ## Mode and Amount
 
+**Mode** picks the effect: **Off** (dry), **Factory**, **Spring** or **Echo**. **Amount** is the mix, from <Data param="space_amount" field="min" /> (dry) to <Data param="space_amount" field="max" />; higher sounds wetter. At the default Amount of 0 nothing is added, whatever the mode, so if you pick a mode and hear no difference, check Amount first.
+
+<Clips param="space_amount" />
+
+One quirk worth knowing: every mode adds faint low partials of its own, around 100–145 Hz. Under most sounds they're invisible, but under a quiet, sustained plate they can show up as a low hum. That's why the factory plate chords are dry. If a reverb seems to muddy a delicate patch, that's the reason; a little less Amount usually fixes it.
+
 ## Factory
+
+A large factory hall: hard surfaces, lots of space, plenty of junk lying around.
+
+- **Factory Size:** the size of the room. Bigger means a longer, larger reverb.
+- **Machinery:** how cluttered the room is. More clutter means busier, denser reflections.
+- **Wall Impedance:** how hard the walls are. Higher reflects more of the highs, so it sounds brighter.
+
+<Clips param="factory_size" />
+<Clips param="machinery_clutter" />
+<Clips param="wall_impedance" />
+
+**Tip:** for percussion, keep **Factory Size** small and **Amount** low: you get a sense of a place without washing out the attack.
 
 ## Spring
 
+A spring reverb, like the tank in an old guitar amp, with its characteristic twang and drip.
+
+- **Spring Tension:** how tight the spring is. Tighter raises the twang.
+- **Wire Stiffness:** how stiff the coils are. Stiffer sounds brighter and tighter.
+- **Tank Size:** the size of the tank. Larger tanks sound lower.
+
+<Clips param="spring_tension" />
+<Clips param="wire_stiffness" />
+<Clips param="spring_tank_size" />
+
+**Tip:** spring reverbs love transients. Hit it with **Drumstick** or **Hard Mallet** and a high **Amount** for that boingy, surf-guitar splash.
+
 ## Echo
+
+A stereo echo, free-running or locked to your host's tempo, with a bit of tape-style wobble if you want it.
+
+- **Sync:** locks the echo to the host tempo, from 1/16 to 2/1 of a beat. **Off** uses **Delay Time** instead, and so does a host that doesn't report a tempo.
+- **Delay Time:** the time between echoes, from about 20 ms to 800 ms. Very short times thicken the sound like a doubler; long times give distinct repeats.
+- **Movement:** how much the delay time wobbles. Higher sounds more warped, like a worn tape machine.
+- **HF Damping:** darkens each repeat, so later echoes get duller, just as they would in an old analogue delay. The effect lives in the repeats: under the dry note it's subtle, so listen to the tail.
+
+<Clips param="sync_rate" />
+<Clips param="delay_time" />
+<Clips param="machinery_movement" />
+<Clips param="high_frequency_damping" />
+
+**Tip:** a synced 1/8 echo at a low Amount is a great way to make a simple percussive pattern feel busier without playing more notes.

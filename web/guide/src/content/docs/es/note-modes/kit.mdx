@@ -6,18 +6,51 @@ covers: {"modes": {"note": ["Kit"]}, "features": ["kit-editor"]}
 ---
 
 import Clips from '../../../../components/Clips.astro';
-import Stub from '../../../../components/Stub.astro';
 
-<Stub />
+**Kit** convierte el teclado en una caja de ritmos: cada tecla puede tener su propio sonido (un *pad*), con su excitador, su objeto y sus ajustes. Un bombo en C2, una caja en D2, un golpe metálico en F#2, todo en una sola instancia de Corrosion. Las teclas sin pad no suenan.
+
+**Pruébalo:** carga **Drums → Scrapyard Kit** y toca de C2 a B3. Luego haz clic en una tecla del teclado de piano y mira el editor: ahora muestra el sonido de ese pad.
 
 ## Pads
 
+Un pad guarda todo lo de una voz: el excitador y sus controles, el objeto y sus controles, las envolventes, los ajustes de exposición y de unión mecánica, más una afinación y un nivel. Lo que un pad no guarda es la cadena de salida: el Filter Bank, las saturaciones, BODY, Space, la etapa de diodo y OUTPUT los comparte todo el kit, como el bus master de una caja de ritmos.
+
+En modo Kit el teclado de piano va de C2 a C6, y las teclas con pad aparecen marcadas. Las teclas del ordenador tocan de C2 a C3, el corazón de un kit General MIDI.
+
+Los pads asignados no siguen a los mandos. Cuando un sonido está en un pad, mover un mando cambia el editor, no el pad, hasta que lo vuelvas a asignar. La cadena de salida compartida es la excepción: actúa sobre todos los pads a la vez.
+
 ## Assign y Clear
+
+Para poner un sonido en una tecla:
+
+1. En **Tonal** o **Drone**, crea el sonido que quieres.
+2. Tócalo una vez en el teclado de piano o con las teclas del ordenador, a la altura que quieres que tenga el pad.
+3. Cambia **NOTE MODE** a **Kit**.
+4. Haz clic en la tecla que va a tener el pad. La barra de kit la muestra en **KEY**.
+5. Haz clic en **Assign**. La tecla toca ahora tu sonido a la altura que tocaste por última vez.
+
+Para cambiar un pad, haz clic en su tecla: su sonido se carga en el editor. Retócalo y vuelve a pulsar **Assign**. **Clear** vacía la tecla seleccionada.
 
 ## Afinación y nivel
 
+**Tune**, en la barra de kit, desplaza el pad seleccionado hasta cuatro octavas en cada dirección, en semitonos. Assign lo fija por ti a partir de la última nota que tocaste; cámbialo después para reafinar el pad sin tocar su sonido.
+
+Cada pad tiene además un nivel. Los kits de fábrica lo ajustan pad a pad para que cada tambor suene a un volumen razonable; no hay control de nivel en el editor, y **Assign** conserva el nivel que ya tenía un pad cuando reemplazas su sonido. Un pad nuevo empieza en 0 dB.
+
+**Consejo:** la altura es más o menos la tecla dividida por el tamaño del objeto, así que un pad tocado lejos de donde se diseñó puede sonar a una altura rara. Por eso los kits de fábrica afinan cada papel: los bombos una octava abajo, las cajas y palmas una octava arriba, los charles de tres a cuatro octavas arriba.
+
 ## Full keyboard
+
+La zona propia del kit va de C2 a B3, donde viven los sonidos de batería General MIDI. Las teclas de fuera aparecen en gris y no se pueden seleccionar ni tocar desde el editor. Pulsa **Full keyboard** para desbloquear todo el teclado y tener más pads; el MIDI de tu DAW toca todas las teclas en cualquier caso.
 
 ## Kits de fábrica
 
+La carpeta **Drums** tiene diez kits con la distribución General MIDI, así que los patrones de batería de otros instrumentos tocan los sonidos correctos. Todos tienen los mismos doce pads: bombo (C2), aro (C#2), caja (D2), palmas (D#2), timbales grave, medio y agudo (F2, A2, C3), charles cerrado, de pedal y abierto (F#2, G#2, A#2), crash (C#3) y ride (D#3).
+
+Cada kit elige un rincón distinto del taller, de la sala de calderas a la playa de vías:
+
 <Clips set="kits" />
+
+Tus propios kits se guardan con tus presets y con el proyecto del DAW.
+
+Los presets y proyectos antiguos que usaban el modo Kit anterior, que asignaba objetos a las teclas, se cargan en **Tonal**: ese modo ya no existe.

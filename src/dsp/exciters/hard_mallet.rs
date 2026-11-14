@@ -12,6 +12,10 @@ use crate::dsp::ContactPrediction;
 
 /// Mallet travel per 48 kHz sample per unit of `mallet_velocity`.
 const MALLET_STEP: f32 = 0.0005;
+/// Impact Damping's default (`VoiceControls::default`).
+const DEFAULT_IMPACT_DAMPING: f32 = 0.46;
+/// How strongly Impact Damping takes the rebound away.
+const DAMPING_REBOUND: f32 = 1.0;
 
 /// Gap, in contact-space units, beyond which a mallet moving away has left.
 const LEAVE_GAP: f32 = 0.02;
@@ -123,7 +127,17 @@ impl HardMallet {
         if force > 0.0 {
             self.contacted = true;
             // Reaction on the mallet, as the old energy transfer scaled it.
-            self.mallet_velocity -= rate::step(0.3 * force / (mass * mass), self.ratio);
+            // On the way out the contact gives back less the more it is
+            // damped, so a damped mallet leaves late and the strike is dead;
+            // exactly the old reaction at the default damping
+            // (`fix-inert-controls`: the force is set by the surface it
+            // meets, so the damping in the contact law alone did nothing).
+            let give_back = if self.mallet_velocity < 0.0 {
+                (DEFAULT_IMPACT_DAMPING / self.impact_damping).powf(DAMPING_REBOUND)
+            } else {
+                1.0
+            };
+            self.mallet_velocity -= rate::step(0.3 * force / (mass * mass), self.ratio) * give_back;
         } else if self.contacted && self.mallet_velocity < 0.0 {
             let gap = resonator.displacement(0.0) - self.mallet_position;
             if gap > LEAVE_GAP {

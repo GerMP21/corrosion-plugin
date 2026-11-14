@@ -41,5 +41,5 @@
 ## 6. Close-out
 
 - [x] 6.1 README (link, browser support, limits) and `docs/ARCHITECTURE.md` (web host, bridge, patch)
-- [ ] 6.2 fmt, clippy `-D warnings`, full test suite, GUI lane, no_alloc, cargo doc
-- [ ] 6.3 Update "Current state" in CLAUDE.md
+- [x] 6.2 fmt, clippy `-D warnings`, full test suite, GUI lane, no_alloc, cargo doc
+- [x] 6.3 Update "Current state" in CLAUDE.md

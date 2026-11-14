@@ -4,16 +4,49 @@ sidebar:
   order: 3
 ---
 
-import Stub from '../../../../components/Stub.astro';
+import Clips from '../../../../components/Clips.astro';
+import Data from '../../../../components/Data.astro';
 
-<Stub />
+Una placa golpeada colgando en el aire no suena igual que la misma placa atornillada a una máquina. **BODY** es esa máquina: un chasis que resuena bajo todo lo que tocas. Los controles de **Dispersion** deciden luego lo ancho que es el sonido y lo cerca que estás.
+
+**Pruébalo:** toca un golpe con **BODY** en 0 y luego en su valor por defecto. Con el cuerpo, la nota suena más llena y parece más un objeto físico.
 
 ## BODY
 
+Cuánto se oye el chasis que resuena, de <Data param="body" field="min" /> a <Data param="body" field="max" />, en la cabecera. El chasis es un pequeño grupo de resonancias fijas, entre ellas dos cerca de 190 y 390 Hz, y lo toca el propio sonido, igual que las cuerdas hacen sonar la caja de una guitarra.
+
+Más alto suena más lleno, más a madera y más físico.
+
+<Clips param="body" />
+
+**Consejos:**
+- El chasis no cambia de altura con las notas, así que sus resonancias pueden chocar con los acordes. Por eso los acordes de fábrica dejan **BODY** en 0: sus parciales siguen siendo armónicos.
+- En baterías y golpes sueltos, BODY suele marcar la diferencia entre «un sonido» y «una cosa». Ahí no te cortes.
+
 ## Chassis Mat
+
+De qué está hecho el chasis. Cambia el tono de sus resonancias, así que oyes el mismo golpe en otra máquina.
+
+<Clips param="chassis_material" />
 
 ## Chassis Vol
 
+Lo grande que es el chasis. Un chasis mayor tiene resonancias más graves y suena algo más fuerte, igual que un tambor más grande suena más profundo. Solo reafina el cuerpo, así que no hace nada mientras **BODY** esté en 0.
+
+<Clips param="chassis_volume" />
+
+**Consejo:** si BODY embarra los medios graves de tu mezcla, prueba un **Chassis Vol** más pequeño antes de bajar BODY: el cuerpo sube y deja sitio al bajo.
+
 ## Spread
 
+Lo ancho que es el sonido mezclado, después del cuerpo. Más alto suena más ancho. Trabaja sobre toda la mezcla, a diferencia de **WIDTH**, que reparte los modos de cada voz.
+
+<Clips param="spread_width" />
+
 ## Proximity
+
+Lo cerca que estás. Más alto suena más cercano y lleno, como con la oreja pegada al metal. Más bajo suena más lejos y más delgado.
+
+<Clips param="listener_proximity" />
+
+**Consejo:** en una mezcla cargada, bajar **Proximity** manda una parte al fondo sin necesidad de reverb.

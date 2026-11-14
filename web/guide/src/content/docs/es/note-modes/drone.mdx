@@ -5,10 +5,22 @@ sidebar:
 covers: {"modes": {"note": ["Drone"]}}
 ---
 
-import Stub from '../../../../components/Stub.astro';
+**Drone** mantiene una nota sonando mientras sostienes la tecla. Toca el teclado igual que Tonal, con las mismas alturas y el mismo sonido; la diferencia está en los excitadores de fricción, que siguen empujando en lugar de agotarse.
 
-<Stub />
+**Pruébalo:** carga **Drones → Grinding Beam**, mantén una nota grave y no la sueltes. No se apaga; suelta cuando quieras.
 
 ## Notas sostenidas
 
+Drone pone en bucle el [MSEG](/wiki/es/exciters/envelopes/#mseg-fricción) de fricción entre sus etapas de caída y sustain mientras la tecla está pulsada, diga lo que diga su propio ajuste de **Loop**. Así que un arco, un raspador, una amoladora, un arrastre o un Tension Rise siguen trabajando el metal hasta que sueltas, y entonces suena su release.
+
+Las otras familias no cambian: los excitadores de golpe siguen golpeando una vez y dejando sonar, y los especiales ya se quedan en su sustain mientras la tecla está pulsada.
+
+El chasquido al soltar también aplica aquí: soltar un drone largo puede hacer que el objeto vuelva con más fuerza. Un **Release** del MSEG de medio segundo o más lo suelta con suavidad.
+
 ## Cuándo usarlo
+
+- **Pads y fondos** que acompañan toda una sección: mantén un acorde y olvídate.
+- **Texturas sostenidas:** amolado, raspado, metal con arco que tiene que durar exactamente lo que la nota en tu DAW.
+- **Tocar en directo** con pedal de sustain: mantén el pedal y los drones se mantienen con él.
+
+**Consejo:** la forma del MSEG se convierte en el movimiento del drone. El bucle repite la etapa **Decay**, así que el drone pulsa al ritmo de la Decay: una Decay larga da un pulso lento, que respira, y una corta un latido rápido.

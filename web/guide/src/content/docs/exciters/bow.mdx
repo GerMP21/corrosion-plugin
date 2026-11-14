@@ -6,21 +6,52 @@ covers: {"exciters": ["Bow"]}
 ---
 
 import Clips from '../../../components/Clips.astro';
-import Stub from '../../../components/Stub.astro';
+import ModelControls from '../../../components/ModelControls.astro';
 
-<Stub />
+A rosined bow drawn across the object: a sustained, singing tone for as long as you hold the key. A bow doesn't simply push. Its friction is strongest when it barely slides over the metal and weaker as it slides faster, so the metal is dragged along unevenly, and that uneven grip is what keeps the object singing and gives bowed sounds their grain.
+
+**Try it:** load **Lead → Bowed Cable Lead**, hold a note and turn **Bow Pressure** up: the tone gets louder and grittier, then crunches.
 
 ## What it is
 
+A bow moves across the object and drags it along with friction. The friction is strongest when the bow grips and weaker when it slides, and the way it falls from one to the other (the Stribeck curve) shapes the tone. The bow keeps pushing for as long as the key is held, following the friction [MSEG](/wiki/exciters/envelopes/#mseg-friction).
+
 ## How it sounds
+
+Smooth and sustained: strings, pads, organs and drones. On a cable it gives a cello-like tone; on a plate or sheet, glassy pads; on a beam, a dark drone. It's the exciter behind most of the factory chords.
 
 ## Controls
 
+<ModelControls exciter="Bow" />
+
+- **Bow Pressure:** how hard the bow presses on the object. Higher is louder and grittier, and too much makes it crunch.
+- **Bow Speed:** how fast the bow moves. Higher gives a brighter, more stable tone. On the plate it's measured on, slower bows are louder.
+- **Rosin Grip:** the static friction of the rosin. Higher grips harder, for a stronger, rougher tone.
+- **Slip Curve:** how much grip the bow keeps once it slips. Higher keeps more: louder and harsher.
+
+**Speed** scales **Bow Speed** and **Roughness** scales **Rosin Grip**.
+
 ## Pairings
+
+**Taut Cable** gives strings and cello basses, **Sheet Metal** and **Plate** glassy pads and organs, **I-Beam** dark drones and chorales, **Coil Spring** wobbly leads. The factory bank has more Bow presets than any other exciter.
 
 ## Tips
 
-## Factory presets
+- Shape the note with the [MSEG](/wiki/exciters/envelopes/#mseg-friction): a slow **Attack** for pads, a short one for leads.
+- **Vel To Time** and **Vel To Level** make soft notes swell in gently ([gesture modifiers](/wiki/exciters/gesture-modifiers/)).
+- **Release snap:** the bow holds the object slightly out of its rest position, and when it lets go quickly the object springs back. On some objects the tail is louder than the held note. A longer MSEG **Release**, half a second or more, lets it go gently. See [Troubleshooting](/wiki/troubleshooting/).
+- If a Bow preset goes silent, check **Env Amount**: at 0 friction exciters make no sound.
+- Bowed sounds react to **Strike Pos** just like a real violin does: near the end is thinner and glassier (*sul ponticello*), towards the middle is rounder.
+
+## Presets to try
+
+- **Lead → Bowed Cable Lead**
+- **Bass → Bowed Cable Sub**
+- **Chords → Warm Cable Strings**
+- **Chords → Sheet Bow Organ**
+- **Chords → Plate Bow Pad**
+- **Drones → Bowed Beam Drone**
+- **Experimental → Bow**: one preset on each of the nine objects.
 
 ## Listen
 

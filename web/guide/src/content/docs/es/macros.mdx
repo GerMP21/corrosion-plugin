@@ -3,14 +3,54 @@ title: "Macros"
 covers: {"features": ["macros"]}
 ---
 
-import Stub from '../../../components/Stub.astro';
+import Clips from '../../../components/Clips.astro';
 
-<Stub />
+Las cuatro Macros son los mandos grandes y simpáticos de la parte de arriba del editor. Cada una mueve todo un grupo de controles a la vez, en el excitador, el objeto y la cadena de salida, así que puedes empujar un sonido en una dirección sin ir a buscar los seis mandos que te llevarían allí.
+
+Todas empiezan en el centro, y en el centro no hacen nada. Gira una hacia cualquier lado y sube o baja sus controles desde donde los dejó el preset. Por eso puedes usarlas sin miedo en cualquier preset: el sonido que cargaste siempre está a un clic (devolverla al centro).
+
+**Pruébalo:** carga **Bass → Felt Cable Upright**, toca unas notas y sube **MASS**. El bajo se vuelve más pesado y baja de altura. Ahora sube **CORROSION**: el mismo bajo, veinte años más viejo.
 
 ## MASS
 
+Hace todo más pesado. Cambia el peso del excitador (la mano, la maza, la baqueta, el tubo, la cadena, la herramienta de arrastre o las partículas) hasta en la mitad, y el tamaño del objeto hasta en una cuarta parte.
+
+Un excitador más pesado golpea más fuerte y se queda más tiempo en contacto, lo que saca los modos graves. Un objeto más grande suena más grave, y ahí está la trampa: **MASS cambia la altura**. Arriba del todo las notas bajan unos cuatro semitonos; abajo del todo suben unos cinco. Genial para diseño de sonido, pero reafina con el control de tamaño del objeto (o desde el DAW) si la parte tiene que seguir en tono.
+
+MASS actúa en la siguiente nota que toques.
+
+<Clips param="macro_mass" />
+
 ## CORROSION
+
+Desgasta el objeto. Al subirla añade amortiguación (resonancias más cortas), quita brillo y añade **Rust**. Al bajarla hace lo contrario: quita la amortiguación y el óxido que ya tenía el preset, así que un preset corroído vuelve más limpio y largo.
+
+La amortiguación y el brillo actúan sobre las notas sostenidas; el óxido, en la siguiente nota.
+
+<Clips param="macro_corrosion" />
+
+**Consejo:** CORROSION es la forma más rápida de convertir un patch largo y resonante en percusión. Un tubo golpeado con CORROSION arriba se vuelve un golpe corto y apagado.
 
 ## VIOLENCE
 
+Mete suciedad. Añade **Damage** al objeto (hasta 2 más arriba del todo) y saturación y caos a la cadena de salida: **Legacy Drive**, **Drive Amt** y **Chaos**. Al bajarla quita esas mismas cantidades, lo que puede limpiar un preset con demasiada aspereza.
+
+La saturación y el caos actúan al momento; el daño, en la siguiente nota.
+
+<Clips param="macro_violence" />
+
+**Consejo:** VIOLENCE sube el nivel además de la aspereza. Si el punto rojo del panel **Brickwall Limiter** se queda encendido, baja **OUTPUT**.
+
 ## BRIGHTNESS
+
+Abre los agudos. Sube la **Brightness** del objeto y mueve el **Cutoff** del Filter Bank hacia arriba o hacia abajo hasta una octava. Las dos cosas actúan sobre las notas sostenidas, así que puedes barrerla mientras tocas.
+
+<Clips param="macro_brightness" />
+
+Algo que conviene saber: la parte del filtro solo puede abrir un filtro que ya esté algo cerrado. La mayoría de los presets dejan **Cutoff** abierto del todo, así que subir BRIGHTNESS solo aclara el objeto; bajarla oscurece los dos.
+
+## Cómo usar las Macros
+
+- **Automatízalas.** Son parámetros normales del DAW, y un movimiento lento de una macro suena más natural que el mismo cambio hecho mando a mando.
+- **Saca variaciones.** Carga un preset, empuja una macro y guárdalo con otro nombre. Cuatro macros, dos direcciones: ocho variaciones en un par de minutos.
+- **Los pads del Kit las recuerdan.** Cuando asignas un sonido a un pad del Kit, el efecto de las macros sobre la voz queda guardado en el pad. Consulta [Kit](/wiki/es/note-modes/kit/).

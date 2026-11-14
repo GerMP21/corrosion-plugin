@@ -4,14 +4,63 @@ sidebar:
   order: 2
 ---
 
-import Stub from '../../../components/Stub.astro';
+import Clips from '../../../components/Clips.astro';
+import Data from '../../../components/Data.astro';
 
-<Stub />
+The force envelope shapes how hard the exciter pushes over the length of a note. It's worth pausing on that, because it's not a volume envelope like on most synths. It changes the force going *into* the object, and the object keeps ringing after the force is gone, the way a cymbal keeps ringing after the stick has left it. Each [family](/wiki/exciters/#families) has its own envelope, and the panel under **MODEL TYPE** shows the one for the current exciter.
+
+**Try it:** load **Drones → Grinding Beam**, set **Loop** to **Forward** and hold a note: the decay starts over and over, and the grinding pulses.
 
 ## AD envelope (struck)
 
+Struck exciters use two controls, **Attack** and **Release**. When a note starts, the force rises from nothing to full over **Attack**, then falls straight away over **Release**. It doesn't wait for the key to come up: a struck note behaves like a real strike, and releasing the key early doesn't cut it short.
+
+- **Attack** is short by default, so the contact lands at once. A long Attack makes the strike softer and much quieter, because the exciter has already bounced off before the force reaches its peak.
+- **Release** sets how long the force lasts after its peak. For most strikes the contact is over long before, so it matters mostly for exciters that keep touching, like Wire Brush and Metal Chain.
+
+<Clips param="env_attack" />
+<Clips param="env_release" />
+
 ## MSEG (friction)
+
+Friction exciters use a six-stage envelope, the MSEG:
+
+1. **Onset:** the force rises from nothing to **Onset Lvl** over **Onset**. Keep it short and low for a clean start, or raise it to ease the note in.
+2. **Attack:** the force rises to its peak.
+3. **Hold:** it stays at the peak.
+4. **Decay:** it falls to the sustain level.
+5. **Sustain:** it holds there for as long as the key is down.
+6. **Release:** after the key comes up, it fades out over **Release**.
+
+The [gesture modifiers](/wiki/exciters/gesture-modifiers/) scale this envelope: its overall amount, its peak, its speed, how velocity changes it and the shape of its segments.
+
+**Release snap.** A held Bow, Stiff Point Scrape or Corrugated Drag pushes the object out of its rest position. When the force goes away quickly, the object springs back and rings, and the tail can be louder than the held note: with Corrugated Drag on a Plate and the default **Release** of <Data param="mseg_release" field="default" /> s, the half second after you let go is about 15 dB louder. A **Release** of half a second or more lets the object go gently. It's kept as a feature; see [Troubleshooting](/wiki/troubleshooting/).
+
+<Clips param="mseg_onset" />
+<Clips param="mseg_attack" />
+<Clips param="mseg_release" />
 
 ## Loop modes
 
+The MSEG can repeat part of itself while the key is held. **Loop** picks the mode, and **Start** and **End** pick the stages, numbered from 0 (Onset) to 5 (Release).
+
+- **Off:** the envelope plays once, then holds at Sustain.
+- **Forward:** each time the envelope reaches the **End** stage, it jumps back to the **Start** stage. The End stage itself doesn't play. Only stages 1 to 4 (Attack to Sustain) can loop; 0 and 5 are moved into that range. With the defaults, Start 3 and End 4, the Decay repeats and the note pulses at the Decay's rate. If Start isn't before End, nothing loops.
+- **Ping-Pong:** for now the same as Forward from stage 3 to 4, whatever Start and End say.
+
+Releasing the key always leaves the loop and plays the Release.
+
+<Clips param="loop_mode" />
+
 ## ADSR envelope (specialty)
+
+Specialty exciters use a classic ADSR: the force rises over **Attack**, falls over **Decay** to the **Sustain** level, holds there while the key is down, and fades over **Release** once it comes up. Pneumatic Jet, Electromagnetic Hum and Particle Rain play for as long as their force lasts; Tension Snap makes one snap per note.
+
+<Clips param="env_decay" />
+<Clips param="env_sustain" />
+
+## Tips
+
+- **A note that rings too long isn't an envelope problem.** Shortening the force doesn't stop the object; reach for the object's damping, **Rust** or **Sludge** instead.
+- **For bowed pads,** a slow **Attack** and a **Release** of half a second or more give the gentlest entries and exits, and the long release also tames the release snap.
+- **For rhythmic friction,** loop the MSEG: a looping grinder is half a groove already.

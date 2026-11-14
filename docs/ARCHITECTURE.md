@@ -517,6 +517,29 @@ plays every exciter 12 dB over its drive with the governor off.
   out from it, up to +30 dB over the held note on the default patch. Kept as
   a feature; a Release Snap control is proposed in `docs/BACKLOG.md`.
 
+### Controls that reach the sound (`fix-inert-controls`)
+
+Every sound-shaping control changes its note by at least the floor: 1 dB in level, 10 % in ring, 1 dB in band shape, width or envelope. Each is measured in its own context (`src/guide/control_response.rs`), and `every_sound_shaping_control_changes_its_note` guards this. High Frequency Damping and Diode Softness are accepted under the floor (`UNDER_FLOOR`, with their reasons). Most fixes are an identity at the control's default, so default notes render bit-identical; the exceptions are noted per item.
+
+**Exciters**
+- **Stiff Point Scrape:** the chatter rings the force (ring gain 2).
+- **Metal Chain:** the links strike the object. The dent grows with Chain Mass (`IMPACT_DENT`), so the chain is audible at Internal Rattle 0.
+- **Felt Mallet:** the core stiffens past `CORE_ONSET`.
+- **Hard Mallet:** gives back `(0.46/damping)` on the way out.
+- **Hand Strike:** keeps flesh on landing, set by Flesh Stiffness.
+- **Heavy Grinding:** tearing scales with `√pressure`.
+- **Drumstick:** after the first contact and its micro-bounces, the stick re-strikes Micro Bounce Limit − 1 times. Flights start at 40 ms × Restitution and shorten by Restitution each time. Each re-strike is a real Hertzian contact that lands on its scheduled frame, so its timing is the same at any rate.
+- **Bow:** Slip Curve also sets how far the grip carries into sliding: the fall-off is `10·(0.485/slip)²`. The bow never sticks; real stick-slip is in the backlog.
+
+**Releases**
+- Note-off no longer zeroes the friction and specialty exciters' force. Release and MSEG Release now shape the tail, and the friction exciters' release snap follows MSEG Release.
+
+**Object and post chain**
+- **Chaos Depth:** swings the level (`CHAOS_SPREAD`, `CHAOS_SWING`).
+- **Braid Stiffness:** stretches the cable's partials quadratically.
+- **Wire Stiffness:** widens the spring's dispersion around its default.
+- **Component Tolerance:** drifts the filter cutoff (a 0.3 s random walk, 30 % deep).
+
 ### Noise
 
 Every random source uses `dsp::utils::noise::Noise`, a xorshift32 generator
@@ -854,13 +877,13 @@ The plugin also runs in a browser, with the same engine and editor, as two WebAs
   - **Clips.** `src/guide/clip_plan.rs` plans every clip: Min/Mid/Max per sound-shaping parameter over the base patch (Hand Strike on Plate, Space off, Render quality, C3 at velocity 100, note-off at 2 s; every clip renders `RELEASE_TAIL` (2 s; `DEMO_RELEASE_TAIL`, 4 s, for the home demos) past its last note-off and is cut sooner where its tail falls 60 dB under its peak (`trim_to_silence`, 50 ms fade at either cut), so releases are heard and silences dropped; velocity pairs, long notes and a 120 BPM Echo Sync demo where the effect needs them), exclusions and quiet points with reasons, exciters compared on Tank and objects with Felt Mallet, a representative preset per model, the drum kits and the home demos (`HOME_DEMOS`: a preset per curated folder, as notes, triads or a held note). `render_guide_clips` renders through `offline::render_preset_at_tempo`, levels each set (its reference at `TARGET_RMS`, peaks ≤ −1 dBFS) and writes WAVs and `clips.json`; `scripts/build-guide-clips.sh` encodes them with `opusenc --bitrate 48` into `web/guide/public/clips/` (committed; regenerate after a plan change or an engine-wide sound change). `guide_clip_plan_covers_every_parameter` and `guide_clip_manifest_is_complete_and_audible` (CI lane) fail on an unplanned parameter, a missing or silent clip, or a fingerprint that no longer matches the plan.
   - **Checks.** `npm run check` (`scripts/check.mjs`): EN/ES twins with the same heading levels, coverage of every model, mode, factory folder, feature and reference panel in both languages, Spanish text for every parameter, slot and option, clip references against `clips.json`; `--complete` also rejects `<Stub />` (turned on by `write-user-guide-content`). `starlight-links-validator` fails the build on a broken internal link. CI's `guide` job runs `npm ci`, the check and the build.
 - **Theme.** The plugin's palette is `src/gui/palette.rs` (`[u8; 3]` constants, no egui), which the editor's `Color32` constants are built from. `web/theme/tokens.css` repeats it as CSS custom properties (`--charcoal` … `--thumb-border`) plus roles (`--bg`, `--surface`, `--text`, `--accent`, …), type and spacing; the home page, the app's page chrome and the guide use only these. `gui::palette::tests::site_theme_matches_editor_palette` (CI lane) fails, naming the colour, when the two differ. The site is dark-only.
-- **Deploy.** Cloudflare Workers Builds runs `web/scripts/cloudflare-build.sh` (installs Rust, the wasm32 target and the pinned prebuilt wasm-bindgen when missing, and Node 22.23.4 when the image's is older; then `build.sh`, which also builds the guide) and `npx wrangler deploy` (`web/wrangler.toml`, static assets from `web/dist`). Custom domain: `corrosion-vst.org` only (top-level `routes`). The old `preview.corrosion-vst.org` is kept alive in the dashboard, not in `wrangler.toml`: a proxied placeholder DNS record (`AAAA preview 100::`, proxy on) so Cloudflare answers for it, and a **Redirect Rule** (Rules → Redirect Rules; hostname equals `preview.corrosion-vst.org`; static URL `https://corrosion-vst.org/play/`; 301; query string not kept) that sends every preview request to the app. Recreate both by hand if the zone is rebuilt. Browser storage is per origin, so sessions and presets saved at `preview.` don't follow.
+- **Deploy.** Cloudflare Workers Builds runs `web/scripts/cloudflare-build.sh` (installs Rust, the wasm32 target and the pinned prebuilt wasm-bindgen when missing, and Node 22.23.4 when the image's is older; then `build.sh`, which also builds the guide) and `npx wrangler deploy` (`web/wrangler.toml`, static assets from `web/dist`). It deploys from `main` only: its "Workers Builds: corrosion-vst" check fails or is skipped on `dev` and on pull requests from `dev`, which is expected, not a broken build. The `web` CI job runs the same build script on every branch. Custom domain: `corrosion-vst.org` only (top-level `routes`). The old `preview.corrosion-vst.org` is kept alive in the dashboard, not in `wrangler.toml`: a proxied placeholder DNS record (`AAAA preview 100::`, proxy on) so Cloudflare answers for it, and a **Redirect Rule** (Rules → Redirect Rules; hostname equals `preview.corrosion-vst.org`; static URL `https://corrosion-vst.org/play/`; 301; query string not kept) that sends every preview request to the app. Recreate both by hand if the zone is rebuilt. Browser storage is per origin, so sessions and presets saved at `preview.` don't follow.
 
 ## 10. Build, Test, and QA Infrastructure
 
 | Component | Purpose |
 |---|---|
-| `.github/workflows/ci.yml` | Runs on `dev`, `main`, `web`, fork pull requests and by hand (`extend-ci-windows-linux-macos`). `checks` on Linux (fmt, clippy `-D warnings`, musl tests, gnu GUI lane, `no_alloc`, docs with warnings denied, benchmarks compiled, renderer smoke and WAV check), Windows MSVC and macOS (clippy, tests, GUI lane, renderer smoke; `no_alloc` on macOS). `bundle`: native VST3 and CLAP per platform with `scripts/bundle.sh` (macOS universal, ad-hoc signed), `scripts/check_bundle.sh`, clap-validator and pluginval. `nightly`: replaces the rolling `nightly` pre-release after a fully green run on main. `web`: the web workspace's fmt, clippy (native and wasm), engine/bridge/no_alloc tests, the Cloudflare build script, and the page in headless Chromium. `guide`: the guide's `npm ci`, `npm run check` and build (Node 22.23.4) |
+| `.github/workflows/ci.yml` | Runs on `dev`, `main`, `web`, fork pull requests and by hand (`extend-ci-windows-linux-macos`). `checks` on Linux (fmt, clippy `-D warnings`, musl tests, gnu GUI lane, `no_alloc`, docs with warnings denied, benchmarks compiled, renderer smoke and WAV check), Windows MSVC and macOS (clippy, tests, GUI lane, renderer smoke, `no_alloc`; on Windows that step turns on nih-plug's `assert_process_allocs`, which `Cargo.toml` leaves off there, and `the_checker_is_armed` proves the checker is installed on every platform). `bundle`: native VST3 and CLAP per platform with `scripts/bundle.sh` (macOS universal, ad-hoc signed), `scripts/check_bundle.sh`, clap-validator and pluginval. `nightly`: replaces the rolling `nightly` pre-release after a fully green run on main. `web`: the web workspace's fmt, clippy (native and wasm), engine/bridge/no_alloc tests, the Cloudflare build script, and the page in headless Chromium. `guide`: the guide's `npm ci`, `npm run check` and build (Node 22.23.4) |
 | `scripts/verify-local.sh` | local mirror of CI |
 | `scripts/validate-plugins.sh` | optional `pluginval` + `clap-validator` wrapper |
 | `scripts/check_wav.py` / `analyze_wav.py` / `check_clicks.py` | offline artifact validation |

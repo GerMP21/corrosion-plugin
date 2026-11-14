@@ -5,6 +5,7 @@
 //! drift from what the plugin would write.
 
 pub mod clip_plan;
+pub mod control_response;
 
 use crate::gui::controls::{
     exciter_panel, exciter_param_ref, help_for, resonator_panel, resonator_param_ref,

@@ -445,3 +445,43 @@ fn pad_note_ons_are_alloc_free_while_pads_are_assigned() {
     stop.store(true, Ordering::Relaxed);
     writer.join().unwrap();
 }
+
+/// Allocates inside `assert_no_alloc` on purpose. Run only as a child
+/// process by `the_checker_is_armed`, since the checker aborts the process.
+#[test]
+#[ignore = "aborts the process by design; run by the_checker_is_armed"]
+fn allocation_aborts_under_the_checker() {
+    assert_no_alloc(|| {
+        let v: Vec<u64> = Vec::with_capacity(64);
+        std::hint::black_box(v);
+    });
+}
+
+/// Proves the checking allocator is installed: the deliberate allocation
+/// above must kill its process. Without it every other test here would pass
+/// vacuously. `Cargo.toml` leaves the checker off on Windows, so there it is
+/// required only where CI turns it on and sets `CORROSION_EXPECT_ALLOC_CHECKER`.
+#[test]
+fn the_checker_is_armed() {
+    if cfg!(windows) && std::env::var_os("CORROSION_EXPECT_ALLOC_CHECKER").is_none() {
+        return;
+    }
+    let exe = std::env::current_exe().expect("test binary path");
+    let output = std::process::Command::new(exe)
+        .args([
+            "allocation_aborts_under_the_checker",
+            "--exact",
+            "--ignored",
+            "--test-threads=1",
+        ])
+        .output()
+        .expect("run the test binary");
+    assert!(
+        !output.status.success(),
+        "an allocation under assert_no_alloc did not abort: the checking allocator is not installed\n\
+         child status: {:?}\nchild stdout:\n{}\nchild stderr:\n{}",
+        output.status,
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr),
+    );
+}

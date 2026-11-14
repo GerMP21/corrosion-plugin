@@ -9,6 +9,11 @@
 use crate::dsp::utils::noise::Noise;
 use crate::dsp::utils::{contact, rate};
 use crate::dsp::ContactPrediction;
+
+/// Grind Pressure's default (`VoiceControls::default`).
+const DEFAULT_GRIND_PRESSURE: f32 = 1.0;
+/// How the tearing noise grows with the pressure.
+const PRESSURE_TEARING: f32 = 0.5;
 /// Scratchy friction exciter with tearing-noise modulation.
 #[derive(Clone, Debug)]
 pub struct HeavyGrinding {
@@ -112,7 +117,12 @@ impl HeavyGrinding {
         // from the slip let the resonator's own motion modulate the noise
         // force that drives it, which built a high-Q mode up to a large
         // limit cycle (Plate C6).
-        let tearing = filtered_noise * grind_speed * self.surface_grit * 2.0 * output_scale;
+        // Pressing harder tears more: the friction's own push is static and
+        // the voice blocks it, so without this Grind Pressure was not heard
+        // (`fix-inert-controls`; exactly 1 at the default pressure).
+        let pressing = (self.grind_pressure / DEFAULT_GRIND_PRESSURE).powf(PRESSURE_TEARING);
+        let tearing =
+            filtered_noise * grind_speed * self.surface_grit * 2.0 * output_scale * pressing;
 
         // Friction: more force speeds the resonator up, lowering the slip.
         let mu_dynamic = 0.4;

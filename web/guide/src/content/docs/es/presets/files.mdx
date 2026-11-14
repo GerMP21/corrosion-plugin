@@ -4,10 +4,23 @@ sidebar:
   order: 3
 ---
 
-import Stub from '../../../../components/Stub.astro';
+Los presets son pequeños archivos de texto que puedes copiar, enviar por correo, guardar en una copia de seguridad y compartir. Un preset guardado en el plugin se abre en la app web, y al revés.
 
-<Stub />
+**Pruébalo:** pulsa **Open folder** en el recuadro **PRESET BANK** y abre uno de tus presets con un editor de texto. Se puede leer: el nombre, el objeto, el excitador y una lista de valores.
 
 ## Formato
 
+Cada preset es un archivo `.corrosion-preset` en JSON, un formato de texto plano. Guarda el nombre del preset, una versión del esquema (ahora `"4"`) y el valor de cada control por su nombre de parámetro; los presets de Kit añaden sus pads.
+
+Puedes editar uno a mano si tienes cuidado, pero casi nunca hace falta: todo lo que puedes ajustar en el editor, lo puedes guardar desde él. Un valor fuera de rango se lleva al más cercano válido al cargar el preset.
+
 ## Presets antiguos
+
+Corrosion sigue cargando los presets de versiones anteriores, y hace que suenen como sonaban, aunque un control haya cambiado de significado desde entonces:
+
+- **Etapa de diodo:** los presets de antes de que existiera **Asymmetry** se cargan con **Softness** y **Asymmetry** en 0, el recorte en seco y simétrico que tenían.
+- **Onset Level:** los presets de antes de que existiera reciben el nivel que fijaba su **Onset**.
+- **Wander Rate:** los presets de antes de que existiera reciben la velocidad que fijaba su **Pos Env**, y Pos Env queda en 0.
+- **Modo Kit:** los presets que usaban el modo Kit antiguo, que asignaba objetos a las teclas, se cargan en **Tonal**.
+
+No se reescribe nada en el disco: la conversión se hace cada vez que se carga el preset. Guárdalo de nuevo para almacenarlo en la forma actual.

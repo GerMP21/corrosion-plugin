@@ -45,7 +45,7 @@
   },
   "cable_braid": {
     "slots": {
-      "Taut Cable": "Rigidez del trenzado del cable. Más alto suena más brillante y menos armónico."
+      "Taut Cable": "Rigidez del trenzado del cable. Más alto separa los parciales, para una resonancia menos armónica y más metálica."
     }
   },
   "cable_tension_drop": {
@@ -65,7 +65,7 @@
   },
   "chain_mass": {
     "slots": {
-      "Metal Chain": "Peso de la cadena que cae. Una cadena más pesada golpea más fuerte y más oscuro."
+      "Metal Chain": "Peso de los eslabones de la cadena que cae. Los eslabones más pesados golpean más fuerte."
     }
   },
   "chaos_depth": {
@@ -84,7 +84,7 @@
   },
   "chatter_pitch": {
     "slots": {
-      "Stiff Point Scrape": "Altura del chirrido del stick-slip. Más alto suena más chillón."
+      "Stiff Point Scrape": "Afinación del traqueteo de la punta, que colorea el raspado. Más alto suena más oscuro y suave."
     }
   },
   "cog_dissonance": {
@@ -98,11 +98,11 @@
     }
   },
   "component_tolerance": {
-    "help": "Deriva aleatoria de los componentes del filtro. Más alto suena menos preciso y más analógico."
+    "help": "Deriva aleatoria de los componentes del filtro. Más alto hace que el corte se desplace, menos preciso y más analógico."
   },
   "compression_curve": {
     "slots": {
-      "Felt Mallet": "Lo rápido que se endurece el fieltro al comprimirse. Más alto hace los golpes fuertes mucho más brillantes que los suaves."
+      "Felt Mallet": "Lo bruscamente que entra el núcleo duro al comprimirse el fieltro. Más bajo lo hace entrar antes, para un golpe más brillante."
     }
   },
   "core_hardness": {
@@ -119,7 +119,7 @@
     }
   },
   "curve_tension": {
-    "help": "Forma de los tramos de la envolvente. Cuanto más te alejas del centro, más se curvan."
+    "help": "Forma de los tramos de la envolvente de fricción. Cuanto más te alejas del centro, más se curvan."
   },
   "damage": {
     "help": "Abolla y agrieta el objeto: desafina sus modos y añade compañeros que zumban. Más alto suena más roto."
@@ -128,10 +128,10 @@
     "help": "Tiempo entre ecos. Más alto los separa más."
   },
   "diode_asymmetry": {
-    "help": "Recorta antes la mitad negativa. Más alto añade armónicos pares y una arenilla más llena."
+    "help": "Recorta antes la mitad negativa. Más alto añade armónicos pares y una aspereza más llena."
   },
   "diode_softness": {
-    "help": "Codo del diodo. 0 recorta en seco; más alto curva antes y suena más cálido."
+    "help": "Rodilla del diodo. 0 recorta en seco; más alto curva antes y suena más cálido."
   },
   "drag_exciter_mass": {
     "slots": {
@@ -155,7 +155,7 @@
     }
   },
   "env_amount": {
-    "help": "Cuánto moldea la envolvente la excitación. Más bajo la aplana."
+    "help": "Escala la fuerza de la envolvente de fricción. Más bajo suena más flojo, y 0 silencia los excitadores de fricción."
   },
   "env_attack": {
     "help": "Tiempo que tarda la nota en llegar a su nivel máximo. Más alto entra más despacio."
@@ -164,15 +164,15 @@
     "help": "Tiempo para bajar del pico al nivel de sustain. Más alto decae más despacio."
   },
   "env_release": {
-    "help": "Tiempo de desvanecimiento al soltar la nota. Más alto se apaga más despacio."
+    "help": "Tiempo que tarda la fuerza en apagarse: desde su pico en un golpe, al soltar la nota en los demás. Más alto se apaga más despacio."
   },
   "env_sustain": {
     "help": "Nivel que se mantiene mientras la tecla está pulsada. Más alto suena más fuerte."
   },
   "exciter": {
     "options": {
-      "Bow": "Fricción de arco suave por stick-slip, con presión, velocidad, agarre y deslizamiento, según el modelo de arco documentado.",
-      "Corrugated Drag": "Arrastre sobre estrías, con separación, profundidad y masa del contacto ajustables.",
+      "Bow": "Un arco con resina que agarra y arrastra el objeto, para tonos sostenidos que cantan. Lo moldean la presión, la velocidad, el agarre y el deslizamiento.",
+      "Corrugated Drag": "Una herramienta arrastrada sobre metal estriado: golpecitos que se funden en un zumbido al acelerar. Lo moldean la separación y la profundidad de las estrías y el peso de la herramienta.",
       "Drumstick": "Impacto rígido y ligero, con energía de rebote y número de microrrebotes ajustables.",
       "Electromagnetic Hum": "Inyección continua por fuerza de Lorentz, con control directo de la frecuencia de red, la proximidad y la caída de tensión.",
       "Felt Mallet": "Maza blanda no lineal: una capa de fieltro que se comprime sobre un núcleo más duro.",
@@ -214,12 +214,12 @@
   },
   "flesh_damping": {
     "slots": {
-      "Hand Strike": "Cuánto absorbe la carne el impacto. Más alto suaviza el ataque."
+      "Hand Strike": "Cuánto empuja la carne mientras se mueve. Más alto golpea más fuerte y más brillante."
     }
   },
   "flesh_stiffness": {
     "slots": {
-      "Hand Strike": "Rigidez de la carne en el contacto. Más alto da una palmada más corta y brillante."
+      "Hand Strike": "Rigidez de la carne en el contacto. Más alto hace rebotar la mano en el metal: una palmada más corta y más ligera."
     }
   },
   "flow_rate": {
@@ -228,10 +228,10 @@
     }
   },
   "fundamental_anchor": {
-    "help": "Con cuánta firmeza mantiene el fundamental su altura mientras los otros modos se mueven. Más alto mantiene las notas más afinadas."
+    "help": "Con cuánta firmeza mantiene la fundamental su altura mientras los otros modos se mueven. Más alto mantiene las notas más afinadas."
   },
   "global_time_scale": {
-    "help": "Escala todos los tiempos de la envolvente. Más alto ralentiza toda la envolvente."
+    "help": "Velocidad de toda la envolvente de fricción. Más alto recorre cada etapa más deprisa."
   },
   "grind_pressure": {
     "slots": {
@@ -250,7 +250,7 @@
   },
   "hand_mass": {
     "slots": {
-      "Hand Strike": "Peso de la mano que golpea. Una mano más pesada lleva más graves al objeto."
+      "Hand Strike": "Peso de la mano que golpea. Una mano más pesada golpea más fuerte y más brillante."
     }
   },
   "heat": {
@@ -289,13 +289,13 @@
     "help": "Lo cerca que está el oyente. Más alto suena más cercano y más lleno."
   },
   "loop_end_stage": {
-    "help": "La etapa donde termina el bucle de la envolvente."
+    "help": "Al llegar a esta etapa, el bucle vuelve a Start."
   },
   "loop_mode": {
     "options": {
-      "Forward": "La envolvente se repite entre las etapas Start y End.",
+      "Forward": "La envolvente vuelve a la etapa Start cada vez que llega a la etapa End.",
       "Off": "La envolvente se reproduce una vez.",
-      "Ping-Pong": "La envolvente va y viene entre las etapas Start y End."
+      "Ping-Pong": "Por ahora igual que Forward de la etapa 3 a la 4, digan lo que digan Start y End."
     }
   },
   "loop_start_stage": {
@@ -366,14 +366,14 @@
     "help": "Nivel de la etapa de arranque de la envolvente de fricción. Más alto empieza la nota con más fuerza."
   },
   "mseg_release": {
-    "help": "Tiempo de desvanecimiento al soltar la nota. Más alto se apaga más despacio."
+    "help": "Tiempo que tarda la fuerza en apagarse al soltar la nota. Más alto se apaga más despacio."
   },
   "mseg_sustain": {
     "help": "Nivel que se mantiene mientras la tecla está pulsada. Más alto suena más fuerte."
   },
   "mute_decay": {
     "slots": {
-      "Hand Strike": "Cuánto tiempo descansa la mano sobre el objeto tras el golpe. Más bajo apaga antes la resonancia."
+      "Hand Strike": "Cuánto tiempo descansa la mano sobre el objeto tras el golpe. Más alto la deja más tiempo y apaga antes la resonancia."
     }
   },
   "nozzle_width": {
@@ -409,7 +409,7 @@
   },
   "pipe_mass": {
     "slots": {
-      "Metal Pipe": "Peso del tubo que golpea. Un tubo más pesado golpea más fuerte y más oscuro."
+      "Metal Pipe": "Peso del tubo que golpea. Un tubo más pesado golpea más fuerte y más brillante."
     }
   },
   "pipe_pitch": {
@@ -465,15 +465,15 @@
   },
   "quality_mode": {
     "options": {
-      "Eco": "El menor consumo de CPU: menos modos por voz y sin sobremuestreo en el clipper.",
-      "High": "Más modos por voz y más sobremuestreo en el clipper.",
+      "Eco": "El menor consumo de CPU: menos modos por voz y sin sobremuestreo en el recortador.",
+      "High": "Más modos por voz y más sobremuestreo en el recortador.",
       "Normal": "El equilibrio por defecto entre detalle y CPU.",
       "Render": "El máximo detalle y el menor aliasing, para exportar. Es el que más CPU usa."
     }
   },
   "rattle_color": {
     "slots": {
-      "Metal Chain": "Tono del traqueteo. Más alto es más brillante."
+      "Metal Chain": "Dónde se sitúa el paso alto del traqueteo. Más alto adelgaza el traqueteo y deja oír los golpes de los eslabones."
     }
   },
   "res_brightness": {
@@ -506,7 +506,7 @@
   },
   "rosin_grip": {
     "slots": {
-      "Bow": "Fricción estática de la resina. Más alto agarra más y da un stick-slip más fuerte y rugoso."
+      "Bow": "Fricción estática de la resina. Más alto agarra más, para un tono de arco más fuerte y rugoso."
     }
   },
   "rust": {
@@ -532,12 +532,12 @@
       "Plate": "Tamaño de la placa. Las placas más grandes suenan más graves.",
       "Sheet Metal": "Tamaño de la chapa. Las chapas más grandes suenan más graves.",
       "Tank": "Tamaño del tanque. Los tanques más grandes suenan más graves.",
-      "Taut Cable": "Tensión del cable. Más alto suena más agudo."
+      "Taut Cable": "Longitud del cable. Los cables más largos suenan más graves."
     }
   },
   "slip_curve": {
     "slots": {
-      "Bow": "Lo rápido que cae la fricción cuando el arco desliza. Más alto da un tono más incisivo y agresivo."
+      "Bow": "Cuánto agarre conserva el arco cuando desliza. Más alto conserva más: más fuerte y áspero."
     }
   },
   "slip_stochasticity": {
@@ -590,7 +590,7 @@
   },
   "stick_mass": {
     "slots": {
-      "Drumstick": "Peso de la baqueta. Una baqueta más pesada excita el objeto con más fuerza y más oscuro."
+      "Drumstick": "Peso de la baqueta. Una baqueta más pesada excita el objeto con más fuerza y más brillo."
     }
   },
   "strike_position": {
@@ -631,17 +631,17 @@
     "help": "Tamaño de la ventana del editor."
   },
   "velocity_to_level": {
-    "help": "Cuánto cambia la velocity el nivel de la nota. Más alto da más rango dinámico."
+    "help": "Cuánto cambia la velocidad de pulsación el nivel de la envolvente de fricción. Más alto hace más suaves las notas flojas, hasta la mitad."
   },
   "velocity_to_peak": {
-    "help": "Cuánto cambia la velocity el pico de la envolvente. Más alto hace que las notas suaves suenen más bajas."
+    "help": "Nivel del pico de la envolvente de fricción, de la mitad al máximo. Más alto da un ataque más marcado sobre el sostenido."
   },
   "velocity_to_time": {
-    "help": "Cuánto acorta la velocity la envolvente. Más alto hace más rápidas las notas fuertes."
+    "help": "Cuánto ralentizan las notas suaves la envolvente de fricción. Más alto hace las notas suaves más lentas que las fuertes."
   },
   "voltage_sag": {
     "slots": {
-      "Electromagnetic Hum": "Inestabilidad de la alimentación. Más alto hace que el zumbido oscile y decaiga."
+      "Electromagnetic Hum": "Inestabilidad de la alimentación. Más alto añade armónicos zumbantes al zumbido."
     }
   },
   "wall_impedance": {

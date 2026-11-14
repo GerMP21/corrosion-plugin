@@ -210,3 +210,5 @@ SIMD (`+simd128`, autovectorized only) saves 5–10 % on the heavy presets; the 
 - 5.6: every factory preset (214) rendered with `render_presets` (folder by folder, gnu) on `f131388` (before the web work) and on this branch: all 214 WAVs are byte-identical. The plugin's suite passes (515 tests).
 
 **Decision (maintainer, 2026-11-12, task 1.4): the web keeps 16 voices and each preset's own quality.** The load warning (task 4.6) covers the heavy end.
+
+**Close-out (2026-11-14, task 6.2), on `b214828`:** `cargo fmt --check`, clippy `-D warnings` (CI lane) and `cargo test --workspace --no-default-features` pass. So do the GUI lane (545 passed, 35 ignored), `no_alloc` (12 passed) and `cargo doc --no-deps --no-default-features` (0 warnings). The CI `web` job (fmt, clippy native and wasm, engine and bridge tests, the Cloudflare build script, browser checks) is green on the same commit.

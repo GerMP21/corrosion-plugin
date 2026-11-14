@@ -36,5 +36,7 @@
   "guide.clips.stop": "Stop",
   "guide.clips.on": "On {{name}}",
   "guide.clips.with": "With {{name}}",
-  "guide.clips.preset": "Preset: {{name}}"
+  "guide.clips.preset": "Preset: {{name}}",
+  "guide.clips.before": "Before",
+  "guide.clips.after": "After"
 }

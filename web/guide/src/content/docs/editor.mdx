@@ -2,20 +2,126 @@
 title: "The editor, panel by panel"
 ---
 
-import Stub from '../../components/Stub.astro';
+import Screenshot from '../../components/Screenshot.astro';
+import editor from '../../assets/screenshots/editor.webp';
+import header from '../../assets/screenshots/header.webp';
+import macros from '../../assets/screenshots/macros.webp';
+import exciter from '../../assets/screenshots/exciter.webp';
+import resonator from '../../assets/screenshots/resonator.webp';
+import processing from '../../assets/screenshots/processing.webp';
+import keyboard from '../../assets/screenshots/keyboard.webp';
+import kit from '../../assets/screenshots/kit.webp';
 
-<Stub />
+The editor shows every control that changes the sound, laid out the way the sound flows: what plays on the left, what rings in the middle, what happens to it on the right. There are no hidden pages or menus behind menus: controls that belong to one model or mode simply appear when you pick it.
+
+**Try it:** open the [web app](https://corrosion-vst.org/play/) next to this page and find each numbered part as you read.
+
+<Screenshot
+  src={editor}
+  alt="The whole editor: the header, the Macros, the Exciter, Resonator and Processing columns, and the piano strip"
+  width={640}
+  callouts={[[0.27, 0.018], [0.09, 0.116], [0.15, 0.211], [0.475, 0.211], [0.82, 0.211], [0.03, 0.94]]}
+/>
+
+1. The **header**: presets, the Randomizer, and the settings that apply to the whole plugin.
+2. The **Macros**: four knobs that each move a group of controls.
+3. The **EXCITER** column: what plays the object.
+4. The **RESONATOR** column: the object that rings.
+5. The **PROCESSING** column: the output chain.
+6. The **piano strip**, to play without a MIDI keyboard.
 
 ## Header
 
+<Screenshot
+  src={header}
+  alt="The header: logo, preset bank, Randomizer, the SCALE, MODE, NOTE MODE and LIMITER menus, and the OUTPUT, WIDTH and BODY faders"
+/>
+
+From left to right:
+
+- **PRESET BANK:** the current preset's folder and name. Click the name for the preset menu, with a submenu per folder; the **‹ ›** arrows step through the presets of the current folder. See [Browse and save](/wiki/presets/browse-and-save/).
+- **Save:** choose a folder in the menu on the left, type a name in **Preset name** and click **Save**.
+- **Randomizer:** choose what it may change in the menu on the left (**Safe**, **Object**, **Damage** or **Full**), then click **Randomize**. See [Randomizer](/wiki/randomizer/).
+- **SCALE:** the size of the editor window. See [UI scale](/wiki/ui-scale/).
+- **MODE:** the quality mode, from **Eco** to **Render**. Higher modes cost more CPU. See [Quality and CPU](/wiki/quality/).
+- **NOTE MODE:** **Tonal** plays the keyboard as an instrument, **Drone** holds notes, and **Kit** gives each key its own sound. See [Note modes](/wiki/note-modes/).
+- **LIMITER:** a **Hard** clip or a **Lookahead** limiter at the output.
+- **OUTPUT:** the final level, in dB.
+- **WIDTH:** how far apart the voices sit in the stereo field.
+- **BODY:** how much of the resonating body you hear under the sound.
+
 ## Macros
+
+<Screenshot src={macros} alt="The Macros panel: MASS, CORROSION, VIOLENCE and BRIGHTNESS knobs" />
+
+**MASS**, **CORROSION**, **VIOLENCE** and **BRIGHTNESS** each move several controls at once, across the exciter, the object and the output chain. At the middle of their travel they change nothing; turn them either way to push a whole sound heavier, older, harsher or brighter. See [Macros](/wiki/macros/).
 
 ## Exciter column
 
+<Screenshot
+  src={exciter}
+  alt="The Exciter column: MODEL TYPE, the Pressure, Speed and Roughness knobs, the model's own panel, the force envelope and the Gesture Modifiers"
+  width={438}
+  callouts={[[0.285, 0.054], [0.106, 0.146], [0.365, 0.231], [0.457, 0.496], [0.342, 0.766]]}
+/>
+
+1. **MODEL TYPE:** the exciter, with a one-line description under it.
+2. **PRESSURE, SPEED, ROUGHNESS:** three controls on every exciter, applied on top of its own settings: how hard it pushes, how fast it moves, how gritty it is. Exciters that don't move or have no grit, like this Hand Strike, ignore Speed or Roughness. See [Common controls](/wiki/exciters/common-controls/).
+3. **The model's own panel**, titled after it (here **Hand strike physics**): four controls that only this exciter has. It changes when you change the model.
+4. **Force Envelope:** how the exciter's force rises and falls over a note. Struck exciters get a simple **AD** envelope (Attack, Release), the friction exciters (Bow and the scrapers) a six-stage **MSEG** that can loop, and the rest an **ADSR**. See [Force envelope and MSEG](/wiki/exciters/envelopes/).
+5. **Gesture Modifiers:** the friction envelope's depth, peak, speed and curve, and how much velocity changes its level and timing. They act only on the friction exciters (Bow and the scrapers), although the panel shows for every exciter. See [Gesture modifiers](/wiki/exciters/gesture-modifiers/).
+
 ## Resonator column
+
+<Screenshot
+  src={resonator}
+  alt="The Resonator column: MATERIAL, the object's geometry panel and Brightness, Environmental Exposure, and Mechanical Linkage"
+  width={432}
+  callouts={[[0.234, 0.07], [0.28, 0.171], [0.695, 0.371], [0.43, 0.424], [0.35, 0.691]]}
+/>
+
+1. **MATERIAL:** the object, with a one-line description under it.
+2. **The object's geometry panel** (here **Pipe geometry**): its size, under a name that fits it, and the controls only this object has. See [Geometry and tuning](/wiki/objects/geometry/).
+3. **BRIGHTNESS:** how much of the object's high partials you hear.
+4. **Environmental Exposure:** **Rust**, **Damage**, **Heat**, **Sludge** and **Thickness**, the wear and weather on the metal. See [Environmental Exposure](/wiki/objects/environmental-exposure/).
+5. **Mechanical Linkage:** where and how firmly the exciter touches the object, and whether that point wanders. See [Mechanical Linkage](/wiki/objects/mechanical-linkage/).
 
 ## Processing column
 
+<Screenshot
+  src={processing}
+  alt="The Processing column: Filter Bank, Overdrive Unit, Dispersion, Space and the Brickwall Limiter"
+  width={436}
+  callouts={[[0.232, 0.067], [0.289, 0.327], [0.261, 0.516], [0.167, 0.704], [0.365, 0.845]]}
+/>
+
+The output chain, top to bottom in the order the sound goes through it (except **Legacy Drive**, which comes first; see [How it sounds](/wiki/how-it-sounds/#the-output-chain)).
+
+1. **Filter Bank:** a resonant low-pass filter. See [Filter Bank](/wiki/output-chain/filter-bank/).
+2. **Overdrive Unit:** chaotic saturation, plus Legacy Drive on the voice mix. See [Overdrive Unit](/wiki/output-chain/overdrive/).
+3. **Dispersion:** the resonating body's material and size, and the stereo spread. See [Dispersion and BODY](/wiki/output-chain/dispersion/).
+4. **Space:** a factory room, a spring tank or an echo. Its controls change with **MODE**. See [Space](/wiki/output-chain/space/).
+5. **Brickwall Limiter:** the ceiling, and the diode stage's softness and asymmetry. The red dot lights up as the diode stage clips. See [Diode and limiter](/wiki/output-chain/diode-limiter/).
+
 ## Keyboard and kit bar
 
+<Screenshot src={keyboard} alt="The piano strip along the bottom of the editor, with the computer keys marked on C4 to C5" />
+
+The piano strip plays three octaves, C3 to C6. Click lower on a key to play louder, and drag across keys for a glissando. The letters on the keys are the [computer keys](/wiki/midi/computer-keyboard/) that play them.
+
+In **Kit** note mode, a kit bar appears above the strip and the strip changes: it spans C2 to C6, keys that have a pad are marked, and keys outside the kit's zone (C2 to B3) are greyed out until you turn on **Full keyboard**. Click a key to select it and edit its pad. See [Kit mode](/wiki/note-modes/kit/).
+
+<Screenshot src={kit} alt="Kit mode: the kit bar with KEY, Tune, Assign, Clear and Full keyboard above the strip, keys with pads marked in yellow" />
+
 ## Help badges and gestures
+
+- **ⓘ badges:** hover the badge next to a control's name for a sentence or two on what it does to the sound.
+- **Knobs:** drag up to raise, down to lower.
+- **Faders:** click a point on the track to jump there, or drag along it.
+- **Menus:** click to open, click a choice to pick it.
+- **Scrolling:** in the plugin, when the window is shorter than the editor, the panels scroll and the piano strip stays at the bottom. In the web app the page scrolls instead.
+
+Your host's automation and parameter list show every control under its parameter name, which can differ from the label on the panel: **Legacy Drive** is **Drive**, the Filter Bank's **Cutoff** is **Filter Cutoff**. The [parameter reference](/wiki/reference/) lists both.
+
+
+**Tip:** you don't need to memorise any of this. Hover an ⓘ badge whenever you're unsure, and keep this page open in another tab for the first few sessions.

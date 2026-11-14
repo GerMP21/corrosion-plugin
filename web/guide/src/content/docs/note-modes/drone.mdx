@@ -5,10 +5,22 @@ sidebar:
 covers: {"modes": {"note": ["Drone"]}}
 ---
 
-import Stub from '../../../components/Stub.astro';
+**Drone** keeps a note going for as long as you hold the key. It plays the keyboard just like Tonal, with the same pitches and the same sound; the difference is in the friction exciters, which keep pushing instead of running out.
 
-<Stub />
+**Try it:** load **Drones → Grinding Beam**, hold a low note and keep holding. It doesn't fade; let go when you're ready.
 
 ## Held notes
 
+Drone loops the friction [MSEG](/wiki/exciters/envelopes/#mseg-friction) between its decay and sustain stages for as long as the key is down, whatever its own **Loop** setting says. So a bow, scraper, grinder, drag or tension rise keeps working the metal until you let go, then plays its release.
+
+The other families don't change: struck exciters still hit once and ring out, and specialty exciters already hold at their sustain while the key is down.
+
+The release snap applies here too: letting go of a long drone can make the object spring back louder. A MSEG **Release** of half a second or more lets it go gently.
+
 ## When to use it
+
+- **Pads and beds** that sit under a whole section: hold a chord and forget about it.
+- **Sustained textures:** grinding, scraping, bowed metal that should last exactly as long as the note in your host.
+- **Live playing** with a sustain pedal: hold the pedal and the drones hold with it.
+
+**Tip:** the MSEG's shape becomes the drone's movement. The loop repeats the **Decay** stage, so the drone pulses at the Decay's rate: a long Decay gives a slow, breathing pulse, a short one a fast throb.

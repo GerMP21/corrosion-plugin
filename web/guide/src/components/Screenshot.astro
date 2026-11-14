@@ -1,0 +1,61 @@
+---
+// An editor screenshot with numbered callouts drawn over it
+// (`write-user-guide-content` Decision 4). The image carries no text, so the
+// same file serves both languages; the page explains each number in an
+// ordered list after it.
+//   import editor from '../../assets/screenshots/editor.webp';
+//   <Screenshot src={editor} alt="The whole editor" callouts={[[0.09, 0.03], [0.44, 0.06]]} />
+// Each callout is [x, y] as fractions of the image's width and height.
+// Images come from web/scripts/screenshots.cjs.
+import { Image } from 'astro:assets';
+import type { ImageMetadata } from 'astro';
+
+interface Props {
+  src: ImageMetadata;
+  alt: string;
+  callouts?: [number, number][];
+  /** Display width in CSS px; the image is captured at twice this. */
+  width?: number;
+}
+const { src, alt, callouts = [], width = Math.round(src.width / 2) } = Astro.props;
+for (const [x, y] of callouts) {
+  if (!(x >= 0 && x <= 1 && y >= 0 && y <= 1)) throw new Error(`<Screenshot>: callout [${x}, ${y}] is outside the image`);
+}
+---
+
+<figure class="screenshot" style={`max-width: ${width}px`}>
+  <Image src={src} alt={alt} widths={[width, width * 2]} sizes={`(max-width: ${width}px) 100vw, ${width}px`} />
+  {
+    callouts.map(([x, y], i) => (
+      <span class="callout" style={`left: ${x * 100}%; top: ${y * 100}%`} aria-hidden="true">
+        {i + 1}
+      </span>
+    ))
+  }
+</figure>
+
+<style>
+  .screenshot {
+    position: relative;
+    margin: 1rem 0;
+  }
+  .screenshot :global(img) {
+    display: block;
+    width: 100%;
+    height: auto;
+    border: 1px solid var(--sl-color-gray-5);
+  }
+  .callout {
+    position: absolute;
+    transform: translate(-50%, -50%);
+    min-width: 1.5rem;
+    height: 1.5rem;
+    padding: 0 0.3rem;
+    border-radius: 0.75rem;
+    background: var(--sl-color-accent);
+    color: var(--sl-color-black);
+    font: 700 0.85rem/1.5rem var(--sl-font, sans-serif);
+    text-align: center;
+    box-shadow: 0 0 0 2px var(--sl-color-black);
+  }
+</style>

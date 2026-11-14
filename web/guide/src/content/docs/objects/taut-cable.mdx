@@ -6,21 +6,49 @@ covers: {"objects": ["Taut Cable"]}
 ---
 
 import Clips from '../../../components/Clips.astro';
-import Stub from '../../../components/Stub.astro';
+import ModelControls from '../../../components/ModelControls.astro';
 
-<Stub />
+A stretched steel cable: harmonic like a string, and its pitch bends down on loud notes. It's the closest thing in Corrosion to a guitar or piano string, which makes it the go-to object for anything that has to play chords in tune.
+
+**Try it:** load **Lead → Hard Cable Pluck** and play soft and hard notes: the hard ones start slightly flat and settle.
 
 ## What it is
 
+A cable under tension, vibrating like a string. Its modes form a nearly harmonic series, so it plays clean pitches and chords. A loud note stretches it and lowers its tension for a moment, so the pitch drops and then rises back as the note fades.
+
 ## How it sounds
+
+Clear, string-like and long. Plucked or struck, it gives basses and plucks; bowed, strings, cellos and pads. It's the object behind most of the factory chord patches.
 
 ## Controls
 
+<ModelControls object="Taut Cable" />
+
+- **Cable Length:** the size. Longer cables sound lower. At 1 the cable plays the key.
+- **Braid Stiffness:** the stiffness of the braid. Higher stretches the partials apart, for a less harmonic, more metallic ring.
+- **Tension Drop:** how much the pitch drops on loud notes. Higher bends loud notes down further.
+
 ## Pairings
+
+Bow gives strings, pads and cello basses; Felt Mallet, an upright bass; Hard Mallet and Drumstick, plucks; Hand Strike, a slap bass; Tension Snap, a snapped bass; Stiff Point Scrape, a scraped drone.
 
 ## Tips
 
-## Factory presets
+- For chords, keep **Braid Stiffness** low so the partials stay harmonic.
+- **Tension Drop** at 0 keeps loud notes in tune; raise it for a twangy bend.
+- The pitch bend on loud notes is very "real": it's what a slapped bass string does. Keep a little **Tension Drop** on basses for life, and none on chords.
+
+## Presets to try
+
+- **Lead → Bowed Cable Lead**
+- **Lead → Hard Cable Pluck**
+- **Bass → Felt Cable Upright**
+- **Bass → Hand Slap Cable**
+- **Bass → Snapped Cable Bass**
+- **Chords → Warm Cable Strings**
+- **Chords → Glass Cable Choir**
+- **Drones → Cable Scrape Drone**
+- **Experimental → *exciter* → *exciter* · Taut Cable**: each of the 16 exciters has one preset on this object.
 
 ## Listen
 

@@ -4,10 +4,38 @@ sidebar:
   order: 1
 ---
 
-import Stub from '../../../../components/Stub.astro';
+import Data from '../../../../components/Data.astro';
 
-<Stub />
+Corrosion suena a metal por una razón sencilla: simula metal. Cada nota pone a vibrar un objeto virtual, algo que la física del mundo real reconocería, y lo que oyes es ese objeto resonando. Sin samples, sin wavetables, sin osciladores disfrazados.
+
+**Pruébalo:** abre la [app web](https://corrosion-vst.org/play/), haz clic en **Start audio** y pulsa la tecla `A` del teclado del ordenador. Oirás una mano golpeando un tubo.
 
 ## El modelado físico en un minuto
 
+La mayoría de los sintetizadores parten de un oscilador, una onda cruda y zumbona, y tallan el sonido con filtros. Corrosion lo hace al revés. Parte de dos cosas físicas y las deja interactuar:
+
+- **El excitador** es lo que toca el objeto: una mano, una maza, un arco, una cadena, un chorro de aire. Hay <Data count="exciters" />, en tres familias. Los excitadores *de golpe* golpean una vez y se apartan. Los *de fricción* (un arco, un rascador, una amoladora) siguen frotando mientras la tecla está pulsada. Los *especiales* soplan aire, zumban, chasquean o hacen llover partículas sobre el objeto.
+- **El objeto** es lo que se toca: un tubo, una placa, un tanque, una cadena, una viga, un cable, un muelle, una chapa o un engranaje. Hay <Data count="objects" />. Cada uno es un conjunto de resonancias, los [*modos*](/wiki/es/glossary/#modo), que suenan a frecuencias fijadas por su forma y su tamaño.
+
+Los dos están acoplados en ambos sentidos, y eso es lo importante. El objeto empuja de vuelta al excitador, así que un arco se agarra y resbala de verdad sobre la superficie que toca, y una maza rebota de verdad. No dibujas el sonido: preparas una situación y dejas que la física la resuelva. De ahí sale la vida del sonido, y por eso Corrosion premia la curiosidad: prueba un arco sobre un engranaje, o un chorro de aire sobre una viga, y mira qué pasa.
+
+Después de la voz, una cadena de salida da forma al resultado: un filtro, saturación, un cuerpo resonante, apertura estéreo, una sala, un muelle o un eco, un recortador de diodo y un limitador. [Cómo suena](/wiki/es/how-it-sounds/) sigue una nota por todo el camino.
+
+Conviene saber unas cuantas consecuencias desde el principio:
+
+- **El tamaño fija la altura.** La tecla que tocas y el tamaño del objeto fijan juntos la nota: subir el control de tamaño baja la altura, en todos los objetos. Cada objeto llama a ese control según su forma (`Pipe Length`, `Plate Size`, `Beam Mass`…).
+- **El metal golpeado resuena.** Un tubo, una viga o un cable golpeados pueden sonar durante segundos. Es el objeto, no una reverb.
+- **Las notas de fricción se comportan como gestos.** Una nota con arco sigue su envolvente de fuerza, y al soltarla el objeto se libera de golpe, lo que puede sonar más fuerte que la nota sostenida.
+
 ## Qué puedes hacer
+
+El banco de fábrica tiene <Data count="factoryPresets" /> presets, ordenados como los buscarías:
+
+- **Bass, Lead, Chords, Drones y Percussion**, diseñados a mano y comprobados para que hagan lo que dice su carpeta: los bajos mantienen el peso abajo, los acordes se pueden tocar como acordes, los drones aguantan mientras la tecla está pulsada y la percusión se apaga sola.
+- **Drums**: <Data count="drumKits" /> kits de batería con la distribución General MIDI, donde cada tecla toca su propio sonido.
+- **Experimental**: un preset para cada excitador sobre cada objeto, sacado al azar dentro de rangos tocables. Son un mapa de lo que puede hacer el motor y un buen sitio donde encontrar materia prima.
+
+Corrosion está pensado para metal dañado, fricción, peso y tensión mecánica. No es un sintetizador clásico y no tiene entrada de audio: es un instrumento que se toca con notas.
+
+
+Si ya has usado un sintetizador modal o un plugin de modelado físico, mucho de esto te sonará. Si no, tranquilo: no necesitas saber física. Todo lo que la guía explica en términos de física también lo explica en términos de lo que vas a oír.
