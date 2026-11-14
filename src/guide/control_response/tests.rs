@@ -57,3 +57,31 @@ fn a_velocity_control_counts_by_the_gap_it_changes() {
     ];
     assert!(response(&points).acts());
 }
+
+/// Spec "Every sound-shaping control changes its note": every control
+/// reaches the floor in its context, and a control that stops acting fails
+/// here by name (`fix-inert-controls`). About 70 s in the test profile.
+#[test]
+#[ignore = "red until fix-inert-controls task 2 makes the 20 listed controls act"]
+fn every_sound_shaping_control_changes_its_note() {
+    let inert: Vec<String> = responses()
+        .into_iter()
+        .filter(|(_, r)| !r.acts())
+        .map(|(id, r)| {
+            format!(
+                "{id} (level {:.2} dB, ring {:.0} %, bands {:.2} dB, width {:.2} dB, envelope {:.2} dB)",
+                r.level_db,
+                r.ring * 100.0,
+                r.bands_db,
+                r.width_db,
+                r.envelope_db
+            )
+        })
+        .collect();
+    assert!(
+        inert.is_empty(),
+        "{} controls don't change their note:\n{}",
+        inert.len(),
+        inert.join("\n")
+    );
+}

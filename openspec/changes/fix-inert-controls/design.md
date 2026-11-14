@@ -57,6 +57,8 @@ Three points, not two: Strike Position's ends are mirror images (`sin(nπP)` has
 | Cable Braid | 0.01 | 0 % | 0.69 | 0.55 | 0.15 | Some spectral change, under the floor |
 | Diode Softness (driven) | 0.78 | 0 % | 0.38 | 0.96 | 0.47 | Close to the floor; acts only when clipping |
 
+**Scope (maintainer, 2026-11-14): all 20**, both the inert ones and those under the floor. Each fix that changes a default sound is shown with before and after numbers.
+
 The causes are first readings from the code; task 2 confirms each before changing it. Earlier single-note findings that now pass in context: the gesture modifiers and Speed and Roughness (on Bow), Position Envelope, Fundamental Anchor (near a node), Strike Position (with its middle), Spring Dispersion, Bias Starvation, Diode Asymmetry, Space Mode, Wander Rate.
 
 ## Goals / Non-Goals
