@@ -156,6 +156,10 @@ src/
                       (ⓘ text) with no egui dependency, so the CI lane and the guide
                       exporter reach them
     palette.rs        Editor colours as `[u8; 3]`, mirrored by web/theme/tokens.css
+    file_dialog.rs    Import/Export's system file dialogs (`rfd`, plugin GUI only;
+                      XDG portal then zenity on Linux, no GTK): own thread polled
+                      per frame (modal on the main thread on macOS); an empty answer
+                      under 250 ms means no dialog was shown
     editor.rs         egui editor: knobs/faders, UI scale (50–150 % in 5 % steps, `UI_SCALE_CHOICES`; the original five keep indices 0–4, the added steps are 5–20; default 75%: 810×630,
                       of which 54 are the keyboard strip;
                       a change asks the host to resize; the layout never exceeds the
@@ -179,7 +183,10 @@ src/
   presets/
     mod.rs            Preset save/load + sanitization + JSON migrations; user presets:
                       recursive listing (UserPreset, ≤ 4 levels), folders, save into a
-                      subfolder (never outside the user folder), open_folder
+                      subfolder (never outside the user folder), open_folder;
+                      import_preset_files (copies files that load, numbered on a
+                      name clash, never overwrites) and export_preset (what Save
+                      writes, to any path)
     browser.rs        In-memory user preset store (the web app's, same folder rules)
     factory/          The factory bank in code (reorganize-factory-presets):
       mod.rs          bank(), layout, levelling (TARGET_RMS 0.13), quality floor
@@ -220,7 +227,7 @@ src/
   - chords: the first six partials within 15 cents of harmonics, ≥ −20 dB at 2 s, flatness < 0.1;
   - drones: the 8th second within 6 dB of the 2nd;
   - percussion: ≤ −30 dB at 1.5 s while held.
-- **Browser.** The editor walks the embedded `include_dir!` tree into entries with a display folder (`["Experimental", "Bow"]`). A pure `menu_tree` turns them into nested `ui.menu_button` submenus. The arrows step within the current preset's folder. The user list is re-read when the menu or the Save folder selector opens, because the editor state outlives the window.
+- **Browser.** The editor walks the embedded `include_dir!` tree into entries with a display folder (`["Experimental", "Bow"]`). A pure `menu_tree` turns them into nested `ui.menu_button` submenus. The arrows step within the current preset's folder. The user list is re-read when the menu or the Save folder selector opens, because the editor state outlives the window. **Import…** and **Export…** (`add-preset-import-export`, plugin only: the web app has its own Open preset… and Download preset) open the system file dialog through `gui::file_dialog`, disabled while one is open; Import copies into the Save row's folder and loads the last preset, Export names the preset after the chosen file. A missing dialog (some Linux desktops have no portal or zenity) shows a message pointing to Open folder.
 
 ---
 

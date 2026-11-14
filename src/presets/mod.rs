@@ -1072,6 +1072,89 @@ pub fn save_user_preset(
     Ok(SaveOutcome::Saved(path))
 }
 
+/// What `import_preset_files` did (`add-preset-import-export`).
+#[derive(Debug, Default)]
+pub struct ImportReport {
+    /// The files written, in the order they were imported.
+    pub imported: Vec<std::path::PathBuf>,
+    /// The last preset that imported, for the editor to load.
+    pub last: Option<Preset>,
+    /// Files that couldn't be read or don't load as a preset.
+    pub skipped: usize,
+}
+
+/// `stem.corrosion-preset` in `dir`, or `stem (2)`, `stem (3)`, … when a
+/// file there already has that name, compared without case as Windows and
+/// macOS compare it.
+fn free_preset_path(dir: &Path, stem: &str) -> std::path::PathBuf {
+    let taken: std::collections::HashSet<String> = fs::read_dir(dir)
+        .map(|entries| {
+            entries
+                .flatten()
+                .map(|e| e.file_name().to_string_lossy().to_lowercase())
+                .collect()
+        })
+        .unwrap_or_default();
+    let file = |stem: &str| format!("{stem}.{PRESET_EXTENSION}");
+    let mut candidate = file(stem);
+    let mut n = 2;
+    while taken.contains(&candidate.to_lowercase()) {
+        candidate = file(&format!("{stem} ({n})"));
+        n += 1;
+    }
+    dir.join(candidate)
+}
+
+/// Import preset files into `folder` (relative, `/`-separated, `""` for the
+/// root) of the user preset folder `dir`. Each file that loads as a preset
+/// is copied unchanged (so migrations keep running at each load) under its
+/// preset's sanitized name, numbered when the name is taken; nothing is
+/// overwritten. Files that don't load are skipped and counted. A `folder`
+/// that would leave `dir` is refused. File I/O: GUI thread only.
+pub fn import_preset_files(
+    paths: &[std::path::PathBuf],
+    dir: &Path,
+    folder: &str,
+) -> io::Result<ImportReport> {
+    let target = user_subfolder(dir, folder)?;
+    let mut report = ImportReport::default();
+    for path in paths {
+        let loaded = fs::read_to_string(path).and_then(|json| {
+            let preset = Preset::from_json_str(&json)?;
+            Ok((json, preset))
+        });
+        let Ok((json, preset)) = loaded else {
+            report.skipped += 1;
+            continue;
+        };
+        fs::create_dir_all(&target)?;
+        let file = free_preset_path(&target, &sanitize_file_name(&preset.name));
+        fs::write(&file, json)?;
+        report.imported.push(file);
+        report.last = Some(preset);
+    }
+    Ok(report)
+}
+
+/// Export `params` as a preset called `name` to `path`, anywhere the user
+/// picked, adding the `.corrosion-preset` extension when it's missing. Writes
+/// exactly what Save writes. Returns the path written. GUI thread only.
+pub fn export_preset(
+    name: &str,
+    params: &CorrosionParams,
+    path: &Path,
+) -> io::Result<std::path::PathBuf> {
+    let path = if path.extension().is_some_and(|ext| ext == PRESET_EXTENSION) {
+        path.to_path_buf()
+    } else {
+        let mut with = path.as_os_str().to_owned();
+        with.push(format!(".{PRESET_EXTENSION}"));
+        std::path::PathBuf::from(with)
+    };
+    Preset::from_params(name.trim(), params).save(&path)?;
+    Ok(path)
+}
+
 #[cfg(test)]
 mod user_preset_tests {
     use super::*;
@@ -1364,5 +1447,171 @@ mod user_preset_tests {
             command("freebsd"),
             ("xdg-open".to_string(), vec![path.into()])
         );
+    }
+}
+
+#[cfg(test)]
+mod import_export_tests {
+    //! `add-preset-import-export`: importing preset files into a user folder
+    //! and exporting the current sound to any path.
+    use super::user_preset_tests::temp_dir;
+    use super::*;
+    use std::path::PathBuf;
+
+    /// A legacy fixture preset's file.
+    fn fixture(name: &str) -> PathBuf {
+        PathBuf::from(format!(
+            "{}/tests/fixtures/presets/legacy/{name}.{PRESET_EXTENSION}",
+            env!("CARGO_MANIFEST_DIR")
+        ))
+    }
+
+    /// A preset file as the web app downloads it (`current_preset_json`
+    /// writes `Preset::from_params` as pretty JSON, like Save).
+    fn web_download(dir: &Path, file: &str, name: &str) -> PathBuf {
+        let path = dir.join(file);
+        let json =
+            serde_json::to_string_pretty(&Preset::from_params(name, &CorrosionParams::default()))
+                .unwrap();
+        fs::write(&path, json).unwrap();
+        path
+    }
+
+    #[test]
+    fn a_web_download_imports_and_loads() {
+        let (downloads, user) = (temp_dir("dl"), temp_dir("user"));
+        let file = web_download(&downloads, "Deep Sub.corrosion-preset", "Deep Sub");
+        let report = import_preset_files(std::slice::from_ref(&file), &user, "").unwrap();
+        let target = user.join(format!("Deep Sub.{PRESET_EXTENSION}"));
+        assert_eq!(report.imported, vec![target.clone()]);
+        assert_eq!(report.skipped, 0);
+        assert_eq!(
+            report.last.as_ref().map(|p| p.name.as_str()),
+            Some("Deep Sub")
+        );
+        // The file is copied as it was: migrations still run at each load.
+        assert_eq!(fs::read(&target).unwrap(), fs::read(&file).unwrap());
+        let (listed, unreadable) = list_user_presets(&user);
+        assert_eq!((listed.len(), unreadable), (1, 0));
+        fs::remove_dir_all(downloads).unwrap();
+        fs::remove_dir_all(user).unwrap();
+    }
+
+    #[test]
+    fn imports_go_into_the_selected_subfolder() {
+        let (downloads, user) = (temp_dir("dl"), temp_dir("user"));
+        let file = web_download(&downloads, "x.corrosion-preset", "Low End");
+        let report = import_preset_files(&[file], &user, "Basses").unwrap();
+        assert_eq!(
+            report.imported,
+            vec![user
+                .join("Basses")
+                .join(format!("Low End.{PRESET_EXTENSION}"))]
+        );
+        assert!(import_preset_files(&[], &user, "../outside").is_err());
+        fs::remove_dir_all(downloads).unwrap();
+        fs::remove_dir_all(user).unwrap();
+    }
+
+    #[test]
+    fn a_name_clash_gets_a_number_and_never_overwrites() {
+        let (downloads, user) = (temp_dir("dl"), temp_dir("user"));
+        // Different case: the clash is found the way Windows and macOS see it.
+        let existing = user.join(format!("deep sub.{PRESET_EXTENSION}"));
+        fs::write(&existing, "keep me").unwrap();
+        let file = web_download(&downloads, "a.corrosion-preset", "Deep Sub");
+        let first = import_preset_files(std::slice::from_ref(&file), &user, "").unwrap();
+        assert_eq!(
+            first.imported,
+            vec![user.join(format!("Deep Sub (2).{PRESET_EXTENSION}"))]
+        );
+        let second = import_preset_files(&[file], &user, "").unwrap();
+        assert_eq!(
+            second.imported,
+            vec![user.join(format!("Deep Sub (3).{PRESET_EXTENSION}"))]
+        );
+        assert_eq!(fs::read_to_string(&existing).unwrap(), "keep me");
+        fs::remove_dir_all(downloads).unwrap();
+        fs::remove_dir_all(user).unwrap();
+    }
+
+    #[test]
+    fn a_file_that_is_not_a_preset_is_skipped_and_counted() {
+        let (downloads, user) = (temp_dir("dl"), temp_dir("user"));
+        let bad = downloads.join("notes.corrosion-preset");
+        fs::write(&bad, "not json").unwrap();
+        let good = web_download(&downloads, "b.corrosion-preset", "Good One");
+        let missing = downloads.join("gone.corrosion-preset");
+        let report = import_preset_files(&[good, bad, missing], &user, "").unwrap();
+        assert_eq!(report.imported.len(), 1);
+        assert_eq!(report.skipped, 2);
+        // The last preset that imported loads, even when a bad one follows.
+        assert_eq!(report.last.map(|p| p.name), Some("Good One".to_string()));
+        assert_eq!(fs::read_dir(&user).unwrap().count(), 1);
+        fs::remove_dir_all(downloads).unwrap();
+        fs::remove_dir_all(user).unwrap();
+    }
+
+    #[test]
+    fn the_last_imported_preset_is_returned() {
+        let user = temp_dir("user");
+        let files = [fixture("beam_grind"), fixture("sheet_lightning")];
+        let report = import_preset_files(&files, &user, "").unwrap();
+        assert_eq!(report.imported.len(), 2);
+        assert_eq!(
+            report.last.map(|p| p.name),
+            Some(Preset::load(&files[1]).unwrap().name)
+        );
+        fs::remove_dir_all(user).unwrap();
+    }
+
+    #[test]
+    fn export_adds_the_extension_and_writes_what_save_writes() {
+        let (out, user) = (temp_dir("out"), temp_dir("user"));
+        let sound = Preset::load(fixture("beam_grind")).unwrap().into_params();
+        let written = export_preset("Night Shift", &sound, &out.join("night")).unwrap();
+        assert_eq!(written, out.join(format!("night.{PRESET_EXTENSION}")));
+        let kept =
+            export_preset("Night Shift", &sound, &out.join("kept.corrosion-preset")).unwrap();
+        assert_eq!(kept, out.join("kept.corrosion-preset"));
+        let SaveOutcome::Saved(saved) =
+            save_user_preset(&user, "", "Night Shift", &sound, false).unwrap()
+        else {
+            panic!("first save should write");
+        };
+        assert_eq!(fs::read(&written).unwrap(), fs::read(saved).unwrap());
+        fs::remove_dir_all(out).unwrap();
+        fs::remove_dir_all(user).unwrap();
+    }
+
+    #[test]
+    fn export_then_import_restores_every_parameter_but_ui_scale() {
+        use nih_plug::prelude::Params;
+        let (out, user) = (temp_dir("out"), temp_dir("user"));
+        let sound = Preset::load(fixture("beam_grind")).unwrap().into_params();
+        let file = export_preset("Round Trip", &sound, &out.join("rt")).unwrap();
+        let report = import_preset_files(&[file], &user, "").unwrap();
+        let back = report.last.expect("the export imports").into_params();
+        let plain = |params: &CorrosionParams| -> std::collections::HashMap<String, f32> {
+            params
+                .param_map()
+                .into_iter()
+                // SAFETY: the pointers come from `params`, borrowed here.
+                .map(|(id, ptr, _)| (id, unsafe { ptr.unmodulated_plain_value() }))
+                .collect()
+        };
+        let (want, got) = (plain(&sound), plain(&back));
+        for (id, value) in &want {
+            if PRESET_SKIPPED_PARAMS.contains(&id.as_str()) {
+                continue;
+            }
+            assert!(
+                (got[id] - value).abs() <= 1e-4 * value.abs().max(1.0),
+                "{id}: exported {value}, imported {}",
+                got[id]
+            );
+        }
+        fs::remove_dir_all(out).unwrap();
+        fs::remove_dir_all(user).unwrap();
     }
 }

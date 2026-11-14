@@ -12,6 +12,8 @@
 pub mod controls;
 #[cfg(any(feature = "gui", feature = "web-gui"))]
 mod editor;
+#[cfg(feature = "gui")]
+mod file_dialog;
 pub mod palette;
 
 #[cfg(feature = "gui")]

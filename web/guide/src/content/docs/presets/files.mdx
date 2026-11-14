@@ -16,22 +16,17 @@ You can edit one by hand if you're careful, but there's rarely a reason to: anyt
 
 ## Between the web app and the plugin
 
-The plugin has no Import button yet, but moving a preset across takes a minute, because both sides use the same files.
+Both sides use the same files, so moving a preset across is two clicks.
 
-**From the web app to the plugin:**
+**From the web app to the plugin:** in the web app, click **Download preset** and give it a name; the browser saves a `.corrosion-preset` file, usually in your Downloads folder. In the plugin, click **Import…** in the **PRESET BANK** box and pick it. It lands in the folder chosen next to **Save**, and loads.
 
-1. In the web app, click **Download preset**, give it a name, and the browser saves a `.corrosion-preset` file, usually in your Downloads folder.
-2. In the plugin, click **Open folder** in the **PRESET BANK** box. It opens your preset folder, and creates it if this is your first preset.
-3. Move or copy the file into that folder, or into one of its subfolders.
-4. Open the preset menu in the plugin. The menu looks at the folder again each time it opens, so the preset is already there, under **User**.
+**From the plugin to the web app:** in the plugin, click **Export…** and save the file somewhere you'll find it. In the web app, click **Open preset…** and pick it. It loads, and the web app keeps it with your browser presets.
 
-If you'd rather find the folder yourself, it's here:
+**Without the dialogs.** If Import and Export say your system has no file dialog, copy files by hand: **Open folder** shows your preset folder (it creates it if this is your first preset), and anything you copy into it, or into one of its subfolders, appears under **User** the next time you open the preset menu. The folder is here:
 
 - **Windows:** `%APPDATA%\Corrosion\Presets`
 - **macOS:** `~/Library/Application Support/Corrosion/Presets`
 - **Linux:** `~/.local/share/corrosion/presets` (or `$XDG_DATA_HOME/corrosion/presets` if you've set it)
-
-**From the plugin to the web app:** click **Open folder** in the plugin to find the file, then in the web app click **Open preset…** and pick it. It loads, and the web app keeps it with your browser presets.
 
 If a copied preset doesn't show up, see [Troubleshooting](/wiki/troubleshooting/#missing-presets).
 

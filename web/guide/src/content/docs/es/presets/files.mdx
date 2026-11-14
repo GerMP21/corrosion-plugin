@@ -16,22 +16,17 @@ Puedes editar uno a mano si tienes cuidado, pero casi nunca hace falta: todo lo 
 
 ## Entre la app web y el plugin
 
-El plugin todavía no tiene botón de importar, pero pasar un preset de un lado a otro lleva un minuto, porque los dos usan los mismos archivos.
+Los dos lados usan los mismos archivos, así que pasar un preset de uno a otro son dos clics.
 
-**De la app web al plugin:**
+**De la app web al plugin:** en la app web, pulsa **Download preset** y ponle un nombre; el navegador guarda un archivo `.corrosion-preset`, normalmente en tu carpeta de descargas. En el plugin, pulsa **Import…** en el recuadro **PRESET BANK** y elígelo. Va a parar a la carpeta elegida junto a **Save**, y se carga.
 
-1. En la app web, pulsa **Download preset**, ponle un nombre, y el navegador guarda un archivo `.corrosion-preset`, normalmente en tu carpeta de descargas.
-2. En el plugin, pulsa **Open folder** en el recuadro **PRESET BANK**. Abre tu carpeta de presets, y la crea si es tu primer preset.
-3. Mueve o copia el archivo a esa carpeta, o a una de sus subcarpetas.
-4. Abre el menú de presets en el plugin. El menú vuelve a mirar la carpeta cada vez que se abre, así que el preset ya está ahí, bajo **User**.
+**Del plugin a la app web:** en el plugin, pulsa **Export…** y guarda el archivo donde lo vayas a encontrar. En la app web, pulsa **Open preset…** y elígelo. Se carga, y la app web lo guarda con tus presets del navegador.
 
-Si prefieres buscar la carpeta tú mismo, está aquí:
+**Sin los diálogos.** Si Import y Export dicen que tu sistema no tiene diálogo de archivos, copia los archivos a mano: **Open folder** muestra tu carpeta de presets (y la crea si es tu primer preset), y lo que copies en ella, o en una de sus subcarpetas, aparece bajo **User** la próxima vez que abras el menú de presets. La carpeta está aquí:
 
 - **Windows:** `%APPDATA%\Corrosion\Presets`
 - **macOS:** `~/Library/Application Support/Corrosion/Presets`
 - **Linux:** `~/.local/share/corrosion/presets` (o `$XDG_DATA_HOME/corrosion/presets` si la tienes definida)
-
-**Del plugin a la app web:** pulsa **Open folder** en el plugin para encontrar el archivo y, en la app web, pulsa **Open preset…** y elígelo. Se carga, y la app web lo guarda con tus presets del navegador.
 
 Si un preset copiado no aparece, mira [Solución de problemas](/wiki/es/troubleshooting/#presets-que-no-aparecen).
 
