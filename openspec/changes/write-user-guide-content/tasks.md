@@ -10,7 +10,7 @@
 ## 2. Writing, in batches (EN, then ES, then the accuracy pass, then maintainer review)
 
 - [x] 2.1 Getting started: what Corrosion is, install (Windows, macOS, Linux; VST3, CLAP), first note, the web app, 10-minute tour
-- [ ] 2.2 How it sounds (signal-flow diagram) and The editor, panel by panel (annotated screenshots)
+- [x] 2.2 How it sounds (signal-flow diagram) and The editor, panel by panel (annotated screenshots)
 - [ ] 2.3 Exciters: overview and comparison, common controls, force envelope and MSEG, gesture modifiers, and the 16 exciter pages
 - [ ] 2.4 Objects: overview and comparison, geometry and tuning, Environmental Exposure, Mechanical Linkage, and the 9 object pages
 - [ ] 2.5 Output chain: Filter Bank, Overdrive Unit, Dispersion and BODY, Space and Echo, diode and limiter, Output and Width
