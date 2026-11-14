@@ -456,7 +456,7 @@ pub fn parameter_plans() -> Vec<ParamPlan> {
 
 /// A parameter's plain value at a point: the host range's ends and middle
 /// (in normalized travel), or a slot's slider range.
-fn point_value(params: &CorrosionParams, ptr: &ParamPtr, point: Point) -> f32 {
+pub(crate) fn point_value(params: &CorrosionParams, ptr: &ParamPtr, point: Point) -> f32 {
     // SAFETY: `ptr` points into `params`, alive for this call.
     unsafe {
         let (lo, hi) = match slot_of(params, ptr) {

@@ -2,7 +2,7 @@
 
 ## 1. Measure
 
-- [ ] 1.1 Extend the measurement to put each control in its context (effect on, drive engaged, release, two velocities); list every control under the floor with its cause in design.md
+- [x] 1.1 Extend the measurement to put each control in its context (effect on, drive engaged, release, two velocities); list every control under the floor with its cause in design.md
 - [ ] 1.2 Write the control-response test from the list; run it red
 
 ## 2. Fix
