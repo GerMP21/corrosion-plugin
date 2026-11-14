@@ -18,12 +18,12 @@
 - [x] 2.7 Presets (factory bank, user presets, files, old presets and projects, BREAKING automation notes), MIDI and expression, quality and CPU, UI scale
 - [x] 2.8 Recipes (the list agreed with the maintainer) with before and after clips
 - [x] 2.9 Troubleshooting (including the documented surprises) and Glossary
-- [ ] 2.10 `parameters.es.json` review corrections
+- [x] 2.10 `parameters.es.json` review corrections
 - [x] 2.11 Restyle batches 2.1–2.4 to the `guide-writing-style` spec (EN and ES): why, tips, walkthroughs
 
 ## 3. Close-out
 
 - [ ] 3.1 Review table in design.md: every page EN written, ES written, ES approved
 - [x] 3.2 Turn on `--complete` in CI; the guide check and build pass
-- [ ] 3.3 CLAUDE.md rules: user-visible behaviour changes update their guide pages (EN and ES); editor changes regenerate screenshots
+- [x] 3.3 CLAUDE.md rules: user-visible behaviour changes update their guide pages (EN and ES); editor changes regenerate screenshots
 - [ ] 3.4 Close-out lanes; commit and push to `dev`; update CLAUDE.md Current state

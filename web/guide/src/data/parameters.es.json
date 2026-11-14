@@ -128,10 +128,10 @@
     "help": "Tiempo entre ecos. Más alto los separa más."
   },
   "diode_asymmetry": {
-    "help": "Recorta antes la mitad negativa. Más alto añade armónicos pares y una arenilla más llena."
+    "help": "Recorta antes la mitad negativa. Más alto añade armónicos pares y una aspereza más llena."
   },
   "diode_softness": {
-    "help": "Codo del diodo. 0 recorta en seco; más alto curva antes y suena más cálido."
+    "help": "Rodilla del diodo. 0 recorta en seco; más alto curva antes y suena más cálido."
   },
   "drag_exciter_mass": {
     "slots": {
@@ -171,7 +171,7 @@
   },
   "exciter": {
     "options": {
-      "Bow": "Fricción de arco suave por stick-slip, con presión, velocidad, agarre y deslizamiento, según el modelo de arco documentado.",
+      "Bow": "Fricción suave de arco que agarra y resbala, con controles de presión, velocidad, agarre y deslizamiento.",
       "Corrugated Drag": "Arrastre sobre estrías, con separación, profundidad y masa del contacto ajustables.",
       "Drumstick": "Impacto rígido y ligero, con energía de rebote y número de microrrebotes ajustables.",
       "Electromagnetic Hum": "Inyección continua por fuerza de Lorentz, con control directo de la frecuencia de red, la proximidad y la caída de tensión.",
@@ -228,7 +228,7 @@
     }
   },
   "fundamental_anchor": {
-    "help": "Con cuánta firmeza mantiene el fundamental su altura mientras los otros modos se mueven. Más alto mantiene las notas más afinadas."
+    "help": "Con cuánta firmeza mantiene la fundamental su altura mientras los otros modos se mueven. Más alto mantiene las notas más afinadas."
   },
   "global_time_scale": {
     "help": "Velocidad de toda la envolvente de fricción. Más alto recorre cada etapa más deprisa."
@@ -465,8 +465,8 @@
   },
   "quality_mode": {
     "options": {
-      "Eco": "El menor consumo de CPU: menos modos por voz y sin sobremuestreo en el clipper.",
-      "High": "Más modos por voz y más sobremuestreo en el clipper.",
+      "Eco": "El menor consumo de CPU: menos modos por voz y sin sobremuestreo en el recortador.",
+      "High": "Más modos por voz y más sobremuestreo en el recortador.",
       "Normal": "El equilibrio por defecto entre detalle y CPU.",
       "Render": "El máximo detalle y el menor aliasing, para exportar. Es el que más CPU usa."
     }
@@ -506,7 +506,7 @@
   },
   "rosin_grip": {
     "slots": {
-      "Bow": "Fricción estática de la resina. Más alto agarra más y da un stick-slip más fuerte y rugoso."
+      "Bow": "Fricción estática de la resina. Más alto agarra más, y el arco agarra y resbala con más fuerza y rugosidad."
     }
   },
   "rust": {
@@ -631,7 +631,7 @@
     "help": "Tamaño de la ventana del editor."
   },
   "velocity_to_level": {
-    "help": "Cuánto cambia la velocity el nivel de la envolvente de fricción. Más alto hace más suaves las notas flojas, hasta la mitad."
+    "help": "Cuánto cambia la velocidad de pulsación el nivel de la envolvente de fricción. Más alto hace más suaves las notas flojas, hasta la mitad."
   },
   "velocity_to_peak": {
     "help": "Nivel del pico de la envolvente de fricción, de la mitad al máximo. Más alto da un ataque más marcado sobre el sostenido."

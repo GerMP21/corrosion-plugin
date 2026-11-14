@@ -383,6 +383,20 @@ Every page written before the style spec was revised in both languages (paragrap
 
   Pages written after the style spec explain their terms in place, so they link less.
 
+### Task 2.10 notes: `parameters.es.json` (2026-11-14)
+- **Self-review against `guide-writing-style`; the maintainer's review is still pending.** Corrections:
+  - "la velocity" → "la velocidad de pulsación";
+  - "el fundamental" → "la fundamental";
+  - the diode's "Codo" → "Rodilla", the term the pages use;
+  - "arenilla" → "aspereza" for the diode;
+  - "clipper" → "recortador";
+  - the Bow model description and Rosin Grip no longer say "stick-slip".
+- **Found in the English texts** (plugin tooltips, outside this change's scope; reported, not changed):
+  - The Bow model description says "Smooth stick-slip bow friction … from the documented bow model". "Documented bow model" means nothing to a player.
+  - Rosin Grip's help says "a stronger, rougher stick-slip". The bow isn't real stick-slip yet (`docs/BACKLOG.md`).
+  - Corrugated Drag's description, "explicit spacing, depth, and moving contact mass", reads like code.
+  - Fixing these is a small tooltip change of its own, for the maintainer to decide.
+
 ## Risks / Trade-offs
 
 - [Volume: about 70 pages × 2 languages] → Batches by section, so review keeps pace with writing. The strict check is turned on only in the last task, so earlier batches can merge to `dev` with placeholders left.
