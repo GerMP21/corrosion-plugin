@@ -76,3 +76,8 @@ harness = false
 # overflow checks while cutting the run several-fold (resolve-exciter-tradeoffs).
 [profile.test]
 opt-level = 1
+
+# nih_log without the unmaintained `atty` (RUSTSEC-2021-0145); see
+# vendor/nih_log/PATCHED.md.
+[patch.crates-io]
+nih_log = { path = "vendor/nih_log" }
