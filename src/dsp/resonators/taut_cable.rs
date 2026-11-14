@@ -5,6 +5,9 @@
 use crate::dsp::resonators::ResonatorAlgorithm;
 use crate::dsp::ModalModeSpec;
 
+/// Braid Stiffness's default (`ResonatorCharacter::default`).
+const DEFAULT_BRAID_STIFFNESS: f32 = 0.3;
+
 /// Resonator model for stiff cable-like spectra.
 #[derive(Clone, Debug)]
 pub struct TautCableResonator {
@@ -56,7 +59,11 @@ impl ResonatorAlgorithm for TautCableResonator {
     ) {
         let tension_factor = 0.8 + self.cable_tension * 0.4;
         let f0 = (fundamental_hz * tension_factor) / size_scale.factor();
-        let b = self.braid_stiffness * 0.01;
+        // Stiffer braid detunes the partials upward. The square law keeps
+        // the default (0.3) exactly as it was and makes the top of the range
+        // clearly inharmonic (`fix-inert-controls`: linear, it moved the
+        // second partial 2 % at most).
+        let b = self.braid_stiffness * 0.01 * (self.braid_stiffness / DEFAULT_BRAID_STIFFNESS);
 
         out.extend((1..=mode_count).map(|n| {
             let nf = n as f32;
@@ -73,5 +80,32 @@ impl ResonatorAlgorithm for TautCableResonator {
         for mode in modes.iter_mut() {
             mode.frequency_hz *= pitch_shift;
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The third partial over three times the first.
+    fn third_partial_stretch(braid: f32) -> f32 {
+        let mut modes = Vec::new();
+        TautCableResonator::with_character(braid, 0.4).generate_modes_into(
+            100.0,
+            8,
+            crate::dsp::SizeScale::default(),
+            &mut modes,
+        );
+        modes[2].frequency_hz / (3.0 * modes[0].frequency_hz)
+    }
+
+    /// `fix-inert-controls`: the stiffest braid is clearly inharmonic.
+    #[test]
+    fn stiff_braid_stretches_the_partials() {
+        let (loose, stiff) = (third_partial_stretch(0.0), third_partial_stretch(1.0));
+        assert!(
+            stiff / loose > 1.05,
+            "third partial stretch: braid 0 {loose:.4}, braid 1 {stiff:.4}"
+        );
     }
 }

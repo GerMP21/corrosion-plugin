@@ -79,7 +79,7 @@ const LEVELS: &[(&str, u32, f32)] = &[
     ("experimental/bow/tank.corrosion-preset", 0, 3.22),
     ("experimental/bow/chain.corrosion-preset", 0, 3.942),
     ("experimental/bow/i_beam.corrosion-preset", 0, 1.1),
-    ("experimental/bow/taut_cable.corrosion-preset", 0, 100.0),
+    ("experimental/bow/taut_cable.corrosion-preset", 1, 70.69),
     ("experimental/bow/coil_spring.corrosion-preset", 0, 11.45),
     ("experimental/bow/sheet_metal.corrosion-preset", 0, 0.5524),
     (

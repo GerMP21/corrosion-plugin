@@ -245,7 +245,12 @@ impl SpringReverb {
         let delay_sample = self.delay_buffer[self.delay_index];
 
         // Feedback with dispersion (stiffness creates high-freq outrun)
-        let dispersion_coeff = 0.5 + self.stiffness * 0.4;
+        // A slack wire (0) is dark, a stiff one (1) passes everything; the
+        // default (0.5) is where it always was (`fix-inert-controls`: 0.5–0.9
+        // before, under the floor).
+        let off_default = self.stiffness - 0.5;
+        let reach = if off_default < 0.0 { 0.7 } else { 0.2 };
+        let dispersion_coeff = 0.5 + self.stiffness * 0.4 + off_default * reach;
         self.dispersion_state =
             self.dispersion_state * (1.0 - dispersion_coeff) + delay_sample * dispersion_coeff;
 
@@ -812,6 +817,35 @@ mod tests {
 
     fn db(ratio: f32) -> f32 {
         20.0 * ratio.log10()
+    }
+
+    /// High share (first-difference energy over energy) of a spring's
+    /// impulse response over 1 s after its first pass, at `stiffness`.
+    fn spring_brightness(stiffness: f32) -> f32 {
+        let mut spring = SpringReverb::new();
+        spring.set_sample_rate(48_000.0);
+        spring.set_parameters(0.5, stiffness, 0.5);
+        let (mut energy, mut diff, mut last) = (0.0f32, 0.0f32, 0.0f32);
+        for i in 0..48_000 {
+            let y = spring.process(if i == 0 { 1.0 } else { 0.0 });
+            // After the first pass, which no filter has touched yet.
+            if i > 4_000 {
+                energy += y * y;
+                diff += (y - last) * (y - last);
+            }
+            last = y;
+        }
+        diff / energy
+    }
+
+    /// `fix-inert-controls`: Wire Stiffness sets how bright the spring is.
+    #[test]
+    fn wire_stiffness_brightens_the_spring() {
+        let (slack, stiff) = (spring_brightness(0.0), spring_brightness(1.0));
+        assert!(
+            db(stiff / slack) >= 12.0,
+            "spring brightness: stiffness 0 {slack:.4}, 1 {stiff:.4}"
+        );
     }
 
     /// Spec "Highs fade, lows stay".

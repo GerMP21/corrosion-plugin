@@ -187,6 +187,39 @@ To judge by ear. No preset left the floor or its character, so no file changed; 
 
 No preset left the floor or its character; the full CI lane passes (472).
 
+### Task 2.4: Chaos Depth, Braid Stiffness, Wire Stiffness (2026-11-14)
+
+**Causes and fixes.** The ranges were too narrow to hear. Each fix keeps the default exactly, which every manual preset uses (Chaos 0, Braid 0.3, Wire 0.5), so their sound is unchanged.
+- **Chaos Depth.** The Lorenz `x` swung the drive's gain by ±19 % at full depth. It now swings `1 ± 0.9 · tanh(0.1·x)`, from a tenth to nearly twice the gain. Exactly 1 at depth 0.
+- **Braid Stiffness.** The stretch `B = braid · 0.01` moved the third partial 3.9 % at most. It is now `braid · 0.01 · (braid / 0.3)`, the same at the default and 3.3× at 1.
+- **Wire Stiffness.** The spring's feedback low-pass coefficient spanned 0.5–0.9. It now spans 0.15–1.0 through the same 0.7 at 0.5.
+
+| Control | Level dB | Ring | Bands dB | Width dB | Env dB | Acts |
+|---|---|---|---|---|---|---|
+| Chaos Depth | 0.06 → 0.54 | 10 % | 0.65 | 1.12 | 3.29 | yes |
+| Braid Stiffness | 0.01 → 0.02 | 0 % | 0.69 → 1.86 | 1.41 | 0.14 | yes |
+| Wire Stiffness | 0.13 → 0.93 | 1 % | 0.35 | 1.01 | 1.48 | yes (close to the floor) |
+
+**Tests**, red then green:
+
+| Test | Before | After |
+|---|---|---|
+| `chaos_depth_swings_the_level` (50 ms level spread) | 1.67 dB | 9.51 dB |
+| `stiff_braid_stretches_the_partials` (third partial) | ×1.039 | > ×1.05 |
+| `wire_stiffness_brightens_the_spring` | 7 dB | 20 dB |
+
+The mode-bank golden fixture still matches. One experimental preset left the floor (`bow/taut_cable`, −6.4 dB at Output 100 already) and was re-drawn: seed try 1, Output 70.69. Full lane 475 passed.
+
+### Found, not fixed: High Frequency Damping and Diode Softness (2026-11-14)
+
+- **High Frequency Damping works.** It filters every echo repeat: a repeat's highs fall 13.6 dB at 1, and the coefficient reaches the render (k = 0.178).
+- **Why it stays under the floor.** The repeats sit about 6 dB under the dry note, and the dry ring keeps the highs, so the note barely changes. No context lifts it: Hard Mallet, Wire Brush, Particle Rain, and Sludge added, all stay under the floor.
+- **What I tried.** Extending the cutoff below 1.5 kHz above the default:
+  - 300 Hz passes the floor by 12 % ring, but breaks the echo spec's "lows stay" (200 Hz within 0.5 dB).
+  - 800 Hz keeps the spec but falls back under the floor.
+- **What is left.** Raising the echo's feedback or wet level would move the seven manual echo presets. Reverted, waiting for the maintainer.
+- **Diode Softness** is near the floor (0.78 dB level, 0.96 dB width) and acts only while the diode clips. The knee is pending the maintainer's ear test from `add-asymmetric-diode-stage`, so it is left as is.
+
 ### Found, not fixed: Bow and Drumstick (2026-11-14)
 
 - **Bow (Slip Curve).** The bow never sticks. The resonator moves at most 0.0007 against a bow speed of 0.94, and the relative speed never drops under 0.094, above the Stribeck width (0.02). So the friction sits on its sliding branch and Slip Curve, which only shapes the sticking side, does nothing.
