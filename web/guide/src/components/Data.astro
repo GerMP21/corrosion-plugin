@@ -1,0 +1,21 @@
+---
+// A number or value from the generated data, so the prose follows the
+// plugin (`write-user-guide-content` Decision 3):
+// `<Data count="factoryPresets" />`, `<Data param="filter_cutoff" field="range" />`.
+// Fields: name, unit, min, max, range, default, options. Counts:
+// factoryPresets, drumKits, exciters, objects, parameters.
+import parametersData from '../data/parameters.json';
+import modelsData from '../data/models.json';
+import { dataCount, dataParam } from '../lib/data-values.mjs';
+
+interface Props {
+  count?: string;
+  param?: string;
+  field?: string;
+}
+const { count, param, field = 'range' } = Astro.props;
+const parameters = parametersData.parameters as any[];
+const value = count ? dataCount(count, modelsData, parameters) : dataParam(param!, field, parameters);
+---
+
+{value}

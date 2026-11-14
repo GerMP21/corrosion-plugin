@@ -10,7 +10,7 @@
     "build": "astro build",
     "preview": "astro preview",
     "check": "node scripts/check.mjs",
-    "test": "node --test scripts/check.test.mjs"
+    "test": "node --test scripts/check.test.mjs scripts/data.test.mjs"
   },
   "dependencies": {
     "@astrojs/starlight": "0.42.7",

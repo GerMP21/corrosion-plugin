@@ -144,3 +144,18 @@ test('the Listen section needs the model comparison clip', () => {
   assert.equal(status, 1);
   assert.match(output, /exciters\/bow\.mdx.*Listen.*exciters.*Bow/);
 });
+
+test('a bare number next to a parameter name warns, without failing', () => {
+  const { status, output } = checkWith((dir) =>
+    edit(dir, 'exciters/common-controls.mdx', (t) => `${t}\nFilter Cutoff goes up to 20000 at most.\n`),
+  );
+  assert.equal(status, 0);
+  assert.match(output, /warning: .*common-controls\.mdx.*Filter Cutoff.*20000.*<Data param="filter_cutoff"/);
+});
+
+test('a number from <Data> does not warn', () => {
+  const { output } = checkWith((dir) =>
+    edit(dir, 'exciters/common-controls.mdx', (t) => `${t}\nFilter Cutoff runs <Data param="filter_cutoff" field="range" />.\n`),
+  );
+  assert.doesNotMatch(output, /warning:/);
+});

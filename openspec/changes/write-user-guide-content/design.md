@@ -78,6 +78,12 @@ Before each batch is offered for review, every behavioural claim is checked agai
 - **Listen:** must have `<Clips set="exciters|objects" item="<model>" />` and the `-presets` set.
 - **Tests:** `scripts/check.test.mjs` (`npm test`, new CI step "Guide check tests"), 9 cases on copies of the real pages: shape, Spanish headings, the spec's Bow Pressure scenario, a complete page, `<ModelControls>`, Hand Strike's AD envelope, an object page, a missing clip. Six were red before the rule (the other three expect no error).
 
+### As built: task 1.2 (2026-11-14)
+- **`<Data>`** (`src/components/Data.astro`, values in `src/lib/data-values.mjs`): `count=` factoryPresets, drumKits, exciters, objects, parameters; `param=<id> field=` name, unit, min, max, range (default field), default, options. Units come from the data (only Output, dB, and Wander Rate, Hz, carry one today; Filter Cutoff's range renders as 20–20000 without Hz). An unknown count, parameter or field, or a range asked of a selector, throws, so the build fails instead of printing nothing.
+- **factoryPresets** counts every preset in the bank's folders: 214, the drum kits included (they're the `drums` folder). A first version added the kits again (224); the test now compares against the files in `presets/factory/`.
+- **Bare-number warning** (check rule 7): a number in the same sentence as a parameter's name (four letters or more), outside code, links and `<Data>`, prints `warning:` and doesn't fail. None on the current pages.
+- **Tests:** `scripts/data.test.mjs` (4 cases, red before the module existed) and 2 more in `check.test.mjs` (warns without failing; `<Data>` doesn't warn), all under `npm test`. A build with a temporary `<Data>` line rendered "214 presets", "20–20000" and "Off, Factory, Spring, Echo".
+
 ## Risks / Trade-offs
 
 - [Volume: about 70 pages × 2 languages] → Batches by section, so review keeps pace with writing. The strict check is turned on only in the last task, so earlier batches can merge to `dev` with placeholders left.

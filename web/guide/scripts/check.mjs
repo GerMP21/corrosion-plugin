@@ -13,6 +13,7 @@
 //   6. an exciter or object page lacks the seven model sections in order,
 //      its Listen section lacks the model's clips, or, once written, its
 //      Controls section doesn't link every control the model shows.
+// It also warns (7) about a bare number next to a parameter's name.
 // Internal links are checked at build by starlight-links-validator.
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
@@ -293,6 +294,36 @@ for (const lang of ['en', 'es']) {
     }
   }
 }
+
+// 7. Bare numbers (`write-user-guide-content` Decision 3): a number in the
+// same sentence as a parameter's name, outside code and <Data>, is probably
+// one the data holds. A heuristic, so it warns and doesn't fail.
+const warnings = [];
+const named = parameters
+  .filter((p) => p.name.length >= 4)
+  .map((p) => ({ p, re: new RegExp(`\\b${p.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`) }));
+for (const lang of ['en', 'es']) {
+  for (const page of pages[lang].values()) {
+    let fence = false;
+    for (const raw of page.body.split(/\r?\n/)) {
+      if (/^\s*(```|~~~)/.test(raw)) fence = !fence;
+      if (fence || /^\s*(import|export)\s/.test(raw)) continue;
+      const line = raw.replace(/<[A-Z][^>]*\/>/g, ' ').replace(/`[^`]*`/g, ' ').replace(/\]\([^)]*\)/g, ']');
+      for (const sentence of line.split(/(?<=[.!?;:])\s+/)) {
+        const number = /(?<![\w#-])[-−+]?\d[\d.,]*/.exec(sentence);
+        if (!number) continue;
+        for (const { p, re } of named) {
+          if (re.test(sentence)) {
+            warnings.push(
+              `${rel(page.path)}: "${p.name}" next to ${number[0]}; if the data holds it, use <Data param="${p.id}" field="…" />`,
+            );
+          }
+        }
+      }
+    }
+  }
+}
+for (const w of warnings) console.log(`warning: ${w}`);
 
 // 5. Placeholders.
 if (complete) {
