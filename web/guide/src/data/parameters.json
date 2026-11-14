@@ -1144,7 +1144,7 @@
       "slots": [
         {
           "group": "Bow",
-          "help": "How quickly friction falls once the bow slips. Higher gives a sharper, more aggressive tone.",
+          "help": "How much grip the bow keeps once it slips. Higher keeps more: louder and harsher.",
           "label": "Slip Curve",
           "max": "1.5",
           "min": "0.05",

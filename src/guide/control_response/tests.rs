@@ -74,7 +74,6 @@ fn a_velocity_control_counts_by_the_gap_it_changes() {
 /// reaches the floor in its context, and a control that stops acting fails
 /// here by name (`fix-inert-controls`). About 70 s in the test profile.
 #[test]
-#[ignore = "red until fix-inert-controls task 2 makes the 20 listed controls act"]
 fn every_sound_shaping_control_changes_its_note() {
     let inert: Vec<String> = responses()
         .into_iter()
@@ -95,5 +94,25 @@ fn every_sound_shaping_control_changes_its_note() {
         "{} controls don't change their note:\n{}",
         inert.len(),
         inert.join("\n")
+    );
+}
+
+/// Slip Curve shapes the bow's stick-to-slip transition, so the bow has to
+/// stick: on a held Bow note it changes the note (`fix-inert-controls`).
+#[test]
+fn slip_curve_shapes_the_bow() {
+    let plan = parameter_plans()
+        .into_iter()
+        .find(|p| p.id == "slip_curve")
+        .expect("Slip Curve has a clip plan");
+    let r = response(&measure_points(&plan));
+    assert!(
+        r.acts(),
+        "Slip Curve: level {:.2} dB, ring {:.0} %, bands {:.2} dB, width {:.2} dB, envelope {:.2} dB",
+        r.level_db,
+        r.ring * 100.0,
+        r.bands_db,
+        r.width_db,
+        r.envelope_db
     );
 }

@@ -30,7 +30,17 @@ pub struct BowExciter {
     /// (`fix-sample-rate-time-constants`); exact 48 kHz values at 48 kHz.
     ratio: f32,
     speed_smoothing: f32,
+    /// How fast the grip falls toward sliding friction above the Stribeck
+    /// speed: 10 at the default Slip Curve, slower as Slip Curve rises.
+    slide_falloff: f32,
 }
+
+/// Slip Curve's default (the host parameter's): the sliding branch falls
+/// off at exactly its old rate there, so every preset at the default
+/// renders bit-identical (`fix-inert-controls`).
+const DEFAULT_SLIP_CURVE: f32 = 0.485;
+/// The sliding branch's fall-off at the default Slip Curve.
+const SLIDE_FALLOFF: f32 = 10.0;
 
 impl BowExciter {
     /// Creates a default bow model with moderate pressure and speed.
@@ -46,6 +56,7 @@ impl BowExciter {
             target_speed: 0.0,
             ratio: 1.0,
             speed_smoothing: 0.001,
+            slide_falloff: SLIDE_FALLOFF,
         }
     }
 
@@ -66,6 +77,11 @@ impl BowExciter {
         self.speed = speed.clamp(0.0, 5.0);
         self.roughness = roughness.clamp(0.0, 3.0);
         self.slip_curve = slip_curve.clamp(0.05, 3.0);
+        // The bow slides on held notes (it never sticks: the resonator moves
+        // at 0.0002–0.007 against a bow speed near 1), so Slip Curve also
+        // sets how far the grip carries into sliding, or it would do
+        // nothing (`fix-inert-controls`).
+        self.slide_falloff = SLIDE_FALLOFF * (DEFAULT_SLIP_CURVE / self.slip_curve).powi(2);
     }
 
     /// Arms the friction state for a new gesture.
@@ -93,7 +109,9 @@ impl BowExciter {
             let t = abs_v_rel / stribeck_speed;
             static_mu - (static_mu - dynamic_mu) * t * t * (3.0 - 2.0 * t)
         } else {
-            dynamic_mu + (static_mu - dynamic_mu) * (-(abs_v_rel - stribeck_speed) * 10.0).exp()
+            dynamic_mu
+                + (static_mu - dynamic_mu)
+                    * (-(abs_v_rel - stribeck_speed) * self.slide_falloff).exp()
         };
 
         let force = self.pressure * mu * v_rel.signum();

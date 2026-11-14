@@ -988,7 +988,7 @@ pub(crate) fn help_for(label: &str) -> &'static str {
         "bow pressure" => "How hard the bow presses on the object. Higher is louder and grittier, and too much makes it crunch.",
         "bow speed" => "How fast the bow moves. Higher gives a brighter, more stable tone.",
         "rosin grip" => "Static friction of the rosin. Higher grips harder, giving a stronger, rougher stick-slip.",
-        "slip curve" => "How quickly friction falls once the bow slips. Higher gives a sharper, more aggressive tone.",
+        "slip curve" => "How much grip the bow keeps once it slips. Higher keeps more: louder and harsher.",
         // Scrape, grind, drag
         "scrape speed" => "How fast the point scrapes along the surface. Higher raises the chatter's pitch and density.",
         "point pressure" => "How hard the point presses into the surface. Higher is louder and harsher.",

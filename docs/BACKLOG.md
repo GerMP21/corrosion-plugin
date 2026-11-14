@@ -25,6 +25,14 @@ Each item notes the relevant file(s) and an acceptance check.
   the held note); the seeder then also levels the released note.
   *Accept:* at Release Snap 0 the released note is no louder than the held
   one; the default keeps today's snap or a bounded one, by ear.
+- [ ] **[VERIFY] Real stick-slip for the Bow.** The bow never sticks: the
+  resonator moves at 0.0002–0.007 against a bow speed near 1, so it stays on
+  the sliding branch (Slip Curve shapes that branch since
+  `fix-inert-controls`). Seeing the resonator ×1000 makes it stick and slip,
+  but the 12 bowed chord presets fall into the raucous regime (a ~20 Hz
+  subharmonic, partials up to 600 cents off, −16 to −35 dB). *Accept:* a
+  stick-slip bow with the bowed presets re-voiced by ear, passing the bank's
+  character checks.
 - [ ] **[VERIFY] Env Amount 0 silences the friction exciters.** The MSEG output
   is multiplied by Env Amount (`mseg-envelope` spec), so at 0 Bow, Stiff Point
   Scrape, Heavy Grinding, Corrugated Drag and Tension Rise make no sound. The

@@ -537,7 +537,7 @@
   },
   "slip_curve": {
     "slots": {
-      "Bow": "Lo rápido que cae la fricción cuando el arco desliza. Más alto da un tono más incisivo y agresivo."
+      "Bow": "Cuánto agarre conserva el arco cuando desliza. Más alto conserva más: más fuerte y áspero."
     }
   },
   "slip_stochasticity": {

@@ -262,7 +262,7 @@ Kept, because the measurement agrees:
 
 ### Found, not fixed: Bow and Drumstick (2026-11-14)
 
-- **Bow (Slip Curve).** The bow never sticks. The resonator moves at most 0.0007 against a bow speed of 0.94, and the relative speed never drops under 0.094, above the Stribeck width (0.02). So the friction sits on its sliding branch and Slip Curve, which only shapes the sticking side, does nothing.
+- **Bow (Slip Curve).** *Fixed by the sliding branch above.* The bow never sticks. The resonator moves at most 0.0007 against a bow speed of 0.94, and the relative speed never drops under 0.094, above the Stribeck width (0.02). So the friction sits on its sliding branch and Slip Curve, which only shapes the sticking side, does nothing.
 - **Drumstick (Restitution Bounciness, Micro Bounce Limit).** *Fixed by the re-strikes above.* Every sample on the way out of one contact counts as a bounce, and it flips the stick back in. The limit is used up within about 4 consecutive samples; the stick never flies and comes back.
 - **Both** need a change to the model that moves the default sound, and so every manual Bow and Drumstick preset (Drumstick: pads in all 10 kits). They wait for the maintainer.
 
@@ -323,6 +323,26 @@ After the re-level every pad is within 2.1 dB of the target, and the kits' chara
 **Experimental.** `drumstick/i_beam` was re-levelled: Output 1.081 → 2.211, from −6.2 dB.
 
 **Tests changed.** `struck_attack_timing_does_not_depend_on_sample_rate` now looks for the attack's peak within the first 20 ms. A re-strike can ring the pipe as loud as the first contact, and the winner of that near-tie moved with the rate (25.7 vs 11.0 ms).
+
+### Task 2.3: Bow, Slip Curve (2026-11-14)
+
+The maintainer chose real stick-slip. It didn't hold.
+
+**The problem.** The resonator moves at 0.0002–0.007 under the bow, which moves at about 0.94. For the bow to catch the surface, the bow has to see the surface's speed multiplied by a gain. These gains were tried, with Bow's drive level re-tuned to 4.8788e-02 for ×1000:
+
+| Gain | Slip Curve | The 12 bowed chord presets | Other presets |
+|---|---|---|---|
+| ×1000 | Acts: 1.37 dB, 18 % ring, 7.5 dB envelope | All fail their character, at −16 to −35 dB. A subharmonic near 20 Hz appears (the raucous regime), with partials up to 600 cents off. | Glass Sheet Lead −10.7 dB and off pitch; 6 experimental Bow presets +8 to +14 dB |
+| ×300 | 0.21 dB level, envelope 2.2 dB | Same character failures | — |
+| ×200 | Does not act | Same character failures | — |
+
+**As built (maintainer: the recommended alternative).** Slip Curve also sets how far the grip carries into sliding. The sliding branch now falls off at `10 · (0.485 / slip)²` instead of a fixed 10, which is exactly 10 at the default.
+
+- Slip Curve acts: level 3.48 dB, bands 0.54 dB, envelope 3.05 dB. Higher is louder (+3.5 dB at 1.5) and harsher.
+- The default Bow renders bit-identical: the `print_48k_exciter_render_hashes` hash is unchanged.
+- All 60 uses of Slip Curve in manual presets sit at the default, and the bank passes 24/24.
+- The help text now says what the control does, in EN and ES: "How much grip the bow keeps once it slips. Higher keeps more: louder and harsher."
+- Real stick-slip, which needs re-voiced bowed chords, is in `docs/BACKLOG.md`.
 
 ## Goals / Non-Goals
 
