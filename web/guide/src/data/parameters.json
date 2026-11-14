@@ -389,7 +389,7 @@
           "value": 8
         },
         {
-          "help": "Smooth stick-slip bow friction with pressure, speed, grip, and slip controls from the documented bow model.",
+          "help": "A rosined bow that grips and drags the object, for sustained, singing tones. Shaped by pressure, speed, grip and slip.",
           "name": "Bow",
           "value": 1
         },
@@ -404,7 +404,7 @@
           "value": 10
         },
         {
-          "help": "Drag motion across ridges with explicit spacing, depth, and moving contact mass.",
+          "help": "A tool dragged across ridged metal: ticks that blur into a buzz as it speeds up. Shaped by ridge spacing, depth and the tool's weight.",
           "name": "Corrugated Drag",
           "value": 11
         },
@@ -1123,7 +1123,7 @@
       "slots": [
         {
           "group": "Bow",
-          "help": "Static friction of the rosin. Higher grips harder, giving a stronger, rougher stick-slip.",
+          "help": "Static friction of the rosin. Higher grips harder, for a stronger, rougher bowed tone.",
           "label": "Rosin Grip",
           "max": "1.5",
           "min": "0.05",

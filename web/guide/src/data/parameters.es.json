@@ -171,8 +171,8 @@
   },
   "exciter": {
     "options": {
-      "Bow": "Fricción suave de arco que agarra y resbala, con controles de presión, velocidad, agarre y deslizamiento.",
-      "Corrugated Drag": "Arrastre sobre estrías, con separación, profundidad y masa del contacto ajustables.",
+      "Bow": "Un arco con resina que agarra y arrastra el objeto, para tonos sostenidos que cantan. Lo moldean la presión, la velocidad, el agarre y el deslizamiento.",
+      "Corrugated Drag": "Una herramienta arrastrada sobre metal estriado: golpecitos que se funden en un zumbido al acelerar. Lo moldean la separación y la profundidad de las estrías y el peso de la herramienta.",
       "Drumstick": "Impacto rígido y ligero, con energía de rebote y número de microrrebotes ajustables.",
       "Electromagnetic Hum": "Inyección continua por fuerza de Lorentz, con control directo de la frecuencia de red, la proximidad y la caída de tensión.",
       "Felt Mallet": "Maza blanda no lineal: una capa de fieltro que se comprime sobre un núcleo más duro.",
@@ -506,7 +506,7 @@
   },
   "rosin_grip": {
     "slots": {
-      "Bow": "Fricción estática de la resina. Más alto agarra más, y el arco agarra y resbala con más fuerza y rugosidad."
+      "Bow": "Fricción estática de la resina. Más alto agarra más, para un tono de arco más fuerte y rugoso."
     }
   },
   "rust": {

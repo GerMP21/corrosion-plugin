@@ -724,7 +724,7 @@ pub(crate) fn exciter_panel(exciter: ExciterType) -> ExciterPanelSpec {
     match exciter {
         ExciterType::Bow => ExciterPanelSpec {
             title: "Bow",
-            description: "Smooth stick-slip bow friction with pressure, speed, grip, and slip controls from the documented bow model.",
+            description: "A rosined bow that grips and drags the object, for sustained, singing tones. Shaped by pressure, speed, grip and slip.",
             controls: BOW_CONTROLS,
         },
         ExciterType::HandStrike => ExciterPanelSpec {
@@ -774,7 +774,7 @@ pub(crate) fn exciter_panel(exciter: ExciterType) -> ExciterPanelSpec {
         },
         ExciterType::CorrugatedDrag => ExciterPanelSpec {
             title: "Corrugated drag topology",
-            description: "Drag motion across ridges with explicit spacing, depth, and moving contact mass.",
+            description: "A tool dragged across ridged metal: ticks that blur into a buzz as it speeds up. Shaped by ridge spacing, depth and the tool's weight.",
             controls: CORRUGATED_DRAG_CONTROLS,
         },
         ExciterType::TensionRise => ExciterPanelSpec {
@@ -987,7 +987,7 @@ pub(crate) fn help_for(label: &str) -> &'static str {
         // Bow
         "bow pressure" => "How hard the bow presses on the object. Higher is louder and grittier, and too much makes it crunch.",
         "bow speed" => "How fast the bow moves. Higher gives a brighter, more stable tone.",
-        "rosin grip" => "Static friction of the rosin. Higher grips harder, giving a stronger, rougher stick-slip.",
+        "rosin grip" => "Static friction of the rosin. Higher grips harder, for a stronger, rougher bowed tone.",
         "slip curve" => "How much grip the bow keeps once it slips. Higher keeps more: louder and harsher.",
         // Scrape, grind, drag
         "scrape speed" => "How fast the point scrapes along the surface. Higher raises the chatter's pitch and density.",

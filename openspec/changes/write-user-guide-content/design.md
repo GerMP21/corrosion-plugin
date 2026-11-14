@@ -391,11 +391,11 @@ Every page written before the style spec was revised in both languages (paragrap
   - "arenilla" → "aspereza" for the diode;
   - "clipper" → "recortador";
   - the Bow model description and Rosin Grip no longer say "stick-slip".
-- **Found in the English texts** (plugin tooltips, outside this change's scope; reported, not changed):
+- **Found in the English texts** (plugin tooltips; fixed 2026-11-14 at the maintainer's request):
   - The Bow model description says "Smooth stick-slip bow friction … from the documented bow model". "Documented bow model" means nothing to a player.
   - Rosin Grip's help says "a stronger, rougher stick-slip". The bow isn't real stick-slip yet (`docs/BACKLOG.md`).
   - Corrugated Drag's description, "explicit spacing, depth, and moving contact mass", reads like code.
-  - Fixing these is a small tooltip change of its own, for the maintainer to decide.
+  - **Fixed:** Bow is now "A rosined bow that grips and drags the object, for sustained, singing tones. Shaped by pressure, speed, grip and slip."; Corrugated Drag "A tool dragged across ridged metal: ticks that blur into a buzz as it speeds up. Shaped by ridge spacing, depth and the tool's weight."; Rosin Grip "… for a stronger, rougher bowed tone." Guide data re-exported; the three Spanish entries follow them. Text only, no sound change.
 
 ## Risks / Trade-offs
 
