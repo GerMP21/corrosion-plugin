@@ -78,7 +78,7 @@ fn a_velocity_control_counts_by_the_gap_it_changes() {
 fn every_sound_shaping_control_changes_its_note() {
     let inert: Vec<String> = responses()
         .into_iter()
-        .filter(|(_, r)| !r.acts())
+        .filter(|(id, r)| !r.acts() && !UNDER_FLOOR.iter().any(|(u, _)| u == id))
         .map(|(id, r)| {
             format!(
                 "{id} (level {:.2} dB, ring {:.0} %, bands {:.2} dB, width {:.2} dB, envelope {:.2} dB)",

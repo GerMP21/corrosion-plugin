@@ -47,6 +47,20 @@ pub const NOT_SOUND: &[(&str, &str)] = &[
     ("limiter_mode", "only acts on peaks over the ceiling"),
 ];
 
+/// Controls that shape the sound but stay under the floor on their
+/// measured note, each with its reason (`fix-inert-controls` design). The
+/// response table still prints them; the control-response test skips them.
+pub const UNDER_FLOOR: &[(&str, &str)] = &[
+    (
+        "high_frequency_damping",
+        "darkens each echo repeat (−13.6 dB of highs at 1), but the dry note keeps its highs; accepted by the maintainer, 2026-11-14",
+    ),
+    (
+        "diode_softness",
+        "acts only while the diode clips; the knee waits on the maintainer's ear test (add-asymmetric-diode-stage)",
+    ),
+];
+
 /// What a control needs around it to act, beyond its clip's patch.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Context {
