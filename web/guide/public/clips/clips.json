@@ -4866,41 +4866,41 @@
     },
     {
       "file": "demos/bass.opus",
-      "gain_db": -1.1,
-      "peak_db": -11.6,
+      "gain_db": -0.1,
+      "peak_db": -10.6,
       "ref": "set:demos:bass",
       "rms_db": -17.7,
-      "seconds": 4.0,
+      "seconds": 5.9,
       "set": "set:demos:bass",
       "source": "preset Low Sheet Bow (bass)"
     },
     {
       "file": "demos/lead.opus",
-      "gain_db": 0.5,
-      "peak_db": -13.2,
+      "gain_db": 1.5,
+      "peak_db": -12.2,
       "ref": "set:demos:lead",
       "rms_db": -17.7,
-      "seconds": 4.0,
+      "seconds": 5.9,
       "set": "set:demos:lead",
       "source": "preset Driven Pipe Lead (lead)"
     },
     {
       "file": "demos/chords.opus",
-      "gain_db": 2.9,
-      "peak_db": -4.1,
+      "gain_db": 4.5,
+      "peak_db": -2.5,
       "ref": "set:demos:chords",
       "rms_db": -17.7,
-      "seconds": 4.0,
+      "seconds": 5.9,
       "set": "set:demos:chords",
       "source": "preset Glass Cable Choir (chords)"
     },
     {
       "file": "demos/drones.opus",
-      "gain_db": -1.8,
-      "peak_db": -13.2,
+      "gain_db": -1.0,
+      "peak_db": -12.3,
       "ref": "set:demos:drones",
       "rms_db": -17.7,
-      "seconds": 5.5,
+      "seconds": 7.5,
       "set": "set:demos:drones",
       "source": "preset Spring Bow Drone (drones)"
     },
@@ -4915,7 +4915,7 @@
       "source": "preset Cog Tick (percussion)"
     }
   ],
-  "fingerprint": "4b39d4241fe98f11",
-  "generator_commit": "7dc1401",
+  "fingerprint": "bdcc2fbc63313c6b",
+  "generator_commit": "261d8c9",
   "sample_rate": 48000
 }

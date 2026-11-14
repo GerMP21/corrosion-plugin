@@ -33,6 +33,18 @@ pub const NOTE_OFF: f32 = 2.0;
 /// `trim_to_silence` then cuts it sooner where its tail falls silent, and
 /// fades it out at this cap otherwise (maintainer, 2026-11-13).
 pub const RELEASE_TAIL: f32 = 2.0;
+/// The home page demos' longest tail, so their long rings are heard
+/// (maintainer, 2026-11-14).
+pub const DEMO_RELEASE_TAIL: f32 = 4.0;
+
+/// The longest tail a clip renders past its last note-off.
+pub fn release_tail(clip: &ClipSpec) -> f32 {
+    if clip.set.starts_with("set:demos:") {
+        DEMO_RELEASE_TAIL
+    } else {
+        RELEASE_TAIL
+    }
+}
 /// A clip's tail ends at its last sample above this, relative to its peak.
 pub const SILENCE_BELOW_PEAK_DB: f32 = -60.0;
 /// The fade at the cut, in seconds.
@@ -624,9 +636,10 @@ pub fn plan() -> Vec<ClipSpec> {
             .map(|n| n.frame)
             .max()
             .unwrap_or(0);
+        let tail = release_tail(clip);
         clip.seconds = clip
             .seconds
-            .max(last_off as f32 / SAMPLE_RATE as f32 + RELEASE_TAIL);
+            .max(last_off as f32 / SAMPLE_RATE as f32 + tail);
     }
     clips
 }

@@ -141,8 +141,13 @@ fn every_clip_renders_its_release_before_trimming() {
             .max()
             .expect("every clip releases its notes");
         let tail = clip.seconds - last_off as f32 / SAMPLE_RATE as f32;
+        let expected = if clip.set.starts_with("set:demos:") {
+            DEMO_RELEASE_TAIL
+        } else {
+            RELEASE_TAIL
+        };
         assert!(
-            tail >= RELEASE_TAIL - 1e-3,
+            tail >= expected - 1e-3,
             "{} ends {tail:.2} s after its last note-off",
             clip.reference
         );
