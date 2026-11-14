@@ -19,6 +19,7 @@
 - [ ] 2.8 Recipes (the list agreed with the maintainer) with before and after clips
 - [ ] 2.9 Troubleshooting (including the documented surprises) and Glossary
 - [ ] 2.10 `parameters.es.json` review corrections
+- [ ] 2.11 Restyle batches 2.1–2.4 to the `guide-writing-style` spec (EN and ES): why, tips, walkthroughs
 
 ## 3. Close-out
 

@@ -20,7 +20,8 @@
 ## Decisions
 
 ### 1. Voice and style
-- Second person, short sentences, and the plain style the repository's docs already use.
+- *As built (maintainer, 2026-11-14):* the voice is now the `guide-writing-style` spec: warm and conversational, explaining why things sound as they do, with practical tips and step-by-step walkthroughs, in the spirit of the best synth manuals (u-he's, by Howard Scarr). It replaces the plain style first planned here. The pages written before it (batches 2.1–2.4) are restyled in task 2.11.
+- Second person and short sentences.
 - Each page opens with one sentence on what the thing does to the sound, then a "Try it" step that a reader can do in the web app.
 - No jargon without a glossary link the first time it appears on a page.
 - English is written first, page by page. The Spanish twin is then written as a translation of meaning, not of words, using the plugin's English control names in `code` style.

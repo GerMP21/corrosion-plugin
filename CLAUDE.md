@@ -39,6 +39,15 @@ The guide at `/wiki/` (`web/guide/`, `add-user-guide`) is partly generated from 
 - A new parameter needs a clip plan entry or an exclusion with a reason (`guide_clip_plan_covers_every_parameter`); a minimum that renders silent needs a `QUIET` reason or a fix.
 - A new model or mode needs a page declaring it in `covers:`, in English and Spanish (`npm run check`).
 
+## Wiki writing style
+
+The guide's voice is the maintainer's choice (2026-11-14), set as the `guide-writing-style` spec of `write-user-guide-content`. The model is the best synth manuals, those u-he publishes, written by Howard Scarr: people read them for pleasure, not as spec sheets. Take the qualities, never their text.
+- **Warm and conversational.** Write as an experienced sound designer sitting next to the reader in the studio: second person, witty when it helps, never corporate or marketing ("powerful", "unleash", "seamless"). Spanish pages use *tú* and natural Spanish, not a word-for-word translation.
+- **Explain why.** Don't write "this knob controls the cutoff". Say what the listener hears and the physics or circuit behind it, in plain words.
+- **Practical.** Every page gives sound-design tips: sweet spots, combinations, what to try when a sound is too dull, harsh or quiet, and traps to avoid. Longer topics get step-by-step walkthroughs from a named preset or the default patch, with values as the plugin shows them.
+- **Respect the reader.** Assume no DSP training, but never talk down. Explain a term or link the glossary the first time it appears on a page. Use maths only when it's the simplest way to say something.
+- **Accuracy over charm.** Every claim, tip and joke must agree with the plugin. Check tips by ear, by a render or in the code. Say plainly when an effect is subtle.
+
 ## Current state (2026-11-14)
 
 The work follows the code review in `FABLE-CODE-REVIEW-2026-07-07.md`. Each fixed finding there is struck through, with a `Status: FIXED` note naming its OpenSpec change.
